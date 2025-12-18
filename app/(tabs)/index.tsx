@@ -930,6 +930,33 @@ export default function HomeScreen() {
     return { count, total, minDays };
   }, [expensePlans]);
 
+  // Find ongoing budgets (started budgets)
+  const ongoingBudgets = useMemo(() => {
+    if (!expensePlans || expensePlans.length === 0) return [];
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return expensePlans
+      .filter(p => p.status === 'active' && isBudgetStarted(p.start_date))
+      .map(plan => {
+        let daysUntilEnd: number | null = null;
+        if (plan.end_date) {
+          const endDate = new Date(plan.end_date);
+          endDate.setHours(0, 0, 0, 0);
+          daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        return { plan, daysUntilEnd };
+      })
+      .sort((a, b) => {
+        // Sort by days until end (ascending), nulls last
+        if (a.daysUntilEnd === null && b.daysUntilEnd === null) return 0;
+        if (a.daysUntilEnd === null) return 1;
+        if (b.daysUntilEnd === null) return -1;
+        return a.daysUntilEnd - b.daysUntilEnd;
+      });
+  }, [expensePlans]);
+
   // Find next maturing budget
   const nextMaturingBudget = useMemo(() => {
     if (!expensePlans || expensePlans.length === 0) return null;
@@ -1413,7 +1440,7 @@ export default function HomeScreen() {
             styles.tabText,
             activeBalanceTab === 'plans' && styles.activeTabText
           ]}>
-            Plans
+            Budgets
           </Text>
         </Pressable>
         <Pressable
@@ -1584,6 +1611,7 @@ export default function HomeScreen() {
             expensePlansBalance={expensePlansSpendableBalance}
             expensePlansFundedBalance={expensePlansFundedBalance}
             expensePlans={expensePlans}
+            ongoingBudgets={ongoingBudgets}
             nextMaturingBudget={nextMaturingBudget}
             getNextMaturingBudgetCategoryIcons={getNextMaturingBudgetCategoryIcons}
             isRefreshing={isRefreshing}
@@ -2163,6 +2191,29 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontWeight: '600',
     color: colors.primary,
   },
+  ongoingSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+    marginBottom: 12,
+  },
+  ongoingSectionTitle: {
+    fontSize: getScaledFontSize(17, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.text,
+  },
+  ongoingCarouselContainer: {
+    paddingRight: 1,
+  },
+  ongoingCardWrapper: {
+    width: Platform.OS === 'ios' ? 300 : 280,
+    marginRight: Platform.OS === 'ios' ? 16 : 10,
+  },
+  ongoingSingleCard: {
+    marginHorizontal: 5,
+    marginBottom: 16,
+  },
   upNextSectionHeader: {
     paddingHorizontal: 5,
     marginBottom: 12,
@@ -2378,7 +2429,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   balanceAmount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 40 : 38, textSizeMultiplier),
     fontWeight: '700',
-    color: colors.accent,
+    color: '#fff',
     marginBottom: Platform.OS === 'ios' ? -10 : -10,
   },
   lockedSection: {

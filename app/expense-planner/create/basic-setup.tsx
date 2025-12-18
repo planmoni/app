@@ -251,7 +251,6 @@ export default function BasicSetupScreen() {
           planId: activePlanId,
           name: planName.trim(),
           total_budget: numericAmount,
-          budget_structure: budgetStructure,
           start_date: finalStartDate,
           end_date: finalEndDate,
         });
@@ -259,7 +258,6 @@ export default function BasicSetupScreen() {
         draftPlan = await saveDraftExpensePlan({
           name: planName.trim(),
           total_budget: numericAmount,
-          budget_structure: budgetStructure,
           start_date: finalStartDate,
           end_date: finalEndDate,
         });

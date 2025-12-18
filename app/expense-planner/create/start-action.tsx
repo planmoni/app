@@ -139,7 +139,7 @@ export default function StartActionScreen() {
                 <Banknote size={24} color={startAction === 'wallet' ? colors.primary : colors.text} />
               </View>
               <View style={styles.optionHeaderText}>
-                <Text style={styles.optionTitle}>Move it to wallet balance</Text>
+                <Text style={styles.optionTitle}>Spend directly from budget</Text>
                 <Text style={styles.optionSubtitle}>Keep the funds in this plan's wallet to spend/allocate.</Text>
               </View>
               <View style={[

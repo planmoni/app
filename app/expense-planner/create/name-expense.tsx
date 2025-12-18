@@ -56,7 +56,6 @@ export default function NameExpenseScreen() {
           });
           const draftPlan = await saveDraftExpensePlan({
             total_budget: totalBudget,
-            budget_structure: budgetStructure,
             start_date: startDate || undefined,
             end_date: endDate || undefined,
           });
@@ -107,7 +106,6 @@ export default function NameExpenseScreen() {
         const newDraftPlan = await saveDraftExpensePlan({
           name: planName.trim(),
           total_budget: totalBudget,
-          budget_structure: budgetStructure,
           start_date: startDate || undefined,
           end_date: endDate || undefined,
         });
@@ -134,7 +132,6 @@ export default function NameExpenseScreen() {
           planId,
           name: planName.trim(),
           total_budget: totalBudget,
-          budget_structure: budgetStructure,
           start_date: startDate || undefined,
           end_date: endDate || undefined,
         });

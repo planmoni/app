@@ -52,9 +52,9 @@ export function useExpensePlans() {
       setIsLoading(true);
       setError(null);
       
-      // Fetch all expense plans
+      // Fetch all budget plans
       const { data: plans, error: fetchError } = await supabase
-        .from('expense_plans')
+        .from('budget_plans')
         .select('*')
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
@@ -66,62 +66,31 @@ export function useExpensePlans() {
         return;
       }
 
-      // Fetch all buckets for all plans
-      const planIds = plans.map(p => p.id);
-      const { data: buckets, error: bucketsError } = await supabase
-        .from('expense_buckets')
-        .select('*')
-        .in('expense_plan_id', planIds)
-        .order('order_index', { ascending: true });
-
-      if (bucketsError) throw bucketsError;
-
-      // Fetch all locked funds for all buckets
-      const bucketIds = buckets?.map(b => b.id) || [];
-      let lockedFunds: ExpenseBucketLockedFunds[] = [];
-      
-      if (bucketIds.length > 0) {
-        const { data: funds, error: fundsError } = await supabase
-          .from('expense_bucket_locked_funds')
-          .select('*')
-          .in('expense_bucket_id', bucketIds)
-          .eq('status', 'locked');
-
-        if (fundsError) throw fundsError;
-        lockedFunds = funds || [];
-      }
-
-      // Create a map of bucket_id -> total locked amount
-      const lockedFundsMap = new Map<string, number>();
-      for (const fund of lockedFunds) {
-        const current = lockedFundsMap.get(fund.expense_bucket_id) || 0;
-        lockedFundsMap.set(fund.expense_bucket_id, current + Number(fund.locked_amount));
-      }
-
-      // Group buckets by plan_id
-      const bucketsByPlan = new Map<string, ExpenseBucket[]>();
-      for (const bucket of buckets || []) {
-        const planBuckets = bucketsByPlan.get(bucket.expense_plan_id) || [];
-        planBuckets.push(bucket);
-        bucketsByPlan.set(bucket.expense_plan_id, planBuckets);
-      }
-
-      // Enhance plans with buckets, locked funds, and funding status
-      const enhancedPlans: ExpensePlan[] = plans.map(plan => {
-        const planBuckets = bucketsByPlan.get(plan.id) || [];
-        
-        // Get current_balance from plan (from plan_wallets via trigger)
+      // Enhance plans with categories/subcategories and funding status
+      // Buckets are no longer a separate table - categories/subcategories are stored directly in budget_plans
+      const enhancedPlans: ExpensePlan[] = plans.map((plan: any) => {
+        // Get current_balance from plan
         const currentBalance = (plan as any).current_balance || 0;
         const totalBudget = plan.total_budget || 0;
         
         // Calculate funding status based on current_balance and total_budget
         const fundingStatus = getPlanFundingStatus(plan.status, currentBalance, totalBudget);
         
-        // Calculate total locked for this plan (for backward compatibility)
-        let totalLocked = 0;
-        for (const bucket of planBuckets) {
-          totalLocked += lockedFundsMap.get(bucket.id) || 0;
-        }
+        // Convert subcategories to bucket-like structure for backward compatibility
+        const subcategories = (plan as any).subcategories || [];
+        const planBuckets: ExpenseBucket[] = subcategories.map((sub: any, index: number) => ({
+          id: `${plan.id}-${sub.category_id}-${sub.subcategory_id}`,
+          expense_plan_id: plan.id,
+          category_id: sub.category_id,
+          subcategory_id: sub.subcategory_id,
+          name: sub.name || `${sub.category_id} - ${sub.subcategory_id}`,
+          target_amount: 0, // Not stored in budget_plans anymore
+          amount_spent: 0,
+          remaining_amount: 0,
+          order_index: index,
+          created_at: plan.created_at,
+          updated_at: plan.updated_at,
+        }));
 
         // Extract metadata fields
         const metadata = plan.metadata || {};
@@ -129,7 +98,7 @@ export function useExpensePlans() {
         return {
           ...plan,
           buckets: planBuckets,
-          total_locked: totalLocked,
+          total_locked: 0, // No longer using locked funds
           funding_status: fundingStatus,
           // Extract metadata fields to top level for easier access
           start_action: metadata.start_action || plan.start_action,
@@ -213,17 +182,16 @@ export function useExpensePlans() {
     name?: string;
     plan_name?: string;
     total_budget?: number;
-    budget_structure?: BudgetStructure;
     start_date?: string;
     end_date?: string;
-    plan_type?: 'recurring' | 'one_time' | 'long_term';
-    priority?: 'high' | 'medium' | 'low';
-    funding_method?: 'auto' | 'manual' | 'hybrid';
+    funding_method?: 'auto' | 'manual';
     payout_schedule?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
     required_per_cycle?: number;
     required_per_day?: number;
     planId?: string;
     last_step?: string; // Track the last step/page user was on
+    categories?: string[]; // Array of category IDs
+    subcategories?: Array<{ category_id: string; subcategory_id: string }>; // Array of subcategory objects
   }) => {
     if (!session?.user?.id) {
       throw new Error('User not authenticated');
@@ -237,24 +205,32 @@ export function useExpensePlans() {
         if (planData.name !== undefined) updates.name = planData.name;
         if (planData.plan_name !== undefined) updates.plan_name = planData.plan_name;
         if (planData.total_budget !== undefined) updates.total_budget = planData.total_budget;
-        if (planData.budget_structure !== undefined) updates.budget_structure = planData.budget_structure;
         if (planData.start_date !== undefined) updates.start_date = planData.start_date;
         if (planData.end_date !== undefined) updates.end_date = planData.end_date;
-        if (planData.plan_type !== undefined) updates.plan_type = planData.plan_type;
-        if (planData.priority !== undefined) updates.priority = planData.priority;
         if (planData.funding_method !== undefined) updates.funding_method = planData.funding_method;
         if (planData.payout_schedule !== undefined) updates.payout_schedule = planData.payout_schedule;
         if (planData.required_per_cycle !== undefined) updates.required_per_cycle = planData.required_per_cycle;
         if (planData.required_per_day !== undefined) updates.required_per_day = planData.required_per_day;
+        // Add categories and subcategories if provided
+        if (planData.categories !== undefined) updates.categories = planData.categories;
+        if (planData.subcategories !== undefined) updates.subcategories = planData.subcategories;
+        
+        // Update categories and subcategories if provided
+        if (planData.categories !== undefined) {
+          updates.categories = planData.categories;
+        }
+        if (planData.subcategories !== undefined) {
+          updates.subcategories = planData.subcategories;
+        }
         
         // Update last_step in metadata if provided
         if (planData.last_step !== undefined) {
-          // Get current metadata and update last_step
-          const { data: currentPlan } = await supabase
-            .from('expense_plans')
-            .select('metadata')
-            .eq('id', planData.planId)
-            .single();
+        // Get current metadata and update last_step
+        const { data: currentPlan } = await supabase
+          .from('budget_plans')
+          .select('metadata')
+          .eq('id', planData.planId)
+          .single();
           
           const currentMetadata = currentPlan?.metadata || {};
           updates.metadata = {
@@ -264,7 +240,7 @@ export function useExpensePlans() {
         }
 
         const { data, error: updateError } = await supabase
-          .from('expense_plans')
+          .from('budget_plans')
           .update(updates)
           .eq('id', planData.planId)
           .eq('user_id', session.user.id)
@@ -284,29 +260,36 @@ export function useExpensePlans() {
       }
 
       // Create new draft plan
-      if (!planData.total_budget || !planData.budget_structure) {
-        throw new Error('total_budget and budget_structure are required to create a draft plan');
+      if (!planData.total_budget) {
+        throw new Error('total_budget is required to create a draft plan');
+      }
+
+      const insertData: any = {
+        user_id: session.user.id,
+        name: planData.name || planData.plan_name || 'Untitled Plan',
+        plan_name: planData.plan_name || planData.name || 'Untitled Plan',
+        total_budget: planData.total_budget,
+        start_date: planData.start_date || null,
+        end_date: planData.end_date || null,
+        funding_method: planData.funding_method || 'manual',
+        payout_schedule: planData.payout_schedule || 'weekly',
+        required_per_cycle: planData.required_per_cycle || 0,
+        required_per_day: planData.required_per_day || 0,
+        status: 'active',
+        metadata: planData.last_step ? { last_step: planData.last_step } : {},
+      };
+
+      // Add categories and subcategories if provided
+      if (planData.categories !== undefined) {
+        insertData.categories = planData.categories;
+      }
+      if (planData.subcategories !== undefined) {
+        insertData.subcategories = planData.subcategories;
       }
 
       const { data, error: insertError } = await supabase
-        .from('expense_plans')
-        .insert({
-          user_id: session.user.id,
-          name: planData.name || planData.plan_name || 'Untitled Plan',
-          plan_name: planData.plan_name || planData.name || 'Untitled Plan',
-          total_budget: planData.total_budget,
-          budget_structure: planData.budget_structure,
-          start_date: planData.start_date || null,
-          end_date: planData.end_date || null,
-          plan_type: planData.plan_type || 'one_time',
-          priority: planData.priority || 'medium',
-          funding_method: planData.funding_method || 'manual',
-          payout_schedule: planData.payout_schedule || 'weekly',
-          required_per_cycle: planData.required_per_cycle || 0,
-          required_per_day: planData.required_per_day || 0,
-          status: 'draft',
-          metadata: planData.last_step ? { last_step: planData.last_step } : {},
-        })
+        .from('budget_plans')
+        .insert(insertData)
         .select()
         .single();
 
@@ -347,35 +330,49 @@ export function useExpensePlans() {
     }
 
     try {
-      // First, delete existing buckets for this plan
-      const { error: deleteError } = await supabase
-        .from('expense_buckets')
-        .delete()
-        .eq('expense_plan_id', planId);
+      // Buckets are no longer stored separately - categories/subcategories are in budget_plans
+      // Extract categories and subcategories from buckets and update the plan
+      const uniqueCategories = new Set<string>();
+      const subcategoriesArray: Array<{ category_id: string; subcategory_id: string }> = [];
+      
+      buckets.forEach(bucket => {
+        if (bucket.category_id) {
+          uniqueCategories.add(bucket.category_id);
+        }
+        if (bucket.category_id && bucket.subcategory_id) {
+          subcategoriesArray.push({
+            category_id: bucket.category_id,
+            subcategory_id: bucket.subcategory_id,
+          });
+        }
+      });
 
-      if (deleteError) throw deleteError;
+      // Update the plan with categories and subcategories
+      const { data, error: updateError } = await supabase
+        .from('budget_plans')
+        .update({
+          categories: Array.from(uniqueCategories),
+          subcategories: subcategoriesArray,
+        })
+        .eq('id', planId)
+        .select();
 
-      // Insert new buckets
-      if (buckets.length > 0) {
-        const bucketsToInsert = buckets.map((bucket, index) => ({
-          expense_plan_id: planId,
-          category_id: bucket.category_id,
-          subcategory_id: bucket.subcategory_id,
-          name: bucket.name,
-          target_amount: bucket.target_amount,
-          order_index: bucket.order_index ?? index,
-        }));
-
-        const { data, error: insertError } = await supabase
-          .from('expense_buckets')
-          .insert(bucketsToInsert)
-          .select();
-
-        if (insertError) throw insertError;
-        return data;
-      }
-
-      return [];
+      if (updateError) throw updateError;
+      
+      // Return bucket-like structure for backward compatibility
+      return subcategoriesArray.map((sub, index) => ({
+        id: `${planId}-${sub.category_id}-${sub.subcategory_id}`,
+        expense_plan_id: planId,
+        category_id: sub.category_id,
+        subcategory_id: sub.subcategory_id,
+        name: `${sub.category_id} - ${sub.subcategory_id}`,
+        target_amount: 0,
+        amount_spent: 0,
+        remaining_amount: 0,
+        order_index: index,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
     } catch (err) {
       console.error('Error saving expense buckets:', err);
       throw err;
@@ -418,7 +415,7 @@ export function useExpensePlans() {
 
     try {
       const { data, error: updateError } = await supabase
-        .from('expense_plans')
+        .from('budget_plans')
         .update({
           name,
           status: 'active',
@@ -439,7 +436,6 @@ export function useExpensePlans() {
   const createExpensePlan = async (planData: {
     name: string;
     total_budget: number;
-    budget_structure: BudgetStructure;
     buckets: Array<{
       category_id: string;
       subcategory_id: string;
@@ -462,38 +458,24 @@ export function useExpensePlans() {
         order_index: index,
       }));
 
-      const { data: planId, error: createError } = await supabase.rpc('create_expense_plan_with_buckets', {
-        p_user_id: session.user.id,
-        p_name: planData.name,
-        p_total_budget: planData.total_budget,
-        p_budget_structure: planData.budget_structure,
-        p_start_date: planData.start_date || null,
-        p_end_date: planData.end_date || null,
-        p_buckets: bucketsJson,
-      });
-
-      if (createError) throw createError;
-
-      // Fetch the created plan
-      const { data: plan, error: fetchError } = await supabase
-        .from('expense_plans')
-        .select('*')
-        .eq('id', planId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      // Update status to active
-      const { data: finalizedPlan, error: finalizeError } = await supabase
-        .from('expense_plans')
-        .update({ status: 'active' })
-        .eq('id', planId)
+      // Note: create_expense_plan_with_buckets RPC function may not exist anymore
+      // Creating plan directly instead
+      const { data: createdPlan, error: createError } = await supabase
+        .from('budget_plans')
+        .insert({
+          user_id: session.user.id,
+          name: planData.name,
+          total_budget: planData.total_budget,
+          start_date: planData.start_date || null,
+          end_date: planData.end_date || null,
+          status: 'active',
+        })
         .select()
         .single();
 
-      if (finalizeError) throw finalizeError;
+      if (createError) throw createError;
 
-      return finalizedPlan;
+      return createdPlan;
     } catch (err) {
       console.error('Error creating expense plan:', err);
       throw err;
@@ -503,7 +485,7 @@ export function useExpensePlans() {
   const updateExpensePlan = async (id: string, updates: Partial<ExpensePlan>) => {
     try {
       const { data, error: updateError } = await supabase
-        .from('expense_plans')
+        .from('budget_plans')
         .update(updates)
         .eq('id', id)
         .select()
@@ -531,7 +513,7 @@ export function useExpensePlans() {
     try {
       // First verify the plan exists and belongs to the user
       const { data: plan, error: fetchError } = await supabase
-        .from('expense_plans')
+        .from('budget_plans')
         .select('id, user_id, status')
         .eq('id', id)
         .eq('user_id', session.user.id)
@@ -544,7 +526,7 @@ export function useExpensePlans() {
 
       // Delete the plan (CASCADE will handle related records)
       const { error: deleteError } = await supabase
-        .from('expense_plans')
+        .from('budget_plans')
         .delete()
         .eq('id', id)
         .eq('user_id', session.user.id); // Ensure user owns the plan
@@ -591,14 +573,30 @@ export function useExpensePlans() {
 
   const getExpenseBuckets = async (planId: string): Promise<ExpenseBucket[]> => {
     try {
-      const { data, error: fetchError } = await supabase
-        .from('expense_buckets')
-        .select('*')
-        .eq('expense_plan_id', planId)
-        .order('order_index', { ascending: true });
+      // Fetch plan to get subcategories
+      const { data: plan, error: fetchError } = await supabase
+        .from('budget_plans')
+        .select('subcategories, created_at, updated_at')
+        .eq('id', planId)
+        .single();
 
       if (fetchError) throw fetchError;
-      return data || [];
+      
+      // Convert subcategories to bucket-like structure
+      const subcategories = (plan as any)?.subcategories || [];
+      return subcategories.map((sub: any, index: number) => ({
+        id: `${planId}-${sub.category_id}-${sub.subcategory_id}`,
+        expense_plan_id: planId,
+        category_id: sub.category_id,
+        subcategory_id: sub.subcategory_id,
+        name: sub.name || `${sub.category_id} - ${sub.subcategory_id}`,
+        target_amount: 0,
+        amount_spent: 0,
+        remaining_amount: 0,
+        order_index: index,
+        created_at: plan.created_at,
+        updated_at: plan.updated_at,
+      }));
     } catch (err) {
       console.error('Error fetching expense buckets:', err);
       throw err;
@@ -675,7 +673,7 @@ export function useExpensePlans() {
     try {
       // Get current metadata
       const { data: currentPlan } = await supabase
-        .from('expense_plans')
+        .from('budget_plans')
         .select('metadata')
         .eq('id', planId)
         .eq('user_id', session.user.id)
@@ -685,7 +683,7 @@ export function useExpensePlans() {
 
       // Update last_step in metadata
       const { error: updateError } = await supabase
-        .from('expense_plans')
+        .from('budget_plans')
         .update({
           metadata: {
             ...currentMetadata,
@@ -708,18 +706,12 @@ export function useExpensePlans() {
     plan_name: string;
     name: string;
     total_budget: number;
-    budget_structure?: BudgetStructure;
     start_date: string | null;
     end_date: string | null;
-    plan_type?: 'recurring' | 'one_time' | 'long_term';
-    priority?: 'high' | 'medium' | 'low';
-    funding_method?: 'auto' | 'manual' | 'hybrid';
+    funding_method?: 'auto' | 'manual';
     payout_schedule?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
     required_per_cycle?: number;
     required_per_day?: number;
-    spending_permission?: 'open' | 'restricted';
-    lock_type?: 'none' | 'instant' | '24h_delay' | 'pin_required';
-    pin_hash?: string | null;
     alert_at_70_percent?: boolean;
     alert_risk_failure?: boolean;
     alert_weekly_progress?: boolean;
@@ -746,26 +738,73 @@ export function useExpensePlans() {
           metadata.funding_method = planData.funding_method;
         }
         
+        // Extract categories and subcategories from buckets BEFORE creating plan
+        let uniqueCategories: string[] = [];
+        let subcategoriesArray: Array<{ category_id: string; subcategory_id: string }> = [];
+        
+        if (planData.buckets && planData.buckets.length > 0) {
+          const categorySet = new Set<string>();
+          planData.buckets.forEach(bucket => {
+            if (bucket.category_id) {
+              categorySet.add(bucket.category_id);
+            }
+            if (bucket.category_id && bucket.subcategory_id) {
+              subcategoriesArray.push({
+                category_id: bucket.category_id,
+                subcategory_id: bucket.subcategory_id,
+              });
+            }
+          });
+          uniqueCategories = Array.from(categorySet);
+        } else {
+          // If no buckets yet, try to read from existing draft plan if planId is in metadata
+          // This handles the case where categories were saved during plan-details step
+          const existingPlanId = metadata.planId || (planData as any).planId;
+          if (existingPlanId) {
+            try {
+              const { data: existingPlan } = await supabase
+                .from('budget_plans')
+                .select('categories, subcategories')
+                .eq('id', existingPlanId)
+                .eq('user_id', session.user.id)
+                .single();
+              
+              if (existingPlan?.categories && Array.isArray(existingPlan.categories)) {
+                uniqueCategories = existingPlan.categories;
+              }
+              if (existingPlan?.subcategories && Array.isArray(existingPlan.subcategories)) {
+                subcategoriesArray = existingPlan.subcategories;
+              }
+            } catch (err) {
+              console.warn('Could not read categories from existing plan:', err);
+            }
+          }
+        }
+
         // Build insert object with only fields that exist
         // Start with required/base fields
         const insertData: any = {
           user_id: session.user.id,
           name: planData.name,
           total_budget: planData.total_budget,
-          budget_structure: planData.budget_structure || 'fixed',
           start_date: planData.start_date,
           end_date: planData.end_date,
           status: 'active',
           metadata: metadata,
         };
 
+        // Add categories and subcategories if we have them
+        if (uniqueCategories.length > 0) {
+          insertData.categories = uniqueCategories;
+        }
+        if (subcategoriesArray.length > 0) {
+          insertData.subcategories = subcategoriesArray;
+        }
+
         // Add optional fields if they exist in schema (using conditional spread)
         // These fields may not exist if migrations haven't been run
         if (planData.payout_schedule) {
           insertData.payout_schedule = planData.payout_schedule;
-        }
-        if (planData.plan_type) {
-          insertData.plan_type = planData.plan_type;
         }
         // Try to add funding_method, but it may not exist in schema
         // If it fails, it's already stored in metadata as fallback
@@ -777,6 +816,15 @@ export function useExpensePlans() {
         }
         if (planData.required_per_day !== undefined) {
           insertData.required_per_day = planData.required_per_day;
+        }
+        if (planData.alert_at_70_percent !== undefined) {
+          insertData.alert_at_70_percent = planData.alert_at_70_percent;
+        }
+        if (planData.alert_risk_failure !== undefined) {
+          insertData.alert_risk_failure = planData.alert_risk_failure;
+        }
+        if (planData.alert_weekly_progress !== undefined) {
+          insertData.alert_weekly_progress = planData.alert_weekly_progress;
         }
 
         // Add auto top-up fields if enabled
@@ -805,7 +853,7 @@ export function useExpensePlans() {
         // Try to create expense plan with all fields
         // If it fails due to missing columns, retry without optional columns
         let { data: plan, error: planError } = await supabase
-          .from('expense_plans')
+          .from('budget_plans')
           .insert(insertData)
           .select()
           .single();
@@ -819,16 +867,23 @@ export function useExpensePlans() {
             user_id: session.user.id,
             name: planData.name,
             total_budget: planData.total_budget,
-            budget_structure: planData.budget_structure || 'fixed',
             start_date: planData.start_date,
             end_date: planData.end_date,
             status: 'active',
             metadata: metadata, // All optional data stored in metadata
           };
+
+          // Try to add categories/subcategories even in fallback (they should exist after migration)
+          if (uniqueCategories.length > 0) {
+            fallbackData.categories = uniqueCategories;
+          }
+          if (subcategoriesArray.length > 0) {
+            fallbackData.subcategories = subcategoriesArray;
+          }
           
           // Only add fields that definitely exist in base schema
           const retryResult = await supabase
-            .from('expense_plans')
+            .from('budget_plans')
             .insert(fallbackData)
             .select()
             .single();
@@ -840,24 +895,37 @@ export function useExpensePlans() {
         if (planError) throw planError;
         if (!plan) throw new Error('Failed to create plan');
 
-        // Create buckets if provided
-        if (planData.buckets && planData.buckets.length > 0) {
-          const bucketsToInsert = planData.buckets.map((bucket, index) => ({
-            expense_plan_id: plan.id,
-            category_id: bucket.category_id,
-            subcategory_id: bucket.subcategory_id,
-            name: bucket.name,
-            target_amount: bucket.target_amount,
-            order_index: index,
-          }));
-
-          const { error: bucketsError } = await supabase
-            .from('expense_buckets')
-            .insert(bucketsToInsert);
-
-          if (bucketsError) {
-            console.error('Error creating buckets:', bucketsError);
-            // Continue anyway
+        // Buckets are no longer stored separately - categories/subcategories are in budget_plans
+        // If we have buckets but categories/subcategories weren't included, update the plan
+        if (planData.buckets && planData.buckets.length > 0 && (uniqueCategories.length === 0 || subcategoriesArray.length === 0)) {
+          // Re-extract from buckets if not already extracted
+          const categorySet = new Set<string>();
+          const subcatsArray: Array<{ category_id: string; subcategory_id: string }> = [];
+          
+          planData.buckets.forEach(bucket => {
+            if (bucket.category_id) {
+              categorySet.add(bucket.category_id);
+            }
+            if (bucket.category_id && bucket.subcategory_id) {
+              subcatsArray.push({
+                category_id: bucket.category_id,
+                subcategory_id: bucket.subcategory_id,
+              });
+            }
+          });
+          
+          // Update the plan with categories and subcategories
+          const { error: updateError } = await supabase
+            .from('budget_plans')
+            .update({
+              categories: Array.from(categorySet),
+              subcategories: subcatsArray,
+            })
+            .eq('id', plan.id);
+          
+          if (updateError) {
+            console.error('Error updating plan with categories/subcategories:', updateError);
+            // Continue anyway - not critical
           }
         }
 

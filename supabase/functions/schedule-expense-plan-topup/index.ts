@@ -42,11 +42,10 @@ serve(async (req) => {
     const todayDate = new Date();
     todayDate.setHours(0, 0, 0, 0);
 
-    // Delete unfunded budgets that have started (not draft plans)
+    // Delete unfunded budgets that have started
     const { data: unfundedPlans, error: unfundedError } = await supabase
-      .from('expense_plans')
+      .from('budget_plans')
       .select('id, user_id, name, start_date, current_balance, status')
-      .not('status', 'eq', 'draft')
       .lte('start_date', today);
 
     if (!unfundedError && unfundedPlans) {
@@ -68,7 +67,7 @@ serve(async (req) => {
         for (const plan of plansToDelete) {
           try {
             const { error: deleteError } = await supabase
-              .from('expense_plans')
+              .from('budget_plans')
               .delete()
               .eq('id', plan.id)
               .eq('user_id', plan.user_id);
@@ -94,11 +93,11 @@ serve(async (req) => {
 
     // Find all expense plans that need top-ups today
     const { data: plansToTopUp, error: fetchError } = await supabase
-      .from('expense_plans')
+      .from('budget_plans')
       .select('*')
       .eq('auto_topup_enabled', true)
       .eq('auto_topup_next_date', today)
-      .in('status', ['draft', 'active']);
+      .eq('status', 'active');
 
     if (fetchError) {
       console.error('Error fetching plans:', fetchError);
@@ -217,7 +216,7 @@ serve(async (req) => {
         // If next date is after end date, disable auto top-up
         if (nextTopUpDate > endDate) {
           await supabase
-            .from('expense_plans')
+            .from('budget_plans')
             .update({
               auto_topup_enabled: false,
               auto_topup_next_date: null,
@@ -226,7 +225,7 @@ serve(async (req) => {
         } else {
           // Update next top-up date
           await supabase
-            .from('expense_plans')
+            .from('budget_plans')
             .update({
               auto_topup_next_date: nextDateStr,
             })

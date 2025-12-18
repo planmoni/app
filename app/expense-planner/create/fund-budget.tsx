@@ -220,7 +220,6 @@ export default function FundBudgetScreen() {
         console.log('No planId found in fund-budget screen, creating draft plan...');
         const newDraftPlan = await saveDraftExpensePlan({
           total_budget: totalBudget,
-          budget_structure: budgetStructure as 'fixed' | 'estimated',
           start_date: startDate,
           end_date: endDate,
         });

@@ -8,6 +8,7 @@ import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import ExpensePlanCard from '@/components/expense-planner/ExpensePlanCard';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
+import { isBudgetStarted } from '@/lib/expensePlanUtils';
 
 type ExpensePlansSectionProps = {
   onRequireAuth?: () => boolean;
@@ -19,8 +20,14 @@ export default function ExpensePlansSection({ onRequireAuth }: ExpensePlansSecti
   const haptics = useHaptics();
   const { expensePlans, isLoading } = useExpensePlans();
 
-  // Show all plans (draft, active, etc.) - limit to 5 for home page
-  const displayedPlans = useMemo(() => expensePlans.slice(0, 5), [expensePlans]);
+  // Filter out ongoing/started budgets - only show plans that haven't started
+  const displayedPlans = useMemo(() => {
+    const filteredPlans = expensePlans.filter(plan => {
+      // Exclude plans that have started (ongoing budgets)
+      return !isBudgetStarted(plan.start_date);
+    });
+    return filteredPlans.slice(0, 5);
+  }, [expensePlans]);
 
   const handleViewAll = () => {
     if (onRequireAuth && !onRequireAuth()) return;

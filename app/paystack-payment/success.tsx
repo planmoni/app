@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CheckCircle, Download, ArrowLeft, Home } from 'lucide-react-native';
+import { CheckCircle, Download, ArrowLeft, Home, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -43,6 +43,11 @@ export default function PaystackPaymentSuccessScreen() {
     }
   };
 
+  const handleClose = () => {
+    haptics.lightImpact();
+    router.replace('/(tabs)');
+  };
+
   const handleViewTransaction = () => {
     haptics.lightImpact();
     // Navigate to transactions page
@@ -72,7 +77,9 @@ export default function PaystackPaymentSuccessScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Payment Successful</Text>
-        <View style={styles.placeholder} />
+        <Pressable onPress={handleClose} style={styles.closeButton} hitSlop={8}>
+          <X size={20} color={colors.text} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -216,15 +223,18 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       justifyContent: 'center',
       alignItems: 'center',
     },
+  closeButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
     headerTitle: {
       fontSize: getScaledFontSize(18, textSizeMultiplier),
       fontWeight: '600',
       color: colors.text,
       flex: 1,
       textAlign: 'center',
-    },
-    placeholder: {
-      width: 40,
     },
     scrollView: {
       flex: 1,

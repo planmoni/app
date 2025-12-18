@@ -605,7 +605,6 @@ export default function BucketsScreen() {
         console.log('No planId found in buckets screen, creating draft plan...');
         const newDraftPlan = await saveDraftExpensePlan({
           total_budget: totalBudget,
-          budget_structure: budgetStructure as 'fixed' | 'estimated',
         });
         
         if (!newDraftPlan || !newDraftPlan.id) {

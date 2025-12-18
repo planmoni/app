@@ -1,9 +1,9 @@
 /*
   # Add process_paystack_plan_deposit function
   
-  This function processes Paystack deposits directly to expense plans.
+  This function processes Paystack deposits directly to budget plans.
   It creates a plan_transaction with type 'manual_topup', which triggers
-  automatic updates to plan_wallets.balance and expense_plans.current_balance.
+  automatic updates to plan_wallets.balance and budget_plans.current_balance.
   
   1. New Functions
     - process_paystack_plan_deposit
@@ -18,10 +18,8 @@
     - plan_wallets table (if not already created)
 */
 
--- Ensure expense_plans table has current_balance column
-ALTER TABLE expense_plans
-  ADD COLUMN IF NOT EXISTS current_balance numeric DEFAULT 0 CHECK (current_balance >= 0),
-  ADD COLUMN IF NOT EXISTS total_spent numeric DEFAULT 0 CHECK (total_spent >= 0);
+-- Note: budget_plans table already has current_balance and total_spent columns
+-- No need to alter expense_plans as we're using budget_plans now
 
 -- Ensure events table has metadata column
 ALTER TABLE events
@@ -58,30 +56,9 @@ ALTER TABLE events
     'deposit_successful'
   ));
 
--- Ensure plan_wallets table exists
-CREATE TABLE IF NOT EXISTS plan_wallets (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  plan_id uuid REFERENCES expense_plans(id) ON DELETE CASCADE NOT NULL UNIQUE,
-  balance numeric DEFAULT 0 CHECK (balance >= 0),
-  spending_permission text DEFAULT 'open' CHECK (spending_permission IN ('open', 'restricted')),
-  lock_type text DEFAULT 'none' CHECK (lock_type IN ('none', 'instant', '24h_delay', 'pin_required')),
-  pin_hash text,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-
--- Ensure plan_transactions table exists
-CREATE TABLE IF NOT EXISTS plan_transactions (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  plan_id uuid REFERENCES expense_plans(id) ON DELETE CASCADE NOT NULL,
-  wallet_id uuid REFERENCES plan_wallets(id) ON DELETE CASCADE NOT NULL,
-  type text NOT NULL CHECK (type IN ('auto_allocation', 'manual_topup', 'spending', 'withdrawal')),
-  amount numeric NOT NULL CHECK (amount > 0),
-  description text,
-  category_id text,
-  subcategory_id text,
-  created_at timestamptz DEFAULT now()
-);
+-- Note: plan_wallets and plan_transactions tables should already exist
+-- The foreign keys will be updated by migration 20250120000001_update_plan_wallets_foreign_keys.sql
+-- We don't recreate them here to avoid conflicts
 
 -- Create indexes if they don't exist
 CREATE INDEX IF NOT EXISTS idx_plan_wallets_plan_id ON plan_wallets(plan_id);
@@ -106,6 +83,7 @@ DECLARE
   v_plan_user_id uuid;
   v_wallet_id uuid;
   v_transaction_id uuid;
+  v_main_transaction_id uuid;
   v_already_processed boolean := false;
   v_current_balance numeric;
   v_new_balance numeric;
@@ -127,12 +105,12 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Reference is required');
   END IF;
   
-  -- Check if transaction already exists (by checking description field for reference)
+  -- Check if transaction already exists (by checking reference in transactions table)
   SELECT EXISTS(
-    SELECT 1 FROM plan_transactions 
-    WHERE plan_id = arg_plan_id
-    AND type = 'manual_topup'
-    AND description LIKE '%' || arg_reference || '%'
+    SELECT 1 FROM transactions 
+    WHERE reference = arg_reference 
+    AND type = 'expense_plan_topup'
+    AND status = 'completed'
   ) INTO v_already_processed;
   
   IF v_already_processed THEN
@@ -145,7 +123,7 @@ BEGIN
   
   -- Validate plan exists and belongs to user
   SELECT id, user_id INTO v_plan_id, v_plan_user_id
-  FROM expense_plans
+  FROM budget_plans
   WHERE id = arg_plan_id;
   
   IF v_plan_id IS NULL THEN
@@ -176,8 +154,36 @@ BEGIN
   -- Calculate new balance
   v_new_balance := COALESCE(v_current_balance, 0) + arg_amount;
   
+  -- Create transaction record in main transactions table
+  INSERT INTO transactions (
+    user_id,
+    type,
+    amount,
+    status,
+    source,
+    destination,
+    reference,
+    description,
+    metadata
+  ) VALUES (
+    arg_user_id,
+    'expense_plan_topup',
+    arg_amount,
+    'completed',
+    'Paystack',
+    'budget_plan',
+    arg_reference,
+    format('Paystack deposit to budget plan (Reference: %s)', arg_reference),
+    jsonb_build_object(
+      'plan_id', arg_plan_id,
+      'transaction_reference', arg_reference,
+      'source', 'Paystack',
+      'is_plan_deposit', true
+    ) || arg_paystack_data
+  ) RETURNING id INTO v_main_transaction_id;
+
   -- Create plan_transaction with type 'manual_topup'
-  -- The trigger will automatically update plan_wallets.balance and expense_plans.current_balance
+  -- The trigger will automatically update plan_wallets.balance and budget_plans.current_balance
   INSERT INTO plan_transactions (
     plan_id,
     wallet_id,
@@ -199,8 +205,6 @@ BEGIN
   -- which sums up all excess funds (current_balance - total_budget) from all plans
   
   -- Create notification event (use 'deposit_successful' as it's an allowed event type)
-  -- Note: transaction_id is NULL because plan_transactions are in a different table
-  -- The plan_transaction_id is stored in metadata instead
   INSERT INTO events (
     user_id,
     type,
@@ -216,7 +220,7 @@ BEGIN
     format('₦%s has been added to your plan via Paystack', 
            to_char(arg_amount, 'FM999,999,999.00')),
     'unread',
-    NULL, -- transaction_id is NULL for plan transactions (they're in plan_transactions table)
+    v_main_transaction_id, -- Reference the main transaction record
     jsonb_build_object(
       'plan_id', arg_plan_id,
       'plan_transaction_id', v_transaction_id,
@@ -233,7 +237,8 @@ BEGIN
     'already_processed', false,
     'plan_id', arg_plan_id,
     'wallet_id', v_wallet_id,
-    'transaction_id', v_transaction_id,
+    'transaction_id', v_main_transaction_id,
+    'plan_transaction_id', v_transaction_id,
     'old_balance', COALESCE(v_current_balance, 0),
     'new_balance', v_new_balance,
     'amount_added', arg_amount,
@@ -271,14 +276,14 @@ BEGIN
   END IF;
   
   -- Update wallet balance based on transaction type
-  IF NEW.type = 'auto_allocation' OR NEW.type = 'manual_topup' THEN
+  IF NEW.type = 'auto_allocation' OR NEW.type = 'manual_topup' OR NEW.type = 'auto_topup' THEN
     UPDATE plan_wallets
     SET balance = balance + NEW.amount,
         updated_at = now()
     WHERE id = v_wallet_id;
     
     -- Update plan current_balance
-    UPDATE expense_plans
+    UPDATE budget_plans
     SET current_balance = COALESCE(current_balance, 0) + NEW.amount,
         updated_at = now()
     WHERE id = NEW.plan_id;
@@ -289,7 +294,7 @@ BEGIN
     WHERE id = v_wallet_id;
     
     -- Update plan current_balance and total_spent
-    UPDATE expense_plans
+    UPDATE budget_plans
     SET current_balance = COALESCE(current_balance, 0) - NEW.amount,
         total_spent = COALESCE(total_spent, 0) + NEW.amount,
         updated_at = now()
@@ -308,5 +313,5 @@ CREATE TRIGGER trigger_update_plan_wallet_balance
   EXECUTE FUNCTION update_plan_wallet_balance();
 
 -- Add comment
-COMMENT ON FUNCTION process_paystack_plan_deposit IS 'Processes Paystack deposits directly to expense plans. Creates plan_transaction with type manual_topup, which triggers automatic updates to plan_wallets and expense_plans.current_balance.';
+COMMENT ON FUNCTION process_paystack_plan_deposit IS 'Processes Paystack deposits directly to budget plans. Creates plan_transaction with type manual_topup, which triggers automatic updates to plan_wallets and budget_plans.current_balance.';
 

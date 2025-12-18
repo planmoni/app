@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, ArrowRight, Wallet, CreditCard } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Wallet, CreditCard, X } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
@@ -64,7 +64,13 @@ export default function FundPlanScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Fund Plan</Text>
-        <View style={styles.headerSpacer} />
+        <Pressable
+          onPress={() => router.replace('/(tabs)')}
+          style={styles.closeButton}
+          hitSlop={8}
+        >
+          <X size={20} color={colors.text} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -159,15 +165,18 @@ const createStyles = (
     alignItems: 'center',
     marginRight: 8,
   },
+  closeButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   headerTitle: {
     fontSize: getScaledFontSize(isSmallScreen ? 16 : 18, textSizeMultiplier),
     fontWeight: '600',
     color: colors.text,
     flex: 1,
     textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 40,
   },
   scrollView: {
     flex: 1,

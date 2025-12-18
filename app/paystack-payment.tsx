@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, CreditCard, Shield, Lock } from 'lucide-react-native';
+import { ArrowLeft, CreditCard, Shield, Lock, X } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -48,6 +48,11 @@ export default function PaystackPaymentScreen() {
   const handleBack = () => {
     haptics.lightImpact();
     router.back();
+  };
+
+  const handleClose = () => {
+    haptics.lightImpact();
+    router.replace('/(tabs)');
   };
 
   const formatAmount = (value: string) => {
@@ -292,6 +297,9 @@ export default function PaystackPaymentScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Add Funds with Paystack</Text>
+        <Pressable onPress={handleClose} style={styles.closeButton} hitSlop={8}>
+          <X size={20} color={colors.text} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -409,6 +417,12 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
       alignItems: 'center',
       marginRight: 8,
     },
+  closeButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
     headerTitle: {
       fontSize: isSmallScreen ? 16 : 18,
       fontWeight: '600',

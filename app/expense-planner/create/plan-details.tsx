@@ -755,7 +755,6 @@ export default function PlanDetailsScreen() {
           console.log('Creating draft plan on mount...', { totalBudget, budgetStructure });
           const draftPlan = await saveDraftExpensePlan({
             total_budget: parseFloat(totalBudget),
-            budget_structure: budgetStructure as 'fixed' | 'estimated',
           });
           if (draftPlan?.id) {
             console.log('Draft plan created successfully:', draftPlan.id);
@@ -879,6 +878,20 @@ export default function PlanDetailsScreen() {
     setIsSaving(true);
 
     try {
+      // Extract categories and subcategories from selectedSubCategories
+      // selectedSubCategories is Record<categoryId, subcategoryId[]>
+      const uniqueCategories = Object.keys(selectedSubCategories);
+      const subcategoriesArray: Array<{ category_id: string; subcategory_id: string }> = [];
+      
+      Object.entries(selectedSubCategories).forEach(([categoryId, subcategoryIds]) => {
+        subcategoryIds.forEach(subcategoryId => {
+          subcategoriesArray.push({
+            category_id: categoryId,
+            subcategory_id: subcategoryId,
+          });
+        });
+      });
+
       // Use currentPlanId if available, otherwise use planId from params
       let activePlanId = currentPlanId || planId;
       
@@ -889,7 +902,8 @@ export default function PlanDetailsScreen() {
           console.log('No planId found, creating draft plan...');
           const newDraftPlan = await saveDraftExpensePlan({
             total_budget: parseFloat(totalBudget),
-            budget_structure: budgetStructure as 'fixed' | 'estimated',
+            categories: uniqueCategories,
+            subcategories: subcategoriesArray,
           });
           
           if (!newDraftPlan || !newDraftPlan.id) {
@@ -900,11 +914,12 @@ export default function PlanDetailsScreen() {
           setCurrentPlanId(newDraftPlan.id);
         }
         
-      // Save or update draft plan
+      // Save or update draft plan with categories and subcategories
       const draftPlan = await saveDraftExpensePlan({
           planId: activePlanId,
         total_budget: parseFloat(totalBudget),
-        budget_structure: budgetStructure as 'fixed' | 'estimated',
+        categories: uniqueCategories,
+        subcategories: subcategoriesArray,
       });
 
         // Ensure we have a valid plan ID

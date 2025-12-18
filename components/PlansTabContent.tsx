@@ -1,7 +1,11 @@
 import React from 'react';
-import { View, Text, Pressable, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, Pressable, ScrollView, RefreshControl, Platform } from 'react-native';
 import { ArrowRight, Clock } from 'lucide-react-native';
 import ExpensePlansSection from '@/components/ExpensePlansSection';
+import ExpensePlanCard from '@/components/expense-planner/ExpensePlanCard';
+import { useTextSize } from '@/contexts/TextSizeContext';
+import { getScaledFontSize } from '@/lib/textSize';
+import { useHaptics } from '@/hooks/useHaptics';
 
 type NextMaturingBudget = {
   plan: any;
@@ -15,6 +19,11 @@ type CategoryIcon = {
   Icon: any;
 };
 
+type OngoingBudget = {
+  plan: any;
+  daysUntilEnd: number | null;
+};
+
 type PlansTabContentProps = {
   screenWidth: number;
   styles: any;
@@ -25,6 +34,7 @@ type PlansTabContentProps = {
   expensePlansBalance: number;
   expensePlansFundedBalance?: number;
   expensePlans: any[];
+  ongoingBudgets: OngoingBudget[];
   nextMaturingBudget: NextMaturingBudget | null;
   getNextMaturingBudgetCategoryIcons: CategoryIcon[];
   isRefreshing?: boolean;
@@ -42,12 +52,16 @@ export default function PlansTabContent({
   expensePlansBalance,
   expensePlansFundedBalance = 0,
   expensePlans,
+  ongoingBudgets,
   nextMaturingBudget,
   getNextMaturingBudgetCategoryIcons,
   isRefreshing = false,
   onRefresh,
   onRequireAuth,
 }: PlansTabContentProps) {
+  const { textSizeMultiplier } = useTextSize();
+  const haptics = useHaptics();
+  
   const totalCreatedBudget = expensePlans?.reduce((sum, plan) => {
     const amount = plan?.total_budget || 0;
     return sum + (typeof amount === 'number' ? amount : 0);
@@ -55,6 +69,12 @@ export default function PlansTabContent({
 
   const fundedPercentage =
     totalCreatedBudget > 0 ? (expensePlansFundedBalance / totalCreatedBudget) * 100 : 0;
+
+  const handleViewAllOngoing = () => {
+    if (onRequireAuth && !onRequireAuth()) return;
+    haptics.selection();
+    router.push('/spend');
+  };
 
   return (
     <View style={[styles.tabPage, { width: screenWidth }]}>
@@ -98,6 +118,58 @@ export default function PlansTabContent({
           <ArrowRight size={20} color={colors.textSecondary} />
         </View>
       </Pressable>
+
+      {/* Ongoing Budgets Section */}
+      {ongoingBudgets.length > 0 && (
+        <>
+          <View style={styles.ongoingSectionHeader}>
+            <Text style={styles.ongoingSectionTitle}>Ongoing Budgets</Text>
+            {ongoingBudgets.length > 1 && (
+              <Pressable onPress={handleViewAllOngoing} style={styles.viewAllButton}>
+                <Text style={styles.viewAllText}>View all</Text>
+              </Pressable>
+            )}
+          </View>
+          {ongoingBudgets.length === 1 ? (
+            <Pressable
+              style={styles.ongoingSingleCard}
+              onPress={() => {
+                if (onRequireAuth && !onRequireAuth()) return;
+                impact();
+                router.push(`/expense-planner/${ongoingBudgets[0].plan.id}`);
+              }}
+            >
+              <ExpensePlanCard
+                plan={ongoingBudgets[0].plan}
+                onPress={() => {
+                  if (onRequireAuth && !onRequireAuth()) return;
+                  haptics.selection();
+                  router.push(`/expense-planner/${ongoingBudgets[0].plan.id}`);
+                }}
+              />
+            </Pressable>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.ongoingCarouselContainer}
+            >
+              {ongoingBudgets.map(({ plan }) => (
+                <View key={plan.id} style={styles.ongoingCardWrapper}>
+                  <ExpensePlanCard
+                    plan={plan}
+                    onPress={() => {
+                      if (onRequireAuth && !onRequireAuth()) return;
+                      haptics.selection();
+                      router.push(`/expense-planner/${plan.id}`);
+                    }}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </>
+      )}
 
       {nextMaturingBudget && (
         <>

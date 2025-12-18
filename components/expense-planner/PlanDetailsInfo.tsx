@@ -5,7 +5,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { ExpensePlan } from '@/types/expense-planner';
-import { getCategoryIcon } from '@/lib/expenseCategories';
+import { getCategoryIcon, getCategoryById, CATEGORIES } from '@/lib/expenseCategories';
 import { getBudgetDuration, isBudgetStarted } from '@/lib/expensePlanUtils';
 
 interface PlanDetailsInfoProps {
@@ -18,19 +18,94 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
 
-  // Get all subcategory icons
-  const getAllSubcategoryIcons = () => {
-    if (!plan?.buckets || plan.buckets.length === 0) {
-      return [];
+  // Get categories and subcategories from plan
+  const getCategoriesWithSubcategories = () => {
+    // Read categories and subcategories directly from plan
+    const planCategories = (plan as any)?.categories || [];
+    const planSubcategories = (plan as any)?.subcategories || [];
+    
+    // If plan has categories/subcategories stored directly, use them
+    if (Array.isArray(planCategories) && planCategories.length > 0) {
+      // Group subcategories by category
+      const grouped: Array<{
+        categoryId: string;
+        categoryName: string;
+        categoryIcon: any;
+        subcategories: Array<{ id: string; name: string }>;
+      }> = [];
+      
+      planCategories.forEach((categoryId: string) => {
+        const category = getCategoryById(categoryId);
+        if (!category) return;
+        
+        // Get subcategories for this category
+        const categorySubcategories = planSubcategories
+          .filter((sub: any) => sub.category_id === categoryId)
+          .map((sub: any) => {
+            // Find the subcategory name from the category definition
+            const subcategoryDef = category.subCategories?.find(s => s.id === sub.subcategory_id);
+            return {
+              id: sub.subcategory_id,
+              name: subcategoryDef?.name || sub.subcategory_id.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+            };
+          });
+        
+        if (categorySubcategories.length > 0) {
+          grouped.push({
+            categoryId,
+            categoryName: category.name,
+            categoryIcon: category.icon,
+            subcategories: categorySubcategories,
+          });
+        }
+      });
+      
+      return grouped;
     }
-
-    return plan.buckets.map(bucket => {
-      const Icon = getCategoryIcon(bucket.category_id);
-      return { bucket, Icon };
-    }).filter(item => item.Icon);
+    
+    // Fallback: try to get from buckets (for backward compatibility)
+    if (plan?.buckets && plan.buckets.length > 0) {
+      const categoryMap = new Map<string, {
+        categoryId: string;
+        categoryName: string;
+        categoryIcon: any;
+        subcategories: Array<{ id: string; name: string }>;
+      }>();
+      
+      plan.buckets.forEach(bucket => {
+        const category = getCategoryById(bucket.category_id);
+        if (!category) return;
+        
+        if (!categoryMap.has(bucket.category_id)) {
+          categoryMap.set(bucket.category_id, {
+            categoryId: bucket.category_id,
+            categoryName: category.name,
+            categoryIcon: category.icon,
+            subcategories: [],
+          });
+        }
+        
+        const entry = categoryMap.get(bucket.category_id)!;
+        // Find subcategory name
+        const subcategoryDef = category.subCategories?.find(s => s.id === bucket.subcategory_id);
+        const subcategoryName = subcategoryDef?.name || bucket.name || bucket.subcategory_id.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+        
+        // Only add if not already added
+        if (!entry.subcategories.find(s => s.id === bucket.subcategory_id)) {
+          entry.subcategories.push({
+            id: bucket.subcategory_id,
+            name: subcategoryName,
+          });
+        }
+      });
+      
+      return Array.from(categoryMap.values());
+    }
+    
+    return [];
   };
 
-  const subcategoryIcons = getAllSubcategoryIcons();
+  const categoriesWithSubcategories = getCategoriesWithSubcategories();
 
   // Calculate spending progress
   const totalBudget = plan?.total_budget || 0;
@@ -192,22 +267,34 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
 
   return (
     <>
-      {/* Subcategories with Icons */}
-      {subcategoryIcons.length > 0 && (
-        <View style={styles.subcategoriesCard}>
+      {/* Categories and Subcategories */}
+      {categoriesWithSubcategories.length > 0 && (
+        <View style={styles.categoriesCard}>
           <Text style={styles.sectionLabel}>Categories</Text>
-          <View style={styles.subcategoriesGrid}>
-            {subcategoryIcons.map(({ bucket, Icon }, index) => (
-              <View key={bucket.id} style={styles.subcategoryItem}>
-                <View style={styles.subcategoryIconContainer}>
-                  <Icon size={20} color={colors.primary} />
+          {categoriesWithSubcategories.map((categoryGroup, categoryIndex) => {
+            const CategoryIcon = categoryGroup.categoryIcon;
+            return (
+              <View key={categoryGroup.categoryId} style={styles.categoryGroup}>
+                <View style={styles.categoryHeader}>
+                  <View style={styles.categoryIconContainer}>
+                    {CategoryIcon && React.createElement(CategoryIcon, {
+                      size: 20,
+                      color: colors.primary,
+                      strokeWidth: 2,
+                    })}
+                  </View>
+                  <Text style={styles.categoryName}>{categoryGroup.categoryName}</Text>
                 </View>
-                <Text style={styles.subcategoryName} numberOfLines={1}>
-                  {bucket.name}
-                </Text>
+                <View style={styles.subcategoriesList}>
+                  {categoryGroup.subcategories.map((subcategory, subIndex) => (
+                    <View key={subcategory.id} style={styles.subcategoryChip}>
+                      <Text style={styles.subcategoryChipText}>{subcategory.name}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-            ))}
-          </View>
+            );
+          })}
         </View>
       )}
 
@@ -353,7 +440,7 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
 
 const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) =>
   StyleSheet.create({
-    subcategoriesCard: {
+    categoriesCard: {
       backgroundColor: colors.card,
       borderRadius: 16,
       padding: 16,
@@ -362,35 +449,53 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       borderColor: colors.border,
     },
     sectionLabel: {
-      fontSize: getScaledFontSize(13, textSizeMultiplier),
-      color: colors.textSecondary,
-      marginBottom: 12,
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      color: colors.text,
+      marginBottom: 16,
       fontWeight: '600',
     },
-    subcategoriesGrid: {
+    categoryGroup: {
+      marginBottom: 20,
+    },
+    categoryHeader: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 12,
-    },
-    subcategoryItem: {
       alignItems: 'center',
-      minWidth: 80,
+      marginBottom: 10,
     },
-    subcategoryIconContainer: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
+    categoryIconContainer: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       backgroundColor: colors.primary + '15',
       justifyContent: 'center',
       alignItems: 'center',
-      marginBottom: 8,
+      marginRight: 10,
       borderWidth: 1,
       borderColor: colors.primary + '30',
     },
-    subcategoryName: {
-      fontSize: getScaledFontSize(12, textSizeMultiplier),
+    categoryName: {
+      fontSize: getScaledFontSize(15, textSizeMultiplier),
       color: colors.text,
-      textAlign: 'center',
+      fontWeight: '600',
+      flex: 1,
+    },
+    subcategoriesList: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginLeft: 42, // Align with category name (icon width + margin)
+    },
+    subcategoryChip: {
+      backgroundColor: colors.background,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    subcategoryChipText: {
+      fontSize: getScaledFontSize(12, textSizeMultiplier),
+      color: colors.textSecondary,
     },
     infoCard: {
       backgroundColor: colors.card,

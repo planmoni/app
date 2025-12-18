@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Wallet, CalendarDays } from 'lucide-react-native';
+import { ArrowLeft, Wallet, CalendarDays, X } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
@@ -17,6 +17,11 @@ export default function CreateNewScreen() {
   const goBack = () => {
     haptics.lightImpact();
     router.back();
+  };
+
+  const goHome = () => {
+    haptics.lightImpact();
+    router.replace('/(tabs)');
   };
 
   const startSpendingPlan = () => {
@@ -41,7 +46,9 @@ export default function CreateNewScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Create New</Text>
-        <View style={styles.headerSpacer} />
+        <Pressable onPress={goHome} style={styles.closeButton} hitSlop={8}>
+          <X size={20} color={colors.text} />
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -94,15 +101,18 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
+  closeButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
     headerTitle: {
       flex: 1,
       textAlign: 'center',
       fontSize: getScaledFontSize(18, textSizeMultiplier),
       fontWeight: '600',
       color: colors.text,
-    },
-    headerSpacer: {
-      width: 40,
     },
     content: {
       padding: 20,

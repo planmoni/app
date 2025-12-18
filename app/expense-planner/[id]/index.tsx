@@ -488,7 +488,13 @@ export default function PlanDetailScreen() {
             <ArrowLeft size={24} color={colors.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Plan Not Found</Text>
-          <View style={styles.placeholder} />
+          <Pressable
+            onPress={() => router.replace('/(tabs)')}
+            style={styles.closeButton}
+            hitSlop={8}
+          >
+            <X size={20} color={colors.text} />
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -505,7 +511,13 @@ export default function PlanDetailScreen() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           {plan.name}
         </Text>
-        <View style={styles.placeholder} />
+        <Pressable
+          onPress={() => router.replace('/(tabs)')}
+          style={styles.closeButton}
+          hitSlop={8}
+        >
+          <X size={20} color={colors.text} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -693,8 +705,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       flex: 1,
       textAlign: 'center',
     },
-    placeholder: {
-      width: 40,
+    closeButton: {
+      padding: 8,
+      marginRight: -8,
     },
     scrollView: {
       flex: 1,

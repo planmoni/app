@@ -52,7 +52,6 @@ export default function FundingChoiceScreen() {
         // Create draft plan with all current data
         const draftPlan = await saveDraftExpensePlan({
           total_budget: parseFloat(totalBudget),
-          budget_structure: budgetStructure,
           start_date: startDate || undefined,
           end_date: endDate || undefined,
         });
@@ -67,7 +66,6 @@ export default function FundingChoiceScreen() {
         await saveDraftExpensePlan({
           planId: activePlanId,
           total_budget: parseFloat(totalBudget),
-          budget_structure: budgetStructure,
           start_date: startDate || undefined,
           end_date: endDate || undefined,
         });

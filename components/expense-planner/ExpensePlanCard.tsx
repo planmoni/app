@@ -80,9 +80,34 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
     return statusTag.label;
   };
 
-  // Get unique category icons and names (max 3)
+  // Get unique category icons and names
   // This should work for all plans regardless of funding status
   const getCategoryIcons = () => {
+    // First try to get categories from plan.categories (new budget_plans structure)
+    const planCategories = (plan as any)?.categories || [];
+    
+    if (Array.isArray(planCategories) && planCategories.length > 0) {
+      const icons: Array<{ categoryId: string; Icon: any; categoryName: string }> = [];
+      
+      for (const categoryId of planCategories) {
+        const category = getCategoryById(categoryId);
+        if (category && category.icon) {
+          const Icon = category.icon;
+          // Verify icon is a valid component (function or React component)
+          if (Icon && (typeof Icon === 'function' || typeof Icon === 'object')) {
+            icons.push({ 
+              categoryId, 
+              Icon,
+              categoryName: category.name
+            });
+          }
+        }
+      }
+      
+      return icons;
+    }
+    
+    // Fallback to buckets (for backward compatibility)
     if (!plan.buckets || plan.buckets.length === 0) {
       return [];
     }
@@ -91,8 +116,6 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
     const icons: Array<{ categoryId: string; Icon: any; categoryName: string }> = [];
 
     for (const bucket of plan.buckets) {
-      if (uniqueCategories.size >= 3) break;
-      
       // Ensure bucket has category_id
       if (!bucket.category_id) {
         continue;
@@ -479,48 +502,42 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
         </View>
       )}
 
-      {(categoryIcons.length > 0 || selectedSubcategories.length > 0) && (
+      {categoryIcons.length > 0 && (
         <View style={styles.categoriesRow}>
-          {categoryIcons.length > 0 && (
-            <View style={styles.categoryIconsContainer}>
-              {categoryIcons.map(({ categoryId, Icon }, index) => {
-                // Handle both lucide icons and icon wrapper components
-                const IconComponent = Icon;
-                return (
-                  <View 
-                    key={categoryId} 
-                    style={[
-                      styles.categoryIconBadge,
-                      index > 0 && styles.stackedIcon,
-                      { zIndex: index + 1 } // Last icon (rightmost) has highest z-index for proper stacking
-                    ]}
-                  >
-                    {IconComponent && (
-                      <IconComponent 
-                        size={14} 
-                        color={colors.primary}
-                        strokeWidth={1.5}
-                      />
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          )}
-          {selectedSubcategories.length > 0 && (
-            <View style={styles.selectedCategoriesContainer}>
-              {selectedSubcategories.slice(0, 2).map((sub, index) => (
-                <Text key={`${sub.categoryId}-${sub.subcategoryId}`} style={styles.selectedCategoryText} numberOfLines={1}>
-                  {sub.subcategoryName}{index < Math.min(selectedSubcategories.length, 2) - 1 ? ', ' : ''}
-                </Text>
-              ))}
-              {selectedSubcategories.length > 2 && (
+          <View style={styles.categoryIconsContainer}>
+            {categoryIcons.map(({ categoryId, Icon }, index) => {
+              // Handle both lucide icons and icon wrapper components
+              const IconComponent = Icon;
+              return (
+                <View 
+                  key={categoryId} 
+                  style={[
+                    styles.categoryIconBadge,
+                    index > 0 && styles.stackedIcon,
+                    { zIndex: index + 1 } // Last icon (rightmost) has highest z-index for proper stacking
+                  ]}
+                >
+                  {IconComponent && (
+                    <IconComponent 
+                      size={14} 
+                      color={colors.primary}
+                      strokeWidth={1.5}
+                    />
+                  )}
+                </View>
+              );
+            })}
+          </View>
+          <View style={styles.selectedCategoriesContainer}>
+            <Text style={styles.selectedCategoryText} numberOfLines={1}>
+              {categoryIcons[0].categoryName}
+              {categoryIcons.length > 1 && (
                 <Text style={styles.selectedCategoryText}>
-                  +{selectedSubcategories.length - 2} more
+                  {' '}+ {categoryIcons.length - 1} more
                 </Text>
               )}
-            </View>
-          )}
+            </Text>
+          </View>
         </View>
       )}
 

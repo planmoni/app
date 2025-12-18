@@ -176,9 +176,10 @@ export default function PlanSpendScreen() {
         <Pressable
           onPress={() => {
             haptics.lightImpact();
-            router.back();
+            router.replace('/(tabs)');
           }}
           style={styles.cancelButton}
+          hitSlop={8}
         >
           <X size={24} color={colors.text} />
         </Pressable>

@@ -83,7 +83,7 @@ serve(async (req: Request) => {
 
     // Get plan details
     const { data: plan, error: planError } = await supabase
-      .from("expense_plans")
+      .from("budget_plans")
       .select("*")
       .eq("id", planId)
       .eq("user_id", userId)

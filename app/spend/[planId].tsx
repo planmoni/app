@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Calendar, Send } from 'lucide-react-native';
+import { ArrowLeft, Calendar, Send, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -155,7 +155,13 @@ export default function SpendBalanceScreen() {
             <ArrowLeft size={24} color={colors.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Budget Not Found</Text>
-          <View style={styles.placeholder} />
+          <Pressable
+            onPress={() => router.replace('/(tabs)')}
+            style={styles.closeButton}
+            hitSlop={8}
+          >
+            <X size={20} color={colors.text} />
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -170,7 +176,13 @@ export default function SpendBalanceScreen() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           {plan.name}
         </Text>
-        <View style={styles.placeholder} />
+        <Pressable
+          onPress={() => router.replace('/(tabs)')}
+          style={styles.closeButton}
+          hitSlop={8}
+        >
+          <X size={20} color={colors.text} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -235,15 +247,16 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       padding: 8,
       marginLeft: -8,
     },
+  closeButton: {
+    padding: 8,
+    marginRight: -8,
+  },
     headerTitle: {
       fontSize: getScaledFontSize(18, textSizeMultiplier),
       fontWeight: '600',
       color: colors.text,
       flex: 1,
       textAlign: 'center',
-    },
-    placeholder: {
-      width: 40,
     },
     scrollView: {
       flex: 1,

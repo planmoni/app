@@ -68,7 +68,7 @@ export default function ReviewScreen() {
     if (startAction === 'auto_payout') {
       return payoutAccountLabel ? `Auto payout to ${payoutAccountLabel}` : 'Auto payout to bank';
     }
-    return 'Move it to wallet balance';
+    return 'Spend directly from budget';
   };
 
   const bankIcon = payoutAccountBankName ? getBankIconLogo(payoutAccountBankName) : {};
@@ -151,6 +151,23 @@ export default function ReviewScreen() {
         };
       }) : [];
 
+      // If we have subCategoriesData but no buckets, create buckets from subCategoriesData
+      // This happens when coming from plan-details page
+      if (bucketsToCreate.length === 0 && Object.keys(subCategoriesData).length > 0) {
+        // Create bucket structures from subCategoriesData
+        // We'll use 0 for target_amount since amounts aren't set yet
+        Object.entries(subCategoriesData).forEach(([categoryId, subcategoryIds]) => {
+          subcategoryIds.forEach(subcategoryId => {
+            bucketsToCreate.push({
+              category_id: categoryId,
+              subcategory_id: subcategoryId,
+              name: `${categoryId}_${subcategoryId}`, // Temporary name
+              target_amount: 0, // Will be set later
+            });
+          });
+        });
+      }
+
       // Create complete plan
       const plan = await createCompletePlan({
         plan_name: planName,
@@ -158,14 +175,10 @@ export default function ReviewScreen() {
         total_budget: targetAmount,
         start_date: startDateStr || null,
         end_date: endDateStr || null,
-        plan_type: planType,
         funding_method: fundingMethod,
         payout_schedule: payoutSchedule as any,
         required_per_cycle: requiredPerCycleNumber,
         required_per_day: 0, // Will be calculated
-        spending_permission: spendingPermission,
-        lock_type: lockType,
-        pin_hash: lockType === 'pin_required' ? pin : null, // In production, hash this
         alert_at_70_percent: alertAt70Percent,
         alert_risk_failure: alertRiskFailure,
         alert_weekly_progress: alertWeeklyProgress,

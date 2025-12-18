@@ -73,9 +73,9 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
         description = 'Payout sent to';
       } else if (tx.type === 'deposit') {
         planName = 'Wallet Deposit';
-        description = 'Added to your Planmoni wallet';
+        description = 'Added to your wallet balance';
         // For deposits, we might not have bank info, so use a default
-        bankName = 'Planmoni Wallet';
+        bankName = 'Wallet balance';
         accountNumber = '';
       } else if (tx.type === 'withdrawal') {
         planName = 'Emergency Withdrawal';
@@ -130,8 +130,8 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
       } else if (tx.type === 'expense_plan_topup') {
         // For budget top-ups, get plan name from source or destination
         planName = 'Budget Top-Up';
-        description = 'Funds deducted from wallet to budget plan';
-        bankName = 'Planmoni Wallet';
+        description = 'Added to your budget plan from your wallet balance';
+        bankName = 'Wallet balance';
         accountNumber = '';
         
         // Try to get plan name from source or destination if available
