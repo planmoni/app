@@ -930,7 +930,7 @@ export default function HomeScreen() {
     return { count, total, minDays };
   }, [expensePlans]);
 
-  // Find ongoing budgets (started budgets)
+  // Find ongoing budgets (started budgets with funds)
   const ongoingBudgets = useMemo(() => {
     if (!expensePlans || expensePlans.length === 0) return [];
 
@@ -938,7 +938,10 @@ export default function HomeScreen() {
     today.setHours(0, 0, 0, 0);
 
     return expensePlans
-      .filter(p => p.status === 'active' && isBudgetStarted(p.start_date))
+      .filter(p => {
+        const hasFunds = (p.current_balance || 0) > 0;
+        return p.status === 'active' && isBudgetStarted(p.start_date) && hasFunds;
+      })
       .map(plan => {
         let daysUntilEnd: number | null = null;
         if (plan.end_date) {
@@ -2273,8 +2276,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderWidth: 1,
   },
   upNextReadyTagReady: {
-    backgroundColor: colors.accent + '15',
-    borderColor: colors.accent + '40',
+    backgroundColor: colors.primary,
+    borderColor: colors.accent,
   },
   upNextReadyTagNotReady: {
     backgroundColor: '#6F7E93' + '15',

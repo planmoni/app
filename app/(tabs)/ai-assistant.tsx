@@ -23,7 +23,11 @@ import { useBalance } from '@/contexts/BalanceContext';
 import { Send, Sparkles, ArrowRight, Wallet, TrendingUp, Calendar, Clock, X, AlertTriangle } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 import { router } from 'expo-router';
-import { getOpenAIChatCompletion, testOpenAIConnection } from '../../lib/openai';
+import { getOpenAIChatCompletion, testOpenAIConnection, type Message as OpenAIMessage, type ToolCall } from '../../lib/openai';
+import { useExpensePlans } from '@/hooks/useExpensePlans';
+import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { useEmergencyWithdrawal } from '@/hooks/useEmergencyWithdrawal';
+import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
@@ -36,6 +40,8 @@ import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { CATEGORIES } from '@/lib/expenseCategories';
+import { supabase } from '@/lib/supabase';
 
 // Define message types
 type MessageType = 'text' | 'plan' | 'insight';
@@ -89,64 +95,381 @@ const generateSuggestedPrompts = (availableBalance: number): string[] => {
   };
   
   return [
-    `Help me plan 100k for 1 month`,
-    `Create a daily payout plan for 5k`,
-    "How can I improve my money habits?",
-    "Give me some financial advice",
-    "Analyze my spending patterns",
+    "Create a travel budget",
+    "Set up weekly payouts",
+    "Show my plans",
+    "Check my balance",
+    "Financial advice",
   ];
 };
 
-// Helper to convert written numbers to digits (supports up to billions)
-function wordsToNumber(words: string): number | null {
-  const smallNumbers: { [key: string]: number } = {
-    'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
-    'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19
-  };
-  const tens: { [key: string]: number } = {
-    'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90
-  };
-  const scales: { [key: string]: number } = {
-    'hundred': 100, 'thousand': 1000, 'million': 1000000, 'billion': 1000000000
-  };
-  let result = 0;
-  let current = 0;
-  let found = false;
-  words = words.replace(/ and /g, ' ');
-  const tokens = words.toLowerCase().split(/[-\s]+/);
-  for (let token of tokens) {
-    if (smallNumbers[token] !== undefined) {
-      current += smallNumbers[token];
-      found = true;
-    } else if (tens[token] !== undefined) {
-      current += tens[token];
-      found = true;
-    } else if (token === 'a') {
-      current += 1;
-      found = true;
-    } else if (scales[token] !== undefined) {
-      if (current === 0) current = 1;
-      current *= scales[token];
-      result += current;
-      current = 0;
-      found = true;
-    } else if (token === 'naira' || token === 'n' || token === '₦') {
-      // skip currency
-    } else if (token === 'point') {
-      // handle decimals
-      let decimal = '0.';
-      let i = tokens.indexOf(token) + 1;
-      while (i < tokens.length && smallNumbers[tokens[i]] !== undefined) {
-        decimal += smallNumbers[tokens[i]].toString();
-        i++;
+// OpenAI Function Definitions
+const getFunctionDefinitions = () => [
+  {
+    type: 'function' as const,
+    function: {
+      name: 'create_payout_plan',
+      description: `Create a new payout plan that schedules automatic payouts from the user's wallet to their bank account. 
+      
+WORKFLOW:
+1. ALWAYS call get_user_balance first to verify available balance >= totalAmount
+2. ALWAYS call get_payout_accounts first to get valid payoutAccountId
+3. Validate: minimum totalAmount is ₦5,000, startDate must be today or future
+4. Calculate payoutAmount if not provided: totalAmount / duration
+5. IMPORTANT: Funds are LOCKED immediately upon creation (deducted from available balance)
+6. Duration interpretation: daily=days, weekly/biweekly=weeks, monthly=months, etc.
+
+VALIDATION:
+- Minimum totalAmount: ₦5,000
+- Available balance must be >= totalAmount (enforced by database)
+- Duration must be > 0
+- Start date must be today or future (YYYY-MM-DD format)
+- For 'weekly_specific': dayOfWeek is REQUIRED (0-6, Sunday=0, Monday=1, etc.)
+- For 'custom': customDates array is REQUIRED with at least one date
+- payoutAccountId must be a valid account ID from get_payout_accounts
+
+EXAMPLES:
+- "Create weekly payout plan for ₦50,000 over 3 months" → totalAmount=50000, frequency=weekly, duration=12 (weeks), calculate payoutAmount=4167
+- "Daily payout of ₦5,000 for 30 days" → totalAmount=150000, frequency=daily, duration=30, payoutAmount=5000
+- "Monthly payout of ₦100,000 for 6 months" → totalAmount=600000, frequency=monthly, duration=6, payoutAmount=100000
+
+IMPORTANT NOTES:
+- Funds are LOCKED immediately - user cannot use locked funds for other purposes
+- If user has insufficient balance, inform them before calling this function
+- If user has no payout accounts, ask them to add one first using get_payout_accounts`,
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Name of the payout plan (e.g., "Weekly Savings Plan", "Monthly Salary Payout")' },
+          totalAmount: { type: 'number', description: 'Total amount to payout over the duration (minimum ₦5,000). This amount will be locked from wallet.' },
+          payoutAmount: { type: 'number', description: 'Amount per individual payout. If not provided, calculate as totalAmount / duration.' },
+          frequency: { 
+            type: 'string', 
+            enum: ['daily', 'weekly', 'biweekly', 'monthly', 'custom', 'weekly_specific', 'end_of_month', 'quarterly', 'biannual', 'annually'],
+            description: 'Frequency of payouts. Duration units: daily=days, weekly/biweekly=weeks, monthly=months, quarterly=quarters, biannual=6-month periods, annually=years'
+          },
+          duration: { type: 'number', description: 'Duration in cycles. For daily: number of days. For weekly: number of weeks. For monthly: number of months. Must be > 0.' },
+          startDate: { type: 'string', format: 'date', description: 'Start date in YYYY-MM-DD format. Must be today or a future date.' },
+          payoutAccountId: { type: 'string', description: 'Payout account ID from get_payout_accounts. This is where funds will be sent. REQUIRED - call get_payout_accounts first if not provided.' },
+          emergencyWithdrawalEnabled: { type: 'boolean', description: 'Whether to enable emergency withdrawals. If true, user can withdraw early with fees: 12% (instant), 10% (24hrs), 6% (72hrs). Default: false' },
+          dayOfWeek: { type: 'number', description: 'Day of week (0-6, Sunday=0, Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5, Saturday=6). REQUIRED for weekly_specific frequency.' },
+          payoutHour: { type: 'number', description: 'Hour of day (0-23) for payout time. Default: 9 (9 AM).' },
+          payoutMinute: { type: 'number', description: 'Minute (0-59) for payout time. Default: 0.' },
+          customDates: { type: 'array', items: { type: 'string', format: 'date' }, description: 'Array of specific payout dates in YYYY-MM-DD format. REQUIRED for custom frequency. Must have at least one date.' },
+        },
+        required: ['name', 'totalAmount', 'payoutAmount', 'frequency', 'duration', 'startDate', 'payoutAccountId']
       }
-      result += parseFloat(decimal);
-      break;
     }
-  }
-  result += current;
-  return found ? result : null;
-}
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'create_budget_plan',
+      description: `Create a new budget plan to help users allocate funds for specific expenses or goals. 
+      
+WORKFLOW:
+1. Call get_user_balance (informational - funds are NOT locked automatically)
+2. Validate: minimum totalBudget is ₦1,000
+3. REQUIRED: Always infer and provide categories and subcategories based on user's request
+   - If user says "travel", use categories=["air_travel"] and appropriate subcategories
+   - If user says "groceries" or "food", use categories=["food"] and subcategories
+   - Always provide at least one category and one subcategory
+4. Validate dates: Ensure dates are in YYYY-MM-DD format and valid
+5. Convert categories/subcategories to buckets format (each subcategory becomes a bucket)
+6. IMPORTANT: Funds are NOT locked - user must add funds manually using add_funds_to_budget
+7. After creation, suggest adding funds to the plan
+
+VALIDATION:
+- Minimum totalBudget: ₦1,000
+- Start date can be null (for ongoing plans)
+- End date can be null (for ongoing plans)
+- If both dates are null, plan is ongoing
+- Categories/subcategories are optional but recommended
+- Funding method defaults to 'manual' if not specified
+
+CATEGORY HANDLING (REQUIRED):
+- ALWAYS provide both categories AND subcategories arrays when creating a budget
+- Categories are stored as array of category IDs: ["air_travel", "car_maintenance"]
+- Subcategories MUST be provided as array of objects with category_id and subcategory_id
+- Each subcategory becomes a bucket with target_amount distributed evenly
+- Suggest categories based on user's description: travel→air_travel, car→car_maintenance, food→food, etc.
+- If user doesn't specify categories, infer from the budget name/description
+- Common mappings: travel→air_travel, car→car_maintenance, food→food, education→education, shopping→shopping, etc.
+
+EXAMPLES:
+- "Create budget for ₦100,000 for travel" → totalBudget=100000, categories=["air_travel"], subcategories=[{category_id:"air_travel", subcategory_id:"flight_tickets"}]
+- "Budget ₦50,000 for car maintenance" → totalBudget=50000, categories=["car_maintenance"], subcategories=[{category_id:"car_maintenance", subcategory_id:"car_repair"}]
+- "Create ₦200,000 budget for education expenses" → totalBudget=200000, categories=["education"], subcategories=[{category_id:"education", subcategory_id:"tuition"}]
+
+DATE HANDLING (CRITICAL - ALWAYS CONFIRM IF UNCLEAR):
+- Dates MUST be in YYYY-MM-DD format (e.g., "2025-01-15" for January 15, 2025)
+- CRITICAL: Check the USER CONTEXT section for TODAY'S DATE - ALWAYS use that exact date as the reference point
+- "tomorrow" = TODAY'S DATE (from USER CONTEXT) + 1 day
+- ALWAYS calculate relative dates from TODAY's date shown in USER CONTEXT
+- If user's date intent is unclear or ambiguous, ASK FOR CONFIRMATION before proceeding
+
+RELATIVE DATE EXAMPLES:
+- "next week" or "in 1 week" → Calculate: today + 7 days
+- "next 3 days" or "in 3 days" → Calculate: today + 3 days
+- "next month" → Calculate: first day of next month (e.g., if today is Jan 15, 2025 → "2025-02-01")
+- "end of month" or "month end" → Calculate: last day of current month (e.g., "2025-01-31")
+- "till month end" → Calculate: last day of current month
+- "next 2 weeks" → Calculate: today + 14 days
+- "for the next 1 week" → startDate: today, endDate: today + 6 days (7 days total)
+- "upcoming expense in the next 3 days and would last till month end" → startDate: today + 3 days, endDate: last day of current month
+- "January" or "Jan" → Use current year and first day: "2025-01-01" (if in past, use next year)
+- "this month" → Use first day of current month
+- "next year" → Use first day of next year
+
+DURATION EXAMPLES (CRITICAL FOR ACCURACY):
+- "traveling tomorrow for 5 days" → startDate: tomorrow, endDate: tomorrow + 4 days (5 days: day 1=tomorrow, day 2, day 3, day 4, day 5)
+- "starting Monday for 1 week" → startDate: Monday, endDate: Sunday (7 days: Mon-Sun)
+- "period of stay is 5 days" starting "tomorrow" → startDate: tomorrow, endDate: tomorrow + 4 days
+- "I want to spend for 5 days" starting "tomorrow" → startDate: tomorrow, endDate: tomorrow + 4 days
+- ALWAYS: endDate = startDate + (duration - 1) for day-based durations
+
+DATE CALCULATION RULES:
+1. Always use TODAY as the reference point for relative dates
+2. "next X days/weeks/months" means starting from today + X
+3. "till month end" means the last day of the current month
+4. "would last till month end" means end date is last day of current month
+5. If user says "for the next 1 week" → duration is 7 days from today
+6. If user says "upcoming expense in the next 3 days" → start date is today + 3 days
+
+DURATION CALCULATION (CRITICAL):
+- When user specifies a duration period (e.g., "5 days", "1 week", "2 months"):
+  * If start date is given: endDate = startDate + (duration - 1) days
+  * Example: "traveling tomorrow for 5 days" → startDate = tomorrow, endDate = tomorrow + 4 days (5 days total including start day)
+  * Example: "starting January 1st for 1 week" → startDate = Jan 1, endDate = Jan 7 (7 days: Jan 1-7)
+- "X days" means X calendar days INCLUDING the start date
+- "My period of stay is 5 days" starting "tomorrow" → endDate = tomorrow + 4 days
+- Always calculate: endDate = startDate + (duration - 1) for day-based durations
+
+CONFIRMATION REQUIRED:
+- If user says vague dates like "soon", "later", "eventually" → ASK: "When would you like this to start? (e.g., next week, January 1st, etc.)"
+- If user says "next week" but it's unclear which day → ASK: "Would you like it to start on [calculated date], or a specific day?"
+- If user says "month end" but unclear which month → ASK: "Do you mean the end of this month ([date]) or next month ([date])?"
+- If duration is unclear (e.g., "for a while") → ASK: "How long should this budget last? (e.g., 1 week, 1 month, 3 months)"
+- If both start and end dates are unclear → ASK: "When should this budget start and end?"
+
+VALIDATION:
+- Always validate dates are in the future (or today) for start dates
+- If calculated date is in the past, use today instead
+- If date is invalid or in wrong format, set to null and inform user
+- If unsure about date interpretation, ALWAYS confirm with user before creating the plan
+
+IMPORTANT NOTES:
+- Funds are NOT locked automatically - user adds funds separately using add_funds_to_budget
+- User can create budget plan even with ₦0 balance (they add funds later)
+- IMPORTANT: Dates are always saved if provided - unfunded budgets with dates will appear in "Your budget plans" section (not "Ongoing Budgets") until they have funds
+- Budgets are only considered "started" when they have funds AND the start_date has passed
+- After creating an unfunded budget, ALWAYS prompt the user about funding options:
+  * "Would you like to add funds to this budget plan now?"
+  * "You can fund it manually or set up automatic top-ups"
+  * Offer to help them add funds using add_funds_to_budget function or set up auto top-ups`,
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Name of the budget plan (e.g., "Travel Budget", "Car Maintenance Fund", "Education Savings")' },
+          totalBudget: { type: 'number', description: 'Total budget amount (minimum ₦1,000). This is the target amount, not locked automatically.' },
+          startDate: { type: 'string', format: 'date', description: 'Start date in YYYY-MM-DD format (e.g., "2025-01-15"). Calculate from relative dates: "next week" = today+7 days, "next 3 days" = today+3 days, "next month" = first day of next month. Can be null for ongoing plans. ALWAYS confirm with user if date intent is unclear.' },
+          endDate: { type: 'string', format: 'date', description: 'End date in YYYY-MM-DD format (e.g., "2025-02-15"). Calculate from relative dates: "till month end" = last day of current month, "for 1 week" = startDate+7 days. Can be null for ongoing plans. If both start and end are null, plan is ongoing. ALWAYS confirm with user if date intent is unclear.' },
+          fundingMethod: { type: 'string', enum: ['auto', 'manual'], description: 'Funding method: "auto" for automatic top-ups, "manual" for user-initiated. Default: "manual".' },
+          categories: { type: 'array', items: { type: 'string' }, description: 'Array of category IDs (e.g., ["air_travel", "car_maintenance", "education"]). Optional but recommended. Suggest based on user\'s needs.' },
+          subcategories: { 
+            type: 'array', 
+            items: { 
+              type: 'object',
+              properties: {
+                category_id: { type: 'string', description: 'Category ID (e.g., "air_travel")' },
+                subcategory_id: { type: 'string', description: 'Subcategory ID (e.g., "flight_tickets")' },
+                name: { type: 'string', description: 'Optional: Display name for the bucket. If not provided, will be generated from category/subcategory IDs.' }
+              },
+              required: ['category_id', 'subcategory_id']
+            },
+            description: 'Array of subcategory objects. Each becomes a bucket. If target_amount not specified, totalBudget is distributed evenly across buckets.'
+          },
+          autoTopupEnabled: { type: 'boolean', description: 'Whether to enable automatic top-up. If true, requires autoTopupFrequency and autoTopupAmount. Default: false' },
+          autoTopupFrequency: { type: 'string', enum: ['daily', 'weekly', 'monthly'], description: 'Auto top-up frequency if autoTopupEnabled is true. Required if autoTopupEnabled=true.' },
+          autoTopupAmount: { type: 'number', description: 'Amount per auto top-up if autoTopupEnabled is true. Required if autoTopupEnabled=true.' },
+        },
+        required: ['name', 'totalBudget']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_user_plans',
+      description: 'Get all of the user\'s payout plans and budget plans with their current status, amounts, and details. Use this to show user their existing plans or check plan status.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_user_balance',
+      description: `Get the user's wallet balance information. ALWAYS call this BEFORE creating any plan to verify available funds.
+      
+BALANCE EXPLANATION:
+- totalBalance: Total funds in wallet (available + locked)
+- lockedBalance: Funds locked in active payout plans (cannot be used for other purposes)
+- availableBalance: Funds available for use (totalBalance - lockedBalance)
+
+IMPORTANT:
+- For payout plans: availableBalance must be >= totalAmount (funds are locked immediately)
+- For budget plans: availableBalance is informational only (funds are NOT locked automatically)
+- Always check balance before creating payout plans to avoid errors`,
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'process_emergency_withdrawal',
+      description: `Process an emergency withdrawal from a payout plan. This allows early withdrawal before scheduled payout dates.
+      
+PREREQUISITES:
+- Plan must have emergencyWithdrawalEnabled = true
+- Withdrawal amount cannot exceed available locked funds in the plan
+- User must have a payout account (use get_payout_accounts)
+
+FEES:
+- instant: 12% processing fee (fastest, highest fee)
+- 24hrs: 10% processing fee (24-hour processing)
+- 72hrs: 6% processing fee (72-hour processing, lowest fee)
+
+WORKFLOW:
+1. Verify plan has emergency withdrawals enabled (check plan details)
+2. Verify withdrawal amount <= available locked funds
+3. Call get_payout_accounts to get payoutAccountId
+4. Calculate fee: withdrawalAmount * fee_percentage
+5. User receives: withdrawalAmount - fee
+6. Remaining locked funds stay in plan
+
+IMPORTANT:
+- Only available if plan was created with emergencyWithdrawalEnabled=true
+- Fees are deducted from withdrawal amount
+- User receives net amount (withdrawalAmount - fee)`,
+      parameters: {
+        type: 'object',
+        properties: {
+          planId: { type: 'string', description: 'Payout plan ID (from get_user_plans). Plan must have emergencyWithdrawalEnabled=true.' },
+          withdrawalAmount: { type: 'number', description: 'Amount to withdraw. Cannot exceed available locked funds in the plan. Fees are deducted from this amount.' },
+          option: { type: 'string', enum: ['instant', '24hrs', '72hrs'], description: 'Withdrawal speed: "instant" (12% fee), "24hrs" (10% fee), "72hrs" (6% fee). Faster = higher fee.' },
+          payoutAccountId: { type: 'string', description: 'Payout account ID from get_payout_accounts. This is where the withdrawal will be sent.' },
+        },
+        required: ['planId', 'withdrawalAmount', 'option', 'payoutAccountId']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'rename_payout_plan',
+      description: 'Rename a payout plan.',
+      parameters: {
+        type: 'object',
+        properties: {
+          planId: { type: 'string', description: 'Payout plan ID' },
+          name: { type: 'string', description: 'New name for the plan' },
+        },
+        required: ['planId', 'name']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'rename_budget_plan',
+      description: 'Rename a budget plan.',
+      parameters: {
+        type: 'object',
+        properties: {
+          planId: { type: 'string', description: 'Budget plan ID' },
+          name: { type: 'string', description: 'New name for the plan' },
+        },
+        required: ['planId', 'name']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'add_funds_to_budget',
+      description: `Add funds from the user's wallet to a budget plan. Budget plans do NOT lock funds automatically - users must add funds manually using this function.
+      
+WORKFLOW:
+1. Call get_user_balance first to verify availableBalance >= amount
+2. Verify planId exists (use get_user_plans if needed)
+3. If insufficient balance: Inform user they need more funds
+4. After adding funds: Confirm success and show updated budget balance
+
+IMPORTANT:
+- Funds are transferred from wallet to budget plan
+- Available balance decreases, budget plan current_balance increases
+- User can add funds multiple times to the same budget plan
+- Always suggest this after creating a new budget plan`,
+      parameters: {
+        type: 'object',
+        properties: {
+          planId: { type: 'string', description: 'Budget plan ID (from get_user_plans or create_budget_plan result)' },
+          amount: { type: 'number', description: 'Amount to add to the budget plan. Must be <= available balance.' },
+        },
+        required: ['planId', 'amount']
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_payout_accounts',
+      description: `Get all of the user's payout accounts (bank accounts for receiving payouts). 
+      
+CRITICAL: ALWAYS call this BEFORE creating a payout plan. Payout plans require a valid payoutAccountId.
+
+WORKFLOW:
+1. Call this function first when user wants to create a payout plan
+2. If no accounts exist: Inform user they need to add a payout account first
+3. If multiple accounts exist: Use the default account (isDefault=true) or ask user which one
+4. Use the account ID (id field) as payoutAccountId in create_payout_plan
+
+IF NO ACCOUNTS:
+- Inform user: "You need to add a payout account first. This is the bank account where your payouts will be sent."
+- Guide them to add an account through the app
+
+RETURNS:
+- Array of accounts with: id, bankName, accountNumber (last 4 digits), accountName, isDefault`,
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_transactions',
+      description: 'Get the user\'s transaction history including deposits, payouts, withdrawals, and budget top-ups.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: 'Maximum number of transactions to return (default: 50)' },
+        },
+        required: []
+      }
+    }
+  },
+];
 
 export default function AIAssistantScreen() {
   const { colors, isDark } = useTheme();
@@ -161,9 +484,6 @@ export default function AIAssistantScreen() {
   const [showSuggestions, setShowSuggestions] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
-  const dayOfWeekInputRef = useRef<TextInput>(null);
-  const emergencyInputRef = useRef<TextInput>(null);
-  const confirmInputRef = useRef<TextInput>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const windowHeight = Dimensions.get('window').height;
@@ -176,39 +496,585 @@ export default function AIAssistantScreen() {
   const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
   const [isDailyLimitReached, setIsDailyLimitReached] = useState<boolean>(false);
   const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
-  const [lastType, setLastType] = useState<'plan' | 'insight' | 'text' | null>(null);
-  // Clarifying question state
-  const [awaitingClarification, setAwaitingClarification] = useState<{
-    targetAmount: number;
-    timeframe: number;
-    timeframeUnit: 'weeks' | 'months' | 'days';
-    options: Array<{ frequency: string; amount: number; description: string }>;
-  } | null>(null);
-  // Plan creation conversational state
-  const [planCreationStep, setPlanCreationStep] = useState<'idle' | 'awaiting_destination' | 'awaiting_frequency' | 'awaiting_day_of_week' | 'awaiting_emergency' | 'showing_emergency_rules' | 'confirming' | 'success'>('idle');
-  const [planDraft, setPlanDraft] = useState<any>(null);
-  const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const { payoutAccounts, isLoading: payoutAccountsLoading, fetchPayoutAccounts } = usePayoutAccounts();
-  const [emergencyEnabled, setEmergencyEnabled] = useState<boolean | null>(null);
-  const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<number | null>(null);
   const { createPayout, isLoading: isCreatingPayout, error: createPayoutError } = useCreatePayout();
   const { banks } = useBanks();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const isInitialMount = useRef(true);
+  
+  // Additional hooks for function calling
+  const { expensePlans, fetchExpensePlans, createCompletePlan, updateExpensePlan, addFundsToPlan } = useExpensePlans();
+  const { payoutPlans, fetchPayoutPlans, updatePlan: updatePayoutPlan } = useRealtimePayoutPlans();
+  const { processEmergencyWithdrawal } = useEmergencyWithdrawal();
+  const { transactions, fetchTransactions } = useRealtimeTransactions();
 
-  // Add frequency options
-  const frequencyOptions = [
-    'daily',
-    'weekly',
-    'specific day',
-    'bi-weekly',
-    'monthly',
-    'month end',
-    'bi-annually',
-    'annually',
-    'custom schedule',
-  ];
+  // Build comprehensive system prompt with database schema and user context
+  const buildSystemPrompt = (): string => {
+    const userName = session?.user?.user_metadata?.first_name || 'User';
+    
+    // Build category reference
+    const categoryList = CATEGORIES.map(cat => {
+      const subcats = cat.subCategories.map(sub => sub.id).join(', ');
+      return `- ${cat.id} (${cat.name}): ${subcats}`;
+    }).join('\n');
+    
+    return `You are Planmoni AI, a helpful financial assistant for Nigerian users.
+
+DATABASE SCHEMA:
+
+budget_plans table:
+- id (uuid): Primary key
+- user_id (uuid): References profiles(id)
+- name (text): Plan name
+- total_budget (numeric): Total budget amount
+- current_balance (numeric): Current available balance in plan
+- total_spent (numeric): Total amount spent
+- start_date (date): Budget start date
+- end_date (date): Budget end date
+- status (text): 'active', 'completed', or 'archived'
+- funding_method (text): 'auto' or 'manual'
+- categories (jsonb): Array of category IDs like ["air_travel", "car_maintenance"]
+- subcategories (jsonb): Array of objects with category_id and subcategory_id
+- auto_topup_enabled (boolean): Whether auto top-up is enabled
+- auto_topup_frequency (text): 'daily', 'weekly', or 'monthly'
+- auto_topup_amount (numeric): Amount per auto top-up
+
+payout_plans table:
+- id (uuid): Primary key
+- user_id (uuid): References profiles(id)
+- name (text): Plan name
+- total_amount (numeric): Total amount to payout
+- payout_amount (numeric): Amount per payout
+- frequency (text): 'daily', 'weekly', 'biweekly', 'monthly', 'custom', etc.
+- duration (integer): Number of payout cycles
+- start_date (date): Start date
+- status (text): 'active', 'paused', 'completed', 'cancelled'
+- completed_payouts (integer): Number of completed payouts
+- next_payout_date (date): Next scheduled payout date
+- emergency_withdrawal_enabled (boolean): Whether emergency withdrawals are enabled
+- payout_account_id (uuid): References payout_accounts(id)
+
+wallets table:
+- user_id (uuid): References profiles(id)
+- balance (numeric): Total wallet balance
+- locked_balance (numeric): Locked balance (in payout plans)
+- available_balance (numeric): Available balance (balance - locked_balance)
+
+payout_accounts table:
+- id (uuid): Primary key
+- user_id (uuid): References profiles(id)
+- account_name (text): Account holder name
+- account_number (text): Account number
+- bank_name (text): Bank name
+- is_default (boolean): Whether this is the default account
+
+transactions table:
+- id (uuid): Primary key
+- user_id (uuid): References profiles(id)
+- type (text): 'deposit', 'payout', 'withdrawal', 'expense_plan_topup', 'referral_bonus'
+- amount (numeric): Transaction amount
+- status (text): 'pending', 'completed', 'failed'
+- source (text): Source of transaction
+- destination (text): Destination of transaction
+
+AVAILABLE FREQUENCY OPTIONS:
+- daily: Daily payouts
+- weekly: Weekly payouts (requires dayOfWeek 0-6, Sunday=0)
+- biweekly: Every two weeks
+- monthly: Monthly payouts
+- custom: Custom dates (requires customDates array)
+- weekly_specific: Weekly on specific day (requires dayOfWeek)
+- end_of_month: End of month payouts
+- quarterly: Every 3 months
+- biannual: Every 6 months
+- annually: Once per year
+
+EMERGENCY WITHDRAWAL FEES:
+- instant: 12% fee
+- 24hrs: 10% fee
+- 72hrs: 6% fee
+
+COMPLETE CATEGORY REFERENCE:
+${categoryList}
+
+PAYOUT PLAN CREATION WORKFLOW:
+1. PREREQUISITES CHECK:
+   - User must have at least one payout account (call get_payout_accounts first)
+   - If no payout accounts exist, inform user they need to add one first
+   - Check available balance (call get_user_balance)
+   - Available balance must be >= total amount (funds are locked immediately)
+
+2. VALIDATION STEPS:
+   - Minimum total amount: ₦5,000
+   - Duration must be > 0
+   - Start date must be today or future (YYYY-MM-DD format)
+   - For 'weekly_specific' frequency: dayOfWeek is required (0-6, Sunday=0)
+   - For 'custom' frequency: customDates array is required
+   - payoutAccountId must be a valid account ID from get_payout_accounts
+
+3. CALCULATIONS:
+   - If payoutAmount not provided: calculate as totalAmount / duration
+   - Duration interpretation:
+     * daily: duration = number of days
+     * weekly/biweekly: duration = number of weeks
+     * monthly: duration = number of months
+     * quarterly: duration = number of quarters
+     * biannual: duration = number of 6-month periods
+     * annually: duration = number of years
+
+4. EXECUTION:
+   - Funds are LOCKED from wallet immediately upon creation
+   - Plan status starts as 'active'
+   - Next payout date is calculated based on frequency and start date
+
+BUDGET PLAN CREATION WORKFLOW:
+1. PREREQUISITES CHECK:
+   - Check available balance (call get_user_balance) - note: funds are NOT locked automatically
+   - User can create budget plan even with ₦0 balance (they add funds later)
+
+2. VALIDATION STEPS:
+   - Minimum total budget: ₦1,000
+   - Start date can be null (for ongoing plans)
+   - End date can be null (for ongoing plans)
+   - Categories/subcategories are optional but recommended
+
+3. CATEGORY HANDLING:
+   - If user mentions categories (e.g., "travel expenses", "car maintenance"), suggest relevant categories
+   - Convert categories/subcategories to buckets format:
+     * Each subcategory becomes a bucket with category_id, subcategory_id, name, and target_amount
+     * If target_amount not specified, distribute total_budget evenly across buckets
+   - Categories are stored in both categories array and buckets table
+
+4. EXECUTION:
+   - Funds are NOT locked automatically - user must add funds manually using add_funds_to_budget
+   - Plan status starts as 'active'
+   - After creation, suggest adding funds to the plan
+
+VALIDATION RULES:
+
+PAYOUT PLANS:
+- Minimum total amount: ₦5,000
+- Available balance must be >= total amount (enforced by database)
+- Duration must be > 0
+- Start date must be today or future date
+- For 'weekly_specific': dayOfWeek required (0-6, Sunday=0, Monday=1, etc.)
+- For 'custom': customDates array required with at least one date
+- payoutAccountId must exist and belong to user
+
+BUDGET PLANS:
+- Minimum total budget: ₦1,000
+- Start date can be null (ongoing plans)
+- End date can be null (ongoing plans)
+- If both start_date and end_date are null, plan is ongoing
+- Categories/subcategories are optional
+- Funding method defaults to 'manual' if not specified
+
+BUSINESS LOGIC:
+
+FUND LOCKING:
+- Payout Plans: Funds are LOCKED immediately upon creation. The total_amount is deducted from available_balance and added to locked_balance. This ensures funds are reserved for scheduled payouts.
+- Budget Plans: Funds are NOT locked automatically. Users add funds manually using add_funds_to_budget function. This allows flexible funding.
+
+FREQUENCY CALCULATIONS:
+- Daily: duration represents number of days (e.g., duration=30 means 30 daily payouts)
+- Weekly: duration represents number of weeks (e.g., duration=4 means 4 weekly payouts)
+- Biweekly: duration represents number of bi-weekly periods (e.g., duration=6 means 6 bi-weekly payouts = 12 weeks)
+- Monthly: duration represents number of months (e.g., duration=6 means 6 monthly payouts)
+- Weekly_specific: duration represents number of weeks, dayOfWeek determines which day (0=Sunday, 1=Monday, etc.)
+- End_of_month: duration represents number of months
+- Quarterly: duration represents number of quarters (3-month periods)
+- Biannual: duration represents number of 6-month periods
+- Annually: duration represents number of years
+
+EMERGENCY WITHDRAWALS:
+- Only available if emergencyWithdrawalEnabled is true
+- Fees: 12% for instant, 10% for 24hrs, 6% for 72hrs
+- User must specify payoutAccountId to receive withdrawal
+- Withdrawal amount cannot exceed available locked funds in the plan
+
+WALLET BALANCE EXPLANATION:
+- totalBalance: Total funds in wallet (available + locked)
+- lockedBalance: Funds locked in active payout plans (cannot be used for other purposes)
+- availableBalance: Funds available for use (totalBalance - lockedBalance)
+- When creating payout plan: availableBalance decreases, lockedBalance increases
+- When payout executes: lockedBalance decreases, funds are transferred to payout account
+
+EXAMPLE CONVERSATIONS:
+
+Example 1 - Creating Payout Plan:
+User: "I want to create a weekly payout plan for ₦50,000 over 3 months"
+AI Steps:
+1. Call get_user_balance to check available balance
+2. Call get_payout_accounts to get user's accounts
+3. If balance < ₦50,000: Inform user they need more funds
+4. If no accounts: Ask user to add a payout account first
+5. Calculate: 3 months = ~12 weeks, so payoutAmount = ₦50,000 / 12 = ₦4,167 per week
+6. Ask: "Which day of the week? (Sunday=0, Monday=1, etc.)" or use default
+7. Ask: "Enable emergency withdrawals? (yes/no)"
+8. Call create_payout_plan with calculated values
+9. Explain: "I've created your plan. ₦50,000 has been locked from your wallet and will be paid out weekly."
+
+Example 2 - Creating Budget Plan:
+User: "Create a budget for ₦100,000 for travel expenses"
+AI Steps:
+1. Call get_user_balance (informational, not required)
+2. Suggest categories: air_travel with subcategories like flight_tickets, visa_fees, hotel_bookings
+3. Ask: "When does this budget start? (optional, can be ongoing)"
+4. Call create_budget_plan with categories
+5. Explain: "I've created your travel budget. You can add funds to it now using 'add funds to budget' or later."
+
+Example 2b - Creating Budget with Relative Dates:
+User: "I am planning a travel for the next 1 week"
+AI Steps:
+1. Calculate dates: startDate = today, endDate = today + 7 days
+2. Confirm: "I'll create a travel budget starting today and ending on [calculated end date]. Is that correct?"
+3. If confirmed, call create_budget_plan with calculated dates and categories=["air_travel"]
+4. Suggest subcategories: flight_tickets, hotel_bookings, etc.
+
+Example 2c - Creating Budget with Complex Relative Dates:
+User: "upcoming expense in the next 3 days and would last till month end"
+AI Steps:
+1. Calculate: startDate = today + 3 days, endDate = last day of current month
+2. Confirm: "I'll create a budget starting on [calculated start date] and ending on [calculated end date]. Is that correct?"
+3. Ask: "What category is this expense for?" (if not mentioned)
+4. If confirmed, call create_budget_plan with calculated dates
+
+Example 2d - Creating Budget with Duration Period:
+User: "Create a travel budget, I am traveling tomorrow and I want to spend a total of 1 million naira for the travel period, this will be used for Food, shopping, groceries, transportation and data, My period of stay is 5 days"
+AI Steps:
+1. Calculate: startDate = tomorrow, endDate = tomorrow + 4 days (5 days total: day 1=tomorrow, days 2-5)
+2. Categories: food, shopping, transportation (infer appropriate subcategories)
+3. Confirm: "I'll create a travel budget starting [tomorrow date] and ending [tomorrow + 4 days date] for 5 days. Total budget: ₦1,000,000. Is that correct?"
+4. If confirmed, call create_budget_plan with: startDate=tomorrow, endDate=tomorrow+4, totalBudget=1000000, categories and subcategories
+
+Example 3 - Insufficient Balance:
+User: "Create a payout plan for ₦200,000"
+AI Response: "I'd love to help! However, your available balance is ₦${availableBalance.toLocaleString()}, which is less than ₦200,000. You need to add ₦${(200000 - availableBalance).toLocaleString()} more to your wallet first. Would you like me to help you add funds?"
+
+Example 4 - Missing Payout Account:
+User: "Create a weekly payout for ₦20,000"
+AI Steps:
+1. Call get_payout_accounts
+2. If empty: "You need to add a payout account first. This is the bank account where your payouts will be sent. Would you like me to guide you through adding one?"
+
+NATURAL LANGUAGE PATTERNS:
+
+Common user phrases and how to interpret:
+- "Plan ₦X for Y months/weeks" → Create payout plan
+- "Budget for X" or "Budget plan for X" → Create budget plan
+- "Schedule payouts of ₦X weekly/monthly" → Create payout plan with frequency
+- "Save ₦X for Y" → Could be either, ask clarifying question
+- "Set aside ₦X for [category]" → Budget plan with category
+- "Pay out ₦X every [day/week/month]" → Payout plan
+
+When information is ambiguous:
+- Ask clarifying questions: "Do you want a payout plan (money sent to your bank) or a budget plan (money set aside for expenses)?"
+- If frequency unclear: "How often do you want the payouts? (daily, weekly, monthly, etc.)"
+- If amount unclear: "What's the total amount you want to plan for?"
+- If dates unclear or relative: "When should this start? (e.g., next week, January 1st, in 3 days)"
+- If duration unclear: "How long should this last? (e.g., 1 week, 1 month, until month end)"
+- ALWAYS confirm relative dates: "Just to confirm, by 'next week' do you mean [calculated date]?"
+
+ERROR HANDLING:
+
+Insufficient Balance:
+- Check balance BEFORE attempting to create payout plan
+- Explain clearly: "You have ₦X available, but need ₦Y. You need to add ₦Z more."
+- Suggest: "Would you like to add funds to your wallet first?"
+
+Missing Payout Account:
+- Always check for payout accounts before creating payout plan
+- If none exist: "You need to add a payout account first. This is where your money will be sent."
+
+Invalid Dates:
+- Start date must be today or future
+- If user provides past date: "Start date must be today or a future date. Would you like to start today?"
+- If relative date is unclear: "I want to make sure I understand correctly. When you say '[user phrase]', do you mean [calculated date]? Or did you have a different date in mind?"
+- If user says something vague like "soon" or "later": "Could you be more specific? For example, 'next week', 'in 3 days', or 'January 1st'?"
+
+Missing Required Fields:
+- For weekly_specific: "Which day of the week? (Sunday, Monday, Tuesday, etc.)"
+- For custom: "Please provide the specific dates for your custom payout schedule."
+
+CONFIRMATION PATTERNS:
+
+Always confirm before executing:
+- "I'll create a payout plan that will lock ₦X from your wallet and pay out ₦Y every [frequency]. Proceed?"
+- "This will create a budget plan for ₦X. You'll need to add funds to it separately. Continue?"
+
+For high-value transactions (>₦100,000):
+- Always ask for explicit confirmation
+- Explain the impact: "This will lock ₦X from your available balance."
+
+STEP-BY-STEP GUIDANCE:
+
+Before creating ANY plan:
+1. Always call get_user_balance first to understand user's financial situation
+2. For payout plans: Always call get_payout_accounts first
+3. Validate all inputs match the rules above
+4. Calculate missing values (e.g., payoutAmount from totalAmount/duration)
+5. Ask clarifying questions if information is missing or ambiguous
+6. Explain what will happen (fund locking, etc.)
+7. Confirm with user before executing
+8. After creation, explain what happened and next steps
+
+CATEGORY SUGGESTIONS:
+
+When user mentions expense types, suggest relevant categories:
+- Travel/vacation → air_travel (flight_tickets, hotel_bookings, visa_fees)
+- Car expenses → car_maintenance (servicing, car_repair, insurance)
+- Food → food (restaurants, cooking, takeout)
+- Bills → utilities_bills (electricity, water, waste_disposal)
+- Shopping → shopping (general_shopping, online_shopping)
+- Health → healthcare (routine_checkups, medication_pharmacy)
+- Education → education (tuition, textbooks, uniforms)
+- Entertainment → entertainment_social (cinema, concerts_events, streaming)
+
+USER CONTEXT:
+- User Name: ${userName}
+- TODAY'S DATE: ${new Date().toISOString().split('T')[0]} (YYYY-MM-DD format) - USE THIS as the reference point for all relative date calculations
+- Available Balance: ₦${availableBalance.toLocaleString()}
+- Total Balance: ₦${balance.toLocaleString()}
+- Locked Balance: ₦${(lockedBalance || 0).toLocaleString()}
+- Payout Plans: ${payoutPlans.length} active plan(s)
+- Budget Plans: ${expensePlans.length} active plan(s)
+- Payout Accounts: ${payoutAccounts.length} account(s)
+
+CRITICAL DATE CALCULATION:
+- "tomorrow" = TODAY'S DATE + 1 day
+- "next week" = TODAY'S DATE + 7 days
+- "in 3 days" = TODAY'S DATE + 3 days
+- Always use TODAY'S DATE shown above as the starting point for all relative date calculations
+
+CORE INSTRUCTIONS:
+- Answer questions about finances, plans, and the app in a conversational, friendly manner
+- Use functions to perform actions (create plans, withdrawals, etc.)
+- Always check prerequisites (balance, accounts) before creating plans
+- Ask clarifying questions when information is ambiguous or missing
+- Explain what actions will be taken before executing (especially fund locking)
+- Provide helpful suggestions when prerequisites aren't met
+- For payout plans: Ensure user has payout account first (use get_payout_accounts)
+- For budget plans: Suggest relevant categories based on user's needs
+- After creating budget plan: Suggest adding funds using add_funds_to_budget
+- Handle errors gracefully with helpful, actionable messages
+- Use Nigerian Naira (₦) for all amounts
+- Be positive, supportive, and empowering`;
+  };
+
+  // Execute function calls from OpenAI
+  const executeFunctionCall = async (functionName: string, args: any): Promise<any> => {
+    try {
+      switch (functionName) {
+        case 'create_payout_plan':
+          await createPayout({
+            name: args.name,
+            totalAmount: args.totalAmount,
+            payoutAmount: args.payoutAmount,
+            frequency: args.frequency,
+            duration: args.duration,
+            startDate: args.startDate,
+            payoutAccountId: args.payoutAccountId,
+            emergencyWithdrawalEnabled: args.emergencyWithdrawalEnabled || false,
+            dayOfWeek: args.dayOfWeek,
+            payoutHour: args.payoutHour || 9,
+            payoutMinute: args.payoutMinute || 0,
+            customDates: args.customDates,
+          });
+          await fetchPayoutPlans();
+          // Query database to get the newly created plan
+          const { data: newPayoutPlan } = await supabase
+            .from('payout_plans')
+            .select('id')
+            .eq('name', args.name)
+            .eq('user_id', session?.user?.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          return { success: true, planId: newPayoutPlan?.id, planType: 'payout', message: 'Payout plan created successfully' };
+        
+        case 'create_budget_plan':
+          // Validate and parse dates
+          let parsedStartDate: string | null = null;
+          let parsedEndDate: string | null = null;
+          
+          if (args.startDate) {
+            try {
+              // Validate date format (YYYY-MM-DD)
+              const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+              if (!dateRegex.test(args.startDate)) {
+                throw new Error(`Invalid start date format: ${args.startDate}. Expected YYYY-MM-DD`);
+              }
+              const startDateObj = new Date(args.startDate + 'T00:00:00');
+              if (isNaN(startDateObj.getTime())) {
+                throw new Error(`Invalid start date: ${args.startDate}`);
+              }
+              // Always save valid dates - they will be visible but budget won't be "started" until funded
+              parsedStartDate = args.startDate;
+            } catch (error: any) {
+              console.error('Error parsing start date:', error);
+              // If date is invalid, set to null
+              parsedStartDate = null;
+            }
+          }
+          
+          if (args.endDate) {
+            try {
+              // Validate date format (YYYY-MM-DD)
+              const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+              if (!dateRegex.test(args.endDate)) {
+                throw new Error(`Invalid end date format: ${args.endDate}. Expected YYYY-MM-DD`);
+              }
+              const endDateObj = new Date(args.endDate + 'T00:00:00');
+              if (isNaN(endDateObj.getTime())) {
+                throw new Error(`Invalid end date: ${args.endDate}`);
+              }
+              parsedEndDate = args.endDate;
+            } catch (error: any) {
+              console.error('Error parsing end date:', error);
+              // If date is invalid, set to null
+              parsedEndDate = null;
+            }
+          }
+          
+          // Extract unique categories from subcategories or use provided categories array
+          const uniqueCategories = args.categories && args.categories.length > 0 
+            ? [...new Set(args.categories)]
+            : args.subcategories 
+              ? [...new Set(args.subcategories.map((sub: any) => sub.category_id).filter(Boolean))]
+              : [];
+          
+          // Convert categories/subcategories to buckets format if provided
+          const buckets = args.subcategories?.map((sub: any) => ({
+            category_id: sub.category_id,
+            subcategory_id: sub.subcategory_id,
+            name: sub.name || `${sub.category_id}_${sub.subcategory_id}`,
+            target_amount: args.totalBudget / (args.subcategories?.length || 1), // Distribute budget evenly
+          })) || [];
+          
+          // Prepare subcategories array for direct storage
+          const subcategoriesArray = args.subcategories?.map((sub: any) => ({
+            category_id: sub.category_id,
+            subcategory_id: sub.subcategory_id,
+          })) || [];
+          
+          const budgetResult = await createCompletePlan({
+            plan_name: args.name,
+            name: args.name,
+            total_budget: args.totalBudget,
+            start_date: parsedStartDate,
+            end_date: parsedEndDate,
+            funding_method: args.fundingMethod || 'manual',
+            metadata: {
+              auto_topup_enabled: args.autoTopupEnabled || false,
+              auto_topup_frequency: args.autoTopupFrequency,
+              auto_topup_amount: args.autoTopupAmount,
+              // Store categories and subcategories in metadata as backup
+              categories: uniqueCategories,
+              subcategories: subcategoriesArray,
+            },
+            buckets: buckets,
+          });
+          await fetchExpensePlans();
+          
+          // Check if budget is unfunded
+          const isUnfunded = (budgetResult?.current_balance || 0) === 0;
+          
+          return { 
+            success: true, 
+            planId: budgetResult?.id, 
+            planType: 'budget', 
+            isUnfunded,
+            message: 'Budget plan created successfully' 
+          };
+        
+        case 'get_user_plans':
+          await Promise.all([fetchPayoutPlans(), fetchExpensePlans()]);
+          return {
+            payoutPlans: payoutPlans.map(p => ({
+              id: p.id,
+              name: p.name,
+              status: p.status,
+              totalAmount: p.total_amount,
+              payoutAmount: p.payout_amount,
+              frequency: p.frequency,
+              nextPayoutDate: p.next_payout_date,
+            })),
+            budgetPlans: expensePlans.map(p => ({
+              id: p.id,
+              name: p.name,
+              status: p.status,
+              totalBudget: p.total_budget,
+              currentBalance: p.current_balance,
+              totalSpent: p.total_spent,
+            })),
+          };
+        
+        case 'get_user_balance':
+          return {
+            availableBalance,
+            totalBalance: balance,
+            lockedBalance: lockedBalance || 0,
+          };
+        
+        case 'process_emergency_withdrawal':
+          const withdrawalResult = await processEmergencyWithdrawal({
+            planId: args.planId,
+            withdrawalAmount: args.withdrawalAmount,
+            option: args.option,
+            payoutAccountId: args.payoutAccountId,
+            planName: payoutPlans.find(p => p.id === args.planId)?.name || 'Plan',
+          });
+          await fetchPayoutPlans();
+          return { success: true, message: 'Emergency withdrawal processed successfully', result: withdrawalResult };
+        
+        case 'rename_payout_plan':
+          await updatePayoutPlan(args.planId, { name: args.name });
+          await fetchPayoutPlans();
+          return { success: true, message: 'Payout plan renamed successfully' };
+        
+        case 'rename_budget_plan':
+          await updateExpensePlan(args.planId, { name: args.name });
+          await fetchExpensePlans();
+          return { success: true, message: 'Budget plan renamed successfully' };
+        
+        case 'add_funds_to_budget':
+          const fundResult = await addFundsToPlan(args.planId, args.amount);
+          await fetchExpensePlans();
+          return { success: true, message: 'Funds added to budget plan successfully', result: fundResult };
+        
+        case 'get_payout_accounts':
+          await fetchPayoutAccounts();
+          return {
+            accounts: payoutAccounts.map(a => ({
+              id: a.id,
+              bankName: a.bank_name,
+              accountNumber: a.account_number,
+              accountName: a.account_name,
+              isDefault: a.is_default,
+            })),
+          };
+        
+        case 'get_transactions':
+          await fetchTransactions(args.limit || 50);
+          return {
+            transactions: transactions.slice(0, args.limit || 50).map(t => ({
+              id: t.id,
+              type: t.type,
+              amount: t.amount,
+              status: t.status,
+              createdAt: t.created_at,
+            })),
+          };
+        
+        default:
+          return { success: false, error: `Unknown function: ${functionName}` };
+      }
+    } catch (error: any) {
+      console.error(`Error executing function ${functionName}:`, error);
+      return { success: false, error: error.message || 'Function execution failed' };
+    }
+  };
 
   // Set up keyboard listeners
   useEffect(() => {
@@ -235,14 +1101,7 @@ export default function AIAssistantScreen() {
     };
   }, []);
 
-  // Scroll to input when plan creation step changes
-  useEffect(() => {
-    if (planCreationStep !== 'idle') {
-      setTimeout(() => {
-        scrollToBottom();
-      }, 300);
-    }
-  }, [planCreationStep]);
+  // Removed plan creation step effect - no longer needed
 
   // Show suggestions when input field is clear (regardless of conversation history)
   useEffect(() => {
@@ -317,7 +1176,8 @@ export default function AIAssistantScreen() {
     
     const welcomeMessage: Message = {
       id: 'welcome',
-      content: `Hi ${session?.user?.user_metadata?.first_name || 'there'}! I'm your financial assistant. I can help you create payout plans, analyze your spending, and provide personalized financial advice. How can I help you today?`,
+      content: `Hi ${session?.user?.user_metadata?.first_name || 'there'}! I'm your financial assistant. I can help you **create payout plans**, **set up budgets**, **manage your plans**, and **get financial insights**.
+How can I help you today? 😊`,
       sender: 'ai',
       type: 'text',
       timestamp: new Date(),
@@ -355,9 +1215,78 @@ export default function AIAssistantScreen() {
     }, 300);
   };
 
+  // Preprocess user message to extract structured data and convert relative dates
+  const preprocessUserMessage = async (userMessage: string): Promise<string | null> => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    // Helper to calculate dates
+    const addDays = (date: Date, days: number): string => {
+      const result = new Date(date);
+      result.setDate(result.getDate() + days);
+      return result.toISOString().split('T')[0];
+    };
+    
+    const getLastDayOfMonth = (date: Date): string => {
+      const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+      return lastDay.toISOString().split('T')[0];
+    };
+    
+    const getFirstDayOfNextMonth = (date: Date): string => {
+      const firstDay = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+      return firstDay.toISOString().split('T')[0];
+    };
+
+    try {
+      // Use AI to parse and format the message
+      const parsePrompt = `You are a message preprocessor. Parse the user's message and convert relative dates to absolute dates in YYYY-MM-DD format.
+
+TODAY'S DATE: ${todayStr} (YYYY-MM-DD)
+
+INSTRUCTIONS:
+1. Extract all relative date references and convert them to absolute dates
+2. Convert "tomorrow" to ${addDays(today, 1)}
+3. Convert "next week" to ${addDays(today, 7)}
+4. Convert "in X days" to ${todayStr} + X days
+5. For duration periods: if user says "for 5 days" starting "tomorrow", calculate endDate = tomorrow + 4 days (5 days total including start)
+6. Convert "end of month" or "month end" to ${getLastDayOfMonth(today)}
+7. Convert "next month" to ${getFirstDayOfNextMonth(today)}
+8. Keep all other information intact
+9. If dates are unclear, keep the original message but add a note about what needs clarification
+
+USER MESSAGE: "${userMessage}"
+
+Return the preprocessed message with all relative dates converted to absolute dates in YYYY-MM-DD format. If the message doesn't need preprocessing, return the original message. Return ONLY the preprocessed message, no explanations.`;
+
+      const preprocessResponse = await getOpenAIChatCompletion({
+        messages: [
+          { role: 'system', content: 'You are a helpful message preprocessor that converts relative dates to absolute dates.' },
+          { role: 'user', content: parsePrompt }
+        ],
+        model: 'gpt-4-turbo-preview',
+        temperature: 0.3, // Lower temperature for more accurate date parsing
+        max_tokens: 500,
+      });
+
+      if (preprocessResponse.content) {
+        // Check if the preprocessed message is significantly different (contains dates)
+        const hasDatePattern = /\d{4}-\d{2}-\d{2}/.test(preprocessResponse.content);
+        if (hasDatePattern || preprocessResponse.content.length > userMessage.length * 0.8) {
+          return preprocessResponse.content.trim();
+        }
+      }
+      
+      return null; // Return null to use original message
+    } catch (error) {
+      console.error('Error preprocessing message:', error);
+      return null; // Fallback to original message
+    }
+  };
+
   // Update handleSendMessage to intercept input for plan creation steps
-  const handleSendMessage = async () => {
-    if (!inputText.trim()) return;
+  const handleSendMessage = async (messageOverride?: string) => {
+    const messageToSend = messageOverride || inputText.trim();
+    if (!messageToSend) return;
 
     // Check authentication first
     if (!isAuthenticated) {
@@ -377,7 +1306,6 @@ export default function AIAssistantScreen() {
     // Check rate limiting first
     const rateLimitCheck = checkRateLimit();
     if (!rateLimitCheck.canProceed) {
-      // Show friendly rate limit message
       const rateLimitMessage: Message = {
         id: `rate-limit-${Date.now()}`,
         content: rateLimitCheck.message!,
@@ -390,39 +1318,22 @@ export default function AIAssistantScreen() {
       return;
     }
 
-    // If in a plan creation step, route input to plan step handler
-    if (planCreationStep !== 'idle') {
-      handlePlanStepInput(inputText.trim());
-      setInputText('');
-      return;
-    }
-
-    // Check if user is responding to a clarifying question
-    // Only check if the message seems like a response to clarification (short, simple answer)
-    if (awaitingClarification && inputText.trim().length < 50) {
-      handleClarificationResponse(inputText.trim(), awaitingClarification);
-      setInputText('');
-      return;
-    } else if (awaitingClarification && inputText.trim().length >= 50) {
-      // If it's a longer message, it might be a new request - clear clarification state
-      setAwaitingClarification(null);
-    }
-
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: inputText.trim(),
+      content: messageToSend,
       sender: 'user',
       type: 'text',
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, userMessage]);
-    setInputText('');
+    if (!messageOverride) {
+      setInputText('');
+    }
     setShowSuggestions(false);
     setIsTyping(true);
     setError(null);
-    setLastUserMessage(inputText.trim());
-    setLastType(null);
+    setLastUserMessage(messageToSend);
 
     // Update rate limiting counters
     const now = Date.now();
@@ -459,9 +1370,127 @@ export default function AIAssistantScreen() {
       setMessages(prev => [...prev, warningMessage]);
     }
 
-    setTimeout(() => {
-      generateAIResponse(userMessage.content, { availableBalance, balance, lockedBalance });
-    }, 500);
+    try {
+      // Preprocess user message with AI to extract and format structured data
+      const preprocessedMessage = await preprocessUserMessage(messageToSend);
+      
+      // Build conversation history for OpenAI
+      const conversationHistory: OpenAIMessage[] = [
+        { role: 'system', content: buildSystemPrompt() },
+      ];
+
+      // Add previous messages (last 10 for context)
+      const recentMessages = messages.slice(-10);
+      for (const msg of recentMessages) {
+        if (msg.sender === 'user') {
+          conversationHistory.push({ role: 'user', content: msg.content });
+        } else {
+          conversationHistory.push({ role: 'assistant', content: msg.content });
+        }
+      }
+
+      // Add current user message (use preprocessed version if available, otherwise original)
+      conversationHistory.push({ role: 'user', content: preprocessedMessage || messageToSend });
+
+      // Call OpenAI with function definitions
+      const response = await getOpenAIChatCompletion({
+        messages: conversationHistory,
+        model: 'gpt-4-turbo-preview', // Use correct model identifier
+        temperature: 0.7,
+        max_tokens: 2000,
+        tools: getFunctionDefinitions(),
+      });
+
+      // Handle function calls if any
+      if (response.tool_calls && response.tool_calls.length > 0) {
+        // Execute all function calls
+        const functionResults: OpenAIMessage[] = [];
+        let createdPlanId: string | undefined;
+        let createdPlanType: 'payout' | 'budget' | undefined;
+        let isUnfunded: boolean | undefined;
+        
+        for (const toolCall of response.tool_calls) {
+          const functionName = toolCall.function.name;
+          const args = JSON.parse(toolCall.function.arguments);
+          
+          const result = await executeFunctionCall(functionName, args);
+          
+          // Capture plan creation info
+          if ((functionName === 'create_payout_plan' || functionName === 'create_budget_plan') && result.planId) {
+            createdPlanId = result.planId;
+            createdPlanType = result.planType;
+            isUnfunded = result.isUnfunded;
+          }
+          
+          functionResults.push({
+            role: 'tool',
+            content: JSON.stringify(result),
+            tool_call_id: toolCall.id,
+            name: functionName,
+          });
+        }
+
+        // Send function results back to OpenAI for final response
+        const finalMessages: OpenAIMessage[] = [
+          ...conversationHistory,
+          { role: 'assistant', content: null, tool_calls: response.tool_calls },
+          ...functionResults,
+        ];
+
+        const finalResponse = await getOpenAIChatCompletion({
+          messages: finalMessages,
+          model: 'gpt-4-turbo-preview', // Use correct model identifier
+          temperature: 0.7,
+          max_tokens: 2000,
+          tools: getFunctionDefinitions(),
+        });
+
+        // Display final response
+        if (finalResponse.content) {
+          const aiMessage: Message = {
+            id: `ai-${Date.now()}`,
+            content: finalResponse.content,
+            sender: 'ai',
+            type: 'text',
+            timestamp: new Date(),
+            metadata: createdPlanId ? { 
+              planId: createdPlanId, 
+              planType: createdPlanType,
+              isUnfunded: isUnfunded 
+            } : undefined,
+          };
+          setMessages(prev => [...prev, aiMessage]);
+        }
+      } else if (response.content) {
+        // No function calls, just display the response
+        const aiMessage: Message = {
+          id: `ai-${Date.now()}`,
+          content: response.content,
+          sender: 'ai',
+          type: 'text',
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, aiMessage]);
+      }
+    } catch (err: any) {
+      console.error('AI Response Error:', err);
+      setError(err.message || 'Failed to get AI response');
+      
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`,
+        content: err.message?.includes('Network') || err.message?.includes('connection')
+          ? "I'm having trouble connecting to the internet right now. Please check your connection and try again."
+          : err.message?.includes('timeout')
+          ? "The request is taking longer than expected. Please try asking your question again."
+          : "I'm temporarily unable to process your request. Please try again in a moment.",
+        sender: 'ai',
+        type: 'text',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleSuggestionPress = (suggestion: string) => {
@@ -480,1669 +1509,12 @@ export default function AIAssistantScreen() {
   const retryLastRequest = () => {
     if (!lastUserMessage) return;
     setError(null);
-    setIsTyping(true);
-    if (lastType === 'plan') {
-      generatePlanResponse(lastUserMessage, { availableBalance, balance, lockedBalance });
-    } else if (lastType === 'insight') {
-      generateInsightResponse(lastUserMessage, { availableBalance, balance, lockedBalance });
-    } else {
-      generateTextResponse(lastUserMessage, { availableBalance, balance, lockedBalance });
-    }
+    setInputText(lastUserMessage);
+    // Trigger handleSendMessage by simulating user input
+    setTimeout(() => {
+      handleSendMessage();
+    }, 100);
   };
-
-  const generateAIResponse = async (userMessage: string, balances: { availableBalance: number, balance: number, lockedBalance: number }) => {
-    const lowerCaseMessage = userMessage.toLowerCase();
-    
-    // Check for clear plan-related keywords with context
-    const hasPlanKeywords = lowerCaseMessage.includes('plan') || 
-                           lowerCaseMessage.includes('budget') ||
-                           lowerCaseMessage.includes('pay myself') ||
-                           (lowerCaseMessage.includes('earn') && (lowerCaseMessage.includes('monthly') || lowerCaseMessage.includes('weekly')));
-    
-    // Check for clear insight-related keywords with context
-    const hasInsightKeywords = lowerCaseMessage.includes('analyze') || 
-                              lowerCaseMessage.includes('pattern') || 
-                              lowerCaseMessage.includes('spending') ||
-                              lowerCaseMessage.includes('habits') ||
-                              lowerCaseMessage.includes('improve');
-    
-    // Check for specific plan patterns (amount + timeframe)
-    const hasPlanPattern = /\d+[kmb]?\s*(for|over|in)\s*\d+\s*(month|week|year)/i.test(userMessage) ||
-                          /plan\s+\d+[kmb]?/i.test(userMessage) ||
-                          /schedule\s+\d+[kmb]?/i.test(userMessage);
-    
-    // Check for specific insight patterns
-    const hasInsightPattern = /analyze\s+(my|your)/i.test(userMessage) ||
-                             /spending\s+pattern/i.test(userMessage) ||
-                             /money\s+habits/i.test(userMessage);
-    
-    // Prioritize specific patterns over general keywords
-    // If it's a very specific plan pattern, use hardcoded logic
-    // Otherwise, use OpenAI for more nuanced responses
-    if (hasPlanPattern && isSimplePayoutPrompt(userMessage)) {
-      setLastType('plan');
-      await generatePlanResponse(userMessage, balances);
-    } 
-    else if (hasPlanKeywords || hasPlanPattern) {
-      // For plan-related queries that aren't very specific, use OpenAI for better handling
-      setLastType('plan');
-      await generatePlanResponse(userMessage, balances);
-    }
-    else if (hasInsightPattern || (hasInsightKeywords && !hasPlanKeywords)) {
-      setLastType('insight');
-      await generateInsightResponse(userMessage, balances);
-    } 
-    else {
-      // For ambiguous messages, use text response which is more flexible
-      setLastType('text');
-      await generateTextResponse(userMessage, balances);
-    }
-  };
-
-  const generateTextResponse = async (userMessage: string, balances: { availableBalance: number, balance: number, lockedBalance: number }) => {
-    const { availableBalance, balance, lockedBalance } = balances;
-    let response = "";
-    try {
-      const systemPrompt = `You are Planmoni, a helpful, friendly, and expert financial assistant for Nigerian users.\nUser: ${getUserName()}\nAvailable balance: ₦${availableBalance.toLocaleString()}\nTotal balance: ₦${balance.toLocaleString()}\nLocked balance: ₦${lockedBalance.toLocaleString()}\nGive advice in a conversational, encouraging, and clear way. If the user asks about their finances, use these numbers for context. If you are unsure, say so. Do not make up numbers or facts.`;
-      response = await getOpenAIChatCompletion({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        model: 'gpt-3.5-turbo',
-        temperature: 0.7,
-        max_tokens: 256
-      });
-    } catch (err: any) {
-      console.error('AI Text Response Error:', {
-        error: err.message,
-        userMessage: userMessage.substring(0, 100),
-        platform: Platform.OS,
-        isDev: __DEV__
-      });
-      
-      // Provide more specific error messages based on the error type
-      if (err.message?.includes('API key')) {
-        setError('AI service configuration issue. Please contact support.');
-        response = "I'm having trouble connecting to my AI service right now. This might be a configuration issue. Please contact our support team for assistance.";
-      } else if (err.message?.includes('Network') || err.message?.includes('connection')) {
-        setError('Network connection issue. Please check your internet connection.');
-        response = "I'm having trouble connecting to the internet right now. Please check your connection and try again.";
-      } else if (err.message?.includes('timeout')) {
-        setError('Request timed out. Please try again.');
-        response = "The request is taking longer than expected. Please try asking your question again.";
-      } else if (err.message?.includes('authentication')) {
-        setError('AI service authentication failed. Please contact support.');
-        response = "I'm experiencing an authentication issue with my AI service. Please contact our support team.";
-      } else {
-        setError('AI service temporarily unavailable. Please try again.');
-        response = "I'm temporarily unable to process your request. Please try again in a moment.";
-      }
-    }
-    const aiMessage: Message = {
-      id: Date.now().toString(),
-      content: response,
-      sender: 'ai',
-      type: 'text',
-      timestamp: new Date(),
-    };
-    setMessages(prev => [...prev, aiMessage]);
-    setIsTyping(false);
-  };
-
-  // Update isSimplePayoutPrompt to support k/m/b suffixes and written numbers
-  // Only return true for very specific prompts with clear amount and timeframe
-  const isSimplePayoutPrompt = (message: string) => {
-    // Looks for very specific patterns like 'plan 5k for 1 week', 'plan 500k for 2 months', etc.
-    // Must have both amount and timeframe clearly specified
-    const regex = /(plan|help me plan|payout|disburse|schedule)\s+((?:[₦]?[\d,.]+(?:[kKmMbB])?)|(?:a |one |two |three |four |five |six |seven |eight |nine |ten |eleven |twelve |thirteen |fourteen |fifteen |sixteen |seventeen |eighteen |nineteen |twenty |thirty |forty |fifty |sixty |seventy |eighty |ninety |hundred |thousand |million |billion|and|point| )+)\s+(for|over|in)\s+((?:\d+|a |one |two |three |four |five |six |seven |eight |nine |ten |eleven |twelve |thirteen |fourteen |fifteen |sixteen |seventeen |eighteen |nineteen |twenty)[ ]*)\s*(month|months|week|weeks|day|days|year|years)/i;
-    return regex.test(message);
-  };
-
-  const generatePlanResponse = async (userMessage: string, balances: { availableBalance: number, balance: number, lockedBalance: number }) => {
-    const { availableBalance, balance, lockedBalance } = balances;
-    let aiMessage: Message | null = null;
-    // If the prompt is a simple payout plan, check if frequency is ambiguous
-    if (isSimplePayoutPrompt(userMessage)) {
-      const targetAmount = extractAmount(userMessage);
-      const timeframeData = extractTimeframe(userMessage);
-      const extractedFreq = extractFrequency(userMessage);
-      
-      // Check if we have both amount and timeframe, but frequency is ambiguous
-      if (targetAmount && timeframeData && !extractedFreq) {
-        let timeframe: number;
-        let timeframeUnit: 'weeks' | 'months' | 'days' = 'months';
-        let timeframeDisplay: string;
-        
-        if (timeframeData.unit === 'weeks') {
-          timeframe = timeframeData.value;
-          timeframeUnit = 'weeks';
-          timeframeDisplay = `${timeframe} ${timeframe === 1 ? 'week' : 'weeks'}`;
-        } else if (timeframeData.unit === 'days') {
-          timeframe = timeframeData.value;
-          timeframeUnit = 'days';
-          timeframeDisplay = `${timeframe} ${timeframe === 1 ? 'day' : 'days'}`;
-        } else {
-          timeframe = timeframeData.value;
-          timeframeUnit = 'months';
-          timeframeDisplay = `${timeframe} ${timeframe === 1 ? 'month' : 'months'}`;
-        }
-        
-        // Generate clarifying question with potential options
-        const clarifyingOptions = generateClarifyingOptions(targetAmount, timeframe, timeframeUnit);
-        
-        if (clarifyingOptions.length > 1) {
-          // Ask clarifying question and store context
-          let content = `I want to make sure I understand correctly. When you say "plan ₦${targetAmount.toLocaleString()} for ${timeframeDisplay}", do you mean:\n\n`;
-          clarifyingOptions.forEach((option, index) => {
-            content += `${index + 1}. ${option.description}\n`;
-          });
-          content += `\nPlease let me know which option you prefer (you can say the number, like "1" or "2", or describe it like "daily" or "weekly").`;
-          
-          // Store clarification context
-          setAwaitingClarification({
-            targetAmount,
-            timeframe,
-            timeframeUnit,
-            options: clarifyingOptions
-          });
-          
-          aiMessage = {
-            id: Date.now().toString(),
-            content,
-            sender: 'ai',
-            type: 'text',
-            timestamp: new Date(),
-            metadata: {
-              step: 'clarifying_frequency',
-              targetAmount,
-              timeframe,
-              timeframeUnit,
-              options: clarifyingOptions
-            }
-          };
-          setMessages(prev => [...prev, aiMessage!]);
-          setIsTyping(false);
-          return;
-        }
-      }
-      
-      // If frequency is specified or only one option makes sense, proceed with plan generation
-      const targetAmountFinal = targetAmount || 500000;
-      const timeframeDataFinal = timeframeData;
-      
-      let timeframe: number;
-      let timeframeUnit: 'weeks' | 'months' | 'days' = 'months';
-      let timeframeDisplay: string;
-      
-      if (timeframeDataFinal) {
-        if (timeframeDataFinal.unit === 'weeks') {
-          timeframe = timeframeDataFinal.value;
-          timeframeUnit = 'weeks';
-          timeframeDisplay = `${timeframe} ${timeframe === 1 ? 'week' : 'weeks'}`;
-        } else if (timeframeDataFinal.unit === 'days') {
-          timeframe = timeframeDataFinal.value;
-          timeframeUnit = 'days';
-          timeframeDisplay = `${timeframe} ${timeframe === 1 ? 'day' : 'days'}`;
-        } else {
-          timeframe = timeframeDataFinal.value;
-          timeframeUnit = 'months';
-          timeframeDisplay = `${timeframe} ${timeframe === 1 ? 'month' : 'months'}`;
-        }
-      } else {
-        timeframe = 6;
-        timeframeDisplay = '6 months';
-      }
-      
-      let content = `Based on your goal to schedule payouts totaling ₦${targetAmountFinal.toLocaleString()} over ${timeframeDisplay}, here are some flexible payout schedules you can set up:`;
-      aiMessage = {
-        id: Date.now().toString(),
-        content,
-        sender: 'ai',
-        type: 'plan',
-        timestamp: new Date(),
-        metadata: {
-          targetAmount: targetAmountFinal,
-          timeframe,
-          timeframeUnit,
-          plans: getPlanOptions(targetAmountFinal, timeframe, userMessage, timeframeUnit)
-        }
-      };
-      setMessages(prev => [...prev, aiMessage!]);
-      setIsTyping(false);
-      // Clear any pending clarification when generating a plan
-      setAwaitingClarification(null);
-      return;
-    }
-    try {
-      // In-context examples for payout scheduling
-      const examples = [
-        { user: "Help me plan 150k for 3 months", ai: '{"type": "plan", "content": "Here is a payout schedule to disburse ₦150,000 over 3 months.", "metadata": {"targetAmount": 150000, "timeframe": 3, "plans": [{"title": "Monthly Payout", "amount": 50000, "frequency": "monthly", "description": "Schedule a payout of ₦50,000 every month for 3 months."}]}}' },
-        { user: "I want to payout 100k weekly for 2 months", ai: '{"type": "plan", "content": "Here is your weekly payout schedule.", "metadata": {"targetAmount": 100000, "timeframe": 2, "plans": [{"title": "Weekly Payout", "amount": 12500, "frequency": "weekly", "description": "Schedule a payout of ₦12,500 every week for 2 months."}]}}' },
-        { user: "Disburse 60k biweekly for 6 months", ai: '{"type": "plan", "content": "Here is your bi-weekly payout schedule.", "metadata": {"targetAmount": 60000, "timeframe": 6, "plans": [{"title": "Bi-weekly Payout", "amount": 5000, "frequency": "biweekly", "description": "Schedule a payout of ₦5,000 every two weeks for 6 months."}]}}' },
-        { user: "I want to payout 10k daily for 10 days", ai: '{"type": "plan", "content": "Here is your daily payout schedule.", "metadata": {"targetAmount": 10000, "timeframe": 10, "plans": [{"title": "Daily Payout", "amount": 1000, "frequency": "daily", "description": "Schedule a payout of ₦1,000 every day for 10 days."}]}}' },
-        { user: "Disburse 200k at the end of every month for 4 months", ai: '{"type": "plan", "content": "Here is your end-of-month payout schedule.", "metadata": {"targetAmount": 200000, "timeframe": 4, "plans": [{"title": "End-of-Month Payout", "amount": 50000, "frequency": "end_of_month", "description": "Schedule a payout of ₦50,000 at the end of each month for 4 months."}]}}' }
-      ];
-      const systemPrompt = `You are Planmoni, a helpful, friendly, and expert payout scheduling assistant for Nigerian users.\nUser: ${getUserName()}\nAvailable balance: ₦${availableBalance.toLocaleString()}\nTotal balance: ₦${balance.toLocaleString()}\nLocked balance: ₦${lockedBalance.toLocaleString()}\n\nIMPORTANT: Planmoni is a payout scheduling app. Your job is to help users plan and schedule payouts over time, regardless of their current balance. Do NOT check if the user can "afford" a payout up front. Never block or warn about insufficient balance. Always suggest flexible payout schedules, and encourage users to schedule payouts as funds become available.\n\nUse only payout, schedule, disbursement, or plan your payouts language. Never use savings or saving plan language.\n\nIf the user's request is ambiguous (e.g., "plan 5k for 1 week" without specifying frequency), respond with a clarifying question in this format:\n{\n  \"type\": \"clarify\",\n  \"content\": \"I want to make sure I understand correctly. When you say 'plan ₦5,000 for 1 week', do you mean:\\n\\n1. A weekly payout of ₦5,000 (one payout per week)\\n2. A daily payout of ₦714 per day for 7 days (totaling ₦5,000)\\n\\nPlease let me know which option you prefer.\"\n}\n\nIf the user asks for a payout schedule with clear details, respond ONLY with a valid JSON object like this:\n{\n  \"type\": \"plan\",\n  \"content\": \"summary of the payout schedule\",\n  \"metadata\": {\n    \"targetAmount\": 1000000,\n    \"timeframe\": 6,\n    \"plans\": [ {\n      \"title\": \"Weekly Payout\",\n      \"amount\": 50000,\n      \"frequency\": \"weekly\",\n      \"description\": \"Schedule a payout of ₦50,000 every week for 6 months." } ]\n  }\n}\nDo not include any text outside the JSON.\nIf the user's available balance is low, encourage them to schedule payouts as funds become available, and offer flexible options.\nBe positive, supportive, and empowering. Never block the user from seeing a payout schedule.\n\nHere are some examples:\n${examples.map(e => `User: ${e.user}\nAI: ${e.ai}`).join('\n')}\n\nIf you are unsure or the request is ambiguous, ask clarifying questions. Do not make up numbers or facts.`;
-      const openaiResponse = await getOpenAIChatCompletion({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        model: 'gpt-3.5-turbo',
-        temperature: 0.5,
-        max_tokens: 512
-      });
-      const jsonStart = openaiResponse.indexOf('{');
-      const jsonEnd = openaiResponse.lastIndexOf('}');
-      let parsed: any = null;
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        try {
-          parsed = JSON.parse(openaiResponse.substring(jsonStart, jsonEnd + 1));
-        } catch (e) {}
-      }
-      
-      // Handle clarifying questions from OpenAI
-      if (parsed && parsed.type === 'clarify') {
-        const clarifyMessage: Message = {
-          id: Date.now().toString(),
-          content: parsed.content,
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'clarifying' }
-        };
-        setMessages(prev => [...prev, clarifyMessage]);
-        setIsTyping(false);
-        return;
-      }
-      
-      if (parsed && parsed.type === 'plan' && parsed.metadata && Array.isArray(parsed.metadata.plans)) {
-        // Check if frequency is missing or ambiguous
-        const planHasFrequency = parsed.metadata.plans.some((p: any) => p.frequency);
-        if (!planHasFrequency) {
-          // Prompt user for frequency
-          setPlanDraft(parsed);
-          setPlanCreationStep('awaiting_frequency');
-          setMessages(prev => [
-            ...prev,
-            {
-              id: `ask-frequency-${Date.now()}`,
-              content: 'How often do you want your payouts? Please choose: weekly, specific day, bi-weekly, monthly, month end, bi-annually, annually, or custom schedule.',
-              sender: 'ai',
-              type: 'text',
-              timestamp: new Date(),
-              metadata: { step: 'frequency' }
-            }
-          ]);
-          return;
-        }
-        aiMessage = {
-          id: Date.now().toString(),
-          content: parsed.content || 'Here is a personalized payout schedule for you:',
-          sender: 'ai',
-          type: 'plan',
-          timestamp: new Date(),
-          metadata: parsed.metadata
-        };
-      } else {
-        // Handle invalid or ambiguous AI response gracefully
-        console.warn('AI returned invalid response for plan request:', {
-          userMessage: userMessage.substring(0, 100),
-          aiResponse: openaiResponse.substring(0, 200),
-          parsed: parsed,
-          platform: Platform.OS
-        });
-        
-        // Provide a helpful fallback response instead of throwing an error
-        aiMessage = {
-          id: Date.now().toString(),
-          content: "I'd be happy to help you create a payout plan! Could you please be more specific about what you'd like to plan? For example:\n\n• \"Plan 50k for 3 months\"\n• \"Create a weekly payout schedule for 100k\"\n• \"Help me plan 200k over 6 months\"\n\nWhat amount and timeframe are you thinking about?",
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-        };
-      }
-    } catch (err: any) {
-      console.error('AI Plan Response Error:', {
-        error: err.message,
-        userMessage: userMessage.substring(0, 100),
-        platform: Platform.OS,
-        isDev: __DEV__
-      });
-      
-      // Provide more specific error messages based on the error type
-      if (err.message?.includes('API key')) {
-        setError('AI service configuration issue. Please contact support.');
-      } else if (err.message?.includes('Network') || err.message?.includes('connection')) {
-        setError('Network connection issue. Please check your internet connection.');
-      } else if (err.message?.includes('timeout')) {
-        setError('Request timed out. Please try again.');
-      } else if (err.message?.includes('authentication')) {
-        setError('AI service authentication failed. Please contact support.');
-      } else {
-        setError('AI service temporarily unavailable. Please try again.');
-      }
-    }
-    if (!aiMessage && !error) {
-      // Fallback: try to extract amount and timeframe, but use OpenAI for better handling
-      const targetAmount = extractAmount(userMessage);
-      const timeframeData = extractTimeframe(userMessage);
-      
-      // If we can extract both amount and timeframe, use hardcoded logic
-      // Otherwise, this shouldn't happen as OpenAI should handle it, but provide a fallback
-      if (targetAmount && timeframeData) {
-        let timeframe: number;
-        let timeframeUnit: 'weeks' | 'months' | 'days' = 'months';
-        let timeframeDisplay: string;
-        
-        if (timeframeData.unit === 'weeks') {
-          timeframe = timeframeData.value;
-          timeframeUnit = 'weeks';
-          timeframeDisplay = `${timeframe} ${timeframe === 1 ? 'week' : 'weeks'}`;
-        } else if (timeframeData.unit === 'days') {
-          timeframe = timeframeData.value;
-          timeframeUnit = 'days';
-          timeframeDisplay = `${timeframe} ${timeframe === 1 ? 'day' : 'days'}`;
-        } else {
-          timeframe = timeframeData.value;
-          timeframeUnit = 'months';
-          timeframeDisplay = `${timeframe} ${timeframe === 1 ? 'month' : 'months'}`;
-        }
-        
-        let content = `Based on your goal to schedule payouts totaling ₦${targetAmount.toLocaleString()} over ${timeframeDisplay}, here are some flexible payout schedules you can set up:`;
-        content += `\n\nYou can always adjust your payout schedule as your needs or available funds change. Planmoni makes it easy to stay on track!`;
-        aiMessage = {
-          id: Date.now().toString(),
-          content,
-          sender: 'ai',
-          type: 'plan',
-          timestamp: new Date(),
-          metadata: {
-            targetAmount,
-            timeframe,
-            timeframeUnit,
-            plans: getPlanOptions(targetAmount, timeframe, userMessage, timeframeUnit)
-          }
-        };
-      } else {
-        // If extraction fails, provide a helpful message asking for clarification
-        aiMessage = {
-          id: Date.now().toString(),
-          content: "I'd be happy to help you create a payout plan! To give you the best options, could you please specify:\n\n• The amount you'd like to plan (e.g., 5k, 50k, 100k)\n• The timeframe (e.g., 1 week, 2 weeks, 1 month, 3 months)\n\nFor example: \"Help me plan 5k for 1 week\" or \"Create a payout plan for 50k over 2 months\"",
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-        };
-      }
-    }
-    if (aiMessage) setMessages(prev => [...prev, aiMessage]);
-    setIsTyping(false);
-  };
-
-  // Handle user response to clarifying question
-  const handleClarificationResponse = (response: string, clarificationContext: { targetAmount: number; timeframe: number; timeframeUnit: 'weeks' | 'months' | 'days'; options: Array<{ frequency: string; amount: number; description: string }> }) => {
-    const normalized = response.toLowerCase().trim();
-    
-    // Try to match option number (1, 2, 3, etc.)
-    const optionMatch = normalized.match(/^(option\s*)?(\d+)/);
-    if (optionMatch) {
-      const optionIndex = parseInt(optionMatch[2]) - 1;
-      if (optionIndex >= 0 && optionIndex < clarificationContext.options.length) {
-        const selectedOption = clarificationContext.options[optionIndex];
-        generatePlanFromClarification(clarificationContext, selectedOption);
-        setAwaitingClarification(null);
-        return;
-      }
-    }
-    
-    // Try to match frequency keywords
-    if (normalized.includes('daily') || normalized.includes('day')) {
-      const dailyOption = clarificationContext.options.find(opt => opt.frequency === 'daily');
-      if (dailyOption) {
-        generatePlanFromClarification(clarificationContext, dailyOption);
-        setAwaitingClarification(null);
-        return;
-      }
-    }
-    
-    if (normalized.includes('weekly') || normalized.includes('week')) {
-      const weeklyOption = clarificationContext.options.find(opt => opt.frequency === 'weekly');
-      if (weeklyOption) {
-        generatePlanFromClarification(clarificationContext, weeklyOption);
-        setAwaitingClarification(null);
-        return;
-      }
-    }
-    
-    if (normalized.includes('monthly') || normalized.includes('month')) {
-      const monthlyOption = clarificationContext.options.find(opt => opt.frequency === 'monthly');
-      if (monthlyOption) {
-        generatePlanFromClarification(clarificationContext, monthlyOption);
-        setAwaitingClarification(null);
-        return;
-      }
-    }
-    
-    if (normalized.includes('single') || normalized.includes('one time') || normalized.includes('once')) {
-      const singleOption = clarificationContext.options.find(opt => opt.frequency === 'single');
-      if (singleOption) {
-        generatePlanFromClarification(clarificationContext, singleOption);
-        setAwaitingClarification(null);
-        return;
-      }
-    }
-    
-    // If no match found, ask for clarification again or use OpenAI
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: response,
-      sender: 'user',
-      type: 'text',
-      timestamp: new Date(),
-    };
-    setMessages(prev => [...prev, userMessage]);
-    
-    // If no clear match, ask for clarification again
-    const clarificationMessage: Message = {
-      id: `clarification-needed-${Date.now()}`,
-      content: `I'm not sure which option you meant. Please choose one:\n\n${clarificationContext.options.map((opt, i) => `${i + 1}. ${opt.description}`).join('\n')}\n\nYou can reply with the number (like "1" or "2") or describe it (like "daily" or "weekly").`,
-      sender: 'ai',
-      type: 'text',
-      timestamp: new Date(),
-      metadata: { step: 'clarifying' }
-    };
-    setMessages(prev => [...prev, clarificationMessage]);
-    setIsTyping(false);
-  };
-
-  // Generate plan from clarification response
-  const generatePlanFromClarification = (context: { targetAmount: number; timeframe: number; timeframeUnit: 'weeks' | 'months' | 'days' }, selectedOption: { frequency: string; amount: number; description: string }) => {
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: selectedOption.description,
-      sender: 'user',
-      type: 'text',
-      timestamp: new Date(),
-    };
-    setMessages(prev => [...prev, userMessage]);
-    
-    // Generate plan based on selected option
-    const plans = [];
-    const timeframeDisplay = context.timeframeUnit === 'weeks' 
-      ? `${context.timeframe} ${context.timeframe === 1 ? 'week' : 'weeks'}`
-      : context.timeframeUnit === 'days'
-      ? `${context.timeframe} ${context.timeframe === 1 ? 'day' : 'days'}`
-      : `${context.timeframe} ${context.timeframe === 1 ? 'month' : 'months'}`;
-    
-    if (selectedOption.frequency === 'daily') {
-      const daysInTimeframe = context.timeframeUnit === 'weeks' ? context.timeframe * 7 : context.timeframeUnit === 'days' ? context.timeframe : context.timeframe * 30;
-      plans.push({
-        title: `Daily Payout (${daysInTimeframe} ${daysInTimeframe === 1 ? 'day' : 'days'})`,
-        amount: selectedOption.amount,
-        frequency: 'daily',
-        duration: daysInTimeframe,
-        description: `Schedule a payout of ₦${selectedOption.amount.toLocaleString()} every day for ${daysInTimeframe} ${daysInTimeframe === 1 ? 'day' : 'days'}.`
-      });
-    } else if (selectedOption.frequency === 'weekly') {
-      const weeks = context.timeframeUnit === 'weeks' ? context.timeframe : context.timeframeUnit === 'days' ? Math.ceil(context.timeframe / 7) : context.timeframe * 4.33;
-      plans.push({
-        title: "Weekly Payout",
-        amount: selectedOption.amount,
-        frequency: 'weekly',
-        duration: context.timeframeUnit === 'weeks' ? context.timeframe : undefined,
-        description: `Schedule a payout of ₦${selectedOption.amount.toLocaleString()} every week for ${timeframeDisplay}.`
-      });
-    } else if (selectedOption.frequency === 'monthly') {
-      plans.push({
-        title: "Monthly Payout",
-        amount: selectedOption.amount,
-        frequency: 'monthly',
-        description: `Schedule a payout of ₦${selectedOption.amount.toLocaleString()} every month for ${timeframeDisplay}.`
-      });
-    } else if (selectedOption.frequency === 'single') {
-      plans.push({
-        title: "Single Payout",
-        amount: selectedOption.amount,
-        frequency: 'monthly', // Use monthly as default, but duration will be 1
-        description: `Schedule a single payout of ₦${selectedOption.amount.toLocaleString()}.`
-      });
-    }
-    
-    const aiMessage: Message = {
-      id: Date.now().toString(),
-      content: `Perfect! Based on your choice, here's your payout plan:`,
-      sender: 'ai',
-      type: 'plan',
-      timestamp: new Date(),
-      metadata: {
-        targetAmount: context.targetAmount,
-        timeframe: context.timeframe,
-        timeframeUnit: context.timeframeUnit,
-        plans: plans
-      }
-    };
-    
-    setMessages(prev => [...prev, aiMessage]);
-    setIsTyping(false);
-  };
-
-  // Helper to generate clarifying options when frequency is ambiguous
-  const generateClarifyingOptions = (targetAmount: number, timeframe: number, timeframeUnit: 'weeks' | 'months' | 'days') => {
-    const options = [];
-    
-    if (timeframeUnit === 'weeks') {
-      const daysInTimeframe = timeframe * 7;
-      // Option 1: Weekly payout (one payout per week)
-      options.push({
-        frequency: 'weekly',
-        amount: targetAmount,
-        description: `A weekly payout of ₦${targetAmount.toLocaleString()} (one payout per week)`
-      });
-      // Option 2: Daily payout (distributed over the week)
-      const dailyAmount = Math.ceil(targetAmount / daysInTimeframe);
-      options.push({
-        frequency: 'daily',
-        amount: dailyAmount,
-        description: `A daily payout of ₦${dailyAmount.toLocaleString()} per day for ${daysInTimeframe} days (totaling ₦${targetAmount.toLocaleString()})`
-      });
-    } else if (timeframeUnit === 'days') {
-      // Option 1: One payout for the full amount
-      options.push({
-        frequency: 'single',
-        amount: targetAmount,
-        description: `A single payout of ₦${targetAmount.toLocaleString()}`
-      });
-      // Option 2: Daily payout
-      const dailyAmount = Math.ceil(targetAmount / timeframe);
-      options.push({
-        frequency: 'daily',
-        amount: dailyAmount,
-        description: `A daily payout of ₦${dailyAmount.toLocaleString()} per day for ${timeframe} days (totaling ₦${targetAmount.toLocaleString()})`
-      });
-      // Option 3: Weekly payout if timeframe is 7+ days
-      if (timeframe >= 7) {
-        const weeklyAmount = Math.ceil(targetAmount / Math.ceil(timeframe / 7));
-        options.push({
-          frequency: 'weekly',
-          amount: weeklyAmount,
-          description: `A weekly payout of ₦${weeklyAmount.toLocaleString()} (one payout per week for ${Math.ceil(timeframe / 7)} ${Math.ceil(timeframe / 7) === 1 ? 'week' : 'weeks'})`
-        });
-      }
-    } else {
-      // For months, show monthly vs weekly vs daily options
-      const monthlyAmount = Math.ceil(targetAmount / timeframe);
-      options.push({
-        frequency: 'monthly',
-        amount: monthlyAmount,
-        description: `A monthly payout of ₦${monthlyAmount.toLocaleString()} per month for ${timeframe} ${timeframe === 1 ? 'month' : 'months'} (totaling ₦${targetAmount.toLocaleString()})`
-      });
-      
-      const weeksInTimeframe = Math.ceil(timeframe * 4.33);
-      const weeklyAmount = Math.ceil(targetAmount / weeksInTimeframe);
-      options.push({
-        frequency: 'weekly',
-        amount: weeklyAmount,
-        description: `A weekly payout of ₦${weeklyAmount.toLocaleString()} per week for ${weeksInTimeframe} weeks (totaling ₦${targetAmount.toLocaleString()})`
-      });
-    }
-    
-    return options;
-  };
-
-  // Helper to determine if the user was specific about payout schedule
-  const extractFrequency = (message: string): 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'end_of_month' | 'first_of_month' | null => {
-    const lower = message.toLowerCase();
-    if (lower.includes('daily') || lower.includes('every day')) return 'daily';
-    if (lower.includes('weekly')) return 'weekly';
-    if (lower.includes('biweekly') || lower.includes('bi-weekly') || lower.includes('every two weeks')) return 'biweekly';
-    if (lower.includes('end of month') || lower.includes('end-of-month')) return 'end_of_month';
-    if (lower.includes('first of month') || lower.includes('first-of-month')) return 'first_of_month';
-    if (lower.includes('monthly')) return 'monthly';
-    return null;
-  };
-
-  // Helper to filter plans based on timeframe appropriateness
-  const isPlanAppropriateForTimeframe = (plan: any, timeframe: number, timeframeUnit: 'weeks' | 'months' | 'days'): boolean => {
-    // Convert timeframe to days for easier comparison
-    let timeframeInDays: number;
-    if (timeframeUnit === 'weeks') {
-      timeframeInDays = timeframe * 7;
-    } else if (timeframeUnit === 'days') {
-      timeframeInDays = timeframe;
-    } else {
-      timeframeInDays = timeframe * 30; // Approximate
-    }
-    
-    // For very short timeframes (less than 14 days), only show daily and weekly options
-    if (timeframeInDays < 14) {
-      return plan.frequency === 'daily' || plan.frequency === 'weekly';
-    }
-    
-    // For 14-30 days, show daily, weekly, bi-weekly (but not monthly)
-    if (timeframeInDays >= 14 && timeframeInDays < 30) {
-      return plan.frequency === 'daily' || plan.frequency === 'weekly' || plan.frequency === 'biweekly';
-    }
-    
-    // For 30+ days (1 month+), show all options except first_of_month (handled separately)
-    // Monthly options are only shown if timeframe is at least 1 month equivalent
-    if (timeframeInDays >= 30) {
-      // Monthly, end_of_month are fine for 30+ days
-      // first_of_month is handled separately based on user request
-      return true;
-    }
-    
-    return false;
-  };
-
-  // Helper to generate plan options
-  const getPlanOptions = (targetAmount: number, timeframe: number, userMessage?: string, timeframeUnit: 'weeks' | 'months' | 'days' = 'months') => {
-    // Calculate amounts based on timeframe unit
-    let monthlyAmount: number;
-    let weeklyAmount: number;
-    let biweeklyAmount: number;
-    let endOfMonthAmount: number;
-    let firstOfMonthAmount: number;
-    
-    if (timeframeUnit === 'weeks') {
-      // Convert weeks to approximate months for calculations (1 month ≈ 4.33 weeks)
-      const monthsEquivalent = timeframe / 4.33;
-      monthlyAmount = Math.ceil(targetAmount / monthsEquivalent);
-      weeklyAmount = Math.ceil(targetAmount / timeframe);
-      biweeklyAmount = Math.ceil(targetAmount / Math.ceil(timeframe / 2));
-      endOfMonthAmount = Math.ceil(targetAmount / monthsEquivalent);
-      firstOfMonthAmount = Math.ceil(targetAmount / monthsEquivalent);
-    } else if (timeframeUnit === 'days') {
-      // For days, calculate daily amounts
-      const dailyAmount = Math.ceil(targetAmount / timeframe);
-      monthlyAmount = Math.ceil(targetAmount / (timeframe / 30));
-      weeklyAmount = Math.ceil(targetAmount / Math.ceil(timeframe / 7));
-      biweeklyAmount = Math.ceil(targetAmount / Math.ceil(timeframe / 14));
-      endOfMonthAmount = monthlyAmount;
-      firstOfMonthAmount = monthlyAmount;
-    } else {
-      // Default: months
-      monthlyAmount = Math.ceil(targetAmount / timeframe);
-      weeklyAmount = Math.ceil(monthlyAmount / 4.33);
-      biweeklyAmount = Math.ceil(monthlyAmount / 2);
-      endOfMonthAmount = Math.ceil(targetAmount / timeframe);
-      firstOfMonthAmount = Math.ceil(targetAmount / timeframe);
-    }
-    
-    const freq = userMessage ? extractFrequency(userMessage) : null;
-    
-    // Check if user explicitly requested first of month
-    const wantsFirstOfMonth = userMessage?.toLowerCase().includes('first of month') || 
-                              userMessage?.toLowerCase().includes('first-of-month') ||
-                              userMessage?.toLowerCase().includes('first day');
-    
-    // Calculate daily amounts for different durations
-    let dailyAmount7: number;
-    let dailyAmount30: number;
-    let dailyAmount90: number;
-    
-    if (timeframeUnit === 'weeks') {
-      // For weeks, use the actual timeframe or default options
-      const daysInTimeframe = timeframe * 7;
-      dailyAmount7 = Math.ceil(targetAmount / 7);
-      dailyAmount30 = daysInTimeframe <= 30 ? Math.ceil(targetAmount / daysInTimeframe) : Math.ceil(targetAmount / 30);
-      dailyAmount90 = Math.ceil(targetAmount / 90);
-    } else if (timeframeUnit === 'days') {
-      // For days, use the actual timeframe
-      dailyAmount7 = timeframe <= 7 ? Math.ceil(targetAmount / timeframe) : Math.ceil(targetAmount / 7);
-      dailyAmount30 = timeframe <= 30 ? Math.ceil(targetAmount / timeframe) : Math.ceil(targetAmount / 30);
-      dailyAmount90 = timeframe <= 90 ? Math.ceil(targetAmount / timeframe) : Math.ceil(targetAmount / 90);
-    } else {
-      // Default: months
-      dailyAmount7 = Math.ceil(targetAmount / 7);
-      dailyAmount30 = Math.ceil(targetAmount / 30);
-      dailyAmount90 = Math.ceil(targetAmount / 90);
-    }
-    
-    if (freq === 'daily') {
-      // Provide daily options based on timeframe
-      const options = [];
-      
-      if (timeframeUnit === 'weeks') {
-        const daysInTimeframe = timeframe * 7;
-        options.push({
-          title: `Daily Payout (${daysInTimeframe} ${daysInTimeframe === 1 ? 'day' : 'days'})`,
-          amount: Math.ceil(targetAmount / daysInTimeframe),
-          frequency: "daily",
-          duration: daysInTimeframe,
-          description: `Schedule a payout of ₦${Math.ceil(targetAmount / daysInTimeframe).toLocaleString()} every day for ${daysInTimeframe} ${daysInTimeframe === 1 ? 'day' : 'days'}.`
-        });
-      } else if (timeframeUnit === 'days') {
-        options.push({
-          title: `Daily Payout (${timeframe} ${timeframe === 1 ? 'day' : 'days'})`,
-          amount: Math.ceil(targetAmount / timeframe),
-          frequency: "daily",
-          duration: timeframe,
-          description: `Schedule a payout of ₦${Math.ceil(targetAmount / timeframe).toLocaleString()} every day for ${timeframe} ${timeframe === 1 ? 'day' : 'days'}.`
-        });
-      } else {
-        // Default options for months
-        options.push(
-          {
-            title: "Daily Payout (7 days)",
-            amount: dailyAmount7,
-            frequency: "daily",
-            duration: 7,
-            description: `Schedule a payout of ₦${dailyAmount7.toLocaleString()} every day for 7 days.`
-          },
-          {
-            title: "Daily Payout (30 days)",
-            amount: dailyAmount30,
-            frequency: "daily",
-            duration: 30,
-            description: `Schedule a payout of ₦${dailyAmount30.toLocaleString()} every day for 30 days.`
-          },
-          {
-            title: "Daily Payout (90 days)",
-            amount: dailyAmount90,
-            frequency: "daily",
-            duration: 90,
-            description: `Schedule a payout of ₦${dailyAmount90.toLocaleString()} every day for 90 days.`
-          }
-        );
-      }
-      
-      return options;
-    } else if (freq === 'weekly') {
-      const durationText = timeframeUnit === 'weeks' 
-        ? `${timeframe} ${timeframe === 1 ? 'week' : 'weeks'}`
-        : timeframeUnit === 'days'
-        ? `${Math.ceil(timeframe / 7)} ${Math.ceil(timeframe / 7) === 1 ? 'week' : 'weeks'}`
-        : `${timeframe} ${timeframe === 1 ? 'month' : 'months'}`;
-      return [
-        {
-          title: "Weekly Payout",
-          amount: weeklyAmount,
-          frequency: "weekly",
-          duration: timeframeUnit === 'weeks' ? timeframe : timeframeUnit === 'days' ? Math.ceil(timeframe / 7) : undefined,
-          description: `Schedule a payout of ₦${weeklyAmount.toLocaleString()} every week for ${durationText}.`
-        }
-      ];
-    } else if (freq === 'biweekly') {
-      const durationText = timeframeUnit === 'weeks' 
-        ? `${Math.ceil(timeframe / 2)} ${Math.ceil(timeframe / 2) === 1 ? 'bi-weekly period' : 'bi-weekly periods'}`
-        : timeframeUnit === 'days'
-        ? `${Math.ceil(timeframe / 14)} ${Math.ceil(timeframe / 14) === 1 ? 'bi-weekly period' : 'bi-weekly periods'}`
-        : `${timeframe} ${timeframe === 1 ? 'month' : 'months'}`;
-      return [
-        {
-          title: "Bi-weekly Payout",
-          amount: biweeklyAmount,
-          frequency: "biweekly",
-          description: `Schedule a payout of ₦${biweeklyAmount.toLocaleString()} every two weeks for ${durationText}.`
-        }
-      ];
-    } else if (freq === 'monthly') {
-      const durationText = timeframeUnit === 'weeks' 
-        ? `${Math.ceil(timeframe / 4.33)} ${Math.ceil(timeframe / 4.33) === 1 ? 'month' : 'months'}`
-        : timeframeUnit === 'days'
-        ? `${Math.ceil(timeframe / 30)} ${Math.ceil(timeframe / 30) === 1 ? 'month' : 'months'}`
-        : `${timeframe} ${timeframe === 1 ? 'month' : 'months'}`;
-      return [
-        {
-          title: "Monthly Payout",
-          amount: monthlyAmount,
-          frequency: "monthly",
-          description: `Schedule a payout of ₦${monthlyAmount.toLocaleString()} every month for ${durationText}.`
-        }
-      ];
-    } else if (freq === 'end_of_month') {
-      const durationText = timeframeUnit === 'weeks' 
-        ? `${Math.ceil(timeframe / 4.33)} ${Math.ceil(timeframe / 4.33) === 1 ? 'month' : 'months'}`
-        : timeframeUnit === 'days'
-        ? `${Math.ceil(timeframe / 30)} ${Math.ceil(timeframe / 30) === 1 ? 'month' : 'months'}`
-        : `${timeframe} ${timeframe === 1 ? 'month' : 'months'}`;
-      return [
-        {
-          title: "End-of-Month Payout",
-          amount: endOfMonthAmount,
-          frequency: "end_of_month",
-          description: `Schedule a payout of ₦${endOfMonthAmount.toLocaleString()} at the end of each month for ${durationText}.`
-        }
-      ];
-    } else if (freq === 'first_of_month' && wantsFirstOfMonth) {
-      // Only show first of month if explicitly requested
-      const durationText = timeframeUnit === 'weeks' 
-        ? `${Math.ceil(timeframe / 4.33)} ${Math.ceil(timeframe / 4.33) === 1 ? 'month' : 'months'}`
-        : timeframeUnit === 'days'
-        ? `${Math.ceil(timeframe / 30)} ${Math.ceil(timeframe / 30) === 1 ? 'month' : 'months'}`
-        : `${timeframe} ${timeframe === 1 ? 'month' : 'months'}`;
-      return [
-        {
-          title: "First-of-Month Payout",
-          amount: firstOfMonthAmount,
-          frequency: "first_of_month",
-          description: `Schedule a payout of ₦${firstOfMonthAmount.toLocaleString()} on the first of each month for ${durationText}.`
-        }
-      ];
-    }
-    // Default: show all options including daily
-    const defaultOptions = [];
-    
-    // Add daily options based on timeframe unit
-    if (timeframeUnit === 'weeks') {
-      const daysInTimeframe = timeframe * 7;
-      defaultOptions.push({
-        title: `Daily Payout (${daysInTimeframe} ${daysInTimeframe === 1 ? 'day' : 'days'})`,
-        amount: Math.ceil(targetAmount / daysInTimeframe),
-        frequency: "daily",
-        duration: daysInTimeframe,
-        description: `Schedule a payout of ₦${Math.ceil(targetAmount / daysInTimeframe).toLocaleString()} every day for ${daysInTimeframe} ${daysInTimeframe === 1 ? 'day' : 'days'}.`
-      });
-    } else if (timeframeUnit === 'days') {
-      defaultOptions.push({
-        title: `Daily Payout (${timeframe} ${timeframe === 1 ? 'day' : 'days'})`,
-        amount: Math.ceil(targetAmount / timeframe),
-        frequency: "daily",
-        duration: timeframe,
-        description: `Schedule a payout of ₦${Math.ceil(targetAmount / timeframe).toLocaleString()} every day for ${timeframe} ${timeframe === 1 ? 'day' : 'days'}.`
-      });
-    } else {
-      defaultOptions.push(
-        {
-          title: "Daily Payout (7 days)",
-          amount: dailyAmount7,
-          frequency: "daily",
-          duration: 7,
-          description: `Schedule a payout of ₦${dailyAmount7.toLocaleString()} every day for 7 days.`
-        },
-        {
-          title: "Daily Payout (30 days)",
-          amount: dailyAmount30,
-          frequency: "daily",
-          duration: 30,
-          description: `Schedule a payout of ₦${dailyAmount30.toLocaleString()} every day for 30 days.`
-        }
-      );
-    }
-    
-    // Build all possible options
-    const allOptions = [
-      ...defaultOptions,
-      {
-        title: "Weekly Payout",
-        amount: weeklyAmount,
-        frequency: "weekly",
-        duration: timeframeUnit === 'weeks' ? timeframe : timeframeUnit === 'days' ? Math.ceil(timeframe / 7) : undefined,
-        description: timeframeUnit === 'weeks' 
-          ? `Schedule a payout of ₦${weeklyAmount.toLocaleString()} every week for ${timeframe} ${timeframe === 1 ? 'week' : 'weeks'}.`
-          : timeframeUnit === 'days'
-          ? `Schedule a payout of ₦${weeklyAmount.toLocaleString()} every week for ${Math.ceil(timeframe / 7)} ${Math.ceil(timeframe / 7) === 1 ? 'week' : 'weeks'}.`
-          : `Schedule a payout of ₦${weeklyAmount.toLocaleString()} every week for ${timeframe} ${timeframe === 1 ? 'month' : 'months'}.`
-      },
-      {
-        title: "Bi-weekly Payout",
-        amount: biweeklyAmount,
-        frequency: "biweekly",
-        description: timeframeUnit === 'weeks' 
-          ? `Schedule a payout of ₦${biweeklyAmount.toLocaleString()} every two weeks for ${Math.ceil(timeframe / 2)} ${Math.ceil(timeframe / 2) === 1 ? 'bi-weekly period' : 'bi-weekly periods'}.`
-          : timeframeUnit === 'days'
-          ? `Schedule a payout of ₦${biweeklyAmount.toLocaleString()} every two weeks for ${Math.ceil(timeframe / 14)} ${Math.ceil(timeframe / 14) === 1 ? 'bi-weekly period' : 'bi-weekly periods'}.`
-          : `Schedule a payout of ₦${biweeklyAmount.toLocaleString()} every two weeks for ${timeframe} ${timeframe === 1 ? 'month' : 'months'}.`
-      }
-    ];
-    
-    // Only add monthly options if timeframe is long enough (at least 1 month equivalent)
-    const monthsEquivalent = timeframeUnit === 'weeks' ? timeframe / 4.33 : timeframeUnit === 'days' ? timeframe / 30 : timeframe;
-    if (monthsEquivalent >= 1) {
-      allOptions.push({
-        title: "Monthly Payout",
-        amount: monthlyAmount,
-        frequency: "monthly",
-        description: timeframeUnit === 'weeks' 
-          ? `Schedule a payout of ₦${monthlyAmount.toLocaleString()} every month for ${Math.ceil(timeframe / 4.33)} ${Math.ceil(timeframe / 4.33) === 1 ? 'month' : 'months'}.`
-          : timeframeUnit === 'days'
-          ? `Schedule a payout of ₦${monthlyAmount.toLocaleString()} every month for ${Math.ceil(timeframe / 30)} ${Math.ceil(timeframe / 30) === 1 ? 'month' : 'months'}.`
-          : `Schedule a payout of ₦${monthlyAmount.toLocaleString()} every month for ${timeframe} ${timeframe === 1 ? 'month' : 'months'}.`
-      });
-      
-      allOptions.push({
-        title: "End-of-Month Payout",
-        amount: endOfMonthAmount,
-        frequency: "end_of_month",
-        description: timeframeUnit === 'weeks' 
-          ? `Schedule a payout of ₦${endOfMonthAmount.toLocaleString()} at the end of each month for ${Math.ceil(timeframe / 4.33)} ${Math.ceil(timeframe / 4.33) === 1 ? 'month' : 'months'}.`
-          : timeframeUnit === 'days'
-          ? `Schedule a payout of ₦${endOfMonthAmount.toLocaleString()} at the end of each month for ${Math.ceil(timeframe / 30)} ${Math.ceil(timeframe / 30) === 1 ? 'month' : 'months'}.`
-          : `Schedule a payout of ₦${endOfMonthAmount.toLocaleString()} at the end of each month for ${timeframe} ${timeframe === 1 ? 'month' : 'months'}.`
-      });
-      
-      // Only add first of month if explicitly requested
-      if (wantsFirstOfMonth) {
-        allOptions.push({
-          title: "First-of-Month Payout",
-          amount: firstOfMonthAmount,
-          frequency: "first_of_month",
-          description: timeframeUnit === 'weeks' 
-            ? `Schedule a payout of ₦${firstOfMonthAmount.toLocaleString()} on the first of each month for ${Math.ceil(timeframe / 4.33)} ${Math.ceil(timeframe / 4.33) === 1 ? 'month' : 'months'}.`
-            : timeframeUnit === 'days'
-            ? `Schedule a payout of ₦${firstOfMonthAmount.toLocaleString()} on the first of each month for ${Math.ceil(timeframe / 30)} ${Math.ceil(timeframe / 30) === 1 ? 'month' : 'months'}.`
-            : `Schedule a payout of ₦${firstOfMonthAmount.toLocaleString()} on the first of each month for ${timeframe} ${timeframe === 1 ? 'month' : 'months'}.`
-        });
-      }
-    }
-    
-    // Filter options based on timeframe appropriateness
-    return allOptions.filter(plan => isPlanAppropriateForTimeframe(plan, timeframe, timeframeUnit));
-  };
-
-  const generateInsightResponse = async (userMessage: string, balances: { availableBalance: number, balance: number, lockedBalance: number }) => {
-    const { availableBalance, balance, lockedBalance } = balances;
-    let aiMessage: Message | null = null;
-    try {
-      const systemPrompt = `You are Planmoni, a helpful, friendly, and expert financial assistant for Nigerian users.\nUser: ${getUserName()}\nAvailable balance: ₦${availableBalance.toLocaleString()}\nTotal balance: ₦${balance.toLocaleString()}\nLocked balance: ₦${lockedBalance.toLocaleString()}\nIf the user asks for financial insights or analysis, respond ONLY with a valid JSON object like this:\n{\n  \"type\": \"insight\",\n  \"content\": \"summary of the insights\",\n  \"metadata\": {\n    \"insights\": [ {\n      \"title\": \"...\", \"value\": \"...\", \"change\": \"...\", \"description\": \"...\" } ],\n    \"recommendations\": [ \"...\" ]\n  }\n}\nDo not include any text outside the JSON.\nIf the user's available balance is low, provide supportive, actionable advice to help them improve. If the available balance is high, suggest ways to optimize, invest, or grow their finances. Always be positive, supportive, and never block the user from seeing insights. Do not make up numbers or facts.`;
-      const openaiResponse = await getOpenAIChatCompletion({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        model: 'gpt-3.5-turbo',
-        temperature: 0.5,
-        max_tokens: 512
-      });
-      const jsonStart = openaiResponse.indexOf('{');
-      const jsonEnd = openaiResponse.lastIndexOf('}');
-      let parsed: any = null;
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        try {
-          parsed = JSON.parse(openaiResponse.substring(jsonStart, jsonEnd + 1));
-        } catch (e) {}
-      }
-      if (parsed && parsed.type === 'insight' && parsed.metadata && Array.isArray(parsed.metadata.insights)) {
-        aiMessage = {
-          id: Date.now().toString(),
-          content: parsed.content || 'Here are some insights based on your finances:',
-          sender: 'ai',
-          type: 'insight',
-          timestamp: new Date(),
-          metadata: parsed.metadata
-        };
-      } else {
-        // Handle invalid or ambiguous AI response gracefully
-        console.warn('AI returned invalid response for insight request:', {
-          userMessage: userMessage.substring(0, 100),
-          aiResponse: openaiResponse.substring(0, 200),
-          parsed: parsed,
-          platform: Platform.OS
-        });
-        
-        // Provide a helpful fallback response instead of throwing an error
-        aiMessage = {
-          id: Date.now().toString(),
-          content: "I'd be happy to help you analyze your finances! Could you please be more specific about what you'd like to know? For example:\n\n• \"Analyze my spending patterns\"\n• \"How can I improve my money habits?\"\n• \"What are my financial insights?\"\n\nWhat specific aspect of your finances would you like me to help you with?",
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-        };
-      }
-    } catch (err: any) {
-      console.error('AI Insight Response Error:', {
-        error: err.message,
-        userMessage: userMessage.substring(0, 100),
-        platform: Platform.OS,
-        isDev: __DEV__
-      });
-      
-      // Provide more specific error messages based on the error type
-      if (err.message?.includes('API key')) {
-        setError('AI service configuration issue. Please contact support.');
-      } else if (err.message?.includes('Network') || err.message?.includes('connection')) {
-        setError('Network connection issue. Please check your internet connection.');
-      } else if (err.message?.includes('timeout')) {
-        setError('Request timed out. Please try again.');
-      } else if (err.message?.includes('authentication')) {
-        setError('AI service authentication failed. Please contact support.');
-      } else {
-        setError('AI service temporarily unavailable. Please try again.');
-      }
-    }
-    if (!aiMessage && !error) {
-      // fallback local logic
-      const monthlyExpense = Math.max(availableBalance * 0.3, 100000);
-      const monthsCovered = availableBalance > 0 ? (availableBalance / monthlyExpense) : 0;
-      const insights = [
-        {
-          title: "Spending Pattern",
-          value: availableBalance < 50000 ? "Tight" : availableBalance > 500000 ? "Healthy" : "Moderate",
-          change: availableBalance > 500000 ? "+10%" : availableBalance < 50000 ? "-20%" : "-5%",
-          description: availableBalance < 50000
-            ? "Your spending is outpacing your savings. Consider reviewing your monthly expenses."
-            : availableBalance > 500000
-              ? "You're maintaining a healthy spending pattern. Keep it up!"
-              : "Your spending is fairly balanced, but there's room for improvement."
-        },
-        {
-          title: "Locked Funds",
-          value: `₦${(lockedBalance || 0).toLocaleString()}`,
-          change: lockedBalance > 0 ? "+5%" : "0%",
-          description: lockedBalance > 0
-            ? "Some of your funds are currently locked in plans or pending transactions."
-            : "All your funds are available for use."
-        },
-        {
-          title: "Emergency Fund",
-          value: `₦${availableBalance.toLocaleString()}`,
-          change: `${monthsCovered.toFixed(1)} months covered`,
-          description: monthsCovered < 1
-            ? "Your emergency fund covers less than a month of expenses. Aim for at least 3-6 months."
-            : monthsCovered < 3
-              ? `Your emergency fund covers about ${monthsCovered.toFixed(1)} months. Consider increasing it for better security.`
-              : `Great! Your emergency fund covers over ${monthsCovered.toFixed(1)} months of expenses.`
-        }
-      ];
-      const recommendations = [
-        availableBalance < 100000 ? "Try reducing discretionary spending this month. Start small and build up your savings!" : "Consider automating your savings for consistency and explore investment opportunities.",
-        monthsCovered < 3 ? "Aim to build your emergency fund to cover at least 3 months of expenses. Every little bit helps!" : "Explore investment options for surplus funds to grow your wealth.",
-        lockedBalance > 0 ? "Review your locked funds to ensure they align with your goals. Stay on track!" : "All your funds are available for new plans. Keep up the good work!"
-      ];
-      aiMessage = {
-        id: Date.now().toString(),
-        content: "I've analyzed your financial data and here are some insights:",
-        sender: 'ai',
-        type: 'insight',
-        timestamp: new Date(),
-        metadata: {
-          insights,
-          recommendations
-        }
-      };
-    }
-    if (aiMessage) setMessages(prev => [...prev, aiMessage]);
-    setIsTyping(false);
-  };
-
-  // Helper functions to extract information from user messages
-  const extractAmount = (message: string): number | null => {
-    // Normalize message
-    let normalized = message.toLowerCase().replace(/[,₦]/g, ' ');
-    // 1. Try to match numeric forms with optional k/m/b suffix
-    const regex = /([0-9]+(?:\.[0-9]+)?)(k|m|b)?\s*(naira|n)?/i;
-    const match = normalized.match(regex);
-    if (match) {
-      let amount = parseFloat(match[1]);
-      const suffix = match[2]?.toLowerCase();
-      if (suffix === 'k') amount *= 1000;
-      if (suffix === 'm') amount *= 1000000;
-      if (suffix === 'b') amount *= 1000000000;
-      return Math.round(amount);
-    }
-    // 2. Try to match numbers with commas/decimals (e.g., 1,000,000.00)
-    const commaRegex = /([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]+)?)/;
-    const commaMatch = normalized.match(commaRegex);
-    if (commaMatch) {
-      let amount = parseFloat(commaMatch[1].replace(/,/g, ''));
-      return Math.round(amount);
-    }
-    // 3. Try to match written numbers (e.g., 'five hundred thousand naira', 'a million')
-    const writtenRegex = /((?:a |one |two |three |four |five |six |seven |eight |nine |ten |eleven |twelve |thirteen |fourteen |fifteen |sixteen |seventeen |eighteen |nineteen |twenty |thirty |forty |fifty |sixty |seventy |eighty |ninety |hundred |thousand |million |billion|and|point| )+)/i;
-    const writtenMatch = normalized.match(writtenRegex);
-    if (writtenMatch) {
-      const num = wordsToNumber(writtenMatch[1].trim());
-      if (num !== null) return Math.round(num);
-    }
-    // 4. Try to match 'a million', 'a thousand', etc.
-    if (/a million/.test(normalized)) return 1000000;
-    if (/a thousand/.test(normalized)) return 1000;
-    // 5. Try to match currency at the end (e.g., '500,000 naira')
-    const endCurrencyRegex = /([0-9]+(?:\.[0-9]+)?)\s*(naira|n)$/i;
-    const endCurrencyMatch = normalized.match(endCurrencyRegex);
-    if (endCurrencyMatch) {
-      return Math.round(parseFloat(endCurrencyMatch[1]));
-    }
-    return null;
-  };
-
-  const extractTimeframe = (message: string): { value: number; unit: 'weeks' | 'months' | 'days' } | null => {
-    // Map written numbers to digits
-    const numberWords: { [key: string]: number } = {
-      'one': 1,
-      'two': 2,
-      'three': 3,
-      'four': 4,
-      'five': 5,
-      'six': 6,
-      'seven': 7,
-      'eight': 8,
-      'nine': 9,
-      'ten': 10,
-      'eleven': 11,
-      'twelve': 12,
-      'thirteen': 13,
-      'fourteen': 14,
-      'fifteen': 15,
-      'sixteen': 16,
-      'seventeen': 17,
-      'eighteen': 18,
-      'nineteen': 19,
-      'twenty': 20
-    };
-    let normalized = message.toLowerCase();
-    // Replace written numbers with digits
-    Object.entries(numberWords).forEach(([word, digit]) => {
-      const regex = new RegExp(`\\b${word}\\b`, 'g');
-      normalized = normalized.replace(regex, digit.toString());
-    });
-    
-    // Look for weeks first (more specific)
-    const weekRegex = /(\d+)\s*(week|weeks)/i;
-    const weekMatch = normalized.match(weekRegex);
-    if (weekMatch) {
-      return { value: parseInt(weekMatch[1]), unit: 'weeks' };
-    }
-    
-    // Look for days
-    const dayRegex = /(\d+)\s*(day|days)/i;
-    const dayMatch = normalized.match(dayRegex);
-    if (dayMatch) {
-      return { value: parseInt(dayMatch[1]), unit: 'days' };
-    }
-    
-    // Look for time periods like "6 months", "1 year", etc.
-    const monthRegex = /(\d+)\s*(month|months)/i;
-    const yearRegex = /(\d+)\s*(year|years)/i;
-    const monthMatch = normalized.match(monthRegex);
-    if (monthMatch) {
-      return { value: parseInt(monthMatch[1]), unit: 'months' };
-    }
-    const yearMatch = normalized.match(yearRegex);
-    if (yearMatch) {
-      return { value: parseInt(yearMatch[1]) * 12, unit: 'months' };
-    }
-    // Check for month names
-    const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-    for (let i = 0; i < months.length; i++) {
-      if (normalized.includes(months[i])) {
-        const currentDate = new Date();
-        const currentMonth = currentDate.getMonth();
-        const targetMonth = i;
-        // Calculate months difference, accounting for next year if needed
-        let monthsDiff = targetMonth - currentMonth;
-        if (monthsDiff <= 0) {
-          monthsDiff += 12; // Target is next year
-        }
-        return { value: monthsDiff, unit: 'months' };
-      }
-    }
-    return null;
-  };
-
-  // Intercept Create Plan to start conversational flow
-  const handleCreatePlan = (plan: any) => {
-    // Calculate total plan amount
-    let totalPlanAmount = 0;
-    if (plan.metadata && plan.metadata.targetAmount) {
-      totalPlanAmount = plan.metadata.targetAmount;
-    } else if (plan.metadata && Array.isArray(plan.metadata.plans)) {
-      totalPlanAmount = plan.metadata.plans.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-    } else if (plan.amount) {
-      totalPlanAmount = plan.amount;
-    }
-    if (totalPlanAmount > availableBalance) {
-      const shortfall = Math.max(totalPlanAmount - availableBalance, 0);
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `insufficient-funds-${Date.now()}`,
-          content: `You do not have enough funds (₦${availableBalance.toLocaleString()}) to create this plan. Total needed: ₦${totalPlanAmount.toLocaleString()}. You need to add ₦${shortfall.toLocaleString()} more.`,
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'insufficient_funds', planAmount: totalPlanAmount, availableBalance, shortfall }
-        }
-      ]);
-      return;
-    }
-    setPlanDraft(plan);
-    setPlanCreationStep('awaiting_destination');
-    setMessages(prev => [
-      ...prev,
-      {
-        id: `choose-destination-${Date.now()}`,
-        content: 'Which account should receive your payouts? Please select an existing account or add a new one.',
-        sender: 'ai',
-        type: 'text',
-        timestamp: new Date(),
-        metadata: { step: 'destination' }
-      }
-    ]);
-  };
-
-  // Handle user selecting a payout account
-  const handleSelectAccount = (account: any) => {
-    setSelectedAccount(account);
-    setPlanCreationStep('awaiting_emergency');
-    setMessages(prev => [
-      ...prev,
-      {
-        id: `selected-destination-${Date.now()}`,
-        content: `Payouts will be sent to: ${account.bank_name} ••••${account.account_number.slice(-4)} (${account.account_name})`,
-        sender: 'user',
-        type: 'text',
-        timestamp: new Date(),
-        metadata: { step: 'destination' }
-      },
-      {
-        id: `ask-emergency-${Date.now()}`,
-        content: 'Do you want to enable emergency withdrawals for this plan? (yes/no)',
-        sender: 'ai',
-        type: 'text',
-        timestamp: new Date(),
-        metadata: { step: 'emergency' }
-      }
-    ]);
-  };
-
-  // Handle user response to emergency withdrawal
-  const handleEmergencyResponse = (response: string) => {
-    const normalized = response.trim().toLowerCase();
-    if (normalized === 'yes' || normalized === 'y') {
-      setEmergencyEnabled(true);
-      setPlanCreationStep('showing_emergency_rules');
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `emergency-yes-${Date.now()}`,
-          content: 'Yes, enable emergency withdrawals.',
-          sender: 'user',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'emergency' }
-        },
-        {
-          id: `emergency-rules-${Date.now()}`,
-          content: 'Emergency Withdrawal Rules:\n- Instant withdrawal: 12% processing fee\n- 24-hour withdrawal: 10% processing fee\n- 72-hour withdrawal: 6% processing fee',
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'emergency_rules' }
-        },
-        {
-          id: `confirm-plan-${Date.now()}`,
-          content: 'Ready to create your plan? Type "confirm" to proceed or "cancel" to abort.',
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'confirm' }
-        }
-      ]);
-      setPlanCreationStep('confirming');
-    } else if (normalized === 'no' || normalized === 'n') {
-      setEmergencyEnabled(false);
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `emergency-no-${Date.now()}`,
-          content: 'No, do not enable emergency withdrawals.',
-          sender: 'user',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'emergency' }
-        },
-        {
-          id: `confirm-plan-${Date.now()}`,
-          content: 'Ready to create your plan? Type "confirm" to proceed or "cancel" to abort.',
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'confirm' }
-        }
-      ]);
-      setPlanCreationStep('confirming');
-    } else {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `emergency-invalid-${Date.now()}`,
-          content: 'Please reply with "yes" or "no" to enable or disable emergency withdrawals.',
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'emergency' }
-        }
-      ]);
-    }
-  };
-
-  // Handle user confirmation to create the plan
-  const handlePlanConfirmation = async (response: string) => {
-    const normalized = response.trim().toLowerCase();
-    if (normalized === 'confirm') {
-      // Check authentication first
-      if (!isAuthenticated) {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `plan-auth-error-${Date.now()}`,
-            content: 'Please login to create a payout plan.',
-            sender: 'ai',
-            type: 'text',
-            timestamp: new Date(),
-            metadata: { step: 'error' }
-          }
-        ]);
-        requireAuth(() => {}, '/(tabs)/ai-assistant');
-        return;
-      }
-      
-      if (!planDraft || !selectedAccount) {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `plan-error-${Date.now()}`,
-            content: 'Error: Missing plan details or account selection. Please try again.',
-            sender: 'ai',
-            type: 'text',
-            timestamp: new Date(),
-            metadata: { step: 'error' }
-          }
-        ]);
-        return;
-      }
-
-      try {
-        // Extract plan details
-        const plan = planDraft.metadata?.plans?.[0] || planDraft;
-        const targetAmount = planDraft.metadata?.targetAmount || plan.amount || 0;
-        const timeframe = planDraft.metadata?.timeframe || 1;
-        
-        // Validate minimum amount
-        if (targetAmount < 5000) {
-          setMessages(prev => [
-            ...prev,
-            {
-              id: `plan-error-${Date.now()}`,
-              content: 'The minimum amount for creating a payout plan is ₦5,000. Please adjust your plan amount.',
-              sender: 'ai',
-              type: 'text',
-              timestamp: new Date(),
-              metadata: { step: 'error' }
-            }
-          ]);
-          return;
-        }
-        
-        // Calculate payout amount and duration
-        const payoutAmount = Math.ceil(targetAmount / timeframe);
-        let duration = timeframe;
-        
-        // Map frequency to database format
-        let frequency: any = 'monthly';
-        let dayOfWeek: number | undefined;
-        
-        switch (plan.frequency) {
-          case 'daily':
-            frequency = 'daily';
-            // Use the duration from the plan if available, otherwise calculate from timeframe
-            duration = plan.duration || Math.ceil(timeframe * 30); // Default to days if timeframe is in months
-            break;
-          case 'weekly':
-            frequency = 'weekly';
-            break;
-          case 'bi-weekly':
-          case 'biweekly':
-            frequency = 'biweekly';
-            break;
-          case 'monthly':
-            frequency = 'monthly';
-            break;
-          case 'specific day':
-            frequency = 'weekly_specific';
-            dayOfWeek = selectedDayOfWeek !== null ? selectedDayOfWeek : 1; // Use selected day or default to Monday
-            break;
-          case 'month end':
-            frequency = 'end_of_month';
-            break;
-          case 'bi-annually':
-          case 'biannual':
-            frequency = 'biannual';
-            break;
-          case 'annually':
-            frequency = 'annually';
-            break;
-          default:
-            frequency = 'monthly';
-        }
-
-        // Calculate start date (next occurrence based on frequency)
-        const today = new Date();
-        let startDate = today.toISOString().split('T')[0];
-        
-        if (frequency === 'weekly_specific' && dayOfWeek !== undefined) {
-          const currentDay = today.getDay();
-          let daysToAdd = (dayOfWeek - currentDay + 7) % 7;
-          if (daysToAdd === 0) daysToAdd = 7; // If today is the selected day, schedule for next week
-          const nextDate = new Date(today);
-          nextDate.setDate(today.getDate() + daysToAdd);
-          startDate = nextDate.toISOString().split('T')[0];
-        }
-
-        // Create the payout plan using the existing hook
-        await createPayout({
-          name: `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`,
-          description: `${formatPayoutFrequency(frequency, dayOfWeek)} payout of ₦${payoutAmount.toLocaleString()}`,
-          totalAmount: targetAmount,
-          payoutAmount: payoutAmount,
-          frequency: frequency,
-          dayOfWeek: dayOfWeek,
-          duration: duration,
-          startDate: startDate,
-          bankAccountId: null, // We're using payout accounts
-          payoutAccountId: selectedAccount.id,
-          customDates: [],
-          emergencyWithdrawalEnabled: emergencyEnabled || false
-        });
-
-        // Success message
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `plan-confirmed-${Date.now()}`,
-            content: 'Your payout plan has been created successfully! 🎉 You will be redirected to the success page.',
-            sender: 'ai',
-            type: 'text',
-            timestamp: new Date(),
-            metadata: { step: 'success' }
-          }
-        ]);
-
-        // Reset state after a delay
-        setTimeout(() => {
-          setPlanCreationStep('idle');
-          setPlanDraft(null);
-          setSelectedAccount(null);
-          setEmergencyEnabled(null);
-          setSelectedDayOfWeek(null);
-        }, 2000);
-
-      } catch (error) {
-        console.error('Error creating payout plan:', error);
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `plan-error-${Date.now()}`,
-            content: `Failed to create payout plan: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            sender: 'ai',
-            type: 'text',
-            timestamp: new Date(),
-            metadata: { step: 'error' }
-          }
-        ]);
-      }
-    } else if (normalized === 'cancel') {
-      setPlanCreationStep('idle');
-      setPlanDraft(null);
-      setSelectedAccount(null);
-      setEmergencyEnabled(null);
-      setSelectedDayOfWeek(null);
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `plan-cancelled-${Date.now()}`,
-          content: 'Plan creation cancelled.',
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'cancelled' }
-        }
-      ]);
-    } else {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `confirm-invalid-${Date.now()}`,
-          content: 'Please type "confirm" to create the plan or "cancel" to abort.',
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'confirm' }
-        }
-      ]);
-    }
-  };
-
-  // Handle user reply for frequency
-  const handleFrequencyResponse = (response: string) => {
-    const normalized = response.trim().toLowerCase();
-    // Try to match to one of the options
-    const matched = frequencyOptions.find(opt => normalized.includes(opt.replace(/[- ]/g, '')) || normalized === opt.replace(/[- ]/g, ''));
-    
-    if (matched && planDraft) {
-      // Update planDraft with selected frequency
-      const updatedPlan = { ...planDraft };
-      if (updatedPlan.metadata && Array.isArray(updatedPlan.metadata.plans)) {
-        updatedPlan.metadata.plans = updatedPlan.metadata.plans.map((p: any) => ({ ...p, frequency: matched }));
-      }
-      setPlanDraft(updatedPlan);
-      
-      // If specific day is selected, ask for the day of week
-      if (matched === 'specific day') {
-        setPlanCreationStep('awaiting_day_of_week');
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `selected-frequency-${Date.now()}`,
-            content: `Payout frequency set to: ${matched}`,
-            sender: 'user',
-            type: 'text',
-            timestamp: new Date(),
-            metadata: { step: 'frequency' }
-          },
-          {
-            id: `choose-day-${Date.now()}`,
-            content: 'Which day of the week do you want your payouts? Please choose: Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday.',
-            sender: 'ai',
-            type: 'text',
-            timestamp: new Date(),
-            metadata: { step: 'day_of_week' }
-          }
-        ]);
-      } else {
-        setPlanCreationStep('awaiting_destination');
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `selected-frequency-${Date.now()}`,
-            content: `Payout frequency set to: ${matched}`,
-            sender: 'user',
-            type: 'text',
-            timestamp: new Date(),
-            metadata: { step: 'frequency' }
-          },
-          {
-            id: `choose-destination-${Date.now()}`,
-            content: 'Which account should receive your payouts? Please select an existing account or add a new one.',
-            sender: 'ai',
-            type: 'text',
-            timestamp: new Date(),
-            metadata: { step: 'destination' }
-          }
-        ]);
-      }
-    } else {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `frequency-invalid-${Date.now()}`,
-          content: 'Please reply with one of: weekly, specific day, bi-weekly, monthly, month end, bi-annually, annually, or custom schedule.',
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'frequency' }
-        }
-      ]);
-    }
-  };
-
-  // Handle day of week selection
-  const handleDayOfWeekResponse = (response: string) => {
-    const normalized = response.trim().toLowerCase();
-    const dayMap: { [key: string]: number } = {
-      'sunday': 0,
-      'monday': 1,
-      'tuesday': 2,
-      'wednesday': 3,
-      'thursday': 4,
-      'friday': 5,
-      'saturday': 6
-    };
-    
-    const dayNumber = dayMap[normalized];
-    if (dayNumber !== undefined) {
-      setSelectedDayOfWeek(dayNumber);
-      setPlanCreationStep('awaiting_destination');
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `selected-day-${Date.now()}`,
-          content: `Payout day set to: ${getDayOfWeekName(dayNumber)}`,
-          sender: 'user',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'day_of_week' }
-        },
-        {
-          id: `choose-destination-${Date.now()}`,
-          content: 'Which account should receive your payouts? Please select an existing account or add a new one.',
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'destination' }
-        }
-      ]);
-    } else {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `day-invalid-${Date.now()}`,
-          content: 'Please reply with one of: Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday.',
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-          metadata: { step: 'day_of_week' }
-        }
-      ]);
-    }
-  };
-
-  // Update handlePlanStepInput to handle frequency step
-  const handlePlanStepInput = (input: string) => {
-    if (planCreationStep === 'awaiting_frequency') {
-      handleFrequencyResponse(input);
-    } else if (planCreationStep === 'awaiting_day_of_week') {
-      handleDayOfWeekResponse(input);
-    } else if (planCreationStep === 'awaiting_emergency') {
-      handleEmergencyResponse(input);
-    } else if (planCreationStep === 'confirming') {
-      handlePlanConfirmation(input);
-    }
-  };
-
-  const getUserName = () => session?.user?.user_metadata?.first_name || 'User';
 
   // Secure storage helper functions
   const saveUsageData = async (data: { dailyPromptCount: number; lastResetDate: string; lastPromptTime: number }) => {
@@ -2164,6 +1536,8 @@ export default function AIAssistantScreen() {
     }
     return null;
   };
+
+  const getUserName = () => session?.user?.user_metadata?.first_name || 'User';
 
   const clearUsageData = async () => {
     try {
@@ -2273,7 +1647,76 @@ export default function AIAssistantScreen() {
     }
   };
 
+  // Function to format markdown-like text (bold with ** and bullet points with -)
+  const formatMarkdownText = (text: string, textColor: string, textSizeMultiplier: number) => {
+    const lines = text.split('\n');
+    const elements: React.ReactNode[] = [];
+    
+    lines.forEach((line, lineIndex) => {
+      // Check if line is a bullet point (starts with - or - )
+      const bulletMatch = line.match(/^[-•]\s+(.+)$/);
+      
+      if (bulletMatch) {
+        // This is a bullet point
+        const bulletContent = bulletMatch[1];
+        const bulletElements = parseBoldText(bulletContent, textColor, textSizeMultiplier);
+        
+        elements.push(
+          <View key={`bullet-${lineIndex}`} style={{ flexDirection: 'row', marginBottom: getScaledFontSize(4, textSizeMultiplier), paddingLeft: getScaledFontSize(8, textSizeMultiplier), alignItems: 'flex-start' }}>
+            <Text style={{ fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier), color: textColor, marginRight: getScaledFontSize(8, textSizeMultiplier), marginTop: getScaledFontSize(2, textSizeMultiplier) }}>•</Text>
+            <Text style={{ flex: 1, fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier), lineHeight: getScaledFontSize(24, textSizeMultiplier), color: textColor }}>
+              {bulletElements}
+            </Text>
+          </View>
+        );
+      } else if (line.trim()) {
+        // Regular line with potential bold text
+        const lineElements = parseBoldText(line, textColor, textSizeMultiplier);
+        elements.push(
+          <Text key={`line-${lineIndex}`} style={{ fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier), lineHeight: getScaledFontSize(24, textSizeMultiplier), color: textColor }}>
+            {lineElements}
+          </Text>
+        );
+      } else {
+        // Empty line for spacing
+        elements.push(<View key={`empty-${lineIndex}`} style={{ height: getScaledFontSize(8, textSizeMultiplier) }} />);
+      }
+    });
+    
+    return <>{elements}</>;
+  };
 
+  // Helper function to parse bold text (**text**)
+  const parseBoldText = (text: string, textColor: string, textSizeMultiplier: number): React.ReactNode => {
+    const parts: React.ReactNode[] = [];
+    const boldRegex = /\*\*(.+?)\*\*/g;
+    let lastIndex = 0;
+    let match;
+    let key = 0;
+
+    while ((match = boldRegex.exec(text)) !== null) {
+      // Add text before the bold
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+      
+      // Add bold text
+      parts.push(
+        <Text key={`bold-${key++}`} style={{ fontWeight: 'bold' }}>
+          {match[1]}
+        </Text>
+      );
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+    
+    return parts.length > 0 ? <>{parts}</> : text;
+  };
 
   const renderMessage = (message: Message, index: number) => {
     const isUser = message.sender === 'user';
@@ -2294,9 +1737,9 @@ export default function AIAssistantScreen() {
                 { backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary }
               ]}
             >
-              <Text style={[styles.messageText, styles.aiText, { color: colors.text }]}> 
-                {message.content}
-              </Text>
+              <View>
+                {formatMarkdownText(message.content, colors.text, textSizeMultiplier)}
+              </View>
               <TouchableOpacity
                 style={{ marginTop: 12, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, alignSelf: 'flex-start' }}
                 onPress={handleAddFunds}
@@ -2320,12 +1763,51 @@ export default function AIAssistantScreen() {
               isUser ? [styles.userBubble, { backgroundColor: colors.primary }] : [styles.aiBubble, { backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary }]
             ]}
           >
-            <Text style={[
-              styles.messageText,
-              isUser ? styles.userText : [styles.aiText, { color: colors.text }]
-            ]}>
-              {message.content}
-            </Text>
+            <View>
+              {isUser ? (
+                <Text style={[styles.messageText, styles.userText]}>
+                  {message.content}
+                </Text>
+              ) : (
+                formatMarkdownText(message.content, colors.text, textSizeMultiplier)
+              )}
+            </View>
+            {!isUser && message.metadata?.planId && (
+              <View style={{ marginTop: 12, gap: 8 }}>
+                {message.metadata.isUnfunded && message.metadata.planType === 'budget' && (
+                  <TouchableOpacity
+                    style={{ backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                    onPress={() => {
+                      router.push(`/expense-planner/${message.metadata.planId}`);
+                    }}
+                  >
+                    <Wallet size={getScaledFontSize(16, textSizeMultiplier)} color="#FFFFFF" />
+                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: getScaledFontSize(16, textSizeMultiplier) }}>
+                      Fund Budget
+                    </Text>
+                    <ArrowRight size={getScaledFontSize(16, textSizeMultiplier)} color="#FFFFFF" />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={{ backgroundColor: message.metadata.isUnfunded && message.metadata.planType === 'budget' ? 'transparent' : colors.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: message.metadata.isUnfunded && message.metadata.planType === 'budget' ? 1 : 0, borderColor: message.metadata.isUnfunded && message.metadata.planType === 'budget' ? colors.primary : 'transparent' }}
+                  onPress={() => {
+                    if (message.metadata.planType === 'payout') {
+                      router.push({
+                        pathname: '/view-payout',
+                        params: { id: message.metadata.planId }
+                      });
+                    } else if (message.metadata.planType === 'budget') {
+                      router.push(`/expense-planner/${message.metadata.planId}`);
+                    }
+                  }}
+                >
+                  <Text style={{ color: message.metadata.isUnfunded && message.metadata.planType === 'budget' ? colors.primary : '#fff', fontWeight: '600', fontSize: getScaledFontSize(16, textSizeMultiplier) }}>
+                    {message.metadata.planType === 'payout' ? 'View Payout Plan' : 'View Budget'}
+                  </Text>
+                  <ArrowRight size={getScaledFontSize(16, textSizeMultiplier)} color={message.metadata.isUnfunded && message.metadata.planType === 'budget' ? colors.primary : '#FFFFFF'} />
+                </TouchableOpacity>
+              </View>
+            )}
             {!isUser && (
               <View style={styles.aiBadgeContainer}>
               </View>
@@ -2346,9 +1828,9 @@ export default function AIAssistantScreen() {
               { backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary }
             ]}
           >
-            <Text style={[styles.messageText, styles.aiText, { color: colors.text }]}>
-              {message.content}
-            </Text>
+            <View>
+              {formatMarkdownText(message.content, colors.text, textSizeMultiplier)}
+            </View>
             
             <View style={styles.planOptions}>
               {message.metadata.plans.map((plan: any, i: number) => (
@@ -2374,7 +1856,10 @@ export default function AIAssistantScreen() {
                   
                   <TouchableOpacity 
                     style={[styles.planButton, { backgroundColor: colors.primary }]}
-                    onPress={() => handleCreatePlan({...plan, metadata: message.metadata})}
+                    onPress={() => {
+                      const planDescription = `Create a ${plan.frequency} payout plan for ₦${plan.amount?.toLocaleString()}${plan.duration ? ` for ${plan.duration} ${plan.duration === 1 ? 'period' : 'periods'}` : ''}`;
+                      handleSendMessage(planDescription);
+                    }}
                   >
                     <Text style={styles.planButtonText}>Create Plan</Text>
                     <ArrowRight size={getScaledFontSize(16, textSizeMultiplier)} color="#FFFFFF" />
@@ -2402,9 +1887,9 @@ export default function AIAssistantScreen() {
               { backgroundColor: isDark ? colors.backgroundTertiary : colors.backgroundSecondary }
             ]}
           >
-            <Text style={[styles.messageText, styles.aiText, { color: colors.text }]}>
-              {message.content}
-            </Text>
+            <View>
+              {formatMarkdownText(message.content, colors.text, textSizeMultiplier)}
+            </View>
             
             <View style={styles.insightsContainer}>
               {message.metadata.insights.map((insight: any, i: number) => (
@@ -2540,7 +2025,7 @@ export default function AIAssistantScreen() {
           ref={scrollViewRef}
           style={styles.messagesContainer}
           contentContainerStyle={{ 
-            paddingBottom: keyboardVisible ? (planCreationStep !== 'idle' ? 300 : 200) : 16,
+            paddingBottom: keyboardVisible ? 200 : 16,
             flexGrow: 1
           }}
           keyboardShouldPersistTaps="handled"
@@ -2728,159 +2213,6 @@ export default function AIAssistantScreen() {
             <Text style={styles.errorText}>{createPayoutError}</Text>
           </Animated.View>
         )}
-        {/* Plan creation destination selection UI */}
-        {planCreationStep === 'awaiting_destination' && !payoutAccountsLoading && (
-          <View style={{ marginVertical: 12 }}>
-            <Text style={{ fontSize: getScaledFontSize(16, textSizeMultiplier), fontWeight: '600', marginBottom: 8, color: colors.text }}>Your payout accounts:</Text>
-            {payoutAccounts.length === 0 && (
-              <Text style={{ marginBottom: 8, color: colors.text }}>No payout accounts found.</Text>
-            )}
-            {payoutAccounts.map(account => {
-              const bankIcon = getBankIconLogo(account.bank_name);
-              return (
-                <Pressable
-                  key={account.id}
-                  style={{ 
-                    padding: 12, 
-                    borderWidth: 1, 
-                    borderColor: colors.border, 
-                    borderRadius: 8, 
-                    marginBottom: 8,
-                    backgroundColor: isDark ? colors.backgroundSecondary : colors.card,
-                    flexDirection: 'row',
-                    alignItems: 'center'
-                  }}
-                  onPress={() => handleSelectAccount(account)}
-                >
-                  {/* Bank Icon */}
-                  <View style={{ marginRight: 12, width: 40, height: 40, justifyContent: 'center', alignItems: 'center' }}>
-                    {bankIcon.logoSvg ? (
-                      React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
-                        width: 32,
-                        height: 32,
-                        fill: colors.textSecondary
-                      })
-                    ) : bankIcon.logo ? (
-                      <Image 
-                        source={bankIcon.logo} 
-                        style={{ width: 32, height: 32, resizeMode: 'contain' }}
-                      />
-                    ) : (
-                      <View style={{ 
-                        width: 32, 
-                        height: 32, 
-                        borderRadius: 16, 
-                        backgroundColor: colors.primary,
-                        justifyContent: 'center',
-                        alignItems: 'center'
-                      }}>
-                        <Text style={{ color: '#fff', fontSize: getScaledFontSize(12, textSizeMultiplier), fontWeight: '600' }}>
-                          {account.bank_name.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  
-                  {/* Account Details */}
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.textSecondary, fontSize: getScaledFontSize(16, textSizeMultiplier), fontWeight: '500' }}>
-                      {account.bank_name} ••••{account.account_number.slice(-4)}
-                    </Text>
-                    <Text style={{ color: colors.text, fontSize: getScaledFontSize(16, textSizeMultiplier), marginTop: 2 }}>
-                      {account.account_name}
-                    </Text>
-                    {account.is_default && (
-                      <Text style={{ color: colors.primary, fontSize: getScaledFontSize(14, textSizeMultiplier), fontWeight: '600', marginTop: 2 }}>
-                        Default
-                      </Text>
-                    )}
-                  </View>
-                </Pressable>
-              );
-            })}
-            <Pressable
-              style={[styles.secondaryButton, { borderColor: colors.border }]}
-              onPress={() => setShowAddAccountModal(true)}
-            >
-              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>
-                Add New Account
-              </Text>
-            </Pressable>
-          </View>
-        )}
-        {/* Day of week selection UI */}
-        {planCreationStep === 'awaiting_day_of_week' && (
-          <View style={{ marginVertical: 12, marginBottom: 24 }}>
-            <Text style={{ fontSize: getScaledFontSize(16, textSizeMultiplier), fontWeight: '600', marginBottom: 8, color: colors.text}}>Choose a day of the week:</Text>
-            <TextInput
-              ref={dayOfWeekInputRef}
-              style={{ 
-                borderWidth: 1, 
-                borderColor: colors.border, 
-                borderRadius: 8, 
-                padding: 12, 
-                marginBottom: 8, 
-                color: colors.text,
-                backgroundColor: isDark ? colors.backgroundSecondary : colors.card,
-                fontSize: getScaledFontSize(16, textSizeMultiplier)
-              }}
-              placeholder="Sunday, Monday, Tuesday, etc."
-              placeholderTextColor={colors.textTertiary}
-              onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
-              onFocus={() => scrollToInput(dayOfWeekInputRef)}
-              returnKeyType="done"
-            />
-          </View>
-        )}
-        
-        {/* Emergency withdrawal input UI */}
-        {planCreationStep === 'awaiting_emergency' && (
-          <View style={{ marginVertical: 12, marginBottom: 24 }}>
-            <Text style={{ fontSize: getScaledFontSize(16, textSizeMultiplier), fontWeight: '600', marginBottom: 8, color: colors.text}}>Reply "yes" or "no" below:</Text>
-            <TextInput
-              ref={emergencyInputRef}
-              style={{ 
-                borderWidth: 1, 
-                borderColor: colors.border, 
-                borderRadius: 8, 
-                padding: 12, 
-                marginBottom: 10, 
-                color: colors.text, 
-                fontSize: getScaledFontSize(16, textSizeMultiplier),
-                backgroundColor: isDark ? colors.backgroundSecondary : colors.card
-              }}
-              placeholder="yes or no"
-              placeholderTextColor={colors.textTertiary}
-              onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
-              onFocus={() => scrollToInput(emergencyInputRef)}
-              returnKeyType="done"
-            />
-          </View>
-        )}
-        {/* Plan confirmation input UI */}
-        {planCreationStep === 'confirming' && (
-          <View style={{ marginVertical: 12, marginBottom: 24 }}>
-            <Text style={{ fontSize: getScaledFontSize(16, textSizeMultiplier), fontWeight: '600', marginBottom: 8, color: colors.text,}}>Type "confirm" to create the plan or "cancel" to abort:</Text>
-            <TextInput
-              ref={confirmInputRef}
-              style={{ 
-                borderWidth: 1, 
-                borderColor: colors.border, 
-                borderRadius: 8, 
-                padding: 12, 
-                marginBottom: 10, 
-                color: colors.text, 
-                fontSize: getScaledFontSize(16, textSizeMultiplier),
-                backgroundColor: isDark ? colors.backgroundSecondary : colors.card
-              }}
-              placeholder="confirm or cancel"
-              placeholderTextColor={colors.textTertiary}
-              onSubmitEditing={e => handlePlanStepInput(e.nativeEvent.text)}
-              onFocus={() => scrollToInput(confirmInputRef)}
-              returnKeyType="done"
-            />
-          </View>
-        )}
         </ScrollView>
 
         {showSuggestions && !inputText.trim() && !keyboardVisible && isAuthenticated && (
@@ -2904,7 +2236,7 @@ export default function AIAssistantScreen() {
           </View>
         )}
 
-        {planCreationStep === 'idle' && isAuthenticated && (
+        {isAuthenticated && (
           <View style={styles.inputContainer}>
               <TextInput
                 ref={inputRef}
@@ -2927,7 +2259,7 @@ export default function AIAssistantScreen() {
                   styles.sendButton,
                   (!inputText.trim() || isCreatingPayout || isRateLimited || isDailyLimitReached) && styles.sendButtonDisabled
                 ]}
-                onPress={handleSendMessage}
+                onPress={() => handleSendMessage()}
                 disabled={!inputText.trim() || isTyping || isCreatingPayout || isRateLimited || isDailyLimitReached}
               >
                 {isCreatingPayout ? (
@@ -2947,7 +2279,6 @@ export default function AIAssistantScreen() {
           setShowAddAccountModal(false);
           if (newAccount) {
             await fetchPayoutAccounts();
-            handleSelectAccount(newAccount);
           }
         }}
       />

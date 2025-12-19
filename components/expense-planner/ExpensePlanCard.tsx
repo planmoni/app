@@ -80,7 +80,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
     return statusTag.label;
   };
 
-  // Get unique category icons and names
+  // Get unique category icons and names (max 3 for display)
   // This should work for all plans regardless of funding status
   const getCategoryIcons = () => {
     // First try to get categories from plan.categories (new budget_plans structure)
@@ -90,6 +90,8 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       const icons: Array<{ categoryId: string; Icon: any; categoryName: string }> = [];
       
       for (const categoryId of planCategories) {
+        if (icons.length >= 3) break; // Limit to 3 icons
+        
         const category = getCategoryById(categoryId);
         if (category && category.icon) {
           const Icon = category.icon;
@@ -116,6 +118,8 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
     const icons: Array<{ categoryId: string; Icon: any; categoryName: string }> = [];
 
     for (const bucket of plan.buckets) {
+      if (icons.length >= 3) break; // Limit to 3 icons
+      
       // Ensure bucket has category_id
       if (!bucket.category_id) {
         continue;
@@ -139,6 +143,29 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
     }
 
     return icons;
+  };
+
+  // Get total category count for "+ X more" display
+  const getTotalCategoryCount = () => {
+    const planCategories = (plan as any)?.categories || [];
+    
+    if (Array.isArray(planCategories) && planCategories.length > 0) {
+      return planCategories.length;
+    }
+    
+    // Fallback to buckets
+    if (!plan.buckets || plan.buckets.length === 0) {
+      return 0;
+    }
+
+    const uniqueCategories = new Set<string>();
+    for (const bucket of plan.buckets) {
+      if (bucket.category_id) {
+        uniqueCategories.add(bucket.category_id);
+      }
+    }
+    
+    return uniqueCategories.size;
   };
 
   // Get selected subcategories with their names
@@ -173,6 +200,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
   };
 
   const categoryIcons = getCategoryIcons();
+  const totalCategoryCount = getTotalCategoryCount();
   const selectedSubcategories = getSelectedSubcategories();
 
   // Calculate progress percentage
@@ -531,9 +559,9 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
           <View style={styles.selectedCategoriesContainer}>
             <Text style={styles.selectedCategoryText} numberOfLines={1}>
               {categoryIcons[0].categoryName}
-              {categoryIcons.length > 1 && (
+              {totalCategoryCount > 1 && (
                 <Text style={styles.selectedCategoryText}>
-                  {' '}+ {categoryIcons.length - 1} more
+                  {' '}+ {totalCategoryCount - 1} more
                 </Text>
               )}
             </Text>

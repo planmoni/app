@@ -214,7 +214,7 @@ export default function PlansTabContent({
                 <Text style={styles.upNextPlanName} numberOfLines={1}>
                   {nextMaturingBudget.plan.name}
                 </Text>
-                {getNextMaturingBudgetCategoryIcons.length > 0 && (
+                {/* {getNextMaturingBudgetCategoryIcons.length > 0 && (
                   <View style={styles.upNextCategoryIconsContainer}>
                     {getNextMaturingBudgetCategoryIcons.map(({ categoryId, Icon }, index) => (
                       <View
@@ -229,7 +229,7 @@ export default function PlansTabContent({
                       </View>
                     ))}
                   </View>
-                )}
+                )} */}
               </View>
               <ArrowRight size={20} color={colors.textSecondary} />
             </View>

@@ -1,22 +1,42 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { ArrowRight, Clock, Calendar } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { ArrowRight, Clock, Calendar, ChevronDown, ShoppingCart, CreditCard, Settings, X, Info } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { ExpensePlan } from '@/types/expense-planner';
 import { getCategoryIcon, getCategoryById, CATEGORIES } from '@/lib/expenseCategories';
 import { getBudgetDuration, isBudgetStarted } from '@/lib/expensePlanUtils';
+import { router } from 'expo-router';
 
 interface PlanDetailsInfoProps {
   plan: ExpensePlan;
   currentBalance: number;
   onViewBalance?: () => void;
+  onSpend?: () => void;
+  onFundPlan?: () => void;
+  onAdjustBudget?: () => void;
+  onCloseBudget?: () => void;
+  budgetStarted?: boolean;
+  totalBudget?: number;
+  fundingMethod?: string;
 }
 
-export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }: PlanDetailsInfoProps) {
+export default function PlanDetailsInfo({ 
+  plan, 
+  currentBalance, 
+  onViewBalance,
+  onSpend,
+  onFundPlan,
+  onAdjustBudget,
+  onCloseBudget,
+  budgetStarted = false,
+  totalBudget = 0,
+  fundingMethod = 'manual'
+}: PlanDetailsInfoProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
+  const [showAllCategories, setShowAllCategories] = useState(false);
 
   // Get categories and subcategories from plan
   const getCategoriesWithSubcategories = () => {
@@ -108,24 +128,24 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
   const categoriesWithSubcategories = getCategoriesWithSubcategories();
 
   // Calculate spending progress
-  const totalBudget = plan?.total_budget || 0;
+  const planTotalBudget = totalBudget || plan?.total_budget || 0;
   const totalSpent = plan?.total_spent || 0;
-  const percentageSpent = totalBudget > 0 
-    ? ((totalSpent / totalBudget) * 100) 
+  const percentageSpent = planTotalBudget > 0 
+    ? ((totalSpent / planTotalBudget) * 100) 
     : 0;
-  const remainingBudget = Math.max(0, totalBudget - totalSpent);
-  const percentageFunded = totalBudget > 0
-    ? ((currentBalance / totalBudget) * 100)
+  const remainingBudget = Math.max(0, planTotalBudget - totalSpent);
+  const percentageFunded = planTotalBudget > 0
+    ? ((currentBalance / planTotalBudget) * 100)
     : 0;
-  const remainingToFund = Math.max(0, totalBudget - currentBalance);
+  const remainingToFund = Math.max(0, planTotalBudget - currentBalance);
 
   // Calculate budget duration
   const budgetDuration = plan?.start_date && plan?.end_date 
     ? getBudgetDuration(plan.start_date, plan.end_date) 
     : null;
 
-  // Get funding method (check both direct field and metadata)
-  const fundingMethod = plan?.funding_method || plan?.metadata?.funding_method || 'manual';
+  // Get funding method (use prop if provided, otherwise check both direct field and metadata)
+  const planFundingMethod = fundingMethod || plan?.funding_method || plan?.metadata?.funding_method || 'manual';
   
   // Get auto top-up details
   const autoTopupAmount = (plan as any)?.auto_topup_amount || (plan as any)?.metadata?.auto_topup_amount;
@@ -146,8 +166,8 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
   const payoutAccountLabel = plan?.metadata?.payout_account_label || plan?.payout_account_label;
   const payoutAccountBankName = plan?.metadata?.payout_account_bank_name || plan?.payout_account_bank_name;
   
-  // Check if budget has started
-  const budgetStarted = plan?.start_date ? isBudgetStarted(plan.start_date) : false;
+  // Check if budget has started (use prop if provided, otherwise calculate)
+  const planBudgetStarted = budgetStarted !== undefined ? budgetStarted : (plan?.start_date ? isBudgetStarted(plan.start_date) : false);
 
   // Calculate next funding countdown for auto plans (returns date string and amount)
   const getNextFundingCountdown = () => {
@@ -155,15 +175,15 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
     const autoTopupEnabled = (plan as any)?.auto_topup_enabled === true || 
                              (plan as any)?.metadata?.auto_topup_enabled === true;
     
-    if (fundingMethod !== 'auto' || !autoTopupEnabled || !plan?.start_date) return null;
+    if (planFundingMethod !== 'auto' || !autoTopupEnabled || !plan?.start_date) return null;
     
     const startDate = new Date(plan.start_date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     startDate.setHours(0, 0, 0, 0);
     
-    const budgetStarted = today >= startDate;
-    if (budgetStarted) return null;
+    const hasStarted = today >= startDate;
+    if (hasStarted) return null;
     
     const todayForCalc = new Date();
     todayForCalc.setHours(0, 0, 0, 0);
@@ -267,44 +287,13 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
 
   return (
     <>
-      {/* Categories and Subcategories */}
-      {categoriesWithSubcategories.length > 0 && (
-        <View style={styles.categoriesCard}>
-          <Text style={styles.sectionLabel}>Categories</Text>
-          {categoriesWithSubcategories.map((categoryGroup, categoryIndex) => {
-            const CategoryIcon = categoryGroup.categoryIcon;
-            return (
-              <View key={categoryGroup.categoryId} style={styles.categoryGroup}>
-                <View style={styles.categoryHeader}>
-                  <View style={styles.categoryIconContainer}>
-                    {CategoryIcon && React.createElement(CategoryIcon, {
-                      size: 20,
-                      color: colors.primary,
-                      strokeWidth: 2,
-                    })}
-                  </View>
-                  <Text style={styles.categoryName}>{categoryGroup.categoryName}</Text>
-                </View>
-                <View style={styles.subcategoriesList}>
-                  {categoryGroup.subcategories.map((subcategory, subIndex) => (
-                    <View key={subcategory.id} style={styles.subcategoryChip}>
-                      <Text style={styles.subcategoryChipText}>{subcategory.name}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      )}
-
       <View style={styles.progressCard}>
         <View style={styles.progressHeader}>
           <Text style={styles.progressTitle}>
-            {budgetStarted ? 'Spending Progress' : 'Funding Progress'}
+            {planBudgetStarted ? 'Spending Progress' : 'Funding Progress'}
           </Text>
           <Text style={styles.progressPercentage}>
-            {Math.round(budgetStarted ? percentageSpent : percentageFunded)}%
+            {Math.round(planBudgetStarted ? percentageSpent : percentageFunded)}%
           </Text>
         </View>
         <View style={styles.progressBar}>
@@ -313,17 +302,17 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
               styles.progressFill,
               {
                 width: `${Math.min(
-                  Math.max(budgetStarted ? percentageSpent : percentageFunded, 0),
+                  Math.max(planBudgetStarted ? percentageSpent : percentageFunded, 0),
                   100
                 )}%`,
                 backgroundColor:
-                  (budgetStarted ? percentageSpent : percentageFunded) >= 100
+                  (planBudgetStarted ? percentageSpent : percentageFunded) >= 100
                     ? '#1E3A8A'
-                    : (budgetStarted ? percentageSpent : percentageFunded) >= 75
+                    : (planBudgetStarted ? percentageSpent : percentageFunded) >= 75
                     ? '#1E3A8A'
-                    : (budgetStarted ? percentageSpent : percentageFunded) >= 50
+                    : (planBudgetStarted ? percentageSpent : percentageFunded) >= 50
                     ? '#1E3A8A'
-                    : (budgetStarted ? percentageSpent : percentageFunded) >= 25
+                    : (planBudgetStarted ? percentageSpent : percentageFunded) >= 25
                     ? '#1E3A8A'
                     : '#1E3A8A',
               },
@@ -331,10 +320,10 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
           />
         </View>
         <View style={styles.progressInfo}>
-          {budgetStarted ? (
+          {planBudgetStarted ? (
             <>
               <Text style={styles.progressText}>
-                Spent: {formatBalance(totalSpent)} / {formatBalance(plan.total_budget)}
+                Spent: {formatBalance(totalSpent)} / {formatBalance(planTotalBudget)}
               </Text>
               <Text style={styles.remainingText}>
                 {remainingBudget > 0
@@ -345,84 +334,79 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
           ) : (
             <>
               <Text style={styles.progressText}>
-                Funded: {formatBalance(currentBalance)} / {formatBalance(plan.total_budget)}
+                Funded: {formatBalance(currentBalance)} / {formatBalance(planTotalBudget)}
               </Text>
               <Text style={styles.remainingText}>
                 {remainingToFund > 0
-                  ? `${formatBalance(remainingToFund)} remaining to fund`
+                  ? `${formatBalance(remainingToFund)} remaining to add`
                   : 'Budget fully funded'}
               </Text>
             </>
           )}
         </View>
       </View>
-
-      {/* Budget Amount (hidden when started) */}
-      {!budgetStarted && (
-        <View style={styles.infoCard}>
-          <Text style={styles.infoLabel}>Budget Amount</Text>
-          <Text style={styles.infoValue}>{formatBalance(plan.total_budget)}</Text>
-        </View>
-      )}
-
-      {/* Start Date - End Date */}
-      {plan.start_date && plan.end_date && (
-        <View style={styles.infoCard}>
-          <Text style={styles.infoLabel}>Budget Period</Text>
-          <Text style={styles.infoValue}>
-            {formatDate(plan.start_date)} - {formatDate(plan.end_date)}
-          </Text>
-        </View>
-      )}
-
-      {/* Budget Duration */}
-      {budgetDuration && (
-        <View style={styles.infoCard}>
-          <Text style={styles.infoLabel}>Duration</Text>
-          <Text style={styles.infoValue}>
-            {budgetDuration} {budgetDuration === 1 ? 'day' : 'days'}
-          </Text>
-        </View>
-      )}
-
-      {/* Funding Method & Start Rule (hidden when started) */}
-      {!budgetStarted && (
-        <>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Funding Method</Text>
-            <Text style={styles.infoValue}>
-              {fundingMethod === 'auto' && autoTopupAmount && autoTopupFrequency
-                ? `Auto - ${formatBalance(autoTopupAmount)} ${getFrequencyLabel(autoTopupFrequency)}`
-                : fundingMethod === 'auto' 
-                ? 'Auto' 
-                : 'Manual'}
-            </Text>
-          </View>
-
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Plan Start Rule</Text>
-            {startAction === 'wallet' ? (
-              <View>
-                <Text style={styles.infoValue}>
-                  {budgetStarted ? 'Keep balance in Plan' : 'Move to wallet balance'}
-                </Text>
-              </View>
+      <View style={styles.actionsCard}>
+        {/* For partially funded budgets that have started, show only Spend button */}
+        {planBudgetStarted && currentBalance > 0 && currentBalance < planTotalBudget ? (
+          <Pressable 
+            style={styles.actionButton}
+            onPress={onSpend}
+          >
+            <ShoppingCart size={20} color={colors.primary} />
+            <Text style={styles.actionButtonText}>Spend</Text>
+          </Pressable>
+        ) : (
+          <>
+            {/* Add Funds Button - Only for Manual plans that are not fully funded */}
+            {planFundingMethod === 'manual' && currentBalance < planTotalBudget ? (
+              <Pressable 
+                style={styles.actionButton}
+                onPress={onFundPlan}
+              >
+                <CreditCard size={20} color={colors.primary} />
+                <Text style={styles.actionButtonText}>Add Funds</Text>
+              </Pressable>
+            ) : planFundingMethod === 'manual' && currentBalance >= planTotalBudget ? (
+              // Plan is fully funded, don't show button
+              null
             ) : (
-              <View>
-                <Text style={styles.infoValue}>Auto payout to bank</Text>
-                {payoutAccountLabel && (
-                  <Text style={styles.payoutAccountText}>
-                    {payoutAccountBankName} ••••{payoutAccountLabel.split('••••')[1] || ''}
+              <View style={styles.disabledActionButton}>
+                <CreditCard size={20} color={colors.textTertiary} />
+                <View style={styles.disabledActionButtonContent}>
+                  <Text style={styles.disabledActionButtonText}>Add Funds</Text>
+                  <Text style={styles.disabledActionButtonReason}>
+                    Auto-funded plans are funded automatically
                   </Text>
-                )}
+                </View>
               </View>
             )}
-          </View>
-        </>
-      )}
 
-      {/* Spending Progress */}
-     
+            {/* Adjust Budget Button - Only show if budget hasn't started */}
+            {!planBudgetStarted && (
+              <Pressable 
+                style={[styles.actionButton, styles.actionButtonSecondary]}
+                onPress={onAdjustBudget}
+              >
+                <Settings size={20} color={colors.text} />
+                <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>
+                  Adjust Budget
+                </Text>
+              </Pressable>
+            )}
+
+            {/* Close Budget Button */}
+            <Pressable 
+              style={[styles.actionButton, styles.actionButtonDanger]}
+              onPress={onCloseBudget}
+            >
+              <X size={20} color="#EF4444" />
+              <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
+                Close Budget
+              </Text>
+            </Pressable>
+          </>
+        )}
+      </View>
 
       {/* Next Funding Countdown (Auto plans) */}
       {nextFundingInfo && (
@@ -434,6 +418,16 @@ export default function PlanDetailsInfo({ plan, currentBalance, onViewBalance }:
           </Text>
         </View>
       )}
+
+      {/* View Plan Details Button */}
+      <Pressable
+        style={styles.viewDetailsButton}
+        onPress={() => router.push(`/expense-planner/${plan.id}/details`)}
+      >
+        <Info size={18} color={colors.primary} />
+        <Text style={styles.viewDetailsButtonText}>View Plan Details</Text>
+        <ArrowRight size={18} color={colors.primary} />
+      </Pressable>
     </>
   );
 }
@@ -576,7 +570,26 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     },
     remainingText: {
       fontSize: getScaledFontSize(13, textSizeMultiplier),
+      color: colors.textSecondary,
+    },
+    showAllButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 8,
+      paddingVertical: 12,
+      gap: 6,
+    },
+    showAllButtonText: {
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
       color: colors.primary,
+      fontWeight: '600',
+    },
+    chevronIcon: {
+      transform: [{ rotate: '0deg' }],
+    },
+    chevronIconRotated: {
+      transform: [{ rotate: '180deg' }],
     },
     extraFundsText: {
       fontSize: getScaledFontSize(13, textSizeMultiplier),
@@ -596,6 +609,89 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     countdownText: {
       fontSize: getScaledFontSize(13, textSizeMultiplier),
       color: colors.textSecondary,
+    },
+    actionsCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 12,
+    },
+    actionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.primary + '20',
+      paddingVertical: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    actionButtonSecondary: {
+      backgroundColor: colors.backgroundTertiary,
+      borderColor: colors.border,
+    },
+    actionButtonDanger: {
+      backgroundColor: '#EF4444' + '20',
+      borderColor: '#EF4444',
+    },
+    actionButtonText: {
+      fontSize: getScaledFontSize(15, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    actionButtonTextSecondary: {
+      color: colors.text,
+    },
+    actionButtonTextDanger: {
+      color: '#EF4444',
+    },
+    disabledActionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: colors.backgroundTertiary,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      opacity: 0.6,
+    },
+    disabledActionButtonContent: {
+      flex: 1,
+    },
+    disabledActionButtonText: {
+      fontSize: getScaledFontSize(15, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.textTertiary,
+    },
+    disabledActionButtonReason: {
+      fontSize: getScaledFontSize(12, textSizeMultiplier),
+      color: colors.textTertiary,
+      marginTop: 2,
+    },
+    viewDetailsButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    viewDetailsButtonText: {
+      fontSize: getScaledFontSize(15, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.primary,
+      flex: 1,
+      textAlign: 'center',
     },
   });
 

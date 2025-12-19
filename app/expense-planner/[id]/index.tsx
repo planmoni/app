@@ -411,7 +411,7 @@ export default function PlanDetailScreen() {
       case 'long_term':
         return { label: 'Long Term', color: '#8B5CF6' };
       default:
-        return { label: 'One Time', color: colors.text };
+        return { label: 'Active', color: colors.text };
     }
   };
 
@@ -427,9 +427,9 @@ export default function PlanDetailScreen() {
       case 'draft':
         return { bgColor: colors.backgroundTertiary, textColor: colors.textSecondary, label: 'Draft' };
       case 'unfunded':
-        return { bgColor: colors.warningLight, textColor: colors.warning, label: 'Unfunded' };
+        return { bgColor: colors.backgroundTertiary, textColor: colors.textSecondary, label: 'Unfunded' };
       case 'partially_funded':
-        return { bgColor: '#DBEAFE', textColor: '#2563EB', label: 'Partially Funded' };
+        return { bgColor: '#E2E8F0', textColor: '#64748B', label: 'Partially Funded' };
       case 'funded':
         return { bgColor: colors.accent, textColor: colors.primary, label: 'Funded' };
       default:
@@ -508,8 +508,7 @@ export default function PlanDetailScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {plan.name}
+        <Text style={styles.headerTitle} numberOfLines={1}> Budget
         </Text>
         <Pressable
           onPress={() => router.replace('/(tabs)')}
@@ -543,6 +542,7 @@ export default function PlanDetailScreen() {
             </View>
           </View>
         </View>
+        
 
         {/* Available to Spend Balance (when applicable) */}
         {availableToSpend > 0 && (
@@ -571,77 +571,21 @@ export default function PlanDetailScreen() {
             </View>
           </View>
         )}
+        
 
         {/* Plan Details Info */}
         <PlanDetailsInfo 
           plan={plan} 
           currentBalance={currentBalance}
           onViewBalance={availableToSpend > 0 ? handleViewBalance : undefined}
+          onSpend={handleSpend}
+          onFundPlan={handleFundPlan}
+          onAdjustBudget={handleAdjustBudget}
+          onCloseBudget={handleCloseBudget}
+          budgetStarted={budgetStarted}
+          totalBudget={totalBudget}
         />
-
-        {/* Action Buttons */}
-        <View style={styles.actionsCard}>
-          {/* For partially funded budgets that have started, show only Spend button */}
-          {budgetStarted && currentBalance > 0 && currentBalance < totalBudget ? (
-            <Pressable 
-              style={styles.actionButton}
-              onPress={handleSpend}
-            >
-              <ShoppingCart size={20} color={colors.primary} />
-              <Text style={styles.actionButtonText}>Spend</Text>
-            </Pressable>
-          ) : (
-            <>
-          {/* Add Funds Button - Only for Manual plans that are not fully funded */}
-          {fundingMethod === 'manual' && currentBalance < totalBudget ? (
-            <Pressable 
-              style={styles.actionButton}
-              onPress={handleFundPlan}
-            >
-              <CreditCard size={20} color={colors.primary} />
-              <Text style={styles.actionButtonText}>Add Funds</Text>
-            </Pressable>
-          ) : fundingMethod === 'manual' && currentBalance >= totalBudget ? (
-            // Plan is fully funded, don't show button
-            null
-          ) : (
-            <View style={styles.disabledActionButton}>
-              <CreditCard size={20} color={colors.textTertiary} />
-              <View style={styles.disabledActionButtonContent}>
-                <Text style={styles.disabledActionButtonText}>Add Funds</Text>
-                <Text style={styles.disabledActionButtonReason}>
-                  Auto-funded plans are funded automatically
-                </Text>
-              </View>
-            </View>
-          )}
-
-              {/* Adjust Budget Button - Only show if budget hasn't started */}
-              {!budgetStarted && (
-          <Pressable 
-            style={[styles.actionButton, styles.actionButtonSecondary]}
-            onPress={handleAdjustBudget}
-          >
-            <Settings size={20} color={colors.text} />
-            <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>
-              Adjust Budget
-            </Text>
-          </Pressable>
-              )}
-
-          {/* Close Budget Button */}
-          <Pressable 
-            style={[styles.actionButton, styles.actionButtonDanger]}
-            onPress={handleCloseBudget}
-          >
-            <X size={20} color="#EF4444" />
-            <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
-              Close Budget
-            </Text>
-          </Pressable>
-            </>
-          )}
-        </View>
+        
 
         {/* Activity Section */}
           <View style={styles.activitySection}>
@@ -661,6 +605,7 @@ export default function PlanDetailScreen() {
             </View>
           </>
         )}
+        
 
         {/* Expense Buckets */}
         {/* <View style={styles.bucketsSection}>
@@ -840,70 +785,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       fontSize: getScaledFontSize(14, textSizeMultiplier),
       color: colors.primary,
       fontWeight: '600',
-    },
-    actionsCard: {
-      backgroundColor: colors.card,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 16,
-      borderWidth: 1,
-      borderColor: colors.border,
-      gap: 12,
-    },
-    actionButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      backgroundColor: colors.primary + '20',
-      paddingVertical: 14,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.primary,
-    },
-    actionButtonSecondary: {
-      backgroundColor: colors.backgroundTertiary,
-      borderColor: colors.border,
-    },
-    actionButtonDanger: {
-      backgroundColor: '#EF4444' + '20',
-      borderColor: '#EF4444',
-    },
-    actionButtonText: {
-      fontSize: getScaledFontSize(15, textSizeMultiplier),
-      fontWeight: '600',
-      color: colors.primary,
-    },
-    actionButtonTextSecondary: {
-      color: colors.text,
-    },
-    actionButtonTextDanger: {
-      color: '#EF4444',
-    },
-    disabledActionButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      backgroundColor: colors.backgroundTertiary,
-      paddingVertical: 14,
-      paddingHorizontal: 16,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      opacity: 0.6,
-    },
-    disabledActionButtonContent: {
-      flex: 1,
-    },
-    disabledActionButtonText: {
-      fontSize: getScaledFontSize(15, textSizeMultiplier),
-      fontWeight: '600',
-      color: colors.textTertiary,
-    },
-    disabledActionButtonReason: {
-      fontSize: getScaledFontSize(12, textSizeMultiplier),
-      color: colors.textTertiary,
-      marginTop: 2,
     },
     activitySection: {
       marginBottom: 16,

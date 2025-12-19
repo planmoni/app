@@ -742,21 +742,36 @@ export function useExpensePlans() {
         let uniqueCategories: string[] = [];
         let subcategoriesArray: Array<{ category_id: string; subcategory_id: string }> = [];
         
+        // First, check if categories/subcategories are provided in metadata (for AI-created plans)
+        if (metadata.categories && Array.isArray(metadata.categories) && metadata.categories.length > 0) {
+          uniqueCategories = [...new Set(metadata.categories)];
+        }
+        if (metadata.subcategories && Array.isArray(metadata.subcategories) && metadata.subcategories.length > 0) {
+          subcategoriesArray = metadata.subcategories;
+        }
+        
+        // Then, extract from buckets if available (this will override metadata if buckets exist)
         if (planData.buckets && planData.buckets.length > 0) {
-          const categorySet = new Set<string>();
+          const categorySet = new Set<string>(uniqueCategories); // Start with existing categories
           planData.buckets.forEach(bucket => {
             if (bucket.category_id) {
               categorySet.add(bucket.category_id);
             }
             if (bucket.category_id && bucket.subcategory_id) {
-              subcategoriesArray.push({
-                category_id: bucket.category_id,
-                subcategory_id: bucket.subcategory_id,
-              });
+              // Only add if not already in array
+              const exists = subcategoriesArray.some(
+                sub => sub.category_id === bucket.category_id && sub.subcategory_id === bucket.subcategory_id
+              );
+              if (!exists) {
+                subcategoriesArray.push({
+                  category_id: bucket.category_id,
+                  subcategory_id: bucket.subcategory_id,
+                });
+              }
             }
           });
           uniqueCategories = Array.from(categorySet);
-        } else {
+        } else if (uniqueCategories.length === 0) {
           // If no buckets yet, try to read from existing draft plan if planId is in metadata
           // This handles the case where categories were saved during plan-details step
           const existingPlanId = metadata.planId || (planData as any).planId;
