@@ -213,7 +213,7 @@ export default function PlanDetailScreen() {
   const handleWithdraw = () => {
     haptics.mediumImpact();
     router.push({
-      pathname: '/expense-planner/[id]/withdraw',
+      pathname: '/expense-planner/[id]/withdraw-amount',
       params: { id: id as string },
     });
   };

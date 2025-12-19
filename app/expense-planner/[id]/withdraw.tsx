@@ -18,6 +18,7 @@ export default function WithdrawScreen() {
   const haptics = useHaptics();
   const params = useLocalSearchParams();
   const planId = params.id as string;
+  const withdrawalAmount = parseFloat((params.amount as string) || '0');
   
   const { payoutAccounts, isLoading: accountsLoading, fetchPayoutAccounts } = usePayoutAccounts();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -33,9 +34,20 @@ export default function WithdrawScreen() {
   }, [payoutAccounts]);
 
 
+  const formatBalance = (amount: number) => {
+    if (!amount) return '₦0';
+    return `₦${amount.toLocaleString('en-NG')}`;
+  };
+
   const handleWithdraw = async () => {
     if (!selectedAccountId) {
       Alert.alert('Account Required', 'Please select a payout account');
+      haptics.notification();
+      return;
+    }
+
+    if (!withdrawalAmount || withdrawalAmount <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid withdrawal amount');
       haptics.notification();
       return;
     }
@@ -45,12 +57,12 @@ export default function WithdrawScreen() {
 
     try {
       // TODO: Implement actual withdrawal logic
-      // await withdrawExpenseFunds(selectedAccountId);
+      // await withdrawExpenseFunds(selectedAccountId, withdrawalAmount);
       
       const selectedAccount = payoutAccounts.find(acc => acc.id === selectedAccountId);
       Alert.alert(
         'Withdrawal Initiated',
-        `Funds will be transferred to ${selectedAccount?.bank_name} ••••${selectedAccount?.account_number.slice(-4)}.`,
+        `${formatBalance(withdrawalAmount)} will be transferred to ${selectedAccount?.bank_name} ••••${selectedAccount?.account_number.slice(-4)}.`,
         [
           {
             text: 'OK',
@@ -89,6 +101,13 @@ export default function WithdrawScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {withdrawalAmount > 0 && (
+          <View style={styles.amountCard}>
+            <Text style={styles.amountLabel}>Withdrawal Amount</Text>
+            <Text style={styles.amountValue}>{formatBalance(withdrawalAmount)}</Text>
+          </View>
+        )}
+        
         <Text style={styles.sectionTitle}>Select payout account</Text>
         <Text style={styles.sectionDescription}>
           Choose where you want to receive the withdrawn funds
@@ -227,6 +246,28 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     scrollContent: {
       padding: 20,
       paddingBottom: 100,
+    },
+    amountCard: {
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 24,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+    },
+    amountLabel: {
+      fontSize: getScaledFontSize(13, textSizeMultiplier),
+      fontWeight: '500',
+      color: colors.textSecondary,
+      marginBottom: 8,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    amountValue: {
+      fontSize: getScaledFontSize(32, textSizeMultiplier),
+      fontWeight: '700',
+      color: colors.primary,
     },
     sectionTitle: {
       fontSize: getScaledFontSize(20, textSizeMultiplier),

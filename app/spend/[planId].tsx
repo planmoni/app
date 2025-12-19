@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Calendar, Send, X } from 'lucide-react-native';
@@ -8,31 +8,21 @@ import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
-import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
 import { Platform } from 'react-native';
 
 export default function SpendBalanceScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
-  const { session } = useAuth();
   const params = useLocalSearchParams();
   const planId = params.planId as string;
   
   const { expensePlans } = useExpensePlans();
-  const { payoutAccounts, fetchPayoutAccounts } = usePayoutAccounts();
-  const [isProcessing, setIsProcessing] = useState(false);
 
   const plan = expensePlans.find(p => p.id === planId);
   const currentBalance = (plan as any)?.current_balance || 0;
   const totalBudget = plan?.total_budget || 0;
   const spendableBalance = currentBalance;
-
-  useEffect(() => {
-    fetchPayoutAccounts();
-  }, []);
 
   const formatBalance = (amount: number) => {
     if (!amount) return '₦0';
@@ -52,97 +42,12 @@ export default function SpendBalanceScreen() {
     });
   };
 
-  const handleWithdraw = async () => {
-    if (spendableBalance <= 0) {
-      Alert.alert('No Funds', 'This budget has no spendable funds available.');
-      haptics.notification();
-      return;
-    }
-
-    if (!payoutAccounts || payoutAccounts.length === 0) {
-      Alert.alert(
-        'No Account',
-        'Please add a payout account first to withdraw funds.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Add Account', onPress: () => router.push('/payout-accounts') },
-        ]
-      );
-      haptics.notification();
-      return;
-    }
-
-    const defaultAccount = payoutAccounts.find(acc => acc.is_default) || payoutAccounts[0];
-    
-    Alert.alert(
-      'Withdraw Funds',
-      `Withdraw ${formatBalance(spendableBalance)} from "${plan?.name}" to ${defaultAccount.bank_name} ••••${defaultAccount.account_number.slice(-4)}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Withdraw',
-          style: 'default',
-          onPress: async () => {
-            haptics.mediumImpact();
-            setIsProcessing(true);
-            
-            try {
-              // Get session token
-              const { data: { session } } = await supabase.auth.getSession();
-              if (!session) {
-                Alert.alert('Error', 'Please log in to continue.');
-                haptics.notification();
-                return;
-              }
-
-              // Call edge function to withdraw plan extra funds
-              const response = await fetch(
-                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/withdraw-plan-extra-funds`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`,
-                  },
-                  body: JSON.stringify({
-                    planId: planId,
-                    amount: spendableBalance,
-                    accountId: defaultAccount.id,
-                  }),
-                }
-              );
-
-              const result = await response.json();
-
-              if (!response.ok || !result.success) {
-                console.error('Error withdrawing plan extra funds:', result);
-                Alert.alert('Error', result.error || 'Failed to withdraw funds. Please try again.');
-                haptics.notification();
-                return;
-              }
-
-              haptics.notification();
-              Alert.alert(
-                'Withdrawal Successful',
-                `${formatBalance(spendableBalance)} has been transferred to your account.`,
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => router.back(),
-                  },
-                ]
-              );
-            } catch (error: any) {
-              console.error('Error processing withdrawal:', error);
-              Alert.alert('Error', 'Failed to process withdrawal. Please try again.');
-              haptics.notification();
-            } finally {
-              setIsProcessing(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleWithdraw = () => {
+    haptics.mediumImpact();
+    router.push({
+      pathname: '/expense-planner/[id]/withdraw-amount',
+      params: { id: planId },
+    });
   };
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
@@ -203,7 +108,6 @@ export default function SpendBalanceScreen() {
           <Pressable
             style={[styles.actionButton, styles.scheduleButton]}
             onPress={handleSchedule}
-            disabled={isProcessing}
           >
             <Calendar size={20} color={colors.text} />
             <Text style={[styles.actionButtonText, styles.scheduleButtonText]}>
@@ -214,7 +118,7 @@ export default function SpendBalanceScreen() {
           <Pressable
             style={[styles.actionButton, styles.withdrawButton]}
             onPress={handleWithdraw}
-            disabled={isProcessing || spendableBalance <= 0}
+            disabled={spendableBalance <= 0}
           >
             <Send size={20} color={colors.primary} />
             <Text style={[styles.actionButtonText, styles.withdrawButtonText]}>
