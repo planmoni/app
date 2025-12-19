@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, X, Check, Plus } from 'lucide-react-native';
+import { ArrowLeft, X, Plus } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -10,8 +10,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import FloatingButton from '@/components/FloatingButton';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
-import { ExpenseBucket } from '@/types/expense-planner';
-import { useExpenseBuckets } from '@/hooks/useExpenseBuckets';
+import { getBankIconLogo } from '@/lib/bankIcons';
 
 export default function WithdrawScreen() {
   const { colors, isDark } = useTheme();
@@ -21,9 +20,7 @@ export default function WithdrawScreen() {
   const planId = params.id as string;
   
   const { payoutAccounts, isLoading: accountsLoading, fetchPayoutAccounts } = usePayoutAccounts();
-  const { buckets } = useExpenseBuckets(planId);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
-  const [selectedBuckets, setSelectedBuckets] = useState<Set<string>>(new Set());
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -35,54 +32,10 @@ export default function WithdrawScreen() {
     }
   }, [payoutAccounts]);
 
-  const handleBucketToggle = (bucketId: string) => {
-    haptics.selection();
-    setSelectedBuckets(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(bucketId)) {
-        newSet.delete(bucketId);
-      } else {
-        newSet.add(bucketId);
-      }
-      return newSet;
-    });
-  };
-
-  const handleSelectAll = () => {
-    haptics.selection();
-    if (selectedBuckets.size === buckets.length) {
-      setSelectedBuckets(new Set());
-    } else {
-      setSelectedBuckets(new Set(buckets.map(b => b.id)));
-    }
-  };
-
-  const calculateTotalWithdrawal = () => {
-    return buckets
-      .filter(b => selectedBuckets.has(b.id))
-      .reduce((sum, bucket) => {
-        // TODO: Use actual locked amount from bucket
-        const lockedAmount = bucket.target_amount; // Placeholder
-        return sum + lockedAmount;
-      }, 0);
-  };
 
   const handleWithdraw = async () => {
     if (!selectedAccountId) {
       Alert.alert('Account Required', 'Please select a payout account');
-      haptics.notification();
-      return;
-    }
-
-    if (selectedBuckets.size === 0) {
-      Alert.alert('No Buckets Selected', 'Please select at least one expense bucket to withdraw from');
-      haptics.notification();
-      return;
-    }
-
-    const totalAmount = calculateTotalWithdrawal();
-    if (totalAmount <= 0) {
-      Alert.alert('Invalid Amount', 'Selected buckets have no funds to withdraw');
       haptics.notification();
       return;
     }
@@ -92,11 +45,12 @@ export default function WithdrawScreen() {
 
     try {
       // TODO: Implement actual withdrawal logic
-      // await withdrawExpenseFunds(selectedBuckets, selectedAccountId);
+      // await withdrawExpenseFunds(selectedAccountId);
       
+      const selectedAccount = payoutAccounts.find(acc => acc.id === selectedAccountId);
       Alert.alert(
         'Withdrawal Initiated',
-        `₦${totalAmount.toLocaleString()} will be transferred to your selected account.`,
+        `Funds will be transferred to ${selectedAccount?.bank_name} ••••${selectedAccount?.account_number.slice(-4)}.`,
         [
           {
             text: 'OK',
@@ -113,9 +67,6 @@ export default function WithdrawScreen() {
       setIsProcessing(false);
     }
   };
-
-  const selectedAccount = payoutAccounts.find(acc => acc.id === selectedAccountId);
-  const totalAmount = calculateTotalWithdrawal();
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
@@ -144,108 +95,78 @@ export default function WithdrawScreen() {
         </Text>
 
         <View style={styles.accountsContainer}>
-          {payoutAccounts.map(account => (
-            <Pressable
-              key={account.id}
-              style={[
-                styles.accountCard,
-                selectedAccountId === account.id && styles.accountCardSelected,
-              ]}
-              onPress={() => {
-                haptics.selection();
-                setSelectedAccountId(account.id);
-              }}
-            >
-              <View style={styles.accountInfo}>
-                <View style={styles.accountIcon}>
-                  <Text style={styles.accountIconText}>
-                    {account.bank_name.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.accountDetails}>
-                  <Text style={styles.accountName}>{account.account_name}</Text>
-                  <Text style={styles.accountNumber}>
-                    {account.account_number.slice(-4).padStart(account.account_number.length, '•')}
-                  </Text>
-                  <Text style={styles.bankName}>{account.bank_name}</Text>
-                </View>
-              </View>
-              {selectedAccountId === account.id && (
-                <View style={styles.checkIcon}>
-                  <Check size={20} color={colors.primary} />
-                </View>
-              )}
-            </Pressable>
-          ))}
-        </View>
-
-        <Pressable
-          style={styles.addAccountButton}
-          onPress={() => {
-            haptics.selection();
-            setShowAddAccount(true);
-          }}
-        >
-          <Plus size={20} color={colors.primary} />
-          <Text style={styles.addAccountText}>Add New Account</Text>
-        </Pressable>
-
-        <View style={styles.divider} />
-
-        <View style={styles.bucketsSection}>
-          <View style={styles.bucketsHeader}>
-            <Text style={styles.sectionTitle}>Select buckets to withdraw</Text>
-            <Pressable onPress={handleSelectAll}>
-              <Text style={styles.selectAllText}>
-                {selectedBuckets.size === buckets.length ? 'Deselect All' : 'Select All'}
-              </Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.bucketsContainer}>
-            {buckets.map(bucket => {
-              const isSelected = selectedBuckets.has(bucket.id);
-              // TODO: Use actual locked amount
-              const lockedAmount = bucket.target_amount; // Placeholder
-              
-              return (
-                <Pressable
-                  key={bucket.id}
-                  style={[
-                    styles.bucketCard,
-                    isSelected && styles.bucketCardSelected,
-                  ]}
-                  onPress={() => handleBucketToggle(bucket.id)}
-                >
-                  <View style={styles.bucketInfo}>
-                    <Text style={styles.bucketName}>{bucket.name}</Text>
-                    <Text style={styles.bucketAmount}>
-                      ₦{lockedAmount.toLocaleString()} available
-                    </Text>
+          {payoutAccounts.map(account => {
+            const bankIcon = getBankIconLogo(account.bank_name);
+            const isSelected = selectedAccountId === account.id;
+            
+            return (
+              <Pressable
+                key={account.id}
+                style={[
+                  styles.accountCard,
+                  isSelected && styles.accountCardSelected,
+                ]}
+                onPress={() => {
+                  haptics.selection();
+                  setSelectedAccountId(account.id);
+                }}
+              >
+                <View style={styles.accountInfo}>
+                  <View style={styles.accountIcon}>
+                    {bankIcon.logoSvg ? (
+                      React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                        width: 40,
+                        height: 40,
+                      })
+                    ) : bankIcon.logo ? (
+                      <Image 
+                        source={bankIcon.logo} 
+                        style={styles.bankLogoImage} 
+                        resizeMode="contain" 
+                      />
+                    ) : (
+                      <Text style={styles.accountIconText}>
+                        {account.bank_name.charAt(0).toUpperCase()}
+                      </Text>
+                    )}
                   </View>
-                  {isSelected && (
-                    <View style={styles.bucketCheck}>
-                      <Check size={20} color={colors.primary} />
-                    </View>
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
+                  <View style={styles.accountDetails}>
+                    <Text style={styles.accountName}>{account.account_name}</Text>
+                    <Text style={styles.accountNumber}>
+                      {account.account_number.slice(-4).padStart(account.account_number.length, '•')}
+                    </Text>
+                    <Text style={styles.bankName}>{account.bank_name}</Text>
+                  </View>
+                </View>
+                <View style={[
+                  styles.radio,
+                  isSelected && styles.radioSelected,
+                ]}>
+                  {isSelected && <View style={styles.radioInner} />}
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
 
-        {totalAmount > 0 && (
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Total Withdrawal</Text>
-            <Text style={styles.summaryAmount}>₦{totalAmount.toLocaleString()}</Text>
-          </View>
+        {payoutAccounts.length < 3 && (
+          <Pressable
+            style={styles.addAccountButton}
+            onPress={() => {
+              haptics.selection();
+              setShowAddAccount(true);
+            }}
+          >
+            <Plus size={20} color={colors.primary} />
+            <Text style={styles.addAccountText}>Add New Account</Text>
+          </Pressable>
         )}
       </ScrollView>
 
       <FloatingButton
         title="Withdraw"
         onPress={handleWithdraw}
-        disabled={!selectedAccountId || selectedBuckets.size === 0 || isProcessing}
+        disabled={!selectedAccountId || isProcessing}
         hapticType="medium"
       />
 
@@ -350,11 +271,16 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: 12,
+      overflow: 'hidden',
     },
     accountIconText: {
       fontSize: getScaledFontSize(18, textSizeMultiplier),
       fontWeight: '700',
       color: colors.text,
+    },
+    bankLogoImage: {
+      width: 40,
+      height: 40,
     },
     accountDetails: {
       flex: 1,
@@ -374,13 +300,23 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       fontSize: getScaledFontSize(12, textSizeMultiplier),
       color: colors.textTertiary,
     },
-    checkIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: colors.primary,
+    radio: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: colors.border,
       justifyContent: 'center',
       alignItems: 'center',
+    },
+    radioSelected: {
+      borderColor: colors.primary,
+    },
+    radioInner: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: colors.primary,
     },
     addAccountButton: {
       flexDirection: 'row',
@@ -397,83 +333,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     addAccountText: {
       fontSize: getScaledFontSize(14, textSizeMultiplier),
       fontWeight: '600',
-      color: colors.primary,
-    },
-    divider: {
-      height: 1,
-      backgroundColor: colors.border,
-      marginVertical: 24,
-    },
-    bucketsSection: {
-      marginBottom: 24,
-    },
-    bucketsHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    selectAllText: {
-      fontSize: getScaledFontSize(14, textSizeMultiplier),
-      fontWeight: '600',
-      color: colors.primary,
-    },
-    bucketsContainer: {
-      gap: 12,
-    },
-    bucketCard: {
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: 16,
-      borderWidth: 2,
-      borderColor: colors.border,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    bucketCardSelected: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primary + '10',
-    },
-    bucketInfo: {
-      flex: 1,
-    },
-    bucketName: {
-      fontSize: getScaledFontSize(16, textSizeMultiplier),
-      fontWeight: '600',
-      color: colors.text,
-      marginBottom: 4,
-    },
-    bucketAmount: {
-      fontSize: getScaledFontSize(14, textSizeMultiplier),
-      color: colors.textSecondary,
-    },
-    bucketCheck: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: colors.primary,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    summaryCard: {
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      padding: 20,
-      borderWidth: 1,
-      borderColor: colors.border,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    summaryLabel: {
-      fontSize: getScaledFontSize(16, textSizeMultiplier),
-      fontWeight: '600',
-      color: colors.text,
-    },
-    summaryAmount: {
-      fontSize: getScaledFontSize(24, textSizeMultiplier),
-      fontWeight: '700',
       color: colors.primary,
     },
   });
