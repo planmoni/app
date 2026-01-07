@@ -507,12 +507,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       </View>
       
       {/* Required per cycle */}
-      {requiredPerCycle > 0 && (
-        <View style={styles.requiredRow}>
-          <Text style={styles.requiredLabel}>Required per {payoutSchedule === 'daily' ? 'day' : payoutSchedule === 'weekly' ? 'week' : payoutSchedule === 'biweekly' ? '2 weeks' : 'month'}</Text>
-          <Text style={styles.requiredAmount}>₦{requiredPerCycle.toLocaleString()}</Text>
-        </View>
-      )}
+      
       
       {/* Health Status */}
       {healthStatus !== 'on_track' && (

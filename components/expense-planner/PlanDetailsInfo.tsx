@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
-import { ArrowRight, Clock, Calendar, ChevronDown, ShoppingCart, CreditCard, Settings, X, Info } from 'lucide-react-native';
+import { ArrowRight, Clock, Calendar, ChevronDown, ShoppingCart, CreditCard, Settings, X, Info, ArrowDown } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -363,7 +363,7 @@ export default function PlanDetailsInfo({
                 style={styles.actionButton}
                 onPress={onFundPlan}
               >
-                <CreditCard size={20} color={colors.primary} />
+                <ArrowDown size={20} color={colors.primary} />
                 <Text style={styles.actionButtonText}>Add Funds</Text>
               </Pressable>
             ) : planFundingMethod === 'manual' && currentBalance >= planTotalBudget ? (
@@ -371,7 +371,7 @@ export default function PlanDetailsInfo({
               null
             ) : (
               <View style={styles.disabledActionButton}>
-                <CreditCard size={20} color={colors.textTertiary} />
+                <ArrowDown size={20} color={colors.textTertiary} />
                 <View style={styles.disabledActionButtonContent}>
                   <Text style={styles.disabledActionButtonText}>Add Funds</Text>
                   <Text style={styles.disabledActionButtonReason}>
@@ -382,26 +382,15 @@ export default function PlanDetailsInfo({
             )}
 
             {/* Adjust Budget Button - Only show if budget hasn't started */}
-            {!planBudgetStarted && (
-              <Pressable 
-                style={[styles.actionButton, styles.actionButtonSecondary]}
-                onPress={onAdjustBudget}
-              >
-                <Settings size={20} color={colors.text} />
-                <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>
-                  Adjust Budget
-                </Text>
-              </Pressable>
-            )}
 
             {/* Close Budget Button */}
             <Pressable 
               style={[styles.actionButton, styles.actionButtonDanger]}
               onPress={onCloseBudget}
             >
-              <X size={20} color="#EF4444" />
+              <X size={20} color={colors.textTertiary}/>
               <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
-                Close Budget
+                Terminate Budget
               </Text>
             </Pressable>
           </>
@@ -635,8 +624,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       borderColor: colors.border,
     },
     actionButtonDanger: {
-      backgroundColor: '#EF4444' + '20',
-      borderColor: '#EF4444',
+      backgroundColor: colors.backgroundTertiary,
+      borderColor: colors.border,
     },
     actionButtonText: {
       fontSize: getScaledFontSize(15, textSizeMultiplier),

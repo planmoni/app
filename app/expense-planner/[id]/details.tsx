@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, X, ChevronDown } from 'lucide-react-native';
+import { ArrowLeft, X, ChevronDown, Pencil } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -10,12 +10,14 @@ import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { ExpensePlan } from '@/types/expense-planner';
 import { getCategoryById } from '@/lib/expenseCategories';
 import { getBudgetDuration, isBudgetStarted } from '@/lib/expensePlanUtils';
+import { useHaptics } from '@/hooks/useHaptics';
 
 export default function PlanDetailsPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { expensePlans } = useExpensePlans();
+  const haptics = useHaptics();
   const [showAllCategories, setShowAllCategories] = useState(false);
 
   const plan = expensePlans.find(p => p.id === id) as ExpensePlan | undefined;
@@ -181,7 +183,21 @@ export default function PlanDetailsPage() {
         {/* Budget Amount (hidden when started) */}
         {!budgetStarted && (
           <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Budget Amount</Text>
+            <View style={styles.infoCardHeader}>
+              <Text style={styles.infoLabel}>Budget Amount</Text>
+              <Pressable
+                onPress={() => {
+                  haptics.selection();
+                  router.push({
+                    pathname: '/expense-planner/[id]/edit-amount',
+                    params: { id: id as string },
+                  });
+                }}
+                style={styles.editButton}
+              >
+                <Pencil size={16} color={colors.primary} />
+              </Pressable>
+            </View>
             <Text style={styles.infoValue}>{formatBalance(plan.total_budget)}</Text>
           </View>
         )}
@@ -189,7 +205,23 @@ export default function PlanDetailsPage() {
         {/* Start Date - End Date */}
         {plan.start_date && plan.end_date && (
           <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Budget Period</Text>
+            <View style={styles.infoCardHeader}>
+              <Text style={styles.infoLabel}>Budget Period</Text>
+              {!budgetStarted && (
+                <Pressable
+                  onPress={() => {
+                    haptics.selection();
+                    router.push({
+                      pathname: '/expense-planner/[id]/edit-period',
+                      params: { id: id as string },
+                    });
+                  }}
+                  style={styles.editButton}
+                >
+                  <Pencil size={16} color={colors.primary} />
+                </Pressable>
+              )}
+            </View>
             <Text style={styles.infoValue}>
               {formatDate(plan.start_date)} - {formatDate(plan.end_date)}
             </Text>
@@ -210,7 +242,21 @@ export default function PlanDetailsPage() {
         {!budgetStarted && (
           <>
             <View style={styles.infoCard}>
-              <Text style={styles.infoLabel}>Funding Method</Text>
+              <View style={styles.infoCardHeader}>
+                <Text style={styles.infoLabel}>Funding Method</Text>
+                <Pressable
+                  onPress={() => {
+                    haptics.selection();
+                    router.push({
+                      pathname: '/expense-planner/[id]/edit-funding',
+                      params: { id: id as string },
+                    });
+                  }}
+                  style={styles.editButton}
+                >
+                  <Pencil size={16} color={colors.primary} />
+                </Pressable>
+              </View>
               <Text style={styles.infoValue}>
                 {fundingMethod === 'auto' && autoTopupAmount && autoTopupFrequency
                   ? `Auto - ${formatBalance(autoTopupAmount)} ${getFrequencyLabel(autoTopupFrequency)}`
@@ -221,7 +267,21 @@ export default function PlanDetailsPage() {
             </View>
 
             <View style={styles.infoCard}>
-              <Text style={styles.infoLabel}>Plan Start Rule</Text>
+              <View style={styles.infoCardHeader}>
+                <Text style={styles.infoLabel}>Plan Start Rule</Text>
+                <Pressable
+                  onPress={() => {
+                    haptics.selection();
+                    router.push({
+                      pathname: '/expense-planner/[id]/edit-start-rule',
+                      params: { id: id as string },
+                    });
+                  }}
+                  style={styles.editButton}
+                >
+                  <Pencil size={16} color={colors.primary} />
+                </Pressable>
+              </View>
               {startAction === 'wallet' ? (
                 <View>
                   <Text style={styles.infoValue}>
@@ -245,7 +305,23 @@ export default function PlanDetailsPage() {
         {/* Categories */}
         {categoriesWithSubcategories.length > 0 && (
           <View style={styles.categoriesCard}>
-            <Text style={styles.sectionLabel}>Categories</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionLabel}>Categories</Text>
+              {!budgetStarted && (
+                <Pressable
+                  onPress={() => {
+                    haptics.selection();
+                    router.push({
+                      pathname: '/expense-planner/[id]/edit-categories',
+                      params: { id: id as string },
+                    });
+                  }}
+                  style={styles.editButton}
+                >
+                  <Pencil size={16} color={colors.primary} />
+                </Pressable>
+              )}
+            </View>
             {(showAllCategories ? categoriesWithSubcategories : categoriesWithSubcategories.slice(0, 3)).map((categoryGroup) => {
               const CategoryIcon = categoryGroup.categoryIcon;
               return (
@@ -350,10 +426,20 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       borderWidth: 1,
       borderColor: colors.border,
     },
+    infoCardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 6,
+    },
     infoLabel: {
       fontSize: getScaledFontSize(13, textSizeMultiplier),
       color: colors.textSecondary,
-      marginBottom: 6,
+    },
+    editButton: {
+      padding: 4,
+      borderRadius: 6,
+      backgroundColor: colors.primary + '10',
     },
     infoValue: {
       fontSize: getScaledFontSize(16, textSizeMultiplier),
@@ -373,10 +459,15 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       borderWidth: 1,
       borderColor: colors.border,
     },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 16,
+    },
     sectionLabel: {
       fontSize: getScaledFontSize(14, textSizeMultiplier),
       color: colors.text,
-      marginBottom: 16,
       fontWeight: '600',
     },
     categoryGroup: {
