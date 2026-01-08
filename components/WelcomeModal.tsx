@@ -173,7 +173,7 @@ const SLIDES = [
   {
     id: '1',
     title: 'Welcome to Financial Control',
-    description: "Planmoni is your financial companion, equipped with advanced tools, insights & A.I capabilities to help pace your spending like a pro.",
+    description: "Put yourself on a salary, gain control and stay on track with your finances.",
     image: require('@/assets/images/StayInControl.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
