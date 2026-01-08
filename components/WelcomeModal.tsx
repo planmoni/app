@@ -173,7 +173,7 @@ const SLIDES = [
   {
     id: '1',
     title: 'Welcome to Financial Control',
-    description: "Planmoni is your financial companion, equipped with advanced tools, insights & A.I capabilities to help pace your spending like a pro.",
+    description: "Put yourself on a salary, gain control and stay on track with your finances.",
     image: require('@/assets/images/StayInControl.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
@@ -181,7 +181,7 @@ const SLIDES = [
   {
     id: '2',
     title: 'Choose when and how you get paid',
-    description: 'Split lump-sums into scheduled daily, weekly, bi-weekly or monthly payouts that work for your lifestyle.',
+    description: 'Split funds into scheduled daily, weekly, bi-weekly or monthly payouts that work for your lifestyle.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     gradient: ['#059669', '#10B981'],
     accentColor: '#34D399',
