@@ -130,7 +130,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
       } else if (tx.type === 'expense_plan_topup') {
         // For budget top-ups, get plan name from source or destination
         planName = 'Budget Top-Up';
-        description = 'Added to your budget plan from your wallet balance';
+        description = 'Added to your spending plan from your wallet balance';
         bankName = 'Wallet balance';
         accountNumber = '';
         

@@ -55,23 +55,24 @@ export default function CreateNewScreen() {
         <Text style={styles.title}>What would you like to create?</Text>
         <Text style={styles.subtitle}>Choose an option to start quickly.</Text>
 
-        <Pressable style={styles.card} onPress={startSpendingPlan}>
-          <View style={styles.iconContainer}>
-            <Wallet size={24} color={colors.primary} />
-          </View>
-          <View style={styles.cardText}>
-            <Text style={styles.cardTitle}>New Budget Plan</Text>
-            <Text style={styles.cardSubtitle}>Set up an budget plan before you start spending to ensure you don't overspend.</Text>
-          </View>
-        </Pressable>
+       
 
         <Pressable style={styles.card} onPress={startPayoutSchedule}>
           <View style={styles.iconContainer}>
             <CalendarDays size={24} color={colors.primary} />
           </View>
           <View style={styles.cardText}>
-            <Text style={styles.cardTitle}>New Payout Plan</Text>
+            <Text style={styles.cardTitle}>New Auto Payout Plan</Text>
             <Text style={styles.cardSubtitle}>Setup up daily, weekly, monthly or yearly payout schedules or choose specific dates to receive your funds.</Text>
+          </View>
+        </Pressable>
+        <Pressable style={styles.card} onPress={startSpendingPlan}>
+          <View style={styles.iconContainer}>
+            <Wallet size={24} color={colors.primary} />
+          </View>
+          <View style={styles.cardText}>
+            <Text style={styles.cardTitle}>New Spending Plan</Text>
+            <Text style={styles.cardSubtitle}>Set up a spending plan before you start spending to ensure you don't overspend.</Text>
           </View>
         </Pressable>
       </ScrollView>

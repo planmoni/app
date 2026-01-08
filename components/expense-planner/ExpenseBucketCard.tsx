@@ -4,7 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { ExpenseBucket } from '@/types/expense-planner';
-import BudgetProgressBar from './BudgetProgressBar';
+import SpendingPlanProgressBar from './BudgetProgressBar';
 
 interface ExpenseBucketCardProps {
   bucket: ExpenseBucket;
@@ -27,7 +27,7 @@ export default function ExpenseBucketCard({ bucket, onPress }: ExpenseBucketCard
           {bucket.remaining_amount >= 0 ? '₦' : '-₦'}{Math.abs(bucket.remaining_amount).toLocaleString()} left
         </Text>
       </View>
-      <BudgetProgressBar
+      <SpendingPlanProgressBar
         percentage={percentage}
         amountSpent={bucket.amount_spent}
         targetAmount={bucket.target_amount}

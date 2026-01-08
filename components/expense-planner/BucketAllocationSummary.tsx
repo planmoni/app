@@ -7,44 +7,44 @@ import { AlertTriangle } from 'lucide-react-native';
 
 interface BucketAllocationSummaryProps {
   totalAllocated: number;
-  totalBudget: number;
+  totalAmount: number;
 }
 
 export default function BucketAllocationSummary({
   totalAllocated,
-  totalBudget,
+  totalAmount,
 }: BucketAllocationSummaryProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
 
-  const remaining = totalBudget - totalAllocated;
-  const isOverBudget = totalAllocated > totalBudget;
-  const isAtBudgetLimit = remaining === 0 && !isOverBudget;
+  const remaining = totalAmount - totalAllocated;
+  const isOverAmount = totalAllocated > totalAmount;
+  const isAtAmountLimit = remaining === 0 && !isOverAmount;
 
-  const styles = createStyles(colors, isDark, textSizeMultiplier, isOverBudget, isAtBudgetLimit);
+  const styles = createStyles(colors, isDark, textSizeMultiplier, isOverAmount, isAtAmountLimit);
 
   return (
     <View style={styles.container}>
       <View style={styles.summaryRow}>
         <Text style={styles.label}>Total Allocated</Text>
-        <Text style={[styles.amount, isOverBudget && styles.overBudgetAmount]}>
+        <Text style={[styles.amount, isOverAmount && styles.overAmountAmount]}>
           ₦{totalAllocated.toLocaleString()}
         </Text>
       </View>
       <View style={styles.summaryRow}>
         <Text style={styles.label}>Remaining to Allocate</Text>
-        <Text style={[styles.amount, isOverBudget && styles.overBudgetAmount]}>
+        <Text style={[styles.amount, isOverAmount && styles.overAmountAmount]}>
           {remaining >= 0 ? '₦' : '-₦'}{Math.abs(remaining).toLocaleString()}
         </Text>
       </View>
-      {(isOverBudget || isAtBudgetLimit) && (
+      {(isOverAmount || isAtAmountLimit) && (
         <View style={styles.warningContainer}>
-          <AlertTriangle size={16} color={isOverBudget ? '#EF4444' : '#F97316'} />
+          <AlertTriangle size={16} color={isOverAmount ? '#EF4444' : '#F97316'} />
           <View style={styles.warningContent}>
-            <Text style={[styles.warningText, isOverBudget && styles.overBudgetText]}>
-              {isOverBudget
-                ? `You've exceeded your budget by ₦${Math.abs(remaining).toLocaleString()}`
-                : 'You\'ve hit the budget limit for this fixed budget'}
+            <Text style={[styles.warningText, isOverAmount && styles.overAmountText]}>
+              {isOverAmount
+                ? `You've exceeded your spending plan by ₦${Math.abs(remaining).toLocaleString()}`
+                : 'You\'ve hit the spending plan limit for this fixed spending plan'}
             </Text>
           </View>
         </View>
@@ -57,8 +57,8 @@ const createStyles = (
   colors: any,
   isDark: boolean,
   textSizeMultiplier: number,
-  isOverBudget: boolean,
-  isAtBudgetLimit: boolean
+  isOverAmount: boolean,
+  isAtAmountLimit: boolean
 ) =>
   StyleSheet.create({
     container: {
@@ -66,7 +66,7 @@ const createStyles = (
       borderRadius: 12,
       padding: 16,
       borderWidth: 1,
-      borderColor: isOverBudget ? '#EF4444' : isAtBudgetLimit ? '#F97316' : colors.border,
+      borderColor: isOverAmount ? '#EF4444' : isAtAmountLimit ? '#F97316' : colors.border,
     },
     summaryRow: {
       flexDirection: 'row',
@@ -84,7 +84,7 @@ const createStyles = (
       fontWeight: '600',
       color: colors.text,
     },
-    overBudgetAmount: {
+    overAmountAmount: {
       color: '#EF4444',
     },
     warningContainer: {
@@ -93,7 +93,7 @@ const createStyles = (
       gap: 8,
       marginTop: 4,
       padding: 12,
-      backgroundColor: isOverBudget ? 'rgba(239, 68, 68, 0.1)' : isAtBudgetLimit ? 'rgba(249, 115, 22, 0.1)' : 'rgba(249, 115, 22, 0.1)',
+      backgroundColor: isOverAmount ? 'rgba(239, 68, 68, 0.1)' : isAtAmountLimit ? 'rgba(249, 115, 22, 0.1)' : 'rgba(249, 115, 22, 0.1)',
       borderRadius: 8,
     },
     warningContent: {
@@ -103,9 +103,9 @@ const createStyles = (
     warningText: {
       fontSize: getScaledFontSize(13, textSizeMultiplier),
       fontWeight: '500',
-      color: isOverBudget ? '#EF4444' : '#F97316',
+      color: isOverAmount ? '#EF4444' : '#F97316',
     },
-    overBudgetText: {
+    overAmountText: {
       color: '#EF4444',
     },
   });

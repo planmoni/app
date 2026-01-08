@@ -352,7 +352,6 @@ export default function PlanDetailsInfo({
             style={styles.actionButton}
             onPress={onSpend}
           >
-            <ShoppingCart size={20} color={colors.primary} />
             <Text style={styles.actionButtonText}>Spend</Text>
           </Pressable>
         ) : (

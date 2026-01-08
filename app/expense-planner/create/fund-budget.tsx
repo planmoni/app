@@ -53,7 +53,7 @@ const CATEGORY_ICONS: Record<string, any> = {
   miscellaneous: MoreHorizontal,
 };
 
-export default function FundBudgetScreen() {
+export default function FundSpendingPlanScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
@@ -61,7 +61,7 @@ export default function FundBudgetScreen() {
   const { availableBalance } = useRealtimeWallet();
   const { lockExpenseFunds, getExpenseBuckets, saveDraftExpensePlan, saveLastStep } = useExpensePlans();
   
-  const totalBudget = parseFloat((params.totalBudget as string) || '0');
+  const totalAmount = parseFloat((params.totalAmount as string) || '0');
   const planId = params.planId as string | undefined;
   const budgetStructure: 'fixed' = 'fixed';
   const startDate = params.startDate as string;
@@ -217,9 +217,9 @@ export default function FundBudgetScreen() {
       // If planId is missing, create draft plan first
       let activePlanId = planId;
       if (!activePlanId) {
-        console.log('No planId found in fund-budget screen, creating draft plan...');
+        console.log('No planId found in fund spending plan screen, creating draft plan...');
         const newDraftPlan = await saveDraftExpensePlan({
-          total_budget: totalBudget,
+          total_budget: totalAmount,
           start_date: startDate,
           end_date: endDate,
         });
@@ -229,7 +229,7 @@ export default function FundBudgetScreen() {
         }
         
         activePlanId = newDraftPlan.id;
-        console.log('Draft plan created in fund-budget screen:', activePlanId);
+        console.log('Draft plan created in fund spending plan screen:', activePlanId);
       }
 
       // Calculate unlock date
@@ -262,7 +262,7 @@ export default function FundBudgetScreen() {
       router.push({
         pathname: '/expense-planner/create/name-expense',
         params: {
-          totalBudget: totalBudget.toString(),
+          totalAmount: totalAmount.toString(),
           budgetStructure,
           buckets: JSON.stringify(bucketStates.map(b => ({
             id: b.id,
@@ -325,7 +325,7 @@ export default function FundBudgetScreen() {
           <View style={styles.stickySummaryCard}>
             <BucketAllocationSummary
               totalAllocated={totalLocked}
-              totalBudget={totalBudget}
+              totalAmount={totalAmount}
             />
           </View>
         </View>

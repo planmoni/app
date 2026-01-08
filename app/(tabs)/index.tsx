@@ -73,7 +73,7 @@ import ExpensePlansSection from '@/components/ExpensePlansSection';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
-import ActiveBudgetsCard from '@/components/ActiveBudgetsCard';
+import ActiveSpendingPlansCard from '@/components/ActiveBudgetsCard';
 import QuickPlans from '@/components/QuickPlans';
 import DailySpendGuidance from '@/components/DailySpendGuidance';
 import { getCategoryIcon, getCategoryById } from '@/lib/expenseCategories';
@@ -1395,7 +1395,7 @@ export default function HomeScreen() {
                   {getGreeting()}, {firstName}.
               </Text>
               <Text style={styles.subGreetingInline} numberOfLines={1} ellipsizeMode="tail">
-                It's time to plan your finances
+                It's time to manage your finances
               </Text>
             </View>
             ) : (
@@ -1443,7 +1443,7 @@ export default function HomeScreen() {
             styles.tabText,
             activeBalanceTab === 'plans' && styles.activeTabText
           ]}>
-            Budgets
+            Spending
           </Text>
         </Pressable>
         <Pressable
@@ -1567,7 +1567,7 @@ export default function HomeScreen() {
                 onPress={() => handleTabChange('payouts')}
               />
               {activeSpendableBudgets.count > 0 && (
-                <ActiveBudgetsCard 
+                <ActiveSpendingPlansCard 
                   count={activeSpendableBudgets.count}
                   totalAmount={activeSpendableBudgets.total}
                   daysRemaining={activeSpendableBudgets.minDays}

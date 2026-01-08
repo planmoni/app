@@ -7,17 +7,17 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { ArrowRight, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-interface ActiveBudgetsCardProps {
+interface ActiveSpendingPlansCardProps {
   count: number;
   totalAmount: number;
   daysRemaining: number | null;
   onPress?: () => void;
 }
 
-const ACTIVE_BUDGETS_CARD_HASH_KEY = 'active_budgets_card_hash';
-const ACTIVE_BUDGETS_CARD_DISMISSED_KEY = 'active_budgets_card_dismissed';
+const ACTIVE_SPENDING_PLANS_CARD_HASH_KEY = 'active_spending_plans_card_hash';
+const ACTIVE_SPENDING_PLANS_CARD_DISMISSED_KEY = 'active_spending_plans_card_dismissed';
 
-export default function ActiveBudgetsCard({ count, totalAmount, daysRemaining, onPress }: ActiveBudgetsCardProps) {
+export default function ActiveSpendingPlansCard({ count, totalAmount, daysRemaining, onPress }: ActiveSpendingPlansCardProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
@@ -37,14 +37,14 @@ export default function ActiveBudgetsCard({ count, totalAmount, daysRemaining, o
         return;
       }
       try {
-        const lastHash = await AsyncStorage.getItem(ACTIVE_BUDGETS_CARD_HASH_KEY);
-        const dismissedHash = await AsyncStorage.getItem(ACTIVE_BUDGETS_CARD_DISMISSED_KEY);
+        const lastHash = await AsyncStorage.getItem(ACTIVE_SPENDING_PLANS_CARD_HASH_KEY);
+        const dismissedHash = await AsyncStorage.getItem(ACTIVE_SPENDING_PLANS_CARD_DISMISSED_KEY);
 
         if (lastHash !== calculationHash) {
           // new state, show card
           setShouldShow(true);
           setIsDismissed(false);
-          await AsyncStorage.setItem(ACTIVE_BUDGETS_CARD_HASH_KEY, calculationHash);
+          await AsyncStorage.setItem(ACTIVE_SPENDING_PLANS_CARD_HASH_KEY, calculationHash);
         } else {
           // same state, only show if not dismissed
           const wasDismissed = dismissedHash === calculationHash;
@@ -52,7 +52,7 @@ export default function ActiveBudgetsCard({ count, totalAmount, daysRemaining, o
           setShouldShow(!wasDismissed);
         }
       } catch (err) {
-        console.error('Error loading active budgets card state:', err);
+        console.error('Error loading active spending plans card state:', err);
         setShouldShow(count > 0);
       }
     };
@@ -71,9 +71,9 @@ export default function ActiveBudgetsCard({ count, totalAmount, daysRemaining, o
     setShouldShow(false);
     setIsDismissed(true);
     try {
-      await AsyncStorage.setItem(ACTIVE_BUDGETS_CARD_DISMISSED_KEY, calculationHash);
+      await AsyncStorage.setItem(ACTIVE_SPENDING_PLANS_CARD_DISMISSED_KEY, calculationHash);
     } catch (err) {
-      console.error('Error saving active budgets card dismissed state:', err);
+      console.error('Error saving active spending plans card dismissed state:', err);
     }
   };
 
@@ -85,7 +85,7 @@ export default function ActiveBudgetsCard({ count, totalAmount, daysRemaining, o
         ? 'the next 1 day'
         : `the next ${daysRemaining} days`;
 
-  const message = `You have ${count} spendable budget${count === 1 ? '' : 's'} of ₦${totalAmount.toLocaleString()}${daysText ? ` for ${daysText}` : ''}`;
+  const message = `You have ${count} active spending plan${count === 1 ? '' : 's'} of ₦${totalAmount.toLocaleString()}${daysText ? ` for ${daysText}` : ''}`;
 
   if (!shouldShow || count <= 0) {
     return null;
@@ -99,7 +99,7 @@ export default function ActiveBudgetsCard({ count, totalAmount, daysRemaining, o
         disabled={!onPress}
       >
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Active budgets</Text>
+          <Text style={styles.title}>Active Spending Plans</Text>
           {onPress && (
             <ArrowRight size={18} color={colors.textSecondary} />
           )}

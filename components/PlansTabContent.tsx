@@ -111,7 +111,7 @@ export default function PlansTabContent({
                 />
               </View>
               <Text style={styles.availableToSpendProgressText}>
-                 Funded {formatBalance(expensePlansFundedBalance)} / {formatBalance(totalCreatedBudget)} Total Budget
+                 Funded {formatBalance(expensePlansFundedBalance)} / {formatBalance(totalCreatedBudget)} of Total Spending Plans
               </Text>
             </View>
           </View>
@@ -123,7 +123,7 @@ export default function PlansTabContent({
       {ongoingBudgets.length > 0 && (
         <>
           <View style={styles.ongoingSectionHeader}>
-            <Text style={styles.ongoingSectionTitle}>Ongoing Budgets</Text>
+            <Text style={styles.ongoingSectionTitle}>Ongoing Spending Plans</Text>
             {ongoingBudgets.length > 1 && (
               <Pressable onPress={handleViewAllOngoing} style={styles.viewAllButton}>
                 <Text style={styles.viewAllText}>View all</Text>

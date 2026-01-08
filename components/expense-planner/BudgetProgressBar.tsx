@@ -6,14 +6,14 @@ import { getScaledFontSize } from '@/lib/textSize';
 import Animated, { useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { BucketProgressStatus } from '@/types/expense-planner';
 
-interface BudgetProgressBarProps {
+interface SpendingPlanProgressBarProps {
   percentage: number;
   amountSpent: number;
   targetAmount: number;
   showLabels?: boolean;
 }
 
-export default function BudgetProgressBar({
+export default function SpendingPlanProgressBar({
   percentage,
   amountSpent,
   targetAmount,

@@ -95,8 +95,8 @@ const generateSuggestedPrompts = (availableBalance: number): string[] => {
   };
   
   return [
-    "Create a travel budget",
-    "Set up weekly payouts",
+    "Create a travel spending plan",
+    "Set up weekly auto payouts",
     "Show my plans",
     "Check my balance",
     "Financial advice",
@@ -109,7 +109,7 @@ const getFunctionDefinitions = () => [
     type: 'function' as const,
     function: {
       name: 'create_payout_plan',
-      description: `Create a new payout plan that schedules automatic payouts from the user's wallet to their bank account. 
+      description: `Create a new auto payout plan that schedules automatic payouts from the user's wallet to their bank account. 
       
 WORKFLOW:
 1. ALWAYS call get_user_balance first to verify available balance >= totalAmount
@@ -164,23 +164,23 @@ IMPORTANT NOTES:
   {
     type: 'function' as const,
     function: {
-      name: 'create_budget_plan',
-      description: `Create a new budget plan to help users allocate funds for specific expenses or goals. 
+      name: 'create_spending_plan',
+      description: `Create a new spending plan to help users allocate funds for specific expenses or goals. 
       
 WORKFLOW:
 1. Call get_user_balance (informational - funds are NOT locked automatically)
-2. Validate: minimum totalBudget is ₦1,000
+2. Validate: minimum totalAmount is ₦1,000
 3. REQUIRED: Always infer and provide categories and subcategories based on user's request
    - If user says "travel", use categories=["air_travel"] and appropriate subcategories
    - If user says "groceries" or "food", use categories=["food"] and subcategories
    - Always provide at least one category and one subcategory
 4. Validate dates: Ensure dates are in YYYY-MM-DD format and valid
 5. Convert categories/subcategories to buckets format (each subcategory becomes a bucket)
-6. IMPORTANT: Funds are NOT locked - user must add funds manually using add_funds_to_budget
+6. IMPORTANT: Funds are NOT locked - user must add funds manually using add_funds_to_spending_plan
 7. After creation, suggest adding funds to the plan
 
 VALIDATION:
-- Minimum totalBudget: ₦1,000
+- Minimum totalAmount: ₦1,000
 - Start date can be null (for ongoing plans)
 - End date can be null (for ongoing plans)
 - If both dates are null, plan is ongoing
@@ -188,18 +188,18 @@ VALIDATION:
 - Funding method defaults to 'manual' if not specified
 
 CATEGORY HANDLING (REQUIRED):
-- ALWAYS provide both categories AND subcategories arrays when creating a budget
+- ALWAYS provide both categories AND subcategories arrays when creating a spending plan
 - Categories are stored as array of category IDs: ["air_travel", "car_maintenance"]
 - Subcategories MUST be provided as array of objects with category_id and subcategory_id
 - Each subcategory becomes a bucket with target_amount distributed evenly
 - Suggest categories based on user's description: travel→air_travel, car→car_maintenance, food→food, etc.
-- If user doesn't specify categories, infer from the budget name/description
+- If user doesn't specify categories, infer from the spending plan name/description
 - Common mappings: travel→air_travel, car→car_maintenance, food→food, education→education, shopping→shopping, etc.
 
 EXAMPLES:
-- "Create budget for ₦100,000 for travel" → totalBudget=100000, categories=["air_travel"], subcategories=[{category_id:"air_travel", subcategory_id:"flight_tickets"}]
-- "Budget ₦50,000 for car maintenance" → totalBudget=50000, categories=["car_maintenance"], subcategories=[{category_id:"car_maintenance", subcategory_id:"car_repair"}]
-- "Create ₦200,000 budget for education expenses" → totalBudget=200000, categories=["education"], subcategories=[{category_id:"education", subcategory_id:"tuition"}]
+- "Create spending plan for ₦100,000 for travel" → totalAmount=100000, categories=["air_travel"], subcategories=[{category_id:"air_travel", subcategory_id:"flight_tickets"}]
+- "Spending plan ₦50,000 for car maintenance" → totalAmount=50000, categories=["car_maintenance"], subcategories=[{category_id:"car_maintenance", subcategory_id:"car_repair"}]
+- "Create ₦200,000 spending plan for education expenses" → totalAmount=200000, categories=["education"], subcategories=[{category_id:"education", subcategory_id:"tuition"}]
 
 DATE HANDLING (CRITICAL - ALWAYS CONFIRM IF UNCLEAR):
 - Dates MUST be in YYYY-MM-DD format (e.g., "2025-01-15" for January 15, 2025)
@@ -249,8 +249,8 @@ CONFIRMATION REQUIRED:
 - If user says vague dates like "soon", "later", "eventually" → ASK: "When would you like this to start? (e.g., next week, January 1st, etc.)"
 - If user says "next week" but it's unclear which day → ASK: "Would you like it to start on [calculated date], or a specific day?"
 - If user says "month end" but unclear which month → ASK: "Do you mean the end of this month ([date]) or next month ([date])?"
-- If duration is unclear (e.g., "for a while") → ASK: "How long should this budget last? (e.g., 1 week, 1 month, 3 months)"
-- If both start and end dates are unclear → ASK: "When should this budget start and end?"
+- If duration is unclear (e.g., "for a while") → ASK: "How long should this spending plan last? (e.g., 1 week, 1 month, 3 months)"
+- If both start and end dates are unclear → ASK: "When should this spending plan start and end?"
 
 VALIDATION:
 - Always validate dates are in the future (or today) for start dates
@@ -259,19 +259,19 @@ VALIDATION:
 - If unsure about date interpretation, ALWAYS confirm with user before creating the plan
 
 IMPORTANT NOTES:
-- Funds are NOT locked automatically - user adds funds separately using add_funds_to_budget
-- User can create budget plan even with ₦0 balance (they add funds later)
-- IMPORTANT: Dates are always saved if provided - unfunded budgets with dates will appear in "Your budget plans" section (not "Ongoing Budgets") until they have funds
-- Budgets are only considered "started" when they have funds AND the start_date has passed
-- After creating an unfunded budget, ALWAYS prompt the user about funding options:
-  * "Would you like to add funds to this budget plan now?"
+- Funds are NOT locked automatically - user adds funds separately using add_funds_to_spending_plan
+- User can create spending plan even with ₦0 balance (they add funds later)
+- IMPORTANT: Dates are always saved if provided - unfunded spending plans with dates will appear in "Your spending plans" section (not "Ongoing Spending Plans") until they have funds
+- Spending plans are only considered "started" when they have funds AND the start_date has passed
+- After creating an unfunded spending plan, ALWAYS prompt the user about funding options:
+  * "Would you like to add funds to this spending plan now?"
   * "You can fund it manually or set up automatic top-ups"
-  * Offer to help them add funds using add_funds_to_budget function or set up auto top-ups`,
+  * Offer to help them add funds using add_funds_to_spending_plan function or set up auto top-ups`,
       parameters: {
         type: 'object',
         properties: {
-          name: { type: 'string', description: 'Name of the budget plan (e.g., "Travel Budget", "Car Maintenance Fund", "Education Savings")' },
-          totalBudget: { type: 'number', description: 'Total budget amount (minimum ₦1,000). This is the target amount, not locked automatically.' },
+          name: { type: 'string', description: 'Name of the spending plan (e.g., "Travel Spending Plan", "Car Maintenance Fund", "Education Savings")' },
+          totalAmount: { type: 'number', description: 'Total spending plan amount (minimum ₦1,000). This is the target amount, not locked automatically.' },
           startDate: { type: 'string', format: 'date', description: 'Start date in YYYY-MM-DD format (e.g., "2025-01-15"). Calculate from relative dates: "next week" = today+7 days, "next 3 days" = today+3 days, "next month" = first day of next month. Can be null for ongoing plans. ALWAYS confirm with user if date intent is unclear.' },
           endDate: { type: 'string', format: 'date', description: 'End date in YYYY-MM-DD format (e.g., "2025-02-15"). Calculate from relative dates: "till month end" = last day of current month, "for 1 week" = startDate+7 days. Can be null for ongoing plans. If both start and end are null, plan is ongoing. ALWAYS confirm with user if date intent is unclear.' },
           fundingMethod: { type: 'string', enum: ['auto', 'manual'], description: 'Funding method: "auto" for automatic top-ups, "manual" for user-initiated. Default: "manual".' },
@@ -287,13 +287,13 @@ IMPORTANT NOTES:
               },
               required: ['category_id', 'subcategory_id']
             },
-            description: 'Array of subcategory objects. Each becomes a bucket. If target_amount not specified, totalBudget is distributed evenly across buckets.'
+            description: 'Array of subcategory objects. Each becomes a bucket. If target_amount not specified, totalAmount is distributed evenly across buckets.'
           },
           autoTopupEnabled: { type: 'boolean', description: 'Whether to enable automatic top-up. If true, requires autoTopupFrequency and autoTopupAmount. Default: false' },
           autoTopupFrequency: { type: 'string', enum: ['daily', 'weekly', 'monthly'], description: 'Auto top-up frequency if autoTopupEnabled is true. Required if autoTopupEnabled=true.' },
           autoTopupAmount: { type: 'number', description: 'Amount per auto top-up if autoTopupEnabled is true. Required if autoTopupEnabled=true.' },
         },
-        required: ['name', 'totalBudget']
+        required: ['name', 'totalAmount']
       }
     }
   },
@@ -301,7 +301,7 @@ IMPORTANT NOTES:
     type: 'function' as const,
     function: {
       name: 'get_user_plans',
-      description: 'Get all of the user\'s payout plans and budget plans with their current status, amounts, and details. Use this to show user their existing plans or check plan status.',
+      description: 'Get all of the user\'s payout plans and spending plans with their current status, amounts, and details. Use this to show user their existing plans or check plan status.',
       parameters: {
         type: 'object',
         properties: {},
@@ -322,7 +322,7 @@ BALANCE EXPLANATION:
 
 IMPORTANT:
 - For payout plans: availableBalance must be >= totalAmount (funds are locked immediately)
-- For budget plans: availableBalance is informational only (funds are NOT locked automatically)
+- For spending plans: availableBalance is informational only (funds are NOT locked automatically)
 - Always check balance before creating payout plans to avoid errors`,
       parameters: {
         type: 'object',
@@ -389,12 +389,12 @@ IMPORTANT:
   {
     type: 'function' as const,
     function: {
-      name: 'rename_budget_plan',
-      description: 'Rename a budget plan.',
+      name: 'rename_spending_plan',
+      description: 'Rename a spending plan.',
       parameters: {
         type: 'object',
         properties: {
-          planId: { type: 'string', description: 'Budget plan ID' },
+          planId: { type: 'string', description: 'Spending plan ID' },
           name: { type: 'string', description: 'New name for the plan' },
         },
         required: ['planId', 'name']
@@ -404,8 +404,8 @@ IMPORTANT:
   {
     type: 'function' as const,
     function: {
-      name: 'add_funds_to_budget',
-      description: `Add funds from the user's wallet to a budget plan. Budget plans do NOT lock funds automatically - users must add funds manually using this function.
+      name: 'add_funds_to_spending_plan',
+      description: `Add funds from the user's wallet to a spending plan. Spending plans do NOT lock funds automatically - users must add funds manually using this function.
       
 WORKFLOW:
 1. Call get_user_balance first to verify availableBalance >= amount
@@ -414,15 +414,15 @@ WORKFLOW:
 4. After adding funds: Confirm success and show updated budget balance
 
 IMPORTANT:
-- Funds are transferred from wallet to budget plan
-- Available balance decreases, budget plan current_balance increases
-- User can add funds multiple times to the same budget plan
-- Always suggest this after creating a new budget plan`,
+- Funds are transferred from wallet to spending plan
+- Available balance decreases, spending plan current_balance increases
+- User can add funds multiple times to the same spending plan
+- Always suggest this after creating a new spending plan`,
       parameters: {
         type: 'object',
         properties: {
-          planId: { type: 'string', description: 'Budget plan ID (from get_user_plans or create_budget_plan result)' },
-          amount: { type: 'number', description: 'Amount to add to the budget plan. Must be <= available balance.' },
+          planId: { type: 'string', description: 'Spending plan ID (from get_user_plans or create_spending_plan result)' },
+          amount: { type: 'number', description: 'Amount to add to the spending plan. Must be <= available balance.' },
         },
         required: ['planId', 'amount']
       }
@@ -459,7 +459,7 @@ RETURNS:
     type: 'function' as const,
     function: {
       name: 'get_transactions',
-      description: 'Get the user\'s transaction history including deposits, payouts, withdrawals, and budget top-ups.',
+      description: 'Get the user\'s transaction history including deposits, payouts, withdrawals, and spending plan top-ups.',
       parameters: {
         type: 'object',
         properties: {
@@ -523,7 +523,7 @@ export default function AIAssistantScreen() {
 
 DATABASE SCHEMA:
 
-budget_plans table:
+spending_plans table:
 - id (uuid): Primary key
 - user_id (uuid): References profiles(id)
 - name (text): Plan name
@@ -628,13 +628,13 @@ PAYOUT PLAN CREATION WORKFLOW:
    - Plan status starts as 'active'
    - Next payout date is calculated based on frequency and start date
 
-BUDGET PLAN CREATION WORKFLOW:
+SPENDING PLAN CREATION WORKFLOW:
 1. PREREQUISITES CHECK:
    - Check available balance (call get_user_balance) - note: funds are NOT locked automatically
-   - User can create budget plan even with ₦0 balance (they add funds later)
+   - User can create spending plan even with ₦0 balance (they add funds later)
 
 2. VALIDATION STEPS:
-   - Minimum total budget: ₦1,000
+   - Minimum total amount: ₦1,000
    - Start date can be null (for ongoing plans)
    - End date can be null (for ongoing plans)
    - Categories/subcategories are optional but recommended
@@ -643,11 +643,11 @@ BUDGET PLAN CREATION WORKFLOW:
    - If user mentions categories (e.g., "travel expenses", "car maintenance"), suggest relevant categories
    - Convert categories/subcategories to buckets format:
      * Each subcategory becomes a bucket with category_id, subcategory_id, name, and target_amount
-     * If target_amount not specified, distribute total_budget evenly across buckets
+     * If target_amount not specified, distribute total_amount evenly across buckets
    - Categories are stored in both categories array and buckets table
 
 4. EXECUTION:
-   - Funds are NOT locked automatically - user must add funds manually using add_funds_to_budget
+   - Funds are NOT locked automatically - user must add funds manually using add_funds_to_spending_plan
    - Plan status starts as 'active'
    - After creation, suggest adding funds to the plan
 
@@ -662,8 +662,8 @@ PAYOUT PLANS:
 - For 'custom': customDates array required with at least one date
 - payoutAccountId must exist and belong to user
 
-BUDGET PLANS:
-- Minimum total budget: ₦1,000
+SPENDING PLANS:
+- Minimum total amount: ₦1,000
 - Start date can be null (ongoing plans)
 - End date can be null (ongoing plans)
 - If both start_date and end_date are null, plan is ongoing
@@ -674,7 +674,7 @@ BUSINESS LOGIC:
 
 FUND LOCKING:
 - Payout Plans: Funds are LOCKED immediately upon creation. The total_amount is deducted from available_balance and added to locked_balance. This ensures funds are reserved for scheduled payouts.
-- Budget Plans: Funds are NOT locked automatically. Users add funds manually using add_funds_to_budget function. This allows flexible funding.
+- Spending Plans: Funds are NOT locked automatically. Users add funds manually using add_funds_to_spending_plan function. This allows flexible funding.
 
 FREQUENCY CALCULATIONS:
 - Daily: duration represents number of days (e.g., duration=30 means 30 daily payouts)
@@ -715,38 +715,38 @@ AI Steps:
 8. Call create_payout_plan with calculated values
 9. Explain: "I've created your plan. ₦50,000 has been locked from your wallet and will be paid out weekly."
 
-Example 2 - Creating Budget Plan:
-User: "Create a budget for ₦100,000 for travel expenses"
+Example 2 - Creating Spending Plan:
+User: "Create a spending plan for ₦100,000 for travel expenses"
 AI Steps:
 1. Call get_user_balance (informational, not required)
 2. Suggest categories: air_travel with subcategories like flight_tickets, visa_fees, hotel_bookings
-3. Ask: "When does this budget start? (optional, can be ongoing)"
-4. Call create_budget_plan with categories
-5. Explain: "I've created your travel budget. You can add funds to it now using 'add funds to budget' or later."
+3. Ask: "When does this spending plan start? (optional, can be ongoing)"
+4. Call create_spending_plan with categories
+5. Explain: "I've created your travel spending plan. You can add funds to it now using 'add funds to spending plan' or later."
 
-Example 2b - Creating Budget with Relative Dates:
+Example 2b - Creating Spending Plan with Relative Dates:
 User: "I am planning a travel for the next 1 week"
 AI Steps:
 1. Calculate dates: startDate = today, endDate = today + 7 days
-2. Confirm: "I'll create a travel budget starting today and ending on [calculated end date]. Is that correct?"
-3. If confirmed, call create_budget_plan with calculated dates and categories=["air_travel"]
+2. Confirm: "I'll create a travel spending plan starting today and ending on [calculated end date]. Is that correct?"
+3. If confirmed, call create_spending_plan with calculated dates and categories=["air_travel"]
 4. Suggest subcategories: flight_tickets, hotel_bookings, etc.
 
-Example 2c - Creating Budget with Complex Relative Dates:
+Example 2c - Creating Spending Plan with Complex Relative Dates:
 User: "upcoming expense in the next 3 days and would last till month end"
 AI Steps:
 1. Calculate: startDate = today + 3 days, endDate = last day of current month
-2. Confirm: "I'll create a budget starting on [calculated start date] and ending on [calculated end date]. Is that correct?"
+2. Confirm: "I'll create a spending plan starting on [calculated start date] and ending on [calculated end date]. Is that correct?"
 3. Ask: "What category is this expense for?" (if not mentioned)
-4. If confirmed, call create_budget_plan with calculated dates
+4. If confirmed, call create_spending_plan with calculated dates
 
-Example 2d - Creating Budget with Duration Period:
-User: "Create a travel budget, I am traveling tomorrow and I want to spend a total of 1 million naira for the travel period, this will be used for Food, shopping, groceries, transportation and data, My period of stay is 5 days"
+Example 2d - Creating Spending Plan with Duration Period:
+User: "Create a travel spending plan, I am traveling tomorrow and I want to spend a total of 1 million naira for the travel period, this will be used for Food, shopping, groceries, transportation and data, My period of stay is 5 days"
 AI Steps:
 1. Calculate: startDate = tomorrow, endDate = tomorrow + 4 days (5 days total: day 1=tomorrow, days 2-5)
 2. Categories: food, shopping, transportation (infer appropriate subcategories)
-3. Confirm: "I'll create a travel budget starting [tomorrow date] and ending [tomorrow + 4 days date] for 5 days. Total budget: ₦1,000,000. Is that correct?"
-4. If confirmed, call create_budget_plan with: startDate=tomorrow, endDate=tomorrow+4, totalBudget=1000000, categories and subcategories
+3. Confirm: "I'll create a travel spending plan starting [tomorrow date] and ending [tomorrow + 4 days date] for 5 days. Total amount: ₦1,000,000. Is that correct?"
+4. If confirmed, call create_spending_plan with: startDate=tomorrow, endDate=tomorrow+4, totalAmount=1000000, categories and subcategories
 
 Example 3 - Insufficient Balance:
 User: "Create a payout plan for ₦200,000"
@@ -762,14 +762,14 @@ NATURAL LANGUAGE PATTERNS:
 
 Common user phrases and how to interpret:
 - "Plan ₦X for Y months/weeks" → Create payout plan
-- "Budget for X" or "Budget plan for X" → Create budget plan
+- "Spending plan for X" or "Spending plan for X" → Create spending plan
 - "Schedule payouts of ₦X weekly/monthly" → Create payout plan with frequency
 - "Save ₦X for Y" → Could be either, ask clarifying question
-- "Set aside ₦X for [category]" → Budget plan with category
+- "Set aside ₦X for [category]" → Spending plan with category
 - "Pay out ₦X every [day/week/month]" → Payout plan
 
 When information is ambiguous:
-- Ask clarifying questions: "Do you want a payout plan (money sent to your bank) or a budget plan (money set aside for expenses)?"
+- Ask clarifying questions: "Do you want a payout plan (money sent to your bank) or a spending plan (money set aside for expenses)?"
 - If frequency unclear: "How often do you want the payouts? (daily, weekly, monthly, etc.)"
 - If amount unclear: "What's the total amount you want to plan for?"
 - If dates unclear or relative: "When should this start? (e.g., next week, January 1st, in 3 days)"
@@ -801,7 +801,7 @@ CONFIRMATION PATTERNS:
 
 Always confirm before executing:
 - "I'll create a payout plan that will lock ₦X from your wallet and pay out ₦Y every [frequency]. Proceed?"
-- "This will create a budget plan for ₦X. You'll need to add funds to it separately. Continue?"
+- "This will create a spending plan for ₦X. You'll need to add funds to it separately. Continue?"
 
 For high-value transactions (>₦100,000):
 - Always ask for explicit confirmation
@@ -838,7 +838,7 @@ USER CONTEXT:
 - Total Balance: ₦${balance.toLocaleString()}
 - Locked Balance: ₦${(lockedBalance || 0).toLocaleString()}
 - Payout Plans: ${payoutPlans.length} active plan(s)
-- Budget Plans: ${expensePlans.length} active plan(s)
+- Spending Plans: ${expensePlans.length} active plan(s)
 - Payout Accounts: ${payoutAccounts.length} account(s)
 
 CRITICAL DATE CALCULATION:
@@ -855,8 +855,8 @@ CORE INSTRUCTIONS:
 - Explain what actions will be taken before executing (especially fund locking)
 - Provide helpful suggestions when prerequisites aren't met
 - For payout plans: Ensure user has payout account first (use get_payout_accounts)
-- For budget plans: Suggest relevant categories based on user's needs
-- After creating budget plan: Suggest adding funds using add_funds_to_budget
+- For spending plans: Suggest relevant categories based on user's needs
+- After creating spending plan: Suggest adding funds using add_funds_to_spending_plan
 - Handle errors gracefully with helpful, actionable messages
 - Use Nigerian Naira (₦) for all amounts
 - Be positive, supportive, and empowering`;
@@ -893,7 +893,7 @@ CORE INSTRUCTIONS:
             .single();
           return { success: true, planId: newPayoutPlan?.id, planType: 'payout', message: 'Payout plan created successfully' };
         
-        case 'create_budget_plan':
+        case 'create_spending_plan':
           // Validate and parse dates
           let parsedStartDate: string | null = null;
           let parsedEndDate: string | null = null;
@@ -909,7 +909,7 @@ CORE INSTRUCTIONS:
               if (isNaN(startDateObj.getTime())) {
                 throw new Error(`Invalid start date: ${args.startDate}`);
               }
-              // Always save valid dates - they will be visible but budget won't be "started" until funded
+              // Always save valid dates - they will be visible but spending plan won't be "started" until funded
               parsedStartDate = args.startDate;
             } catch (error: any) {
               console.error('Error parsing start date:', error);
@@ -949,7 +949,7 @@ CORE INSTRUCTIONS:
             category_id: sub.category_id,
             subcategory_id: sub.subcategory_id,
             name: sub.name || `${sub.category_id}_${sub.subcategory_id}`,
-            target_amount: args.totalBudget / (args.subcategories?.length || 1), // Distribute budget evenly
+            target_amount: args.totalAmount / (args.subcategories?.length || 1), // Distribute amount evenly
           })) || [];
           
           // Prepare subcategories array for direct storage
@@ -958,10 +958,10 @@ CORE INSTRUCTIONS:
             subcategory_id: sub.subcategory_id,
           })) || [];
           
-          const budgetResult = await createCompletePlan({
+          const spendingPlanResult = await createCompletePlan({
             plan_name: args.name,
             name: args.name,
-            total_budget: args.totalBudget,
+            total_budget: args.totalAmount,
             start_date: parsedStartDate,
             end_date: parsedEndDate,
             funding_method: args.fundingMethod || 'manual',
@@ -977,15 +977,15 @@ CORE INSTRUCTIONS:
           });
           await fetchExpensePlans();
           
-          // Check if budget is unfunded
-          const isUnfunded = (budgetResult?.current_balance || 0) === 0;
+          // Check if spending plan is unfunded
+          const isUnfunded = (spendingPlanResult?.current_balance || 0) === 0;
           
           return { 
             success: true, 
-            planId: budgetResult?.id, 
-            planType: 'budget', 
+            planId: spendingPlanResult?.id, 
+            planType: 'spending_plan', 
             isUnfunded,
-            message: 'Budget plan created successfully' 
+            message: 'Spending plan created successfully' 
           };
         
         case 'get_user_plans':
@@ -1000,11 +1000,11 @@ CORE INSTRUCTIONS:
               frequency: p.frequency,
               nextPayoutDate: p.next_payout_date,
             })),
-            budgetPlans: expensePlans.map(p => ({
+            spendingPlans: expensePlans.map(p => ({
               id: p.id,
               name: p.name,
               status: p.status,
-              totalBudget: p.total_budget,
+              totalAmount: p.total_budget,
               currentBalance: p.current_balance,
               totalSpent: p.total_spent,
             })),
@@ -1033,15 +1033,15 @@ CORE INSTRUCTIONS:
           await fetchPayoutPlans();
           return { success: true, message: 'Payout plan renamed successfully' };
         
-        case 'rename_budget_plan':
+        case 'rename_spending_plan':
           await updateExpensePlan(args.planId, { name: args.name });
           await fetchExpensePlans();
-          return { success: true, message: 'Budget plan renamed successfully' };
+          return { success: true, message: 'Spending plan renamed successfully' };
         
-        case 'add_funds_to_budget':
+        case 'add_funds_to_spending_plan':
           const fundResult = await addFundsToPlan(args.planId, args.amount);
           await fetchExpensePlans();
-          return { success: true, message: 'Funds added to budget plan successfully', result: fundResult };
+          return { success: true, message: 'Funds added to spending plan successfully', result: fundResult };
         
         case 'get_payout_accounts':
           await fetchPayoutAccounts();
@@ -1176,7 +1176,7 @@ CORE INSTRUCTIONS:
     
     const welcomeMessage: Message = {
       id: 'welcome',
-      content: `Hi ${session?.user?.user_metadata?.first_name || 'there'}! I'm your financial assistant. I can help you **create payout plans**, **set up budgets**, **manage your plans**, and **get financial insights**.
+      content: `Hi ${session?.user?.user_metadata?.first_name || 'there'}! I'm your financial assistant. I can help you **create payout plans**, **set up spending plans**, **manage your plans**, and **get financial insights**.
 How can I help you today? 😊`,
       sender: 'ai',
       type: 'text',
@@ -1406,7 +1406,7 @@ Return the preprocessed message with all relative dates converted to absolute da
         // Execute all function calls
         const functionResults: OpenAIMessage[] = [];
         let createdPlanId: string | undefined;
-        let createdPlanType: 'payout' | 'budget' | undefined;
+        let createdPlanType: 'payout' | 'spending_plan' | undefined;
         let isUnfunded: boolean | undefined;
         
         for (const toolCall of response.tool_calls) {
@@ -1416,7 +1416,7 @@ Return the preprocessed message with all relative dates converted to absolute da
           const result = await executeFunctionCall(functionName, args);
           
           // Capture plan creation info
-          if ((functionName === 'create_payout_plan' || functionName === 'create_budget_plan') && result.planId) {
+          if ((functionName === 'create_payout_plan' || functionName === 'create_spending_plan') && result.planId) {
             createdPlanId = result.planId;
             createdPlanType = result.planType;
             isUnfunded = result.isUnfunded;
@@ -1774,7 +1774,7 @@ Return the preprocessed message with all relative dates converted to absolute da
             </View>
             {!isUser && message.metadata?.planId && (
               <View style={{ marginTop: 12, gap: 8 }}>
-                {message.metadata.isUnfunded && message.metadata.planType === 'budget' && (
+                {message.metadata.isUnfunded && message.metadata.planType === 'spending_plan' && (
                   <TouchableOpacity
                     style={{ backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8 }}
                     onPress={() => {
@@ -1783,28 +1783,28 @@ Return the preprocessed message with all relative dates converted to absolute da
                   >
                     <Wallet size={getScaledFontSize(16, textSizeMultiplier)} color="#FFFFFF" />
                     <Text style={{ color: '#fff', fontWeight: '600', fontSize: getScaledFontSize(16, textSizeMultiplier) }}>
-                      Fund Budget
+                      Fund Spending Plan
                     </Text>
                     <ArrowRight size={getScaledFontSize(16, textSizeMultiplier)} color="#FFFFFF" />
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
-                  style={{ backgroundColor: message.metadata.isUnfunded && message.metadata.planType === 'budget' ? 'transparent' : colors.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: message.metadata.isUnfunded && message.metadata.planType === 'budget' ? 1 : 0, borderColor: message.metadata.isUnfunded && message.metadata.planType === 'budget' ? colors.primary : 'transparent' }}
+                  style={{ backgroundColor: message.metadata.isUnfunded && message.metadata.planType === 'spending_plan' ? 'transparent' : colors.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: message.metadata.isUnfunded && message.metadata.planType === 'spending_plan' ? 1 : 0, borderColor: message.metadata.isUnfunded && message.metadata.planType === 'spending_plan' ? colors.primary : 'transparent' }}
                   onPress={() => {
                     if (message.metadata.planType === 'payout') {
                       router.push({
                         pathname: '/view-payout',
                         params: { id: message.metadata.planId }
                       });
-                    } else if (message.metadata.planType === 'budget') {
+                    } else if (message.metadata.planType === 'spending_plan') {
                       router.push(`/expense-planner/${message.metadata.planId}`);
                     }
                   }}
                 >
-                  <Text style={{ color: message.metadata.isUnfunded && message.metadata.planType === 'budget' ? colors.primary : '#fff', fontWeight: '600', fontSize: getScaledFontSize(16, textSizeMultiplier) }}>
-                    {message.metadata.planType === 'payout' ? 'View Payout Plan' : 'View Budget'}
+                  <Text style={{ color: message.metadata.isUnfunded && message.metadata.planType === 'spending_plan' ? colors.primary : '#fff', fontWeight: '600', fontSize: getScaledFontSize(16, textSizeMultiplier) }}>
+                    {message.metadata.planType === 'payout' ? 'View Payout Plan' : 'View Spending Plan'}
                   </Text>
-                  <ArrowRight size={getScaledFontSize(16, textSizeMultiplier)} color={message.metadata.isUnfunded && message.metadata.planType === 'budget' ? colors.primary : '#FFFFFF'} />
+                  <ArrowRight size={getScaledFontSize(16, textSizeMultiplier)} color={message.metadata.isUnfunded && message.metadata.planType === 'spending_plan' ? colors.primary : '#FFFFFF'} />
                 </TouchableOpacity>
               </View>
             )}

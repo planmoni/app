@@ -55,7 +55,7 @@ export default function ExpensePlansSection({ onRequireAuth }: ExpensePlansSecti
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Your budget plans</Text>
+        <Text style={styles.sectionTitle}>Your spending plans</Text>
         <Pressable onPress={handleViewAll} style={styles.viewAllButton}>
           <Text style={styles.viewAllText}>View All</Text>
         </Pressable>
@@ -91,7 +91,7 @@ export default function ExpensePlansSection({ onRequireAuth }: ExpensePlansSecti
             <Plus size={24} color={colors.text} />
             <Text style={styles.addExpensePlanText}>Create spending plan</Text>
             <Text style={styles.addExpensePlanDescription}>
-              Set up a category budget with guardrails
+              Set up a funded spending plan for your future expenses
             </Text>
           </Pressable>
         </ScrollView>

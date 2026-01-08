@@ -553,7 +553,7 @@ export default function PlanDetailScreen() {
             <Text style={styles.availableBalanceAmount}>
               {formatBalance(availableToSpend)}
             </Text>
-            <View style={styles.availableBalanceActions}>
+            {/* <View style={styles.availableBalanceActions}>
               <Pressable 
                 style={styles.schedulePayoutButton}
                 onPress={handleScheduleWithdrawal}
@@ -568,7 +568,7 @@ export default function PlanDetailScreen() {
                 <ArrowRight size={16} color={colors.primary} />
                 <Text style={styles.withdrawButtonText}>Withdraw</Text>
               </Pressable>
-            </View>
+            </View> */}
           </View>
         )}
         

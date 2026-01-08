@@ -172,36 +172,37 @@ const SLIDES = [
   
   {
     id: '1',
-    title: 'Welcome to Financial Control',
-    description: "Put yourself on a salary, gain control and stay on track with your finances.",
+    title: 'Easy & Secure Personal Auto Payments',
+    description: "Create payouts & spending plans for your short or long term needs, receive funds directly to your bank account.",
     image: require('@/assets/images/StayInControl.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
   },
   {
     id: '2',
-    title: 'Choose when and how you get paid',
+    title: 'Plan For Future Expenses',
+    description: 'Plan and fund future expenses, have enough funds to spend without worrying about running out of money.  ',
+    image: require('@/assets/images/BuildHealthyHabits.png'),
+    gradient: ['#7C3AED', '#A855F7'],
+    accentColor: '#C084FC',
+  },
+  {
+    id: '3',
+    title: 'Choose When and How You Get Paid',
     description: 'Split funds into scheduled daily, weekly, bi-weekly or monthly payouts that work for your lifestyle.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     gradient: ['#059669', '#10B981'],
     accentColor: '#34D399',
   },
   {
-    id: '3',
-    title: 'Stabilize your Cash Flow',
+    id: '4',
+    title: 'Your Funds in Secure & Compliant System',
     description: 'Secure your money, automate payouts & say goodbye to irregular income forever.',
     image: require('@/assets/images/SmartSavings.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
   },
-  {
-    id: '4',
-    title: 'Build Healthy\nMoney Habits',
-    description: 'Automate discipline and achieve long-term financial goals effortlessly.',
-    image: require('@/assets/images/BuildHealthyHabits.png'),
-    gradient: ['#7C3AED', '#A855F7'],
-    accentColor: '#C084FC',
-  },
+  
 ];
 
 interface WelcomeModalProps {
@@ -465,7 +466,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     marginBottom: responsive.verticalPadding * 0.8,
   },
   slideTitle: {
-    fontWeight: '800',
+    fontWeight: '600',
     fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1.2,
     lineHeight: Platform.OS === 'ios' ? responsive.titleSize * 1.1 : responsive.titleSize * 1.1,
     letterSpacing: -0.5,
@@ -475,7 +476,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   slideDescription: {
     color: colors.text,
     textAlign: 'center',
-    fontSize: Platform.OS === 'ios' ? responsive.descriptionSize * 1.2: responsive.descriptionSize * 1.2,
+    fontSize: Platform.OS === 'ios' ? responsive.descriptionSize * 1.0: responsive.descriptionSize * 1.2,
     lineHeight: Platform.OS === 'ios' ? responsive.descriptionSize * 1.6 : responsive.descriptionSize * 1.5,
     maxWidth: '90%',
   },

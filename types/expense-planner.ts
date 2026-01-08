@@ -1,17 +1,17 @@
 export type ExpensePlanStatus = 'draft' | 'active' | 'completed' | 'archived';
-export type BudgetStructure = 'fixed' | 'estimated';
+export type SpendingPlanStructure = 'fixed' | 'estimated';
 
 export interface ExpensePlan {
   id: string;
   user_id: string;
   name: string;
-  total_budget: number;
-  budget_structure: BudgetStructure;
+  total_budget: number; // Database column name - kept for backward compatibility
+  budget_structure: SpendingPlanStructure; // Database column name - kept for backward compatibility
   start_date?: string;
   end_date?: string;
   status: ExpensePlanStatus;
   total_spent: number;
-  remaining_budget: number;
+  remaining_budget: number; // Database column name - kept for backward compatibility
   created_at: string;
   updated_at: string;
   // Enhanced fields for card display
