@@ -23,6 +23,8 @@ import {
   CalendarCheck,
   Clock,
   MoreHorizontal,
+  Building2,
+  ChevronRight,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -1067,6 +1069,64 @@ export default function HomeScreen() {
         </View> */}
         
 
+        {/* Quick Topup Card */}
+        {isAuthenticated && (
+          <Pressable
+            onPress={() => {
+              impact();
+              router.push({
+                pathname: '/deposit-flow/amount',
+                params: {
+                  newMethodType: 'mono-pay'
+                }
+              });
+              logAnalyticsEvent('quick_topup_click', { source: 'home_screen' });
+            }}
+            style={[styles.quickTopupCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <View style={styles.quickTopupContent}>
+              <View style={styles.quickTopupIconContainer}>
+                <Plus size={24} color={colors.primary} />
+              </View>
+              <View style={styles.quickTopupTextContainer}>
+                <Text style={[styles.quickTopupTitle, { color: colors.text }]}>
+                  Quick Topup
+                </Text>
+                <Text style={[styles.quickTopupSubtitle, { color: colors.textSecondary }]}>
+                  Add money from your linked bank account
+                </Text>
+              </View>
+              <ChevronRight size={20} color={colors.textSecondary} />
+            </View>
+          </Pressable>
+        )}
+
+        {/* Linked Accounts Quick Access */}
+        {isAuthenticated && (
+          <Pressable
+            onPress={() => {
+              router.push('/linked-accounts');
+              logAnalyticsEvent('linked_accounts_click', { source: 'home_screen' });
+            }}
+            style={[styles.linkedAccountsCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <View style={styles.linkedAccountsContent}>
+              <View style={styles.linkedAccountsIconContainer}>
+                <Building2 size={24} color={colors.primary} />
+              </View>
+              <View style={styles.linkedAccountsTextContainer}>
+                <Text style={[styles.linkedAccountsTitle, { color: colors.text }]}>
+                  Linked Bank Accounts
+                </Text>
+                <Text style={[styles.linkedAccountsSubtitle, { color: colors.textSecondary }]}>
+                  Manage your bank accounts for deposits
+                </Text>
+              </View>
+              <ChevronRight size={20} color={colors.textSecondary} />
+            </View>
+          </Pressable>
+        )}
+
         <ImageCarousel images={carouselImages} />
         {isAuthenticated && progress && !(
           progress.id_face_verified === true || 
@@ -1937,6 +1997,74 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   bottomPadding: {
     height: 1,
+  },
+  linkedAccountsCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  linkedAccountsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  linkedAccountsIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  linkedAccountsTextContainer: {
+    flex: 1,
+    gap: 4,
+  },
+  linkedAccountsTitle: {
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
+    fontWeight: '600',
+  },
+  linkedAccountsSubtitle: {
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
+  },
+  quickTopupCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 1, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  quickTopupContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  quickTopupIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickTopupTextContainer: {
+    flex: 1,
+    gap: 4,
+  },
+  quickTopupTitle: {
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
+    fontWeight: '600',
+  },
+  quickTopupSubtitle: {
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
   },
 
 });

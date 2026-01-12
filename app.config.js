@@ -85,6 +85,7 @@ module.exports = {
         }
        
       ],
+      "@react-native-firebase/app",
       "expo-navigation-bar",
       "expo-document-picker"
     ],
@@ -92,6 +93,7 @@ module.exports = {
       eas: {
         projectId: "05caad20-9b74-4ba8-8280-dc5939b7ca83",
       },
+      // ✅ SAFE: Public variables that can be exposed in client bundle
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL || "",
       EXPO_PUBLIC_SUPABASE_ANON_KEY:
         process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
@@ -99,26 +101,18 @@ module.exports = {
         process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY || "",
       EXPO_PUBLIC_MONO_PUBLIC_KEY:
         process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || "",
-      EXPO_PUBLIC_MONO_SECRET_KEY:
-        process.env.EXPO_PUBLIC_MONO_SECRET_KEY || "",
-      // Use platform-specific API URL handling
       EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL || "",
-      PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY || "",
-      EXPO_PUBLIC_PAYSTACK_SECRET_KEY:
-        process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY || "",
       EXPO_PUBLIC_DOJAH_APP_ID: process.env.EXPO_PUBLIC_DOJAH_APP_ID || "",
-      EXPO_PUBLIC_DOJAH_PRIVATE_KEY:
-        process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY || "",
-      EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY:
-        process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY || "",
-      EXPO_PUBLIC_OPENAI_API_KEY: process.env.EXPO_PUBLIC_OPENAI_API_KEY || "",
-      EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL || '',
-      PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY || '',
-      EXPO_PUBLIC_PAYSTACK_SECRET_KEY: process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY || '',
-      EXPO_PUBLIC_DOJAH_APP_ID: process.env.EXPO_PUBLIC_DOJAH_APP_ID || '',
-      EXPO_PUBLIC_DOJAH_PRIVATE_KEY: process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY || '',
-      EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY: process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY || '',
-      EXPO_PUBLIC_OPENAI_API_KEY: process.env.EXPO_PUBLIC_OPENAI_API_KEY || '',
+      EXPO_PUBLIC_APP_URL: process.env.EXPO_PUBLIC_APP_URL || "",
+      
+      // ❌ REMOVED: Secret keys should NEVER be in EXPO_PUBLIC_ variables
+      // These are now server-side only (no EXPO_PUBLIC_ prefix):
+      // - MONO_SECRET_KEY (use Supabase Edge Function: mono-api-proxy)
+      // - PAYSTACK_SECRET_KEY (use server-side API routes)
+      // - PAYSTACK_LIVE_SECRET_KEY (use server-side API routes)
+      // - DOJAH_PRIVATE_KEY (use server-side API routes)
+      // - OPENAI_API_KEY (use Supabase Edge Function: openai-proxy)
+      // - RESEND_API_KEY (already server-side in Supabase functions)
       // Intercom configuration
       INTERCOM_IOS_API_KEY: "ios_sdk-de52645ae34ab0f059890a422f90b18092032115",
       INTERCOM_ANDROID_API_KEY: "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",

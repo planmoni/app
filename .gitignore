@@ -77,4 +77,9 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Firebase service account keys (CRITICAL: Never commit these!)
+*service-account*.json
+planmoni-*.json
+*-service-account.json
+
 # @end expo-cli

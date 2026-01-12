@@ -526,7 +526,7 @@ serve(async (req)=>{
     console.log("Email delivery requested - preparing to send statement via email...");
 
     // Get Resend API key from environment variables
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "re_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu";
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_API_KEY) {
       console.error("Resend API key not configured");
       return new Response(JSON.stringify({
