@@ -1,25 +1,81 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
-import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, TriangleAlert as AlertTriangle, Clock, Check, Info } from 'lucide-react-native';
+import { ArrowLeft, Building2, Plus, ChevronRight, Trash2, TriangleAlert as AlertTriangle, Clock, Check, Info, Link2 } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import Button from '@/components/Button';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import SafeFooter from '@/components/SafeFooter';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
-import AddBankAccountModal from '@/components/AddBankAccountModal';
+// import AddBankAccountModal from '@/components/AddBankAccountModal';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useBalance } from '@/contexts/BalanceContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { MonoProvider, useMonoConnect } from '@mono.co/connect-react-native';
+import { useMonoAccountLinking } from '@/hooks/useMonoAccountLinking';
+import { supabase } from '@/lib/supabase';
+import { DeviceInfoService } from '@/lib/device-info';
+
+// Mono Link Account Button Component
+function LinkAccountButton({ colors, bankAccountsCount }: { colors: any; bankAccountsCount: number }) {
+  const { init } = useMonoConnect();
+  const haptics = useHaptics();
+
+  const handlePress = () => {
+    if (bankAccountsCount >= 2) {
+      haptics.error();
+      Alert.alert(
+        'Maximum Accounts Reached',
+        'You can only link a maximum of 2 bank accounts. Please remove an existing account before adding a new one.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    haptics.lightImpact();
+    init();
+  };
+
+  const isDisabled = bankAccountsCount >= 2;
+
+  return (
+    <Pressable
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        padding: 16,
+        borderWidth: 1,
+        borderStyle: 'solid',
+        borderColor: isDisabled ? colors.border : colors.primary,
+        borderRadius: 12,
+        backgroundColor: isDisabled ? colors.backgroundSecondary : colors.backgroundTertiary,
+        opacity: isDisabled ? 0.5 : 1,
+      }}
+      onPress={handlePress}
+      disabled={isDisabled}
+    >
+      <Link2 size={20} color={isDisabled ? colors.textSecondary : colors.primary} />
+      <Text style={{ fontSize: 14, fontWeight: '500', color: isDisabled ? colors.textSecondary : colors.text }}>
+        {isDisabled ? 'Maximum Accounts Reached' : 'Link with Mono'}
+      </Text>
+    </Pressable>
+  );
+}
 
 export default function LinkedAccountsScreen() {
   const { colors } = useTheme();
-  const [showAddAccount, setShowAddAccount] = useState(false);
+  const { session } = useAuth();
+  // const [showAddAccount, setShowAddAccount] = useState(false);
+  const [monoCustomerId, setMonoCustomerId] = useState<string | null>(null);
+  const [isLoadingCustomer, setIsLoadingCustomer] = useState(true);
   const haptics = useHaptics();
   const { addFunds } = useBalance();
   const params = useLocalSearchParams();
   const amount = params.amount as string;
   const fromDepositFlow = params.fromDepositFlow === 'true';
+  const selectForPayment = params.selectForPayment === 'true';
   
   const { 
     bankAccounts, 
@@ -31,117 +87,274 @@ export default function LinkedAccountsScreen() {
     deleteAccount
   } = useRealtimeBankAccounts();
 
+  // Use Mono account linking hook
+  const { linkAccount } = useMonoAccountLinking();
+
+  // Check and create Mono customer if needed
+  useEffect(() => {
+    const setupMonoCustomer = async () => {
+      if (!session?.user?.id) {
+        setIsLoadingCustomer(false);
+        return;
+      }
+
+      try {
+        setIsLoadingCustomer(true);
+
+        // 1. Check if customer ID exists in profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('mono_customer_id, first_name, last_name, email')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profileError) {
+          console.error('Error fetching profile:', profileError);
+          setIsLoadingCustomer(false);
+          return;
+        }
+
+        // 2. If customer ID exists and is not null/empty, use it
+        if (profile?.mono_customer_id && profile.mono_customer_id.trim() !== '') {
+          setMonoCustomerId(profile.mono_customer_id);
+          setIsLoadingCustomer(false);
+          return;
+        }
+
+        // 3. Get user location using IP geolocation
+        const locationInfo = await DeviceInfoService.getLocationInfo();
+        
+        // 4. Create new Mono customer
+        const monoSecretKey = process.env.EXPO_PUBLIC_MONO_SECRET_KEY;
+        
+        if (!monoSecretKey) {
+          console.error('Mono secret key is not configured');
+          setIsLoadingCustomer(false);
+          return;
+        }
+
+        const firstName = profile?.first_name || session.user.user_metadata?.first_name || '';
+        const lastName = profile?.last_name || session.user.user_metadata?.last_name || '';
+        const email = profile?.email || session.user.email || '';
+
+        if (!email) {
+          console.error('Cannot create Mono customer: email is required');
+          setIsLoadingCustomer(false);
+          return;
+        }
+
+        // 5. Build address from location (state/region and country)
+        const state = locationInfo.region && locationInfo.region !== 'Unknown' 
+          ? locationInfo.region 
+          : '';
+        const country = locationInfo.country && locationInfo.country !== 'Unknown'
+          ? locationInfo.country
+          : 'Nigeria'; // Default to Nigeria if location unavailable
+        
+        const addressParts = [];
+        
+        if (state) {
+          addressParts.push(state);
+        }
+        if (country) {
+          addressParts.push(country);
+        }
+        
+        const address = addressParts.length > 0 
+          ? addressParts.join(', ').toLowerCase()
+          : 'lagos, nigeria'; // Fallback address
+
+        const customerData = {
+          email: email,
+          type: 'individual',
+          last_name: lastName || '',
+          first_name: firstName || '',
+          address: address,
+          phone: '',
+        };
+
+
+        const response = await fetch('https://api.withmono.com/v2/customers', {
+          method: 'POST',
+          headers: {
+            'mono-sec-key': monoSecretKey,
+            'accept': 'application/json',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(customerData),
+        });
+
+        console.log('Customer data:', customerData);
+        console.log('Response:', response);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Customer data:', customerData);
+          console.error('Error creating Mono :', errorData);
+          console.error('Response:', response);
+  
+          setIsLoadingCustomer(false);
+          return;
+        }
+
+        const result = await response.json();
+        const newCustomerId = result.data?.id;
+
+        if (!newCustomerId) {
+          console.error('No customer ID returned from Mono');
+          setIsLoadingCustomer(false);
+          return;
+        }
+
+        // 4. Save customer ID to profiles table
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ mono_customer_id: newCustomerId })
+          .eq('id', session.user.id);
+
+        if (updateError) {
+          console.error('Error saving Mono customer ID:', updateError);
+          // Still use the customer ID even if save fails
+        }
+
+        // 5. Update state
+        setMonoCustomerId(newCustomerId);
+      } catch (error) {
+        console.error('Error setting up Mono customer:', error);
+      } finally {
+        setIsLoadingCustomer(false);
+      }
+    };
+
+    setupMonoCustomer();
+  }, [session?.user?.id]);
+
   const handleMonoSuccess = async (data: any) => {
-    const code = data.getAuthCode();
-    console.log("Access code", code)
-    console.log("Data", data)
-    
-  
-    try {
-      // 1. Exchange auth code for account ID
-      const res = await fetch('https://api.withmono.com/v2/accounts/auth', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'mono-sec-key': process.env.EXPO_PUBLIC_MONO_SECRET_KEY!,
-        },
-        body: JSON.stringify({ code }),
-      });
-  
-      const authData = await res.json();
-      console.log("Account data:", authData);
-      const accountId = authData.data.id;
-      console.log("Account id:", accountId);
-  
-      // 2. Get account details
-      const accountRes = await fetch(`https://api.withmono.com/v2/accounts/${accountId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'mono-sec-key': process.env.EXPO_PUBLIC_MONO_SECRET_KEY!,
-        },
-      });
-  
-      const accountDetails = await accountRes.json();
-      const monoData = accountDetails.data;
-      console.log("Mono Linked Account:", monoData);
-  
-      const account = {
-        bankName: monoData.account.institution.name,
-        bankCode: monoData.account.institution.bank_code,
-        accountNumber: monoData.account.account_number,
-        accountName: monoData.account.name,
-        monoAccountId: monoData.account.id,
-      };
-  
-      // Save account in your app
-      await addBankAccount({
-        bank_name: account.bankName,
-        bank_code: account.bankCode,
-        account_number: account.accountNumber,
-        account_name: account.accountName,
-        mono_account_id: account.monoAccountId,
-        is_default: bankAccounts.length === 0,
-      });
-  
-      // Refresh list
-      fetchBankAccounts?.();
-      
-    } catch (err) {
-      console.error('Failed to link Mono account:', err);
-    }
-  };
-  
-  const config = {
-    publicKey: process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY!,
-    scope: 'auth',
-    data: {
-      customer: { id: '684761506b658900c542295b' }
-    },
-    onClose: () => console.log('Widget closed'),
-    onSuccess: handleMonoSuccess,
-    onEvent: (eventName:any, data:any) => {
-      console.log(eventName);
-      console.log(data);
-    },
-    reference: 'test_ref'
-  }
-  
-  const handleAddAccount = async (account: {
-    bankName: string;
-    accountNumber: string;
-    accountName: string;
-  }) => {
     try {
       haptics.success();
-      const newAccount = await addBankAccount({
-        bank_name: account.bankName,
-        account_number: account.accountNumber,
-        account_name: account.accountName,
-        is_default: bankAccounts.length === 0 // Make first account default
-      });
+      const code = data.getAuthCode();
+      console.log("Access code", code);
       
-      if (fromDepositFlow && amount) {
-        // Navigate to authorization screen
-        router.replace({
-          pathname: '/deposit-flow/authorization',
-          params: {
-            amount,
-            methodTitle: 'Bank Account'
-          }
-        });
-      } else {
-        // Just close the modal for regular flow
-        setShowAddAccount(false);
+      if (!session?.user?.id) {
+        Alert.alert('Error', 'Please log in to link your account');
+        return;
       }
-      
-      return newAccount;
-    } catch (error) {
+
+      // Check if user already has 2 accounts
+      if (bankAccounts.length >= 2) {
+        haptics.error();
+        Alert.alert(
+          'Maximum Accounts Reached',
+          'You can only link a maximum of 2 bank accounts. Please remove an existing account before adding a new one.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Use the hook to link the account
+      const accountData = await linkAccount(code);
+
+      // Save account in your app
+      await addBankAccount({
+        bank_name: accountData.bankName,
+        bank_code: accountData.bankCode,
+        account_number: accountData.accountNumber,
+        account_name: accountData.accountName,
+        mono_account_id: accountData.accountId,
+        is_default: bankAccounts.length === 0,
+      });
+
+      // Refresh list
+      fetchBankAccounts?.();
+
+      Alert.alert(
+        'Success',
+        `Successfully linked ${accountData.bankName} account`,
+        [{ text: 'OK', onPress: () => {
+          if (fromDepositFlow && amount) {
+            router.replace({
+              pathname: '/deposit-flow/authorization',
+              params: {
+                amount,
+                methodTitle: 'Bank Account'
+              }
+            });
+          }
+        }}]
+      );
+    } catch (err) {
       haptics.error();
-      console.error('Error adding bank account:', error);
-      throw error;
+      console.error('Failed to link Mono account:', err);
+      Alert.alert(
+        'Error',
+        err instanceof Error ? err.message : 'Failed to link bank account. Please try again.'
+      );
     }
   };
+  
+  const monoConfig = monoCustomerId ? {
+    publicKey: process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || '',
+    scope: 'auth' as const,
+    data: {
+      customer: { id: monoCustomerId }
+    },
+    onClose: () => {
+      console.log('Widget closed');
+      haptics.lightImpact();
+    },
+    onSuccess: handleMonoSuccess,
+    onEvent: (eventName: string, data: any) => {
+      console.log('Mono event:', eventName);
+      console.log('Mono event data:', data);
+    },
+    reference: `planmoni_${session?.user?.id || 'unknown'}_${Date.now()}`,
+  } : null;
+
+  // const config = {
+  //   selectedInstitution: {
+  //     id: "694c2fc08eb43faed732589d",
+  //     auth_method: "internet_banking"
+  //   }
+  // }
+  
+  // connect.init(monoConfig);
+  // connect.init(config);
+  
+  // const handleAddAccount = async (account: {
+  //   bankName: string;
+  //   accountNumber: string;
+  //   accountName: string;
+  // }) => {
+  //   try {
+  //     haptics.success();
+  //     const newAccount = await addBankAccount({
+  //       bank_name: account.bankName,
+  //       account_number: account.accountNumber,
+  //       account_name: account.accountName,
+  //       is_default: bankAccounts.length === 0 // Make first account default
+  //     });
+      
+  //     if (fromDepositFlow && amount) {
+  //       // Navigate to authorization screen
+  //       router.replace({
+  //         pathname: '/deposit-flow/authorization',
+  //         params: {
+  //           amount,
+  //           methodTitle: 'Bank Account'
+  //         }
+  //       });
+  //     } else {
+  //       // Just close the modal for regular flow
+  //       setShowAddAccount(false);
+  //     }
+      
+  //     return newAccount;
+  //   } catch (error) {
+  //     haptics.error();
+  //     console.error('Error adding bank account:', error);
+  //     throw error;
+  //   }
+  // };
 
   const handleMakeDefault = async (accountId: string) => {
     try {
@@ -183,14 +396,33 @@ export default function LinkedAccountsScreen() {
 
   const styles = createStyles(colors);
 
+  // Show loading if customer ID is being set up
+  if (isLoadingCustomer || !monoCustomerId || !monoConfig) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <PlanmoniLoader size="medium" />
+          <Text style={styles.loadingText}>Setting up account linking...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
-      </View>
+    <MonoProvider {...monoConfig}>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
+        </View>
 
         {isLoading && (
           <View style={styles.loadingContainer}>
@@ -250,37 +482,65 @@ export default function LinkedAccountsScreen() {
                 </View>
 
                 <View style={styles.accountActions}>
-                  {!account.is_default && (
+                  {fromDepositFlow && selectForPayment && account.mono_account_id ? (
                     <Pressable
-                      style={styles.actionButton}
-                      onPress={() => handleMakeDefault(account.id)}
+                      style={[styles.actionButton, styles.payButton]}
+                      onPress={() => {
+                        haptics.mediumImpact();
+                        router.push({
+                          pathname: '/deposit-flow/mono-pay',
+                          params: {
+                            amount,
+                            accountId: account.id,
+                          },
+                        });
+                      }}
                     >
-                      <Text style={styles.actionButtonText}>Make Default</Text>
-                    </Pressable>
-                  )}
-                  {!account.is_default && (
-                    <Pressable
-                      style={[styles.actionButton, styles.removeButton]}
-                      onPress={() => handleRemoveAccount(account.id, account.account_name)}
-                    >
-                      <Trash2 size={16} color="#EF4444" />
-                      <Text style={[styles.actionButtonText, styles.removeButtonText]}>
-                        Remove
+                      <Text style={[styles.actionButtonText, styles.payButtonText]}>
+                        Pay with this Account
                       </Text>
                     </Pressable>
+                  ) : (
+                    <>
+                      {!account.is_default && (
+                        <Pressable
+                          style={styles.actionButton}
+                          onPress={() => handleMakeDefault(account.id)}
+                        >
+                          <Text style={styles.actionButtonText}>Make Default</Text>
+                        </Pressable>
+                      )}
+                      {!account.is_default && (
+                        <Pressable
+                          style={[styles.actionButton, styles.removeButton]}
+                          onPress={() => handleRemoveAccount(account.id, account.account_name)}
+                        >
+                          <Trash2 size={16} color="#EF4444" />
+                          <Text style={[styles.actionButtonText, styles.removeButtonText]}>
+                            Remove
+                          </Text>
+                        </Pressable>
+                      )}
+                    </>
                   )}
                 </View>
               </View>
             ))
           )}
 
-          <Pressable
-            style={styles.addAccountButton}
-            onPress={() => setShowAddAccount(true)}
-          >
-            <Plus size={20} color={colors.primary} />
-            <Text style={styles.addAccountText}>Add New Bank Account</Text>
-          </Pressable>
+          {/* <View style={styles.addAccountOptions}>
+            <Pressable
+              style={styles.addAccountButton}
+              onPress={() => setShowAddAccount(true)}
+            >
+              <Plus size={20} color={colors.primary} />
+              <Text style={styles.addAccountText}>Add Bank Account Manually</Text>
+            </Pressable>
+
+            <LinkAccountButton colors={colors} bankAccountsCount={bankAccounts.length} />
+          </View> */}
+          
+          <LinkAccountButton colors={colors} bankAccountsCount={bankAccounts.length} />
         </View>
 
         <View style={styles.infoSection}>
@@ -298,24 +558,25 @@ export default function LinkedAccountsScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      {/* <View style={styles.footer}>
         <Button
           title="Add New Account"
           onPress={() => setShowAddAccount(true)}
           style={styles.addButton}
           icon={Plus}
         />
-      </View>
+      </View> */}
 
-      <AddBankAccountModal
+      {/* <AddBankAccountModal
         isVisible={showAddAccount}
         onClose={() => setShowAddAccount(false)}
         onAdd={handleAddAccount}
         loading={isLoading}
-      />
+      /> */}
       
       <SafeFooter />
     </SafeAreaView>
+    </MonoProvider>
   );
 }
 
@@ -477,6 +738,14 @@ const createStyles = (colors: any) => StyleSheet.create({
   removeButtonText: {
     color: '#EF4444',
   },
+  payButton: {
+    backgroundColor: '#1E3A8A',
+    borderColor: '#1E3A8A',
+  },
+  payButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
   infoSection: {
     marginBottom: 24,
   },
@@ -551,6 +820,23 @@ const createStyles = (colors: any) => StyleSheet.create({
   statusText: {
     fontSize: 12,
     color: '#22C55E',
+    fontWeight: '500',
+  },
+  addAccountOptions: {
+    gap: 12,
+  },
+  monoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderRadius: 12,
+  },
+  monoButtonText: {
+    fontSize: 14,
     fontWeight: '500',
   },
 });
