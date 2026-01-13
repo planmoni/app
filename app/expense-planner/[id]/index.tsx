@@ -285,7 +285,7 @@ export default function PlanDetailScreen() {
                 pathname: '/expense-planner/[id]/transfer-success',
                 params: {
                   planId: id as string,
-                  planName: plan?.name || 'Budget Plan',
+                  planName: plan?.name || 'Spending Plan',
                   amountTransferred: currentBalance.toString(),
                   newWalletBalance: (result as any)?.new_wallet_balance?.toString() || '0',
                 },

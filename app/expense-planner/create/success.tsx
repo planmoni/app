@@ -91,13 +91,13 @@ export default function ExpensePlanSuccessScreen() {
       >
         <SuccessAnimation />
 
-        <Text style={styles.title}>Budget Plan Created!</Text>
-        <Text style={styles.subtitle}>Your budget plan has been set up successfully</Text>
+        <Text style={styles.title}>Spending Plan Created!</Text>
+        <Text style={styles.subtitle}>Your spending plan has been set up successfully</Text>
 
         <View style={styles.summaryCard}>
           <Text style={styles.planName}>{planName || 'Untitled Plan'}</Text>
           <Text style={styles.amount}>₦{parseFloat(totalBudget || '0').toLocaleString()}</Text>
-          <Text style={styles.description}>Total Budget</Text>
+          <Text style={styles.description}>Total Amount</Text>
         </View>
       </ScrollView>
 

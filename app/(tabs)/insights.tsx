@@ -330,7 +330,7 @@ export default function InsightsScreen() {
           />
 
           {/* Plan Insights */}
-          {isAuthenticated && planInsightMessages.length > 0 && (
+          {/* {isAuthenticated && planInsightMessages.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Expense Plan Insights</Text>
               {planInsightMessages.map((insight, index) => {
@@ -376,7 +376,7 @@ export default function InsightsScreen() {
                 );
               })}
             </View>
-          )}
+          )} */}
 
           {isAuthenticated && (
           <View style={styles.section}>

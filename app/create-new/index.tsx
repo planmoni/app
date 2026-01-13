@@ -45,15 +45,15 @@ export default function CreateNewScreen() {
         <Pressable onPress={goBack} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Create New</Text>
+        <Text style={styles.headerTitle}>Start New Plan</Text>
         <Pressable onPress={goHome} style={styles.closeButton} hitSlop={8}>
           <X size={20} color={colors.text} />
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>What would you like to create?</Text>
-        <Text style={styles.subtitle}>Choose an option to start quickly.</Text>
+        <Text style={styles.title}>What would you like to start?</Text>
+        {/* <Text style={styles.subtitle}>Choose an option to start quickly.</Text> */}
 
        
 
