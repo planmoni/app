@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -15,6 +15,8 @@ import { useBanks } from '@/hooks/useBanks';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { usePin } from '@/contexts/PinContext';
 import PinVerificationModal from '@/components/PinVerificationModal';
+import { supabase } from '@/lib/supabase';
+import { PayoutFeeFrequency } from '@/types/payout-fees';
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -24,6 +26,8 @@ export default function ReviewScreen() {
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPinVerification, setShowPinVerification] = useState(false);
+  const [feeAmount, setFeeAmount] = useState<number>(0);
+  const [feePercentage, setFeePercentage] = useState<number>(0);
   const { banks } = useBanks();
   const { verifyPayoutPin, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin } = usePin();
   
@@ -69,6 +73,49 @@ export default function ReviewScreen() {
     
     fetchBalance();
   }, []);
+
+  // Fetch and calculate fee
+  useEffect(() => {
+    const fetchFeeAndCalculate = async () => {
+      if (!totalAmount || !frequency) return;
+
+      try {
+        // Map frequency to database frequency type
+        const dbFrequency: PayoutFeeFrequency = frequency === 'weekly_specific' ? 'weekly_specific' : 
+                                                frequency === 'end_of_month' ? 'end_of_month' :
+                                                frequency as PayoutFeeFrequency;
+        
+        // Fetch fee percentage from database
+        const { data, error } = await supabase
+          .from('payout_fees')
+          .select('fee_percentage')
+          .eq('frequency', dbFrequency)
+          .eq('is_active', true)
+          .single();
+        
+        if (error || !data) {
+          console.warn('Error fetching fee percentage, using 0:', error);
+          setFeePercentage(0);
+          setFeeAmount(0);
+          return;
+        }
+        
+        const percentage = data.fee_percentage || 0;
+        setFeePercentage(percentage);
+        
+        // Calculate fee amount
+        const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+        const calculatedFee = numericTotal * (percentage / 100);
+        setFeeAmount(calculatedFee);
+      } catch (error) {
+        console.error('Error calculating fee:', error);
+        setFeePercentage(0);
+        setFeeAmount(0);
+      }
+    };
+
+    fetchFeeAndCalculate();
+  }, [totalAmount, frequency]);
 
   const handleConfirmPayout = useCallback(async () => {
     // SECURITY: Prevent multiple simultaneous submissions
@@ -161,7 +208,7 @@ export default function ReviewScreen() {
     setShowPinVerification(false);
   }, []);
 
-  const styles = createStyles(colors, isDark);
+  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   // Helper function to get bank code from bank name
   const getBankCode = useCallback((bankName: string): string | null => {
@@ -537,7 +584,9 @@ export default function ReviewScreen() {
 
               <View style={[styles.summaryRow, styles.totalRow]}>
                 <Text style={styles.totalLabel}>Total Fees</Text>
-                <Text style={styles.totalValue}>₦0.00</Text>
+                <Text style={styles.totalValue}>
+                  ₦{feeAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Text>
               </View>
             </View>
 

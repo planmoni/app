@@ -19,6 +19,9 @@ export type PayoutPlan = {
   completed_payouts: number;
   next_payout_date?: string;
   emergency_withdrawal_enabled: boolean;
+  fee_percentage?: number | null;
+  fee_amount?: number | null;
+  net_payout_amount?: number | null;
   metadata?: any;
   created_at: string;
   updated_at: string;

@@ -8,6 +8,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
+import { supabase } from '@/lib/supabase';
+import { PayoutFeeFrequency } from '@/types/payout-fees';
 
 type DatePickerProps = {
   isVisible: boolean;
@@ -190,6 +192,19 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
       return;
     }
     const dateString = formatDate(date);
+    const isDateAlreadySelected = isDateSelected(date);
+    
+    // If date is already selected, allow deselection
+    if (isDateAlreadySelected) {
+      onSelect(dateString);
+      return;
+    }
+    
+    // If 7 dates are already selected, prevent adding more
+    if (selectedDates.length >= 7) {
+      return;
+    }
+    
     // Toggle date selection - parent will handle add/remove
     onSelect(dateString);
   };
@@ -231,7 +246,11 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.calendarHeader}>
-            <Text style={styles.calendarTitle}>Select one or more dates</Text>
+            <Text style={styles.calendarTitle}>
+              {selectedDates.length >= 7 
+                ? `Maximum 7 dates selected (${selectedDates.length}/7)`
+                : `Select dates (${selectedDates.length}/7)`}
+            </Text>
             <View style={styles.monthNavigation}>
               <Pressable style={styles.navigationButton} onPress={handlePrevMonth}>
                 <ChevronLeft size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
@@ -266,6 +285,7 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
                 const isDisabled = isTodayOrPastDate(date);
                 const isDateAlreadySelected = isDateSelected(date);
                 const isTodayDate = isToday(date);
+                const isMaxDatesReached = selectedDates.length >= 7 && !isDateAlreadySelected;
 
                 return (
                   <Pressable
@@ -273,17 +293,17 @@ function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerP
                     style={[
                       styles.dayCell,
                       isDateAlreadySelected && styles.selectedDay,
-                      isTodayDate && !isDateAlreadySelected && !isDisabled && styles.todayDay,
-                      isDisabled && styles.disabledDay,
+                      isTodayDate && !isDateAlreadySelected && !isDisabled && !isMaxDatesReached && styles.todayDay,
+                      (isDisabled || isMaxDatesReached) && styles.disabledDay,
                     ]}
-                    onPress={() => !isDisabled && handleDateSelect(date)}
-                    disabled={isDisabled}
+                    onPress={() => !isDisabled && !isMaxDatesReached && handleDateSelect(date)}
+                    disabled={isDisabled || isMaxDatesReached}
                   >
                     <Text style={[
                       styles.dayText,
                       isDateAlreadySelected && styles.selectedDayText,
-                      isTodayDate && !isDateAlreadySelected && !isDisabled && styles.todayDayText,
-                      isDisabled && styles.disabledDayText,
+                      isTodayDate && !isDateAlreadySelected && !isDisabled && !isMaxDatesReached && styles.todayDayText,
+                      (isDisabled || isMaxDatesReached) && styles.disabledDayText,
                     ]}>
                       {index + 1}
                     </Text>
@@ -360,15 +380,37 @@ export default function ScheduleScreen() {
   ];
   
   // Duration options based on frequency
-  const getDurationOptions = (frequency: string): DurationOption[] => {
+  const getDurationOptions = (frequency: string, totalAmount?: string): DurationOption[] => {
     switch (frequency) {
       case 'daily':
+        const numericAmount = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+        const isAmountBelow50K = numericAmount > 0 && numericAmount < 50000;
+        
+        if (isAmountBelow50K) {
+          // Only allow 7 days for amounts below 50,000
+          return [
+            { value: 7, label: '1 Week', description: '7 daily payments' }
+          ];
+        }
+        
+        // Allow all options for amounts 50,000 and above
         return [
           { value: 7, label: '1 Week', description: '7 daily payments' },
           { value: 30, label: '1 Month', description: '30 daily payments' },
           { value: 90, label: '3 Months', description: '90 daily payments' }
         ];
       case 'weekly_specific':
+        const numericAmountWeekly = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+        const isAmountBelow50KWeekly = numericAmountWeekly > 0 && numericAmountWeekly < 50000;
+        
+        if (isAmountBelow50KWeekly) {
+          // Only allow 1 month and 3 months for amounts below 50K
+          return [
+            { value: 4, label: '1 Month', description: '4 weekly payments' },
+            { value: 12, label: '3 Months', description: '12 weekly payments' }
+          ];
+        }
+        
         return [
           { value: 4, label: '1 Month', description: '4 weekly payments' },
           { value: 12, label: '3 Months', description: '12 weekly payments' },
@@ -376,6 +418,17 @@ export default function ScheduleScreen() {
           { value: 52, label: '1 Year', description: '52 weekly payments' }
         ];
       case 'biweekly':
+        const numericAmountBiweekly = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+        const isAmountBelow50KBiweekly = numericAmountBiweekly > 0 && numericAmountBiweekly < 50000;
+        
+        if (isAmountBelow50KBiweekly) {
+          // Only allow 1 month and 3 months for amounts below 50K
+          return [
+            { value: 2, label: '1 Month', description: '2 bi-weekly payments' },
+            { value: 6, label: '3 Months', description: '6 bi-weekly payments' }
+          ];
+        }
+        
         return [
           { value: 2, label: '1 Month', description: '2 bi-weekly payments' },
           { value: 6, label: '3 Months', description: '6 bi-weekly payments' },
@@ -383,6 +436,17 @@ export default function ScheduleScreen() {
           { value: 26, label: '1 Year', description: '26 bi-weekly payments' }
         ];
       case 'end_of_month':
+        const numericAmountMonthly = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+        const isAmountBelow50KMonthly = numericAmountMonthly > 0 && numericAmountMonthly < 50000;
+        
+        if (isAmountBelow50KMonthly) {
+          // Only allow 1 month and 3 months for amounts below 50K
+          return [
+            { value: 1, label: '1 Month', description: '1 monthly payment' },
+            { value: 3, label: '3 Months', description: '3 monthly payments' }
+          ];
+        }
+        
         return [
           { value: 1, label: '1 Month', description: '1 monthly payment' },
           { value: 3, label: '3 Months', description: '3 monthly payments' },
@@ -437,10 +501,17 @@ export default function ScheduleScreen() {
       }
       
       // Set default duration based on frequency
-      const durationOptions = getDurationOptions(frequency);
+      const durationOptions = getDurationOptions(frequency, totalAmount);
       let defaultDuration;
       if (frequency === 'daily') {
-        defaultDuration = durationOptions.find(opt => opt.value === 30) || durationOptions[0];
+        const numericAmount = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+        const isAmountBelow50K = numericAmount > 0 && numericAmount < 50000;
+        
+        if (isAmountBelow50K) {
+          defaultDuration = durationOptions.find(opt => opt.value === 7) || durationOptions[0];
+        } else {
+          defaultDuration = durationOptions.find(opt => opt.value === 30) || durationOptions[0];
+        }
       } else {
         defaultDuration = durationOptions[durationOptions.length - 1];
       }
@@ -448,11 +519,11 @@ export default function ScheduleScreen() {
         setSelectedDuration(defaultDuration);
         setNumberOfPayouts(defaultDuration.value);
         if (totalAmount && totalAmount !== '0' && isYearlySplit) {
-          calculatePayoutAmount(totalAmount, defaultDuration.value);
+          calculatePayoutAmount(totalAmount, defaultDuration.value, frequency);
         }
       }
     }
-  }, [params.frequency, params.duration, totalAmount, isYearlySplit, calculatePayoutAmount]);
+  }, [params.frequency, params.duration, totalAmount, isYearlySplit]);
 
   // Initialize from params when editing (coming from review page)
   useEffect(() => {
@@ -568,7 +639,7 @@ export default function ScheduleScreen() {
         // Handle suggested duration
         if (params.suggestedDuration) {
           const duration = parseInt(params.suggestedDuration as string);
-          const durationOptions = getDurationOptions(frequency);
+          const durationOptions = getDurationOptions(frequency, totalAmount);
           const matchingDuration = durationOptions.find(opt => opt.value === duration);
           
           if (matchingDuration && matchingDuration.value !== lastSelectedDurationRef.current) {
@@ -576,13 +647,20 @@ export default function ScheduleScreen() {
             setSelectedDuration(matchingDuration);
             setNumberOfPayouts(duration);
             if (isYearlySplit) {
-              calculatePayoutAmount(amount, duration);
+              calculatePayoutAmount(amount, duration, frequency);
             }
           } else if (!matchingDuration) {
             // Fallback to default duration for the frequency
             let defaultDuration;
             if (frequency === 'daily') {
-              defaultDuration = durationOptions.find(opt => opt.value === 30) || durationOptions[0];
+              const numericAmount = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+              const isAmountBelow50K = numericAmount > 0 && numericAmount < 50000;
+              
+              if (isAmountBelow50K) {
+                defaultDuration = durationOptions.find(opt => opt.value === 7) || durationOptions[0];
+              } else {
+                defaultDuration = durationOptions.find(opt => opt.value === 30) || durationOptions[0];
+              }
             } else {
               defaultDuration = durationOptions[durationOptions.length - 1];
             }
@@ -591,13 +669,13 @@ export default function ScheduleScreen() {
               setSelectedDuration(defaultDuration);
               setNumberOfPayouts(defaultDuration.value);
               if (isYearlySplit) {
-                calculatePayoutAmount(amount, defaultDuration.value);
+                calculatePayoutAmount(amount, defaultDuration.value, frequency);
               }
             }
           }
         } else {
           // No suggested duration, use default for the frequency
-          const durationOptions = getDurationOptions(frequency);
+          const durationOptions = getDurationOptions(frequency, totalAmount);
           let defaultDuration;
           if (frequency === 'daily') {
             defaultDuration = durationOptions.find(opt => opt.value === 30) || durationOptions[0];
@@ -609,7 +687,7 @@ export default function ScheduleScreen() {
             setSelectedDuration(defaultDuration);
             setNumberOfPayouts(defaultDuration.value);
             if (isYearlySplit) {
-              calculatePayoutAmount(amount, defaultDuration.value);
+              calculatePayoutAmount(amount, defaultDuration.value, frequency);
             }
           }
         }
@@ -623,14 +701,14 @@ export default function ScheduleScreen() {
         setSelectedSchedule('daily');
         lastSelectedScheduleRef.current = 'daily';
         if (isYearlySplit) {
-          calculatePayoutAmount(amount, 30); // Default to 30 days for daily
+          calculatePayoutAmount(amount, 30, 'daily'); // Default to 30 days for daily
         }
         setTimeout(() => {
           isInitializingRef.current = false;
         }, 100);
       }
     }
-  }, [params.totalAmount, params.suggestedFrequency, params.suggestedDuration, params.frequency, params.duration, params.payoutAmount, totalAmount, selectedSchedule, isYearlySplit, calculatePayoutAmount]);
+  }, [params.totalAmount, params.suggestedFrequency, params.suggestedDuration, params.frequency, params.duration, params.payoutAmount, totalAmount, selectedSchedule, isYearlySplit]);
   
   // Update duration options when frequency changes (but not when coming from AI suggestions)
   useEffect(() => {
@@ -658,12 +736,21 @@ export default function ScheduleScreen() {
     isUpdatingDurationRef.current = true;
     lastSelectedScheduleRef.current = selectedSchedule;
     
-    const durationOptions = getDurationOptions(selectedSchedule || '');
+    const durationOptions = getDurationOptions(selectedSchedule || '', totalAmount);
     
-    // For daily frequency, default to 30 days (1 month) instead of the longest duration
+    // For daily frequency, default based on amount
     let defaultDuration;
     if (selectedSchedule === 'daily') {
-      defaultDuration = durationOptions.find(opt => opt.value === 30) || durationOptions[0];
+      const numericAmount = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+      const isAmountBelow50K = numericAmount > 0 && numericAmount < 50000;
+      
+      if (isAmountBelow50K) {
+        // Default to 7 days for amounts below 50K
+        defaultDuration = durationOptions.find(opt => opt.value === 7) || durationOptions[0];
+      } else {
+        // Default to 30 days (1 month) for amounts 50K and above
+        defaultDuration = durationOptions.find(opt => opt.value === 30) || durationOptions[0];
+      }
     } else {
       defaultDuration = durationOptions[durationOptions.length - 1]; // Default to the longest duration for other frequencies
     }
@@ -675,7 +762,7 @@ export default function ScheduleScreen() {
       setNumberOfPayouts(defaultDuration.value);
       
       if (isYearlySplit && totalAmount && totalAmount !== '0') {
-        calculatePayoutAmount(totalAmount, defaultDuration.value);
+        calculatePayoutAmount(totalAmount, defaultDuration.value, selectedSchedule);
       }
     }
     
@@ -685,17 +772,78 @@ export default function ScheduleScreen() {
     }, 100);
   }, [selectedSchedule, params.suggestedFrequency, params.suggestedDuration, params.frequency, params.duration, params.payoutAmount, totalAmount, isYearlySplit]);
 
-  const calculatePayoutAmount = useCallback((total: string, payouts: number) => {
+  // Reset duration if amount drops below 50K and invalid duration is selected
+  useEffect(() => {
+    const numericAmount = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+    const isAmountBelow50K = numericAmount > 0 && numericAmount < 50000;
+    
+    if (!isAmountBelow50K) return; // No need to check if amount is 50K or above
+    
+    const durationOptions = getDurationOptions(selectedSchedule || '', totalAmount);
+    const currentDurationExists = durationOptions.some(opt => opt.value === selectedDuration.value);
+    
+    // If current duration is not in available options, reset to first available option
+    if (!currentDurationExists && durationOptions.length > 0) {
+      const defaultOption = durationOptions[0];
+      setSelectedDuration(defaultOption);
+      setNumberOfPayouts(defaultOption.value);
+      
+      if (isYearlySplit && totalAmount && totalAmount !== '0') {
+        calculatePayoutAmount(totalAmount, defaultOption.value, selectedSchedule);
+      }
+    }
+  }, [totalAmount, selectedSchedule, selectedDuration.value, isYearlySplit]);
+
+  // Fetch fee percentage for a given frequency
+  const fetchFeePercentage = useCallback(async (frequency: string): Promise<number> => {
+    try {
+      // Map frequency to database frequency type
+      const dbFrequency: PayoutFeeFrequency = frequency === 'weekly_specific' ? 'weekly_specific' : 
+                                              frequency === 'end_of_month' ? 'end_of_month' :
+                                              frequency as PayoutFeeFrequency;
+      
+      const { data, error } = await supabase
+        .from('payout_fees')
+        .select('fee_percentage')
+        .eq('frequency', dbFrequency)
+        .eq('is_active', true)
+        .single();
+      
+      if (error || !data) {
+        console.warn('Error fetching fee percentage, using 0:', error);
+        return 0;
+      }
+      
+      return data.fee_percentage || 0;
+    } catch (error) {
+      console.error('Error fetching fee percentage:', error);
+      return 0;
+    }
+  }, []);
+
+  const calculatePayoutAmount = useCallback(async (total: string, payouts: number, frequency?: string) => {
     const numericTotal = parseFloat(total.replace(/,/g, ''));
     if (!isNaN(numericTotal) && payouts > 0) {
-      // Calculate base amount per payout
-      const baseAmount = numericTotal / payouts;
+      // Get the frequency to use (from parameter or selectedSchedule)
+      const freq = frequency || selectedSchedule || 'daily';
       
-      // Round DOWN to 2 decimal places to ensure we don't exceed the total
+      // Fetch fee percentage for this frequency
+      const feePercentage = await fetchFeePercentage(freq);
+      
+      // Calculate fee amount
+      const feeAmount = numericTotal * (feePercentage / 100);
+      
+      // Calculate net amount after fee deduction
+      const netAmount = numericTotal - feeAmount;
+      
+      // Calculate base amount per payout from net amount
+      const baseAmount = netAmount / payouts;
+      
+      // Round DOWN to 2 decimal places to ensure we don't exceed the net amount
       // This prevents issues where rounded up amounts exceed the available balance
       const roundedDown = Math.floor(baseAmount * 100) / 100;
       
-      // Format the rounded down amount (this ensures payoutAmount * payouts <= totalAmount)
+      // Format the rounded down amount (this ensures payoutAmount * payouts <= netAmount)
       const formattedAmount = roundedDown.toLocaleString(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
@@ -706,7 +854,7 @@ export default function ScheduleScreen() {
         setPayoutAmount(formattedAmount);
       }
     }
-  }, [payoutAmount]);
+  }, [payoutAmount, selectedSchedule, fetchFeePercentage]);
 
   const handleCustomAmountChange = (amount: string) => {
     setCustomAmount(amount);
@@ -734,7 +882,7 @@ export default function ScheduleScreen() {
     setIsYearlySplit(!isYearlySplit);
     if (!isYearlySplit && totalAmount && totalAmount !== '0') {
       setNumberOfPayouts(selectedDuration.value);
-      calculatePayoutAmount(totalAmount, selectedDuration.value);
+      calculatePayoutAmount(totalAmount, selectedDuration.value, selectedSchedule);
       setCustomAmount('');
     }
   };
@@ -841,12 +989,19 @@ export default function ScheduleScreen() {
     setSelectedSchedule(schedule);
     
     // Reset duration options based on new frequency
-    const durationOptions = getDurationOptions(schedule || '');
+    const durationOptions = getDurationOptions(schedule || '', totalAmount);
     
-    // For daily frequency, default to 30 days (1 month) instead of the longest duration
+    // For daily frequency, default based on amount
     let defaultDuration;
     if (schedule === 'daily') {
-      defaultDuration = durationOptions.find(opt => opt.value === 30) || durationOptions[0];
+      const numericAmount = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+      const isAmountBelow50K = numericAmount > 0 && numericAmount < 50000;
+      
+      if (isAmountBelow50K) {
+        defaultDuration = durationOptions.find(opt => opt.value === 7) || durationOptions[0];
+      } else {
+        defaultDuration = durationOptions.find(opt => opt.value === 30) || durationOptions[0];
+      }
     } else {
       defaultDuration = durationOptions[durationOptions.length - 1]; // Default to the longest duration for other frequencies
     }
@@ -858,7 +1013,7 @@ export default function ScheduleScreen() {
       setNumberOfPayouts(defaultDuration.value);
       
       if (isYearlySplit && totalAmount && totalAmount !== '0') {
-        calculatePayoutAmount(totalAmount, defaultDuration.value);
+        calculatePayoutAmount(totalAmount, defaultDuration.value, selectedSchedule);
       }
     }
     
@@ -896,9 +1051,13 @@ export default function ScheduleScreen() {
     // Toggle date selection - add if not present, remove if present
     let newDates: string[];
     if (customDates.includes(date)) {
-      // Remove the date
+      // Remove the date (always allow deselection)
       newDates = customDates.filter(d => d !== date);
     } else {
+      // Prevent adding more than 7 dates
+      if (customDates.length >= 7) {
+        return; // Don't allow adding more than 7 dates
+      }
       // Add the date and sort
       newDates = [...customDates, date].sort((a, b) => {
         return new Date(a).getTime() - new Date(b).getTime();
@@ -906,7 +1065,7 @@ export default function ScheduleScreen() {
     }
     setCustomDates(newDates);
     setNumberOfPayouts(newDates.length || 1);
-    calculatePayoutAmount(totalAmount, newDates.length || 1);
+    calculatePayoutAmount(totalAmount, newDates.length || 1, selectedSchedule);
     // Keep the picker open for multiple selections
   };
 
@@ -915,7 +1074,7 @@ export default function ScheduleScreen() {
     setCustomDates(newDates);
     const newNumberOfPayouts = newDates.length || 1;
     setNumberOfPayouts(newNumberOfPayouts);
-    calculatePayoutAmount(totalAmount, newNumberOfPayouts);
+    calculatePayoutAmount(totalAmount, newNumberOfPayouts, selectedSchedule);
   };
 
   const handleDayOfWeekSelect = (dayValue: number) => {
@@ -939,7 +1098,7 @@ export default function ScheduleScreen() {
     setNumberOfPayouts(duration.value);
     
     if (isYearlySplit && totalAmount && totalAmount !== '0') {
-      calculatePayoutAmount(totalAmount, duration.value);
+      calculatePayoutAmount(totalAmount, duration.value, selectedSchedule);
     }
     
     setShowDurationPicker(false);
@@ -1287,7 +1446,17 @@ export default function ScheduleScreen() {
 
           {selectedSchedule === 'custom' && (
             <View style={styles.customDatesSection}>
-              <Text style={styles.customDatesTitle}>Selected Dates</Text>
+              <Text style={styles.customDatesTitle}>
+                Selected Dates ({customDates.length}/7)
+              </Text>
+              
+              {customDates.length >= 7 && (
+                <View style={styles.maxDatesWarning}>
+                  <Text style={styles.maxDatesWarningText}>
+                    Maximum of 7 dates selected. Remove a date to add another.
+                  </Text>
+                </View>
+              )}
               
               {customDates.map((date, index) => (
                 <View key={index} style={styles.dateItem}>
@@ -1305,11 +1474,20 @@ export default function ScheduleScreen() {
               ))}
 
               <Pressable 
-                style={styles.addDateButton}
+                style={[
+                  styles.addDateButton,
+                  customDates.length >= 7 && styles.addDateButtonDisabled
+                ]}
                 onPress={handleAddDate}
+                disabled={customDates.length >= 7}
               >
-                <Plus size={20} color="#1E3A8A" />
-                <Text style={styles.addDateText}>Add Date</Text>
+                <Plus size={20} color={customDates.length >= 7 ? colors.textSecondary : "#1E3A8A"} />
+                <Text style={[
+                  styles.addDateText,
+                  customDates.length >= 7 && styles.addDateTextDisabled
+                ]}>
+                  Add Date
+                </Text>
               </Pressable>
             </View>
           )}
@@ -1336,7 +1514,7 @@ export default function ScheduleScreen() {
               
               {showDurationPicker && (
                 <View style={styles.durationOptions}>
-                  {getDurationOptions(selectedSchedule || '').map((option) => (
+                  {getDurationOptions(selectedSchedule || '', totalAmount).map((option) => (
                     <Pressable
                       key={option.value}
                       style={[
@@ -1418,14 +1596,14 @@ export default function ScheduleScreen() {
                   You'll receive {numberOfPayouts} payout{numberOfPayouts !== 1 ? 's' : ''} of ₦{payoutAmount} every {DAYS_OF_WEEK.find(day => day.value === selectedDayOfWeek)?.label.toLowerCase().replace('every ', '') || 'week'} totalling ₦{parseFloat(totalAmount.replace(/,/g, '')).toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
-                  })}
+                  })} plus fees.
                 </>
               ) : (
                 <>
                   You'll receive {numberOfPayouts} {getFrequencyLabel()} payout{numberOfPayouts !== 1 ? 's' : ''} of ₦{payoutAmount} totalling ₦{parseFloat(totalAmount.replace(/,/g, '')).toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
-                  })}
+                  })} plus fees.
                 </>
               )}
             </Text>
@@ -1870,6 +2048,26 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     fontSize: 14,
     color: '#1E3A8A',
     fontWeight: '500',
+  },
+  addDateButtonDisabled: {
+    backgroundColor: colors.backgroundTertiary,
+    opacity: 0.5,
+  },
+  addDateTextDisabled: {
+    color: colors.textSecondary,
+  },
+  maxDatesWarning: {
+    backgroundColor: colors.warningLight || '#FEF3C7',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.warning || '#F59E0B',
+  },
+  maxDatesWarningText: {
+    fontSize: 13,
+    color: colors.warning || '#F59E0B',
+    textAlign: 'center',
   },
   amountContainer: {
     marginBottom: 24,

@@ -196,7 +196,7 @@ export default function AIAssistantScreen() {
   const { banks } = useBanks();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const isInitialMount = useRef(true);
-
+  
   // Add frequency options
   const frequencyOptions = [
     'daily',
@@ -417,7 +417,7 @@ export default function AIAssistantScreen() {
     };
 
     setMessages(prev => [...prev, userMessage]);
-    setInputText('');
+      setInputText('');
     setShowSuggestions(false);
     setIsTyping(true);
     setError(null);
@@ -485,7 +485,7 @@ export default function AIAssistantScreen() {
       generatePlanResponse(lastUserMessage, { availableBalance, balance, lockedBalance });
     } else if (lastType === 'insight') {
       generateInsightResponse(lastUserMessage, { availableBalance, balance, lockedBalance });
-    } else {
+        } else {
       generateTextResponse(lastUserMessage, { availableBalance, balance, lockedBalance });
     }
   };
@@ -798,9 +798,9 @@ export default function AIAssistantScreen() {
         aiMessage = {
           id: Date.now().toString(),
           content: "I'd be happy to help you create a payout plan! Could you please be more specific about what you'd like to plan? For example:\n\n• \"Plan 50k for 3 months\"\n• \"Create a weekly payout schedule for 100k\"\n• \"Help me plan 200k over 6 months\"\n\nWhat amount and timeframe are you thinking about?",
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
+            sender: 'ai',
+            type: 'text',
+            timestamp: new Date(),
         };
       }
     } catch (err: any) {
@@ -1023,7 +1023,7 @@ export default function AIAssistantScreen() {
       }
     };
     
-    setMessages(prev => [...prev, aiMessage]);
+        setMessages(prev => [...prev, aiMessage]);
     setIsTyping(false);
   };
 
@@ -1221,30 +1221,36 @@ export default function AIAssistantScreen() {
           description: `Schedule a payout of ₦${Math.ceil(targetAmount / timeframe).toLocaleString()} every day for ${timeframe} ${timeframe === 1 ? 'day' : 'days'}.`
         });
       } else {
-        // Default options for months
-        options.push(
-          {
-            title: "Daily Payout (7 days)",
-            amount: dailyAmount7,
-            frequency: "daily",
-            duration: 7,
-            description: `Schedule a payout of ₦${dailyAmount7.toLocaleString()} every day for 7 days.`
-          },
-          {
-            title: "Daily Payout (30 days)",
-            amount: dailyAmount30,
-            frequency: "daily",
-            duration: 30,
-            description: `Schedule a payout of ₦${dailyAmount30.toLocaleString()} every day for 30 days.`
-          },
-          {
-            title: "Daily Payout (90 days)",
-            amount: dailyAmount90,
-            frequency: "daily",
-            duration: 90,
-            description: `Schedule a payout of ₦${dailyAmount90.toLocaleString()} every day for 90 days.`
-          }
-        );
+        // Default options for months - only show 30 and 90 days if amount is 50K or above
+        const isAmountBelow50K = targetAmount < 50000;
+        
+        options.push({
+          title: "Daily Payout (7 days)",
+          amount: dailyAmount7,
+          frequency: "daily",
+          duration: 7,
+          description: `Schedule a payout of ₦${dailyAmount7.toLocaleString()} every day for 7 days.`
+        });
+        
+        // Only add 30 and 90 days options if amount is 50K or above
+        if (!isAmountBelow50K) {
+          options.push(
+            {
+              title: "Daily Payout (30 days)",
+              amount: dailyAmount30,
+              frequency: "daily",
+              duration: 30,
+              description: `Schedule a payout of ₦${dailyAmount30.toLocaleString()} every day for 30 days.`
+            },
+            {
+              title: "Daily Payout (90 days)",
+              amount: dailyAmount90,
+              frequency: "daily",
+              duration: 90,
+              description: `Schedule a payout of ₦${dailyAmount90.toLocaleString()} every day for 90 days.`
+            }
+          );
+        }
       }
       
       return options;
@@ -1343,28 +1349,49 @@ export default function AIAssistantScreen() {
         description: `Schedule a payout of ₦${Math.ceil(targetAmount / timeframe).toLocaleString()} every day for ${timeframe} ${timeframe === 1 ? 'day' : 'days'}.`
       });
     } else {
-      defaultOptions.push(
-        {
-          title: "Daily Payout (7 days)",
-          amount: dailyAmount7,
-          frequency: "daily",
-          duration: 7,
-          description: `Schedule a payout of ₦${dailyAmount7.toLocaleString()} every day for 7 days.`
-        },
-        {
+      // Only show 30 days option if amount is 50K or above
+      const isAmountBelow50K = targetAmount < 50000;
+      
+      defaultOptions.push({
+        title: "Daily Payout (7 days)",
+        amount: dailyAmount7,
+        frequency: "daily",
+        duration: 7,
+        description: `Schedule a payout of ₦${dailyAmount7.toLocaleString()} every day for 7 days.`
+      });
+      
+      // Only add 30 days option if amount is 50K or above
+      if (!isAmountBelow50K) {
+        defaultOptions.push({
           title: "Daily Payout (30 days)",
           amount: dailyAmount30,
           frequency: "daily",
           duration: 30,
           description: `Schedule a payout of ₦${dailyAmount30.toLocaleString()} every day for 30 days.`
-        }
-      );
+        });
+      }
     }
     
     // Build all possible options
+    const isAmountBelow50K = targetAmount < 50000;
+    const monthsEquivalent = timeframeUnit === 'weeks' ? timeframe / 4.33 : timeframeUnit === 'days' ? timeframe / 30 : timeframe;
+    
+    // Calculate durations for weekly and biweekly
+    const weeklyDuration = timeframeUnit === 'weeks' ? timeframe : timeframeUnit === 'days' ? Math.ceil(timeframe / 7) : Math.ceil(timeframe * 4.33);
+    const biweeklyDuration = timeframeUnit === 'weeks' ? Math.ceil(timeframe / 2) : timeframeUnit === 'days' ? Math.ceil(timeframe / 14) : Math.ceil(timeframe * 2);
+    
+    // Weekly: 24 weeks = 6 months, 52 weeks = 1 year
+    // Biweekly: 12 periods = 6 months, 26 periods = 1 year
+    const canAddWeekly = !isAmountBelow50K || (weeklyDuration !== 24 && weeklyDuration !== 52);
+    const canAddBiweekly = !isAmountBelow50K || (biweeklyDuration !== 12 && biweeklyDuration !== 26);
+    
     const allOptions = [
-      ...defaultOptions,
-      {
+      ...defaultOptions
+    ];
+    
+    // Only add weekly if duration is allowed (not 6 months or 1 year when amount < 50K)
+    if (canAddWeekly) {
+      allOptions.push({
         title: "Weekly Payout",
         amount: weeklyAmount,
         frequency: "weekly",
@@ -1374,8 +1401,12 @@ export default function AIAssistantScreen() {
           : timeframeUnit === 'days'
           ? `Schedule a payout of ₦${weeklyAmount.toLocaleString()} every week for ${Math.ceil(timeframe / 7)} ${Math.ceil(timeframe / 7) === 1 ? 'week' : 'weeks'}.`
           : `Schedule a payout of ₦${weeklyAmount.toLocaleString()} every week for ${timeframe} ${timeframe === 1 ? 'month' : 'months'}.`
-      },
-      {
+      });
+    }
+    
+    // Only add biweekly if duration is allowed (not 6 months or 1 year when amount < 50K)
+    if (canAddBiweekly) {
+      allOptions.push({
         title: "Bi-weekly Payout",
         amount: biweeklyAmount,
         frequency: "biweekly",
@@ -1384,33 +1415,42 @@ export default function AIAssistantScreen() {
           : timeframeUnit === 'days'
           ? `Schedule a payout of ₦${biweeklyAmount.toLocaleString()} every two weeks for ${Math.ceil(timeframe / 14)} ${Math.ceil(timeframe / 14) === 1 ? 'bi-weekly period' : 'bi-weekly periods'}.`
           : `Schedule a payout of ₦${biweeklyAmount.toLocaleString()} every two weeks for ${timeframe} ${timeframe === 1 ? 'month' : 'months'}.`
-      }
-    ];
+      });
+    }
     
     // Only add monthly options if timeframe is long enough (at least 1 month equivalent)
-    const monthsEquivalent = timeframeUnit === 'weeks' ? timeframe / 4.33 : timeframeUnit === 'days' ? timeframe / 30 : timeframe;
     if (monthsEquivalent >= 1) {
-      allOptions.push({
-        title: "Monthly Payout",
-        amount: monthlyAmount,
-        frequency: "monthly",
-        description: timeframeUnit === 'weeks' 
-          ? `Schedule a payout of ₦${monthlyAmount.toLocaleString()} every month for ${Math.ceil(timeframe / 4.33)} ${Math.ceil(timeframe / 4.33) === 1 ? 'month' : 'months'}.`
-          : timeframeUnit === 'days'
-          ? `Schedule a payout of ₦${monthlyAmount.toLocaleString()} every month for ${Math.ceil(timeframe / 30)} ${Math.ceil(timeframe / 30) === 1 ? 'month' : 'months'}.`
-          : `Schedule a payout of ₦${monthlyAmount.toLocaleString()} every month for ${timeframe} ${timeframe === 1 ? 'month' : 'months'}.`
-      });
+      // For monthly, only allow up to 3 months if amount < 50K
+      const maxMonthsForMonthly = isAmountBelow50K ? 3 : 12;
+      const calculatedMonths = timeframeUnit === 'weeks' 
+        ? Math.ceil(timeframe / 4.33) 
+        : timeframeUnit === 'days'
+        ? Math.ceil(timeframe / 30)
+        : timeframe;
       
-      allOptions.push({
-        title: "End-of-Month Payout",
-        amount: endOfMonthAmount,
-        frequency: "end_of_month",
-        description: timeframeUnit === 'weeks' 
-          ? `Schedule a payout of ₦${endOfMonthAmount.toLocaleString()} at the end of each month for ${Math.ceil(timeframe / 4.33)} ${Math.ceil(timeframe / 4.33) === 1 ? 'month' : 'months'}.`
-          : timeframeUnit === 'days'
-          ? `Schedule a payout of ₦${endOfMonthAmount.toLocaleString()} at the end of each month for ${Math.ceil(timeframe / 30)} ${Math.ceil(timeframe / 30) === 1 ? 'month' : 'months'}.`
-          : `Schedule a payout of ₦${endOfMonthAmount.toLocaleString()} at the end of each month for ${timeframe} ${timeframe === 1 ? 'month' : 'months'}.`
-      });
+      if (calculatedMonths <= maxMonthsForMonthly) {
+        allOptions.push({
+          title: "Monthly Payout",
+          amount: monthlyAmount,
+          frequency: "monthly",
+          description: timeframeUnit === 'weeks' 
+            ? `Schedule a payout of ₦${monthlyAmount.toLocaleString()} every month for ${calculatedMonths} ${calculatedMonths === 1 ? 'month' : 'months'}.`
+            : timeframeUnit === 'days'
+            ? `Schedule a payout of ₦${monthlyAmount.toLocaleString()} every month for ${calculatedMonths} ${calculatedMonths === 1 ? 'month' : 'months'}.`
+            : `Schedule a payout of ₦${monthlyAmount.toLocaleString()} every month for ${calculatedMonths} ${calculatedMonths === 1 ? 'month' : 'months'}.`
+        });
+        
+        allOptions.push({
+          title: "End-of-Month Payout",
+          amount: endOfMonthAmount,
+          frequency: "end_of_month",
+          description: timeframeUnit === 'weeks' 
+            ? `Schedule a payout of ₦${endOfMonthAmount.toLocaleString()} at the end of each month for ${calculatedMonths} ${calculatedMonths === 1 ? 'month' : 'months'}.`
+            : timeframeUnit === 'days'
+            ? `Schedule a payout of ₦${endOfMonthAmount.toLocaleString()} at the end of each month for ${calculatedMonths} ${calculatedMonths === 1 ? 'month' : 'months'}.`
+            : `Schedule a payout of ₦${endOfMonthAmount.toLocaleString()} at the end of each month for ${calculatedMonths} ${calculatedMonths === 1 ? 'month' : 'months'}.`
+        });
+      }
       
       // Only add first of month if explicitly requested
       if (wantsFirstOfMonth) {
@@ -1475,10 +1515,10 @@ export default function AIAssistantScreen() {
         aiMessage = {
           id: Date.now().toString(),
           content: "I'd be happy to help you analyze your finances! Could you please be more specific about what you'd like to know? For example:\n\n• \"Analyze my spending patterns\"\n• \"How can I improve my money habits?\"\n• \"What are my financial insights?\"\n\nWhat specific aspect of your finances would you like me to help you with?",
-          sender: 'ai',
-          type: 'text',
-          timestamp: new Date(),
-        };
+        sender: 'ai',
+        type: 'text',
+        timestamp: new Date(),
+      };
       }
     } catch (err: any) {
       console.error('AI Insight Response Error:', {
@@ -1553,7 +1593,7 @@ export default function AIAssistantScreen() {
       };
     }
     if (aiMessage) setMessages(prev => [...prev, aiMessage]);
-    setIsTyping(false);
+      setIsTyping(false);
   };
 
   // Helper functions to extract information from user messages
@@ -1951,7 +1991,7 @@ export default function AIAssistantScreen() {
         ]);
 
         // Reset state after a delay
-        setTimeout(() => {
+    setTimeout(() => {
           setPlanCreationStep('idle');
           setPlanDraft(null);
           setSelectedAccount(null);
@@ -2324,8 +2364,8 @@ export default function AIAssistantScreen() {
               styles.messageText,
               isUser ? styles.userText : [styles.aiText, { color: colors.text }]
             ]}>
-              {message.content}
-            </Text>
+                  {message.content}
+                </Text>
             {!isUser && (
               <View style={styles.aiBadgeContainer}>
               </View>
