@@ -31,6 +31,9 @@ export default function EmergencyWithdrawalScreen() {
   const [showPinVerification, setShowPinVerification] = useState(false);
   const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
   const [biometricSupport, setBiometricSupport] = useState<any>(null);
+  // CRITICAL: Local state to prevent duplicate submissions (race condition guard)
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
   
   // Memoize styles to prevent recreation on every render
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -159,26 +162,41 @@ export default function EmergencyWithdrawalScreen() {
   }, [haptics]);
 
   const handleConfirmWithdrawal = useCallback(async () => {
-    if (!selectedOption || !plan) return;
+    // CRITICAL: Prevent duplicate submissions
+    if (isSubmitting || hasSubmitted || !selectedOption || !plan) return;
     
-    const withdrawalAmount = getWithdrawalAmount();
+    setIsSubmitting(true);
     
-    // Process the emergency withdrawal
-    const result = await processEmergencyWithdrawal({
-      planId: plan.id,
-      planName: plan.name,
-      withdrawalAmount,
-      option: selectedOption,
-      // Use the plan's configured account (payout_account_id or bank_account_id)
-      payoutAccountId: plan.payout_account_id || undefined,
-      bankAccountId: plan.bank_account_id || undefined
-    });
-    
-    // Navigation is handled by the hook if successful
-    if (!result.success) {
-      console.error('Emergency withdrawal failed:', result.error);
+    try {
+      const withdrawalAmount = getWithdrawalAmount();
+      
+      // Process the emergency withdrawal
+      const result = await processEmergencyWithdrawal({
+        planId: plan.id,
+        planName: plan.name,
+        withdrawalAmount,
+        option: selectedOption,
+        // Use the plan's configured account (payout_account_id or bank_account_id)
+        payoutAccountId: plan.payout_account_id || undefined,
+        bankAccountId: plan.bank_account_id || undefined
+      });
+      
+      // Mark as submitted on success to prevent any further attempts
+      if (result.success) {
+        setHasSubmitted(true);
+      }
+      
+      // Navigation is handled by the hook if successful
+      if (!result.success) {
+        console.error('Emergency withdrawal failed:', result.error);
+        // Reset submitting state on error to allow retry
+        setIsSubmitting(false);
+      }
+    } catch (error) {
+      console.error('Error in handleConfirmWithdrawal:', error);
+      setIsSubmitting(false);
     }
-  }, [selectedOption, plan, getWithdrawalAmount, processEmergencyWithdrawal]);
+  }, [selectedOption, plan, getWithdrawalAmount, processEmergencyWithdrawal, isSubmitting, hasSubmitted]);
 
   const attemptBiometricAuthentication = useCallback(async () => {
     try {
@@ -243,7 +261,8 @@ export default function EmergencyWithdrawalScreen() {
   }, [haptics, handleConfirmWithdrawal]);
 
   const handleConfirm = useCallback(async () => {
-    if (!selectedOption || !plan) return;
+    // CRITICAL: Prevent duplicate clicks - check both local and hook loading states
+    if (!selectedOption || !plan || isSubmitting || hasSubmitted || isLoading) return;
     
     haptics.mediumImpact();
     
@@ -269,7 +288,7 @@ export default function EmergencyWithdrawalScreen() {
       // Fall back to PIN verification
       setShowPinVerification(true);
     }
-  }, [selectedOption, plan, haptics, emergencyBiometricEnabled, biometricSupport, attemptBiometricAuthentication, hasEmergencyPin, hasAppLockPin, handleConfirmWithdrawal]);
+  }, [selectedOption, plan, haptics, emergencyBiometricEnabled, biometricSupport, attemptBiometricAuthentication, hasEmergencyPin, hasAppLockPin, handleConfirmWithdrawal, isSubmitting, hasSubmitted, isLoading]);
 
   const handlePinVerificationSuccess = useCallback(async () => {
     setShowPinVerification(false);
@@ -486,7 +505,9 @@ export default function EmergencyWithdrawalScreen() {
           title={
             isWithdrawalDisabled 
               ? `Wait ${Math.floor(hoursRemaining)}h ${Math.round((hoursRemaining % 1) * 60)}m`
-              : isLoading 
+              : hasSubmitted
+                ? "Request Submitted"
+              : isLoading || isSubmitting
                 ? "Processing..." 
                 : isBiometricAuthenticating 
                   ? "Authenticating..." 
@@ -494,8 +515,8 @@ export default function EmergencyWithdrawalScreen() {
           }
           onPress={handleConfirm}
           style={styles.confirmButton}
-          disabled={isWithdrawalDisabled || !selectedOption || isLoading || isBiometricAuthenticating}
-          isLoading={isLoading || isBiometricAuthenticating}
+          disabled={isWithdrawalDisabled || !selectedOption || isLoading || isBiometricAuthenticating || isSubmitting || hasSubmitted}
+          isLoading={isLoading || isBiometricAuthenticating || isSubmitting}
           hapticType="medium"
         />
         <Button
@@ -808,9 +829,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   disabledOption: {
     opacity: 0.5,
-  },
-  disabledText: {
-    color: colors.textSecondary,
   },
   timeInfoCard: {
     backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',

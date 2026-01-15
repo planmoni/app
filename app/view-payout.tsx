@@ -37,6 +37,7 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
+import { useEmergencyWithdrawal } from '@/hooks/useEmergencyWithdrawal';
 import * as Haptics from 'expo-haptics';
 import { formatPayoutFrequency } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
@@ -49,12 +50,15 @@ export default function ViewPayoutScreen() {
   const { showBalances, toggleBalances } = useBalance();
   const haptics = useHaptics();
   const { showToast } = useToast();
+  const { checkExistingWithdrawal, isLoading: isWithdrawalLoading } = useEmergencyWithdrawal();
   
   const [isEditing, setIsEditing] = useState(false);
   const [payoutName, setPayoutName] = useState('');
   const [payoutDescription, setPayoutDescription] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'settings'>('overview');
+  const [isCheckingWithdrawal, setIsCheckingWithdrawal] = useState(false);
+  const [hasExistingWithdrawal, setHasExistingWithdrawal] = useState(false);
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -63,6 +67,26 @@ export default function ViewPayoutScreen() {
 
   const plan = payoutPlans.find(p => p.id === id);
   const styles = createStyles(colors, isDark);
+
+  // Check for existing emergency withdrawals when plan is loaded
+  useEffect(() => {
+    const checkWithdrawal = async () => {
+      if (!plan?.id) return;
+      
+      setIsCheckingWithdrawal(true);
+      try {
+        const existing = await checkExistingWithdrawal(plan.id);
+        setHasExistingWithdrawal(existing.exists);
+      } catch (error) {
+        console.error('Error checking existing withdrawal:', error);
+        setHasExistingWithdrawal(false);
+      } finally {
+        setIsCheckingWithdrawal(false);
+      }
+    };
+    
+    checkWithdrawal();
+  }, [plan?.id, checkExistingWithdrawal]);
 
   useEffect(() => {
     if (plan) {
@@ -215,7 +239,7 @@ export default function ViewPayoutScreen() {
   };
 
 
-  const handleEmergencyWithdrawal = () => {
+  const handleEmergencyWithdrawal = async () => {
     haptics.notification(Haptics.NotificationFeedbackType.Warning);
     
     // Check if emergency withdrawal is enabled for this plan
@@ -223,6 +247,21 @@ export default function ViewPayoutScreen() {
       Alert.alert(
         "Emergency Withdrawal Not Available",
         "This payout plan does not have emergency withdrawal enabled. You can enable this feature when creating new payout plans.",
+        [{ text: "OK", style: "default" }]
+      );
+      return;
+    }
+    
+    // CRITICAL: Check for existing withdrawals before navigation
+    if (isCheckingWithdrawal) {
+      showToast('Please wait while we check for existing requests...', 'info');
+      return;
+    }
+    
+    if (hasExistingWithdrawal) {
+      Alert.alert(
+        "Withdrawal Already Requested",
+        "An emergency withdrawal request for this payout plan is already in progress or has been completed. Please check your withdrawal history.",
         [{ text: "OK", style: "default" }]
       );
       return;
@@ -648,16 +687,20 @@ export default function ViewPayoutScreen() {
             <Pressable 
               style={[
                 styles.withdrawButton,
-                !plan.emergency_withdrawal_enabled && styles.disabledButton
+                (!plan.emergency_withdrawal_enabled || hasExistingWithdrawal || isCheckingWithdrawal) && styles.disabledButton
               ]}
               onPress={handleEmergencyWithdrawal}
-              disabled={!plan.emergency_withdrawal_enabled}
+              disabled={!plan.emergency_withdrawal_enabled || hasExistingWithdrawal || isCheckingWithdrawal || isWithdrawalLoading}
             >
               <Text style={[
                 styles.withdrawButtonText,
-                !plan.emergency_withdrawal_enabled && styles.disabledButtonText
+                (!plan.emergency_withdrawal_enabled || hasExistingWithdrawal || isCheckingWithdrawal) && styles.disabledButtonText
               ]}>
-                Request Emergency Withdrawal
+                {isCheckingWithdrawal 
+                  ? "Checking..." 
+                  : hasExistingWithdrawal 
+                    ? "Withdrawal Already Requested"
+                    : "Request Emergency Withdrawal"}
               </Text>
             </Pressable>
           </Animated.View>

@@ -39,6 +39,35 @@ export function useEmergencyWithdrawal() {
     return Math.round((amount - fee) * 100) / 100; // Round to 2 decimal places
   };
 
+  // Check for existing pending or completed withdrawals for a plan
+  const checkExistingWithdrawal = async (planId: string): Promise<{ exists: boolean; status?: string }> => {
+    try {
+      if (!session?.user?.id) {
+        return { exists: false };
+      }
+
+      const { data, error } = await supabase
+        .from('emergency_withdrawals')
+        .select('id, status')
+        .eq('user_id', session.user.id)
+        .eq('payout_plan_id', planId)
+        .in('status', ['pending', 'processing', 'completed', 'scheduled'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking existing withdrawal:', error);
+        return { exists: false };
+      }
+
+      return { exists: !!data, status: data?.status };
+    } catch (err) {
+      console.error('Error in checkExistingWithdrawal:', err);
+      return { exists: false };
+    }
+  };
+
   const processEmergencyWithdrawal = async (request: EmergencyWithdrawalRequest) => {
     try {
       setIsLoading(true);
@@ -46,6 +75,24 @@ export function useEmergencyWithdrawal() {
 
       if (!session?.user?.id) {
         throw new Error('User not authenticated');
+      }
+
+      // CRITICAL: Check for existing pending/completed withdrawals before processing
+      // This is a client-side guard. The backend Edge Function also has checks, but
+      // this prevents unnecessary API calls and provides immediate user feedback.
+      // 
+      // BACKEND SAFEGUARD RECOMMENDATION:
+      // The Edge Function (process-emergency-withdrawal) should also check for existing
+      // withdrawals with status 'pending', 'processing', 'scheduled', or 'completed'
+      // before processing. Consider adding a database constraint or unique index on
+      // (payout_plan_id, status) where status IN ('pending', 'processing', 'scheduled')
+      // to prevent duplicate pending withdrawals at the database level.
+      const existingCheck = await checkExistingWithdrawal(request.planId);
+      if (existingCheck.exists) {
+        const statusMessage = existingCheck.status === 'completed' 
+          ? 'An emergency withdrawal for this payout plan has already been completed.'
+          : 'An emergency withdrawal request for this payout plan is already in progress.';
+        throw new Error(statusMessage);
       }
 
       console.log('Processing emergency withdrawal:', request);
@@ -247,6 +294,7 @@ export function useEmergencyWithdrawal() {
     processEmergencyWithdrawal,
     getEmergencyWithdrawals,
     calculateFee,
-    calculateNetAmount
+    calculateNetAmount,
+    checkExistingWithdrawal
   };
 }

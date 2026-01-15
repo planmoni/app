@@ -10,151 +10,7 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useMonoDirectPay } from '@/hooks/useMonoDirectPay';
-import { MonoProvider, useMonoConnect } from '@mono.co/connect-react-native';
-
-// Inner component that uses Mono Connect hook
-function MonoDirectPayContent({ 
-  amount, 
-  monoAccountId, 
-  bankName, 
-  onSuccess, 
-  onError,
-  onConfigUpdate
-}: { 
-  amount: string; 
-  monoAccountId: string; 
-  bankName: string;
-  onSuccess: () => void;
-  onError: (error: string) => void;
-  onConfigUpdate?: (config: any) => void;
-}) {
-  const { init } = useMonoConnect();
-  const { initiatePayment, checkPaymentStatus, isLoading } = useMonoDirectPay();
-  const [paymentId, setPaymentId] = useState<string | null>(null);
-  const [paymentReference, setPaymentReference] = useState<string | null>(null);
-  const [isAuthorizing, setIsAuthorizing] = useState(false);
-
-  useEffect(() => {
-    const initMonoPayment = async () => {
-      try {
-        setIsAuthorizing(true);
-        const numericAmount = parseFloat(amount.replace(/,/g, ''));
-
-        // Initiate payment
-        const paymentResult = await initiatePayment({
-          accountId: monoAccountId,
-          amount: numericAmount,
-          description: `Payment of ₦${amount} from ${bankName}`,
-        });
-
-        setPaymentId(paymentResult.paymentId);
-        setPaymentReference(paymentResult.reference);
-
-        // Update Mono widget config with payment ID
-        const widgetConfig = {
-          publicKey: process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || '',
-          scope: 'payments' as const,
-          data: {
-            payment_id: paymentResult.paymentId
-          },
-          onClose: () => {
-            console.log('Mono widget closed');
-          },
-          onSuccess: () => {
-            console.log('Mono payment authorized');
-            checkPaymentAndComplete(paymentResult.reference);
-          },
-        };
-
-        // Update config if callback provided
-        if (onConfigUpdate) {
-          onConfigUpdate(widgetConfig);
-        }
-
-        // If payment completed immediately, handle success
-        if (paymentResult.isImmediatelyComplete) {
-          // Poll for confirmation
-          setTimeout(() => {
-            checkPaymentAndComplete(paymentResult.reference);
-          }, 2000);
-        } else {
-          // Open Mono widget for authorization
-          // Small delay to ensure config is set
-          setTimeout(() => {
-            init();
-          }, 1000);
-        }
-      } catch (error) {
-        console.error('Error initiating Mono payment:', error);
-        onError(error instanceof Error ? error.message : 'Failed to initiate payment');
-      } finally {
-        setIsAuthorizing(false);
-      }
-    };
-
-    initMonoPayment();
-  }, []);
-
-  const checkPaymentAndComplete = async (reference: string) => {
-    try {
-      // Poll for payment status
-      let attempts = 0;
-      const maxAttempts = 20;
-      const pollInterval = 3000;
-
-      const pollStatus = async (): Promise<boolean> => {
-        attempts++;
-        const statusResult = await checkPaymentStatus(reference);
-
-        if (statusResult.success) {
-          onSuccess();
-          return true;
-        }
-
-        if (attempts >= maxAttempts) {
-          onError('Payment verification timeout. Please check your wallet balance.');
-          return false;
-        }
-
-        return false;
-      };
-
-      // Initial check
-      const success = await pollStatus();
-      if (success) return;
-
-      // Continue polling
-      const interval = setInterval(async () => {
-        const success = await pollStatus();
-        if (success) {
-          clearInterval(interval);
-        }
-      }, pollInterval);
-
-      // Cleanup after max attempts
-      setTimeout(() => {
-        clearInterval(interval);
-      }, maxAttempts * pollInterval);
-    } catch (error) {
-      console.error('Error checking payment status:', error);
-      onError('Failed to verify payment status');
-    }
-  };
-
-  if (isAuthorizing || isLoading) {
-    return (
-      <View style={{ padding: 20, alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
-        <Text style={{ marginTop: 16, color: '#666' }}>
-          {isAuthorizing ? 'Initiating payment...' : 'Processing...'}
-        </Text>
-      </View>
-    );
-  }
-
-  return null;
-}
+// DirectPay removed - using DirectDebit with mandates instead
 
 export default function AuthorizationScreen() {
   const { colors } = useTheme();
@@ -175,13 +31,7 @@ export default function AuthorizationScreen() {
     try {
       setIsProcessing(true);
       
-      // SECURITY: For Mono DirectPay, payment is handled via webhook
-      // Client should NOT directly credit wallet - webhook will handle it
-      if (paymentType === 'mono-directpay') {
-        // Mono DirectPay is handled by the MonoDirectPayContent component
-        // This button should not be shown for Mono payments
-        return;
-      }
+      // DirectPay removed - using DirectDebit with mandates instead
 
       // For other payment methods, process normally
       const numericAmount = parseFloat(amount.replace(/,/g, ''));
@@ -207,13 +57,13 @@ export default function AuthorizationScreen() {
   const handleMonoSuccess = () => {
     haptics.success();
     refreshWallet();
-    router.replace({
-      pathname: '/deposit-flow/success',
-      params: {
-        amount,
-        methodTitle: `${bankName || 'Bank'} • DirectPay`
-      }
-    });
+      router.replace({
+        pathname: '/deposit-flow/success',
+        params: {
+          amount,
+          methodTitle: `${bankName || 'Bank'} • DirectDebit`
+        }
+      });
   };
 
   const handleMonoError = (error: string) => {
@@ -231,54 +81,13 @@ export default function AuthorizationScreen() {
       case 'bank-account':
         return 'Bank Account';
       case 'mono-pay':
-        return `${bankName || 'Bank'} • DirectPay`;
+        return `${bankName || 'Bank'} • DirectDebit`;
       default:
         return 'New Payment Method';
     }
   };
 
-  // For Mono DirectPay, show authorization widget
-  if (paymentType === 'mono-directpay' && monoAccountId) {
-    const monoPublicKey = process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || '';
-    
-    // Default Mono config - will be updated when payment is initiated
-    const defaultMonoConfig = monoConfig || {
-      publicKey: monoPublicKey,
-      scope: 'payments' as const,
-      data: {},
-      onClose: () => console.log('Mono widget closed'),
-      onSuccess: () => console.log('Mono payment authorized'),
-    };
-
-    return (
-      <SafeAreaView style={createStyles(colors).container} edges={['top']}>
-        <View style={createStyles(colors).header}>
-          <Pressable onPress={() => router.back()} style={createStyles(colors).backButton}>
-            <ArrowLeft size={24} color={colors.text} />
-          </Pressable>
-          <Text style={createStyles(colors).headerTitle}>Authorize Payment</Text>
-        </View>
-        {monoPublicKey ? (
-          <MonoProvider {...defaultMonoConfig}>
-            <MonoDirectPayContent
-              amount={amount}
-              monoAccountId={monoAccountId}
-              bankName={bankName || 'Bank Account'}
-              onSuccess={handleMonoSuccess}
-              onError={handleMonoError}
-              onConfigUpdate={setMonoConfig}
-            />
-          </MonoProvider>
-        ) : (
-          <View style={{ padding: 20 }}>
-            <Text style={{ color: colors.error }}>
-              Mono configuration error. Please contact support.
-            </Text>
-          </View>
-        )}
-      </SafeAreaView>
-    );
-  }
+  // DirectPay removed - using DirectDebit with mandates instead
 
   const styles = createStyles(colors);
 
@@ -357,13 +166,11 @@ export default function AuthorizationScreen() {
         </View>
       </KeyboardAvoidingWrapper>
 
-      {paymentType !== 'mono-directpay' && (
-        <FloatingButton 
-          title={isProcessing ? "Processing..." : "Fund wallet now"}
-          onPress={handleFundWallet}
-          disabled={isProcessing}
-        />
-      )}
+      <FloatingButton 
+        title={isProcessing ? "Processing..." : "Fund wallet now"}
+        onPress={handleFundWallet}
+        disabled={isProcessing}
+      />
       
       <SafeFooter />
     </SafeAreaView>

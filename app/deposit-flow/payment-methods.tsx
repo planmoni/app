@@ -24,7 +24,7 @@ export default function PaymentMethodsScreen() {
   const cardMethods = paymentMethods.filter(method => method.type === 'card');
   const bankMethods = paymentMethods.filter(method => method.type === 'bank');
   
-  // Get bank accounts with Mono account ID (for DirectPay)
+  // Get bank accounts with Mono account ID (for DirectDebit)
   const monoLinkedAccounts = bankAccounts.filter(account => account.mono_account_id);
 
   const handleMethodSelect = (methodId: string) => {
@@ -79,7 +79,7 @@ export default function PaymentMethodsScreen() {
     });
   };
 
-  const handleMonoDirectPay = (accountId: string, monoAccountId: string) => {
+  const handleMonoDirectDebit = (accountId: string, monoAccountId: string) => {
     haptics.mediumImpact();
     const account = bankAccounts.find(acc => acc.id === accountId);
     router.push({
@@ -248,7 +248,7 @@ export default function PaymentMethodsScreen() {
                     </View>
                   )}
 
-                  {/* Mono DirectPay - Linked Accounts with Mono */}
+                  {/* Mono DirectDebit - Linked Accounts with Mono */}
                   {monoLinkedAccounts.length > 0 && (
                     <View style={styles.methodTypeContainer}>
                       <View style={styles.methodTypeHeader}>
@@ -259,7 +259,7 @@ export default function PaymentMethodsScreen() {
                         <Pressable 
                           key={account.id}
                           style={styles.paymentMethod}
-                          onPress={() => handleMonoDirectPay(account.id, account.mono_account_id!)}
+                          onPress={() => handleMonoDirectDebit(account.id, account.mono_account_id!)}
                         >
                           <View style={styles.methodLeft}>
                             <View style={styles.methodIconContainer}>
@@ -270,7 +270,7 @@ export default function PaymentMethodsScreen() {
                                 {account.bank_name} •••• {account.account_number.slice(-4)}
                               </Text>
                               <Text style={styles.methodSubtitle}>
-                                {account.account_name} • DirectPay
+                                {account.account_name} • DirectDebit
                               </Text>
                             </View>
                           </View>

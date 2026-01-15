@@ -1,6 +1,6 @@
 /**
- * Mono DirectPay Authorization Screen
- * Handles payment initiation from linked Mono bank accounts
+ * Mono DirectDebit Authorization Screen
+ * Handles mandate creation and payment initiation from linked Mono bank accounts
  */
 
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';

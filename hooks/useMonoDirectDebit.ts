@@ -153,29 +153,24 @@ export function useMonoDirectDebit(): UseMonoDirectDebitReturn {
         reference: monoReference,
       });
 
-      const mandateResponse = await fetch(`${supabaseUrl}/functions/v1/mono-api-proxy`, {
+      // CRITICAL: Use the new Edge Function with correct configuration
+      // amount = maximum total debit authorization (NOT per transaction)
+      const MAX_AUTHORIZATION_AMOUNT = 1000000; // ₦1,000,000 in Naira
+
+      const mandateResponse = await fetch(`${supabaseUrl}/functions/v1/mono-mandate-initiate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${currentSession.access_token}`,
         },
         body: JSON.stringify({
-          endpoint: '/v2/mandates',
-          method: 'POST',
-          body: {
-            account: params.monoAccountId,
-            reference: monoReference,
-            customer: {
-              name: customerName,
-              email: email,
-            },
-            // SECURITY: Include user_id and mandate_id in metadata for webhook processing
-            metadata: {
-              user_id: session.user.id,
-              mandate_id: mandate.id,
-              bank_account_id: params.bankAccountId,
-            },
-          },
+          bankAccountId: params.bankAccountId,
+          monoAccountId: params.monoAccountId,
+          accountName: params.accountName,
+          accountNumber: params.accountNumber,
+          bankName: params.bankName,
+          bankCode: params.bankCode,
+          amount: MAX_AUTHORIZATION_AMOUNT, // Maximum total debit authorization
         }),
       });
 
@@ -193,15 +188,16 @@ export function useMonoDirectDebit(): UseMonoDirectDebitReturn {
         throw new Error(errorMessage);
       }
 
-      const proxyResponse = await mandateResponse.json();
-      if (!proxyResponse.success || !proxyResponse.data) {
-        const errorMessage = proxyResponse.data?.message || proxyResponse.error || 'Failed to create mandate';
+      const responseData = await mandateResponse.json();
+      if (!responseData.success || !responseData.data) {
+        const errorMessage = responseData.error || 'Failed to create mandate';
         throw new Error(errorMessage);
       }
 
-      const mandateData = proxyResponse.data;
-      const monoMandateId = mandateData.data?.id;
-      const mandateStatus = mandateData.data?.status;
+      const mandateData = responseData.data;
+      const monoMandateId = mandateData.mono_mandate_id;
+      const mandateStatus = mandateData.status;
+      const monoUrl = mandateData.mono_url;
 
       if (!monoMandateId) {
         console.error('❌ No mandate ID in Mono response:', mandateData);
@@ -213,10 +209,10 @@ export function useMonoDirectDebit(): UseMonoDirectDebitReturn {
         .from('mono_mandates')
         .update({
           mono_mandate_id: monoMandateId,
-          mono_reference: monoReference,
+          mono_reference: mandateData.mono_reference,
           status: mandateStatus === 'active' ? 'active' : 'pending',
           ...(mandateStatus === 'active' && { activated_at: new Date().toISOString() }),
-          mono_webhook_data: mandateData.data,
+          mono_webhook_data: mandateData,
         })
         .eq('id', mandate.id)
         .select()
@@ -372,27 +368,17 @@ export function useMonoDirectDebit(): UseMonoDirectDebitReturn {
         throw new Error('Supabase URL not configured');
       }
 
-      const debitResponse = await fetch(`${supabaseUrl}/functions/v1/mono-api-proxy`, {
+      const debitResponse = await fetch(`${supabaseUrl}/functions/v1/mono-debit-execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${currentSession.access_token}`,
         },
         body: JSON.stringify({
-          endpoint: '/v2/debits',
-          method: 'POST',
-          body: {
-            amount: amountInKobo,
-            mandate: mandate.mono_reference, // Use mandate reference, not ID
-            description: params.description || `DirectDebit: ₦${params.amount}`,
-            reference: reference,
-            // SECURITY: Include user_id and mandate_id in metadata for webhook processing
-            metadata: {
-              user_id: session.user.id,
-              mandate_id: params.mandateId,
-              bank_account_id: mandate.bank_account_id,
-            },
-          },
+          mandateId: params.mandateId,
+          amount: params.amount,
+          description: params.description,
+          reference: reference,
         }),
       });
 
@@ -407,16 +393,16 @@ export function useMonoDirectDebit(): UseMonoDirectDebitReturn {
         throw new Error(errorMessage);
       }
 
-      const proxyResponse = await debitResponse.json();
-      if (!proxyResponse.success || !proxyResponse.data) {
-        const errorMessage = proxyResponse.data?.message || proxyResponse.error || 'Failed to initiate debit';
+      const responseData = await debitResponse.json();
+      if (!responseData.success || !responseData.data) {
+        const errorMessage = responseData.error || 'Failed to initiate debit';
         throw new Error(errorMessage);
       }
 
-      const debitData = proxyResponse.data;
-      const debitId = debitData.data?.id;
-      const debitStatus = debitData.data?.status;
-      const settlementDate = debitData.data?.settlement_date;
+      const debitData = responseData.data;
+      const debitId = debitData.debit_id;
+      const debitStatus = debitData.status;
+      const settlementDate = debitData.settlement_date;
 
       if (!debitId) {
         console.error('❌ No debit ID in Mono response:', debitData);

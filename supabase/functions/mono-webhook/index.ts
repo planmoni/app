@@ -407,6 +407,42 @@ async function handleMandateActivated(data: any) {
 }
 
 /**
+ * Handle mandate expiry
+ */
+async function handleMandateExpired(data: any) {
+  try {
+    console.log('⏰ Processing mandate expiry event:', data.id);
+
+    const monoMandateId = data.id;
+    const userId = data.metadata?.user_id;
+    const mandateId = data.metadata?.mandate_id;
+
+    if (!userId || !mandateId) {
+      console.error('❌ Missing user_id or mandate_id in mandate metadata');
+      return;
+    }
+
+    // Update mandate status to expired
+    const { error: updateError } = await supabase
+      .from('mono_mandates')
+      .update({
+        status: 'expired',
+        mono_webhook_data: data,
+      })
+      .eq('id', mandateId)
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('❌ Error updating mandate status:', updateError);
+    } else {
+      console.log(`✅ Mandate ${mandateId} expired`);
+    }
+  } catch (error) {
+    console.error('❌ Error handling mandate expiry:', error);
+  }
+}
+
+/**
  * Handle mandate cancellation
  */
 async function handleMandateCancelled(data: any) {
@@ -501,12 +537,19 @@ async function handleDebitSuccessful(data: any) {
     }
 
     // Process the deposit (will verify with Mono API before crediting)
+    // Include event ID in metadata for idempotency
+    const eventId = data.webhook_event_id || webhookData.id || webhookData.event_id;
+    const debitDataWithEventId = {
+      ...data,
+      webhook_event_id: eventId,
+    };
+    
     await processMonoDebit(
       userId,
       amountInNaira,
       reference,
       debitId,
-      data
+      debitDataWithEventId
     );
 
     console.log(`✅ Successfully processed DirectDebit: ₦${amountInNaira} for user ${userId}`);
@@ -691,9 +734,33 @@ serve(async (req: Request) => {
     console.log('📋 Webhook event type:', webhookData.type || webhookData.event);
     console.log('📋 Webhook data keys:', Object.keys(webhookData.data || webhookData));
 
+    // SECURITY: Enforce idempotency using event ID
+    const eventId = webhookData.id || webhookData.event_id || webhookData.data?.id;
+    if (eventId) {
+      // Check if this event was already processed
+      const { data: existingEvent } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('metadata->>webhook_event_id', eventId)
+        .single();
+
+      if (existingEvent) {
+        console.log(`✅ Webhook event ${eventId} already processed (idempotency check)`);
+        return new Response(
+          JSON.stringify({ status: 'success', message: 'Event already processed' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Handle different webhook events
     const eventType = webhookData.type || webhookData.event;
     const eventData = webhookData.data || webhookData;
+    
+    // Add event ID to event data for tracking
+    if (eventId) {
+      eventData.webhook_event_id = eventId;
+    }
     
     switch (eventType) {
       // Mandate events
@@ -709,6 +776,11 @@ serve(async (req: Request) => {
       
       case 'mandate.created':
         console.log('📝 Mandate created - waiting for activation');
+        break;
+      
+      case 'mandate.expired':
+      case 'mandate.expiry':
+        await handleMandateExpired(eventData);
         break;
       
       // Debit events

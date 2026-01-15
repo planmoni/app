@@ -15,6 +15,7 @@ import { AppVersionProvider } from '@/contexts/AppVersionContext';
 import UpdateAppModal from '@/components/UpdateAppModal';
 import { UserActivityTracker } from '@/hooks/useUserActivityTracking';
 import { NotificationProvider } from '@/contexts/NotificationContext';
+import { QueryClientProvider } from '@/contexts/QueryClientProvider';
 
 
 import { usePageTracking } from '@/hooks/usePageTracking';
@@ -584,31 +585,33 @@ export default function RootLayout() {
 
   return (
     <AppErrorProvider>
-      <ThemeProvider>
-        <TextSizeProvider>
-          <ToastProvider>
-            <AuthProvider>
-              <AppVersionProvider>
-                <PinProvider>
-                  <AppLockProvider>
-                    <NotificationProvider>
-                      <BalanceProvider>
-                        <BottomNavProvider>
-                          <AppBlur>
-                            <UserActivityTracker>
-                              <RootLayoutNav />
-                            </UserActivityTracker>
-                          </AppBlur>
-                        </BottomNavProvider>
-                      </BalanceProvider>
-                    </NotificationProvider>
-                  </AppLockProvider>
-                </PinProvider>
-              </AppVersionProvider>
-            </AuthProvider>
-          </ToastProvider>
-        </TextSizeProvider>
-      </ThemeProvider>
+      <QueryClientProvider>
+        <ThemeProvider>
+          <TextSizeProvider>
+            <ToastProvider>
+              <AuthProvider>
+                <AppVersionProvider>
+                  <PinProvider>
+                    <AppLockProvider>
+                      <NotificationProvider>
+                        <BalanceProvider>
+                          <BottomNavProvider>
+                            <AppBlur>
+                              <UserActivityTracker>
+                                <RootLayoutNav />
+                              </UserActivityTracker>
+                            </AppBlur>
+                          </BottomNavProvider>
+                        </BalanceProvider>
+                      </NotificationProvider>
+                    </AppLockProvider>
+                  </PinProvider>
+                </AppVersionProvider>
+              </AuthProvider>
+            </ToastProvider>
+          </TextSizeProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     </AppErrorProvider>
   );
 }

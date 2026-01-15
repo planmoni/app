@@ -57,15 +57,15 @@ export default function AmountScreen() {
           }
         });
       } else if (newMethodType === 'mono-pay') {
-        // Navigate to authorization with Mono DirectPay info
+        // Navigate to authorization with Mono DirectDebit info
         router.push({
           pathname: '/deposit-flow/authorization',
           params: {
             amount,
             methodId: accountId,
-            methodTitle: `${bankName || 'Bank'} • DirectPay`,
+            methodTitle: `${bankName || 'Bank'} • DirectDebit`,
             monoAccountId: monoAccountId,
-            paymentType: 'mono-directpay'
+            paymentType: 'mono-directdebit'
           }
         });
       }
