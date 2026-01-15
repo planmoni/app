@@ -56,6 +56,9 @@ export interface Database {
           completed_payouts: number
           next_payout_date: string | null
           emergency_withdrawal_enabled: boolean
+          fee_percentage: number | null
+          fee_amount: number | null
+          net_payout_amount: number | null
           created_at: string
           updated_at: string
           metadata: Json | null
@@ -77,6 +80,9 @@ export interface Database {
           completed_payouts?: number
           next_payout_date?: string | null
           emergency_withdrawal_enabled?: boolean
+          fee_percentage?: number | null
+          fee_amount?: number | null
+          net_payout_amount?: number | null
           created_at?: string
           updated_at?: string
           metadata?: Json | null
@@ -98,9 +104,38 @@ export interface Database {
           completed_payouts?: number
           next_payout_date?: string | null
           emergency_withdrawal_enabled?: boolean
+          fee_percentage?: number | null
+          fee_amount?: number | null
+          net_payout_amount?: number | null
           created_at?: string
           updated_at?: string
           metadata?: Json | null
+        }
+      }
+      payout_fees: {
+        Row: {
+          id: string
+          frequency: string
+          fee_percentage: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          frequency: string
+          fee_percentage: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          frequency?: string
+          fee_percentage?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
         }
       }
       custom_payout_dates: {

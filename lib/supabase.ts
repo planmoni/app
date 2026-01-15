@@ -55,6 +55,7 @@ if (supabaseUrl && supabaseAnonKey) {
       }),
     }),
     removeChannel: () => {},
+    rpc: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
     storage: {
       from: () => ({
         getPublicUrl: () => ({ data: { publicUrl: '' } }),

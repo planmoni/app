@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -292,7 +292,7 @@ export default function PinVerificationModal({
     });
   };
 
-  const styles = createStyles(colors, isDark, isSmallScreen);
+  const styles = useMemo(() => createStyles(colors, isDark, isSmallScreen), [colors, isDark, isSmallScreen]);
 
   if (!isVisible) return null;
 

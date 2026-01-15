@@ -50,8 +50,8 @@ export default function AmountScreen() {
       return;
     }
 
-    if (numericAmount < 5000) {
-      setError('Minimum amount is ₦5,000');
+    if (numericAmount < 1000) {
+      setError('Minimum amount is ₦1,000');
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       return;
     }

@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useMemo } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -15,9 +15,9 @@ export default function ErrorMessage({
 }: ErrorMessageProps) {
   const { colors } = useTheme();
   
-  if (!message) return null;
+  const styles = useMemo(() => createStyles(colors), [colors]);
   
-  const styles = createStyles(colors);
+  if (!message) return null;
   
   return (
     <View style={styles.container}>

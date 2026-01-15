@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useToast } from '@/contexts/ToastContext';
 import { inAppNotificationService } from '@/lib/in-app-notifications';
+import { PayoutFeeFrequency } from '@/types/payout-fees';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
@@ -175,6 +176,31 @@ export function useCreatePayout() {
 
       console.log("Funds locked successfully. Available balance after lock:", lockResult?.available_balance);
 
+      // 💰 Calculate fee amounts
+      // Map frequency to database frequency type for fee lookup
+      const feeFrequency: PayoutFeeFrequency = frequency === 'weekly_specific' ? 'weekly_specific' : 
+                                               frequency === 'end_of_month' ? 'end_of_month' :
+                                               frequency as PayoutFeeFrequency;
+      
+      // Fetch fee percentage from database
+      const { data: feeData, error: feeError } = await supabase
+        .from('payout_fees')
+        .select('fee_percentage')
+        .eq('frequency', feeFrequency)
+        .eq('is_active', true)
+        .single();
+      
+      const feePercentage = feeData?.fee_percentage || 0;
+      const feeAmount = totalAmount * (feePercentage / 100);
+      const netPayoutAmount = totalAmount - feeAmount;
+      
+      console.log('Fee calculation:', {
+        feePercentage,
+        feeAmount,
+        netPayoutAmount,
+        totalAmount
+      });
+
       // ➕ SECURITY: Now create payout plan AFTER funds are locked
       // If this fails, we'll unlock the funds in the catch block
       let payoutPlan: any = null;
@@ -200,6 +226,9 @@ export function useCreatePayout() {
                 ? customDates[0]
                 : nextPayoutDateStr,
             metadata: metadata, // Store additional frequency metadata
+            fee_percentage: feePercentage,
+            fee_amount: feeAmount,
+            net_payout_amount: netPayoutAmount,
           })
           .select()
           .single();
@@ -208,12 +237,17 @@ export function useCreatePayout() {
           console.error('Error creating payout plan:', payoutError);
           
           // SECURITY: Unlock funds if plan creation fails
-          await supabase.rpc('unlock_funds', {
-            arg_user_id: session.user.id,
-            arg_amount: totalAmount
-          }).catch((unlockErr: any) => {
+          try {
+            const unlockResult = await supabase.rpc('unlock_funds', {
+              arg_user_id: session.user.id,
+              arg_amount: totalAmount
+            });
+            if (unlockResult?.error) {
+              console.error('Error unlocking funds after plan creation failure:', unlockResult.error);
+            }
+          } catch (unlockErr: any) {
             console.error('Error unlocking funds after plan creation failure:', unlockErr);
-          });
+          }
           
           throw payoutError;
         }
@@ -222,12 +256,17 @@ export function useCreatePayout() {
         console.log('Payout plan created:', payoutPlan.id);
       } catch (planError) {
         // SECURITY: Ensure funds are unlocked if plan creation fails
-        await supabase.rpc('unlock_funds', {
-          arg_user_id: session.user.id,
-          arg_amount: totalAmount
-        }).catch((unlockErr: any) => {
+        try {
+          const unlockResult = await supabase.rpc('unlock_funds', {
+            arg_user_id: session.user.id,
+            arg_amount: totalAmount
+          });
+          if (unlockResult?.error) {
+            console.error('Error unlocking funds after plan creation failure:', unlockResult.error);
+          }
+        } catch (unlockErr: any) {
           console.error('Error unlocking funds after plan creation failure:', unlockErr);
-        });
+        }
         
         throw planError;
       }
