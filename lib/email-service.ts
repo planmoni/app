@@ -1,7 +1,11 @@
 import { supabase } from './supabase';
 
 // Resend API key for sending emails
-const RESEND_API_KEY = process.env.RESEND_API_KEY || 're_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu';
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
+if (!RESEND_API_KEY) {
+  console.warn('RESEND_API_KEY is not configured. Email functionality will be disabled.');
+}
 
 /**
  * Send an email using the Resend API
@@ -12,6 +16,10 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || 're_cZUmUFmE_Co9jLj1mrMEx4v
  */
 export async function sendEmail(to: string, subject: string, html: string) {
   try {
+    if (!RESEND_API_KEY) {
+      throw new Error('RESEND_API_KEY is not configured. Cannot send email.');
+    }
+    
     console.log(`Sending email to ${to} with subject: ${subject}`);
     
     const response = await fetch('https://api.resend.com/emails', {

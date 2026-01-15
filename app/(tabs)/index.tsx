@@ -1074,12 +1074,7 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => {
               impact();
-              router.push({
-                pathname: '/deposit-flow/amount',
-                params: {
-                  newMethodType: 'mono-pay'
-                }
-              });
+              router.push('/deposit-flow/payment-methods');
               logAnalyticsEvent('quick_topup_click', { source: 'home_screen' });
             }}
             style={[styles.quickTopupCard, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -1093,7 +1088,7 @@ export default function HomeScreen() {
                   Quick Topup
                 </Text>
                 <Text style={[styles.quickTopupSubtitle, { color: colors.textSecondary }]}>
-                  Add money from your linked bank account
+                  Add money to your wallet
                 </Text>
               </View>
               <ChevronRight size={20} color={colors.textSecondary} />

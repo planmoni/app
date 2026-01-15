@@ -10,17 +10,22 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import { usePaymentMethods } from '@/hooks/usePaymentMethods';
+import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 
 export default function PaymentMethodsScreen() {
   const { colors } = useTheme();
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
   const haptics = useHaptics();
   const { paymentMethods, isLoading, error, setDefaultMethod, deletePaymentMethod } = usePaymentMethods();
+  const { bankAccounts, isLoading: bankAccountsLoading } = useRealtimeBankAccounts();
   const params = useLocalSearchParams();
   
   // Filter payment methods by type
   const cardMethods = paymentMethods.filter(method => method.type === 'card');
   const bankMethods = paymentMethods.filter(method => method.type === 'bank');
+  
+  // Get bank accounts with Mono account ID (for DirectPay)
+  const monoLinkedAccounts = bankAccounts.filter(account => account.mono_account_id);
 
   const handleMethodSelect = (methodId: string) => {
     haptics.selection();
@@ -70,6 +75,19 @@ export default function PaymentMethodsScreen() {
       pathname: '/deposit-flow/amount',
       params: {
         newMethodType: 'bank-account'
+      }
+    });
+  };
+
+  const handleMonoDirectPay = (accountId: string, monoAccountId: string) => {
+    haptics.mediumImpact();
+    const account = bankAccounts.find(acc => acc.id === accountId);
+    router.push({
+      pathname: '/deposit-flow/mono-pay',
+      params: {
+        accountId: accountId,
+        monoAccountId: monoAccountId,
+        bankName: account?.bank_name || 'Bank Account'
       }
     });
   };
@@ -131,7 +149,7 @@ export default function PaymentMethodsScreen() {
           <Text style={styles.title}>Select Payment Method</Text>
           <Text style={styles.description}>Choose your preferred payment option to add funds to your wallet.</Text>
 
-          {isLoading ? (
+          {(isLoading || bankAccountsLoading) ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={colors.primary} />
               <Text style={styles.loadingText}>Loading payment methods...</Text>
@@ -146,7 +164,7 @@ export default function PaymentMethodsScreen() {
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
                   
-                  {cardMethods.length > 0 && (
+                  {/* {cardMethods.length > 0 && (
                     <View style={styles.methodTypeContainer}>
                       <View style={styles.methodTypeHeader}>
                         <Text style={styles.methodTypeTitle}>Cards</Text>
@@ -186,7 +204,7 @@ export default function PaymentMethodsScreen() {
                         </Pressable>
                       ))}
                     </View>
-                  )}
+                  )} */}
                   
                   {bankMethods.length > 0 && (
                     <View style={styles.methodTypeContainer}>
@@ -225,6 +243,38 @@ export default function PaymentMethodsScreen() {
                           >
                             <Text style={styles.useButtonText}>Use this Bank</Text>
                           </Pressable>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Mono DirectPay - Linked Accounts with Mono */}
+                  {monoLinkedAccounts.length > 0 && (
+                    <View style={styles.methodTypeContainer}>
+                      <View style={styles.methodTypeHeader}>
+                        <Text style={styles.methodTypeTitle}>Pay with Linked Account</Text>
+                      </View>
+                      
+                      {monoLinkedAccounts.map((account) => (
+                        <Pressable 
+                          key={account.id}
+                          style={styles.paymentMethod}
+                          onPress={() => handleMonoDirectPay(account.id, account.mono_account_id!)}
+                        >
+                          <View style={styles.methodLeft}>
+                            <View style={styles.methodIconContainer}>
+                              <Building2 size={24} color={colors.primary} />
+                            </View>
+                            <View style={styles.methodInfo}>
+                              <Text style={styles.methodTitle}>
+                                {account.bank_name} •••• {account.account_number.slice(-4)}
+                              </Text>
+                              <Text style={styles.methodSubtitle}>
+                                {account.account_name} • DirectPay
+                              </Text>
+                            </View>
+                          </View>
+                          <ChevronRight size={20} color={colors.textTertiary} />
                         </Pressable>
                       ))}
                     </View>
@@ -282,6 +332,7 @@ export default function PaymentMethodsScreen() {
                   </View>
                   <ChevronRight size={20} color={colors.textTertiary} />
                 </Pressable>
+
               </View>
             </>
           )}

@@ -1,13 +1,20 @@
 /**
  * Mono API Proxy - Supabase Edge Function
  * 
- * SECURE: Proxies Mono API requests from client to Mono API
+ * SECURITY: Proxies Mono API requests from client to Mono API
  * Keeps MONO_SECRET_KEY server-side only
  * 
  * Usage:
  * POST /functions/v1/mono-api-proxy
  * Headers: Authorization: Bearer <user_token>
  * Body: { endpoint: string, method: string, body?: any }
+ * 
+ * SECURITY FEATURES:
+ * - User authentication required
+ * - Server-side secret key storage
+ * - Endpoint validation (prevents SSRF)
+ * - HTTPS-only communication
+ * - Request logging for audit
  */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -24,12 +31,12 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Mono API configuration
+// Mono API configuration - LIVE API ONLY
 const MONO_API_BASE = 'https://api.withmono.com';
 const MONO_SECRET_KEY = Deno.env.get('MONO_SECRET_KEY');
 
 interface MonoProxyRequest {
-  endpoint: string; // e.g., '/v2/payments/initiate', '/v2/customers', '/v2/payments/verify/{reference}'
+  endpoint: string; // e.g., '/v2/payments/initiate', '/v2/payments/verify/{reference}'
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   body?: any;
 }
@@ -44,9 +51,10 @@ serve(async (req: Request) => {
   }
 
   try {
-    // Verify user authentication
+    // SECURITY: Verify user authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ Missing or invalid authorization header');
       return new Response(
         JSON.stringify({ error: 'Unauthorized - Missing or invalid authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -57,17 +65,27 @@ serve(async (req: Request) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
+      console.error('❌ Invalid authentication token');
       return new Response(
         JSON.stringify({ error: 'Unauthorized - Invalid token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check if Mono secret key is configured
+    // SECURITY: Check if Mono secret key is configured
     if (!MONO_SECRET_KEY) {
-      console.error('MONO_SECRET_KEY not configured');
+      console.error('❌ MONO_SECRET_KEY not configured');
       return new Response(
         JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // SECURITY: Verify we're using LIVE credentials (not test)
+    if (!MONO_SECRET_KEY.startsWith('live_sk_')) {
+      console.error('❌ Invalid Mono secret key format - must be LIVE key (live_sk_...)');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error - Invalid key format' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -82,24 +100,36 @@ serve(async (req: Request) => {
       );
     }
 
-    // Validate endpoint (prevent SSRF attacks)
+    // SECURITY: Validate endpoint (prevent SSRF attacks)
     const endpoint = proxyRequest.endpoint.startsWith('/') 
       ? proxyRequest.endpoint 
       : `/${proxyRequest.endpoint}`;
     
+    // Only allow Mono API v2 endpoints
     if (!endpoint.startsWith('/v2/')) {
+      console.error(`❌ Invalid endpoint - must start with /v2/: ${endpoint}`);
       return new Response(
         JSON.stringify({ error: 'Invalid endpoint - must start with /v2/' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // SECURITY: Block dangerous endpoints
+    const blockedEndpoints = ['/v2/customers', '/v2/accounts'];
+    if (blockedEndpoints.some(blocked => endpoint.includes(blocked))) {
+      console.error(`❌ Blocked endpoint access: ${endpoint}`);
+      return new Response(
+        JSON.stringify({ error: 'Endpoint not allowed' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Build Mono API URL
     const monoUrl = `${MONO_API_BASE}${endpoint}`;
 
-    console.log(`🔄 Proxying Mono API request: ${proxyRequest.method} ${endpoint}`);
+    console.log(`🔄 Proxying Mono API request: ${proxyRequest.method} ${endpoint} for user ${user.id}`);
 
-    // Prepare headers for Mono API
+    // SECURITY: Prepare headers for Mono API (HTTPS-only)
     const monoHeaders: HeadersInit = {
       'Content-Type': 'application/json',
       'mono-sec-key': MONO_SECRET_KEY,
@@ -117,7 +147,12 @@ serve(async (req: Request) => {
     const responseData = await monoResponse.json().catch(() => ({}));
     const responseStatus = monoResponse.status;
 
-    console.log(`📡 Mono API response: ${responseStatus}`);
+    console.log(`📡 Mono API response: ${responseStatus} for ${endpoint}`);
+
+    // Log errors for monitoring
+    if (!monoResponse.ok) {
+      console.error(`❌ Mono API error: ${responseStatus}`, responseData);
+    }
 
     // Return response to client
     return new Response(
@@ -152,6 +187,5 @@ serve(async (req: Request) => {
     );
   }
 });
-
 
 

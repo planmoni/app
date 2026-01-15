@@ -61,20 +61,41 @@ export function usePaystackTransactions() {
 
       console.log('Fetching transactions for account:', paystackAccount.account_number);
 
-      // Fetch transactions from Paystack API
-      const response = await fetch('https://api.paystack.co/transaction', {
-        method: 'GET',
+      // ✅ SECURE: Get Supabase session token for API route authentication
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!currentSession?.access_token) {
+        throw new Error('Authentication required');
+      }
+
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
+      if (!apiUrl) {
+        throw new Error('API URL not configured');
+      }
+
+      // ✅ SECURE: Use API route instead of direct Paystack API call
+      const response = await fetch(`${apiUrl}/api/paystack-api-proxy`, {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY!}`,
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentSession.access_token}`,
         },
+        body: JSON.stringify({
+          endpoint: '/transaction',
+          method: 'GET',
+        }),
       });
       
       if (!response.ok) {
-        throw new Error(`Paystack API error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Paystack API error: ${response.status}`);
       }
 
-      const data = await response.json();
+      const proxyResponse = await response.json();
+      if (!proxyResponse.success || !proxyResponse.data) {
+        throw new Error(proxyResponse.error || 'Failed to fetch transactions');
+      }
+
+      const data = proxyResponse.data;
       // console.log("this is a data: ", data)
       
       if (data.status && data.data) {
@@ -309,14 +330,26 @@ async function sendEmailDirect(userId: string, amount: number, reference: string
       reference
     });
 
-    const emailResponse = await fetch("https://api.resend.com/emails", {
+    // ✅ SECURE: Use Supabase Edge Function for email sending
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    if (!supabaseUrl) {
+      console.error('Supabase URL not configured for email sending');
+      return;
+    }
+
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    if (!currentSession?.access_token) {
+      console.error('Authentication required for email sending');
+      return;
+    }
+
+    const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${process.env.EXPO_PUBLIC_RESEND_API_KEY}`,
+        "Authorization": `Bearer ${currentSession.access_token}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        from: "Planmoni <notifications@planmoni.com>",
         to: userProfile.email,
         subject: emailSubject,
         html: emailHtml

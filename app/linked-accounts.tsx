@@ -482,24 +482,12 @@ export default function LinkedAccountsScreen() {
                 </View>
 
                 <View style={styles.accountActions}>
-                  {fromDepositFlow && selectForPayment && account.mono_account_id ? (
-                    <Pressable
-                      style={[styles.actionButton, styles.payButton]}
-                      onPress={() => {
-                        haptics.mediumImpact();
-                        router.push({
-                          pathname: '/deposit-flow/mono-pay',
-                          params: {
-                            amount,
-                            accountId: account.id,
-                          },
-                        });
-                      }}
-                    >
-                      <Text style={[styles.actionButtonText, styles.payButtonText]}>
-                        Pay with this Account
+                  {fromDepositFlow && selectForPayment ? (
+                    <View style={styles.disabledPaymentNote}>
+                      <Text style={styles.disabledPaymentText}>
+                        Direct payment from linked accounts is currently unavailable
                       </Text>
-                    </Pressable>
+                    </View>
                   ) : (
                     <>
                       {!account.is_default && (
@@ -838,5 +826,16 @@ const createStyles = (colors: any) => StyleSheet.create({
   monoButtonText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  disabledPaymentNote: {
+    padding: 12,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  disabledPaymentText: {
+    fontSize: 13,
+    color: '#92400E',
+    textAlign: 'center',
   },
 });

@@ -16,6 +16,9 @@ export default function AmountScreen() {
   const methodId = params.methodId as string;
   const methodTitle = params.methodTitle as string;
   const newMethodType = params.newMethodType as string;
+  const monoAccountId = params.monoAccountId as string;
+  const accountId = params.accountId as string;
+  const bankName = params.bankName as string;
   
   const [amount, setAmount] = useState('');
   const { balance, lockedBalance } = useBalance();
@@ -51,6 +54,18 @@ export default function AmountScreen() {
           params: {
             amount,
             fromDepositFlow: 'true'
+          }
+        });
+      } else if (newMethodType === 'mono-pay') {
+        // Navigate to authorization with Mono DirectPay info
+        router.push({
+          pathname: '/deposit-flow/authorization',
+          params: {
+            amount,
+            methodId: accountId,
+            methodTitle: `${bankName || 'Bank'} • DirectPay`,
+            monoAccountId: monoAccountId,
+            paymentType: 'mono-directpay'
           }
         });
       }

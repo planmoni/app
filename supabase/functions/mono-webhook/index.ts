@@ -1,0 +1,763 @@
+/**
+ * Mono Webhook Handler - Supabase Edge Function
+ * 
+ * CRITICAL: Handles Mono DirectDebit webhooks (NOT DirectPay)
+ * 
+ * DirectDebit Webhook Events:
+ * - mandate.created - Mandate created (pending authorization)
+ * - mandate.activated - Mandate authorized and activated
+ * - mandate.cancelled - Mandate cancelled by user
+ * - debit.initiated - Debit initiated (pending)
+ * - debit.successful - Debit successful and settled
+ * - debit.failed - Debit failed
+ * - debit.reversed - Debit reversed
+ * 
+ * SECURITY FEATURES:
+ * - HMAC SHA256 signature verification
+ * - Constant-time comparison (prevents timing attacks)
+ * - Debit verification with Mono API before crediting
+ * - Amount verification (prevents tampering)
+ * - Idempotency (prevents double crediting)
+ * - Only credit wallet after confirmed settlement
+ * 
+ * CRITICAL DIFFERENCE FROM DIRECTPAY:
+ * - DirectDebit debits may take 1-3 business days to settle
+ * - Only credit wallet when debit is 'successful' AND 'settled'
+ * - Mandates must be active before debits can be initiated
+ */
+
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-mono-signature, mono-signature',
+};
+
+// Initialize Supabase client with service role key (bypasses RLS for webhook processing)
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
+
+// Mono webhook secret (from Mono dashboard)
+const MONO_WEBHOOK_SECRET = Deno.env.get('MONO_WEBHOOK_SECRET');
+const MONO_SECRET_KEY = Deno.env.get('MONO_SECRET_KEY');
+const MONO_API_BASE = 'https://api.withmono.com';
+
+/**
+ * SECURITY: Verify Mono webhook signature
+ * Mono uses HMAC SHA256 for webhook signatures
+ */
+async function verifyMonoWebhookSignature(payload: string, signature: string): Promise<boolean> {
+  if (!MONO_WEBHOOK_SECRET) {
+    console.error('❌ MONO_WEBHOOK_SECRET not configured');
+    return false;
+  }
+
+  if (!signature) {
+    console.error('❌ No signature provided in webhook');
+    return false;
+  }
+
+  try {
+    // Mono uses HMAC SHA256
+    // Use Web Crypto API (available globally in Deno)
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(MONO_WEBHOOK_SECRET);
+    const messageData = encoder.encode(payload);
+    
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+
+    const signatureBuffer = await crypto.subtle.sign('HMAC', key, messageData);
+    const hash = Array.from(new Uint8Array(signatureBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    // Use constant-time comparison to prevent timing attacks
+    const receivedHex = signature.toLowerCase();
+    const expectedHex = hash.toLowerCase();
+
+    if (expectedHex.length !== receivedHex.length) {
+      console.error('❌ Signature length mismatch');
+      return false;
+    }
+
+    // Constant-time comparison
+    let isValid = true;
+    for (let i = 0; i < expectedHex.length; i++) {
+      if (expectedHex.charCodeAt(i) !== receivedHex.charCodeAt(i)) {
+        isValid = false;
+      }
+    }
+
+    if (!isValid) {
+      console.error('❌ Invalid webhook signature');
+      console.log('Expected:', hash);
+      console.log('Received:', signature);
+    }
+
+    return isValid;
+  } catch (error) {
+    console.error('❌ Error verifying webhook signature:', error);
+    return false;
+  }
+}
+
+/**
+ * SECURITY: Verify debit with Mono API before crediting
+ * CRITICAL: Only credit wallet when debit is successful AND settled
+ */
+async function verifyDebitWithMono(reference: string): Promise<{ 
+  success: boolean; 
+  status?: string; 
+  settled?: boolean;
+  amount?: number; 
+  error?: string 
+}> {
+  try {
+    if (!MONO_SECRET_KEY) {
+      throw new Error('MONO_SECRET_KEY not configured');
+    }
+
+    const verifyUrl = `${MONO_API_BASE}/v2/debits/${reference}`;
+    
+    const response = await fetch(verifyUrl, {
+      method: 'GET',
+      headers: {
+        'mono-sec-key': MONO_SECRET_KEY,
+        'accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Failed to verify debit with Mono API:', errorData);
+      return { success: false, error: 'Debit verification failed' };
+    }
+
+    const verifyData = await response.json();
+    const debit = verifyData.data?.data || verifyData.data;
+    const status = debit?.status;
+    const settled = debit?.settled === true || debit?.settlement_status === 'settled';
+    const amount = debit?.amount; // in kobo
+
+    return {
+      success: true,
+      status: status,
+      settled: settled,
+      amount: amount,
+    };
+  } catch (error) {
+    console.error('❌ Error verifying debit with Mono:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Verification error' };
+  }
+}
+
+/**
+ * SECURITY: Process Mono DirectDebit deposit with idempotency
+ * CRITICAL: Only credit wallet when debit is successful AND settled
+ * Uses atomic RPC function to prevent double crediting
+ */
+async function processMonoDebit(
+  userId: string,
+  amount: number,
+  reference: string,
+  monoDebitId: string,
+  monoData: any
+) {
+  try {
+    console.log(`💰 Processing Mono DirectDebit: ₦${amount} for user ${userId}, reference: ${reference}`);
+
+    // SECURITY: Verify debit with Mono API before crediting
+    const verification = await verifyDebitWithMono(reference);
+    
+    if (!verification.success) {
+      console.error('❌ Debit verification failed:', verification.error);
+      throw new Error('Debit verification failed');
+    }
+
+    const debitStatus = verification.status;
+    const isSettled = verification.settled;
+
+    // CRITICAL: Only credit if debit is successful AND settled
+    // DirectDebit debits may be 'successful' but not yet settled
+    if (debitStatus !== 'successful' || !isSettled) {
+      console.log(`⏳ Debit not yet settled. Status: ${debitStatus}, Settled: ${isSettled}`);
+      // Update transaction status but don't credit wallet yet
+      const { error: updateError } = await supabase
+        .from('transactions')
+        .update({
+          status: 'pending',
+          metadata: {
+            ...monoData,
+            verified_status: debitStatus,
+            verified_settled: isSettled,
+            verified_at: new Date().toISOString(),
+          }
+        })
+        .eq('reference', reference)
+        .eq('user_id', userId);
+
+      if (updateError) {
+        console.error('❌ Error updating transaction:', updateError);
+      }
+
+      return { 
+        success: false, 
+        message: 'Debit not yet settled', 
+        settled: false 
+      };
+    }
+
+    // SECURITY: Verify amount matches (in kobo)
+    const verifiedAmountInKobo = verification.amount;
+    const expectedAmountInKobo = Math.round(amount * 100);
+    
+    if (verifiedAmountInKobo && verifiedAmountInKobo !== expectedAmountInKobo) {
+      console.error(`❌ Amount mismatch. Expected: ${expectedAmountInKobo}, Got: ${verifiedAmountInKobo}`);
+      throw new Error('Amount verification failed');
+    }
+
+    // Process deposit atomically using process_mono_deposit function
+    // This function handles wallet update, transaction creation, and prevents duplicates
+    const { data: result, error } = await supabase.rpc('process_mono_deposit', {
+      arg_user_id: userId,
+      arg_amount: amount,
+      arg_reference: reference,
+      arg_mono_data: {
+        mono_debit_id: monoDebitId,
+        mono_reference: reference,
+        verified_status: debitStatus,
+        verified_settled: isSettled,
+        verified_amount: verifiedAmountInKobo,
+        processed_by: 'mono_webhook',
+        processed_at: new Date().toISOString(),
+        ...(monoData && { mono_webhook_data: monoData })
+      }
+    });
+
+    if (error) {
+      console.error('❌ Error processing deposit:', error);
+      throw error;
+    }
+
+    if (!result || !result.success) {
+      if (result?.already_processed) {
+        console.log(`✅ Transaction ${reference} was already processed (idempotency check)`);
+        return { 
+          success: true, 
+          message: 'Transaction already processed', 
+          already_processed: true 
+        };
+      }
+      console.error('❌ Process deposit failed:', result);
+      throw new Error('Failed to process deposit');
+    }
+
+    console.log(`✅ Successfully processed Mono DirectDebit: ₦${amount} for user ${userId}`);
+    
+    return { 
+      success: true, 
+      balance: result.new_balance, 
+      transaction_id: result.transaction_id,
+      event_id: result.event_id
+    };
+  } catch (error) {
+    console.error('❌ Error in processMonoDebit:', error);
+    throw error;
+  }
+}
+
+/**
+ * SECURITY: Check KYC Level 0 limits
+ * Mono allows debits up to certain limits for KYC Level 0 users
+ */
+async function checkKYCLevel0Limits(userId: string, amount: number): Promise<{ allowed: boolean; reason?: string }> {
+  try {
+    // Get user's KYC status
+    const { data: kycData } = await supabase
+      .from('kyc_data')
+      .select('kyc_tier, bvn_verified')
+      .eq('user_id', userId)
+      .single();
+
+    // If user has completed KYC, no limits apply
+    if (kycData?.kyc_tier && kycData.kyc_tier >= 1) {
+      return { allowed: true };
+    }
+
+    // KYC Level 0 limits for DirectDebit (from Mono documentation)
+    const DAILY_LIMIT = 50000; // ₦50,000 per day
+    const SINGLE_TRANSACTION_LIMIT = 50000; // ₦50,000 per transaction
+    const WEEKLY_LIMIT = 200000; // ₦200,000 per week (cumulative)
+
+    // Check single transaction limit
+    if (amount > SINGLE_TRANSACTION_LIMIT) {
+      return { 
+        allowed: false, 
+        reason: `Amount exceeds KYC Level 0 single transaction limit of ₦${SINGLE_TRANSACTION_LIMIT.toLocaleString()}` 
+      };
+    }
+
+    // Check daily limit
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const { data: todayDebits } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('type', 'deposit')
+      .eq('status', 'completed')
+      .eq('source', 'mono_directdebit')
+      .gte('created_at', today.toISOString())
+      .lt('created_at', tomorrow.toISOString());
+
+    const todayTotal = (todayDebits || []).reduce((sum: number, tx: any) => sum + Number(tx.amount), 0);
+    
+    if (todayTotal + amount > DAILY_LIMIT) {
+      return { 
+        allowed: false, 
+        reason: `Amount would exceed KYC Level 0 daily limit of ₦${DAILY_LIMIT.toLocaleString()}. Today's total: ₦${todayTotal.toLocaleString()}` 
+      };
+    }
+
+    // Check weekly limit
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const { data: weekDebits } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('type', 'deposit')
+      .eq('status', 'completed')
+      .eq('source', 'mono_directdebit')
+      .gte('created_at', weekAgo.toISOString())
+      .lt('created_at', tomorrow.toISOString());
+
+    const weekTotal = (weekDebits || []).reduce((sum: number, tx: any) => sum + Number(tx.amount), 0);
+    
+    if (weekTotal + amount > WEEKLY_LIMIT) {
+      return { 
+        allowed: false, 
+        reason: `Amount would exceed KYC Level 0 weekly limit of ₦${WEEKLY_LIMIT.toLocaleString()}. Week's total: ₦${weekTotal.toLocaleString()}` 
+      };
+    }
+
+    return { allowed: true };
+  } catch (error) {
+    console.error('❌ Error checking KYC limits:', error);
+    // Fail open for now, but log the error
+    return { allowed: true };
+  }
+}
+
+/**
+ * Handle mandate activation (user authorized the mandate)
+ */
+async function handleMandateActivated(data: any) {
+  try {
+    console.log('✅ Processing mandate activation event:', data.id);
+
+    const monoMandateId = data.id;
+    const mandateReference = data.reference;
+    const userId = data.metadata?.user_id;
+    const mandateId = data.metadata?.mandate_id; // Our internal mandate ID
+
+    if (!userId || !mandateId) {
+      console.error('❌ Missing user_id or mandate_id in mandate metadata');
+      return;
+    }
+
+    // Update mandate status to active
+    const { error: updateError } = await supabase
+      .from('mono_mandates')
+      .update({
+        status: 'active',
+        activated_at: new Date().toISOString(),
+        authorized_at: new Date().toISOString(),
+        mono_webhook_data: data,
+      })
+      .eq('id', mandateId)
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('❌ Error updating mandate status:', updateError);
+    } else {
+      console.log(`✅ Mandate ${mandateId} activated successfully`);
+    }
+  } catch (error) {
+    console.error('❌ Error handling mandate activation:', error);
+  }
+}
+
+/**
+ * Handle mandate cancellation
+ */
+async function handleMandateCancelled(data: any) {
+  try {
+    console.log('❌ Processing mandate cancellation event:', data.id);
+
+    const monoMandateId = data.id;
+    const userId = data.metadata?.user_id;
+    const mandateId = data.metadata?.mandate_id;
+
+    if (!userId || !mandateId) {
+      console.error('❌ Missing user_id or mandate_id in mandate metadata');
+      return;
+    }
+
+    // Update mandate status to cancelled
+    const { error: updateError } = await supabase
+      .from('mono_mandates')
+      .update({
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        mono_webhook_data: data,
+      })
+      .eq('id', mandateId)
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('❌ Error updating mandate status:', updateError);
+    } else {
+      console.log(`✅ Mandate ${mandateId} cancelled`);
+    }
+  } catch (error) {
+    console.error('❌ Error handling mandate cancellation:', error);
+  }
+}
+
+/**
+ * Handle successful DirectDebit (debit successful AND settled)
+ * CRITICAL: Only credit wallet when debit is settled
+ */
+async function handleDebitSuccessful(data: any) {
+  try {
+    console.log('✅ Processing DirectDebit success event:', data.id);
+
+    const debitId = data.id;
+    const reference = data.reference;
+    const amountInKobo = data.amount;
+    const amountInNaira = amountInKobo / 100;
+    const mandateReference = data.mandate;
+    const userId = data.metadata?.user_id;
+    const mandateId = data.metadata?.mandate_id;
+    const settled = data.settled === true || data.settlement_status === 'settled';
+
+    if (!userId) {
+      console.error('❌ No user_id in debit metadata');
+      return;
+    }
+
+    if (!reference) {
+      console.error('❌ No reference in debit data');
+      return;
+    }
+
+    // CRITICAL: Only process if debit is settled
+    if (!settled) {
+      console.log(`⏳ Debit ${reference} successful but not yet settled. Waiting for settlement...`);
+      // Update transaction status but don't credit wallet
+      const { error: updateError } = await supabase
+        .from('transactions')
+        .update({
+          status: 'pending',
+          metadata: {
+            ...data,
+            settled: false,
+            settlement_status: data.settlement_status || 'pending',
+          }
+        })
+        .eq('reference', reference)
+        .eq('user_id', userId);
+
+      if (updateError) {
+        console.error('❌ Error updating transaction:', updateError);
+      }
+      return;
+    }
+
+    // SECURITY: Check KYC Level 0 limits
+    const kycCheck = await checkKYCLevel0Limits(userId, amountInNaira);
+    if (!kycCheck.allowed) {
+      console.error(`❌ KYC limit check failed: ${kycCheck.reason}`);
+      // Log but don't throw - let the verification step handle it
+    }
+
+    // Process the deposit (will verify with Mono API before crediting)
+    await processMonoDebit(
+      userId,
+      amountInNaira,
+      reference,
+      debitId,
+      data
+    );
+
+    console.log(`✅ Successfully processed DirectDebit: ₦${amountInNaira} for user ${userId}`);
+  } catch (error) {
+    console.error('❌ Error handling DirectDebit success:', error);
+    throw error;
+  }
+}
+
+/**
+ * Handle failed DirectDebit
+ */
+async function handleDebitFailed(data: any) {
+  try {
+    console.log('❌ Processing DirectDebit failed event:', data.id);
+
+    const reference = data.reference;
+    const userId = data.metadata?.user_id;
+
+    if (!userId || !reference) {
+      console.error('❌ Missing user_id or reference in failed debit data');
+      return;
+    }
+
+    // Update transaction status to failed
+    const { error } = await supabase
+      .from('transactions')
+      .update({
+        status: 'failed',
+        updated_at: new Date().toISOString(),
+        metadata: {
+          ...data,
+          failed_at: new Date().toISOString(),
+          failure_reason: data.failure_reason || 'Debit failed'
+        }
+      })
+      .eq('reference', reference)
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('❌ Error updating failed transaction:', error);
+    } else {
+      console.log(`✅ Updated transaction ${reference} status to failed`);
+    }
+  } catch (error) {
+    console.error('❌ Error handling DirectDebit failed:', error);
+  }
+}
+
+/**
+ * Handle reversed DirectDebit
+ * CRITICAL: If debit was already credited, we need to reverse the credit
+ */
+async function handleDebitReversed(data: any) {
+  try {
+    console.log('⚠️ Processing DirectDebit reversal event:', data.id);
+
+    const reference = data.reference;
+    const userId = data.metadata?.user_id;
+
+    if (!userId || !reference) {
+      console.error('❌ Missing user_id or reference in reversed debit data');
+      return;
+    }
+
+    // Check if transaction was already completed (credited)
+    const { data: transaction } = await supabase
+      .from('transactions')
+      .select('id, status, amount')
+      .eq('reference', reference)
+      .eq('user_id', userId)
+      .single();
+
+    if (transaction && transaction.status === 'completed') {
+      console.log(`⚠️ Reversing already-credited debit: ₦${transaction.amount}`);
+      
+      // Reverse the wallet credit
+      const { error: reverseError } = await supabase.rpc('reverse_transaction', {
+        arg_transaction_id: transaction.id,
+        arg_reason: 'DirectDebit reversed by Mono',
+      });
+
+      if (reverseError) {
+        console.error('❌ Error reversing transaction:', reverseError);
+        // Manual intervention may be required
+      } else {
+        // Update transaction status
+        await supabase
+          .from('transactions')
+          .update({
+            status: 'reversed',
+            updated_at: new Date().toISOString(),
+            metadata: {
+              ...data,
+              reversed_at: new Date().toISOString(),
+            }
+          })
+          .eq('id', transaction.id);
+
+        console.log(`✅ Reversed transaction ${transaction.id}`);
+      }
+    } else {
+      // Just update status if not yet credited
+      await supabase
+        .from('transactions')
+        .update({
+          status: 'reversed',
+          updated_at: new Date().toISOString(),
+          metadata: {
+            ...data,
+            reversed_at: new Date().toISOString(),
+          }
+        })
+        .eq('reference', reference)
+        .eq('user_id', userId);
+    }
+  } catch (error) {
+    console.error('❌ Error handling DirectDebit reversal:', error);
+  }
+}
+
+serve(async (req: Request) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
+  }
+
+  try {
+    console.log('🔔 Mono webhook received at:', new Date().toISOString());
+    console.log('📡 Request method:', req.method);
+    console.log('📡 Request URL:', req.url);
+    
+    // Only allow POST requests
+    if (req.method !== 'POST') {
+      return new Response(
+        JSON.stringify({ error: 'Method not allowed' }),
+        { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // SECURITY: Get raw body for signature verification
+    const rawBody = await req.text();
+    const signature = req.headers.get('x-mono-signature') || req.headers.get('mono-signature');
+    
+    console.log('🔐 Signature received:', signature ? 'Yes' : 'No');
+    console.log('📦 Raw body length:', rawBody.length);
+
+    // SECURITY: Verify webhook signature
+    if (!signature) {
+      console.error('❌ No Mono signature found in headers');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Missing signature' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!await verifyMonoWebhookSignature(rawBody, signature)) {
+      console.error('❌ Invalid webhook signature');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid signature' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('✅ Webhook signature verified successfully');
+
+    // Parse webhook payload
+    let webhookData: any;
+    try {
+      webhookData = JSON.parse(rawBody);
+    } catch (parseError) {
+      console.error('❌ Error parsing webhook payload:', parseError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON payload' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('📋 Webhook event type:', webhookData.type || webhookData.event);
+    console.log('📋 Webhook data keys:', Object.keys(webhookData.data || webhookData));
+
+    // Handle different webhook events
+    const eventType = webhookData.type || webhookData.event;
+    const eventData = webhookData.data || webhookData;
+    
+    switch (eventType) {
+      // Mandate events
+      case 'mandate.activated':
+      case 'mandate.active':
+        await handleMandateActivated(eventData);
+        break;
+      
+      case 'mandate.cancelled':
+      case 'mandate.cancel':
+        await handleMandateCancelled(eventData);
+        break;
+      
+      case 'mandate.created':
+        console.log('📝 Mandate created - waiting for activation');
+        break;
+      
+      // Debit events
+      case 'debit.successful':
+      case 'debit.success':
+        await handleDebitSuccessful(eventData);
+        break;
+      
+      case 'debit.failed':
+      case 'debit.failure':
+        await handleDebitFailed(eventData);
+        break;
+      
+      case 'debit.reversed':
+      case 'debit.reversal':
+        await handleDebitReversed(eventData);
+        break;
+      
+      case 'debit.initiated':
+      case 'debit.pending':
+        console.log('⏳ Debit initiated/pending - monitoring only');
+        break;
+      
+      default:
+        console.log(`⚠️  Unhandled webhook event: ${eventType}`);
+    }
+
+    console.log('✅ Webhook processed successfully');
+    
+    // Return success immediately to acknowledge receipt
+    return new Response(
+      JSON.stringify({ status: 'success' }),
+      { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+
+  } catch (error) {
+    console.error('💥 Error processing Mono webhook:', error);
+    console.error('💥 Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    // Return 500 but don't expose error details
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  }
+});

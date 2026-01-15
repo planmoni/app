@@ -27,6 +27,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Text, View, StyleSheet, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications, setupTokenRefresh } from '@/lib/notifications';
+import { initializeMessaging } from '@/lib/firebase';
 import * as SystemUI from 'expo-system-ui';
 // Conditionally import NavigationBar to handle cases where native module isn't available
 let NavigationBar: any = null;
@@ -545,6 +546,20 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   useFrameworkReady();
+
+  // Initialize Firebase messaging early to prevent initialization errors
+  useEffect(() => {
+    const initFirebase = async () => {
+      try {
+        await initializeMessaging();
+        console.log('✅ Firebase messaging initialized');
+      } catch (error) {
+        console.warn('⚠️ Firebase messaging initialization failed (non-critical):', error);
+      }
+    };
+    
+    initFirebase();
+  }, []);
 
   // Initialize expo-system-ui and navigation bar for edge-to-edge display
   useEffect(() => {
