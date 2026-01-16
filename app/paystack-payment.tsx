@@ -42,7 +42,7 @@ export default function PaystackPaymentScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const MIN_AMOUNT = 10;
+  const MIN_AMOUNT = 1000;
   const MAX_AMOUNT = 5000000;
 
   const handleBack = () => {
