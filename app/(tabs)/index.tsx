@@ -1122,6 +1122,32 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
+        {/* DirectDebit Test Section - Development Only */}
+        {__DEV__ && isAuthenticated && (
+          <Pressable
+            onPress={() => {
+              router.push('/deposit-flow/payment-methods');
+              logAnalyticsEvent('directdebit_test_click', { source: 'home_screen' });
+            }}
+            style={[styles.linkedAccountsCard, { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 2 }]}
+          >
+            <View style={styles.linkedAccountsContent}>
+              <View style={styles.linkedAccountsIconContainer}>
+                <Building2 size={24} color={colors.primary} />
+              </View>
+              <View style={styles.linkedAccountsTextContainer}>
+                <Text style={[styles.linkedAccountsTitle, { color: colors.text }]}>
+                  🧪 Test DirectDebit
+                </Text>
+                <Text style={[styles.linkedAccountsSubtitle, { color: colors.textSecondary }]}>
+                  Test Mono DirectDebit mandate & funding flow
+                </Text>
+              </View>
+              <ChevronRight size={20} color={colors.primary} />
+            </View>
+          </Pressable>
+        )}
+
         <ImageCarousel images={carouselImages} />
         {isAuthenticated && progress && !(
           progress.id_face_verified === true || 

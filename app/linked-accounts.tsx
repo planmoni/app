@@ -32,8 +32,32 @@ function LinkAccountButton({ colors, bankAccountsCount }: { colors: any; bankAcc
       );
       return;
     }
-    haptics.lightImpact();
-    init();
+
+    // SECURITY: Validate Mono public key before initializing
+    const monoPublicKey = process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || '';
+    if (!monoPublicKey) {
+      haptics.error();
+      Alert.alert(
+        'Configuration Error',
+        'Mono is not properly configured. Please contact support.',
+        [{ text: 'OK' }]
+      );
+      console.error('❌ EXPO_PUBLIC_MONO_PUBLIC_KEY is missing');
+      return;
+    }
+
+    try {
+      haptics.lightImpact();
+      init();
+    } catch (error) {
+      haptics.error();
+      console.error('❌ Error initializing Mono Connect:', error);
+      Alert.alert(
+        'Error',
+        'Failed to open Mono Connect. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const isDisabled = bankAccountsCount >= 2;
@@ -292,8 +316,10 @@ export default function LinkedAccountsScreen() {
     }
   };
   
-  const monoConfig = monoCustomerId ? {
-    publicKey: process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || '',
+  // SECURITY: Validate Mono configuration before creating config
+  const monoPublicKey = process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || '';
+  const monoConfig = monoCustomerId && monoPublicKey ? {
+    publicKey: monoPublicKey,
     scope: 'auth' as const,
     data: {
       customer: { id: monoCustomerId }
@@ -309,6 +335,16 @@ export default function LinkedAccountsScreen() {
     },
     reference: `planmoni_${session?.user?.id || 'unknown'}_${Date.now()}`,
   } : null;
+
+  // Show error if Mono is not configured
+  useEffect(() => {
+    if (!monoPublicKey) {
+      console.error('❌ EXPO_PUBLIC_MONO_PUBLIC_KEY is not set in environment variables');
+    }
+    if (!monoCustomerId && session?.user?.id) {
+      console.warn('⚠️ Mono customer ID not found - account linking may not work');
+    }
+  }, [monoPublicKey, monoCustomerId, session?.user?.id]);
 
   // const config = {
   //   selectedInstitution: {
@@ -396,8 +432,34 @@ export default function LinkedAccountsScreen() {
 
   const styles = createStyles(colors);
 
+  // Show error if Mono public key is missing (critical configuration error)
+  if (!monoPublicKey) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
+        </View>
+        <View style={styles.content}>
+          <View style={[styles.errorContainer, { backgroundColor: colors.errorLight || '#FEF2F2', padding: 20, borderRadius: 12, marginTop: 20 }]}>
+            <AlertTriangle size={24} color={colors.error || '#EF4444'} style={{ marginBottom: 12 }} />
+            <Text style={[styles.errorText, { color: colors.error || '#EF4444', fontWeight: '600', marginBottom: 8 }]}>
+              Mono Configuration Error
+            </Text>
+            <Text style={[styles.errorText, { color: colors.textSecondary, fontSize: 14 }]}>
+              EXPO_PUBLIC_MONO_PUBLIC_KEY is not set in your environment variables. Please configure it to use Mono account linking.
+            </Text>
+          </View>
+        </View>
+        <SafeFooter />
+      </SafeAreaView>
+    );
+  }
+
   // Show loading if customer ID is being set up
-  if (isLoadingCustomer || !monoCustomerId || !monoConfig) {
+  if (isLoadingCustomer) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
@@ -410,6 +472,32 @@ export default function LinkedAccountsScreen() {
           <PlanmoniLoader size="medium" />
           <Text style={styles.loadingText}>Setting up account linking...</Text>
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show error if Mono config cannot be created (missing customer ID)
+  if (!monoConfig) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
+        </View>
+        <View style={styles.content}>
+          <View style={[styles.errorContainer, { backgroundColor: colors.errorLight || '#FEF2F2', padding: 20, borderRadius: 12, marginTop: 20 }]}>
+            <AlertTriangle size={24} color={colors.error || '#EF4444'} style={{ marginBottom: 12 }} />
+            <Text style={[styles.errorText, { color: colors.error || '#EF4444', fontWeight: '600', marginBottom: 8 }]}>
+              Mono Customer Not Found
+            </Text>
+            <Text style={[styles.errorText, { color: colors.textSecondary, fontSize: 14 }]}>
+              Unable to set up Mono customer. Please try again or contact support.
+            </Text>
+          </View>
+        </View>
+        <SafeFooter />
       </SafeAreaView>
     );
   }
@@ -611,25 +699,31 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 32,
   },
   loadingContainer: {
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
   },
   loadingText: {
     fontSize: 16,
     color: colors.textSecondary,
     marginTop: 16,
+    textAlign: 'center',
   },
   errorContainer: {
-    backgroundColor: '#FEE2E2',
-    padding: 12,
-    borderRadius: 8,
+    padding: 20,
+    borderRadius: 12,
+    backgroundColor: colors.errorLight || '#FEF2F2',
+    borderWidth: 1,
+    borderColor: colors.error || '#EF4444',
+    alignItems: 'center',
     marginBottom: 16,
   },
   errorText: {
-    color: '#EF4444',
     fontSize: 14,
+    color: colors.text,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   emptyContainer: {
     padding: 20,

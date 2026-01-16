@@ -10,7 +10,10 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
-// DirectPay removed - using DirectDebit with mandates instead
+import { useInitiateMandate } from '@/hooks/useInitiateMandate';
+import { useFundWallet } from '@/hooks/useFundWallet';
+import { useUserMandates } from '@/hooks/useMandateStatus';
+import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 
 export default function AuthorizationScreen() {
   const { colors } = useTheme();
@@ -22,36 +25,138 @@ export default function AuthorizationScreen() {
   const paymentType = params.paymentType as string;
   const monoAccountId = params.monoAccountId as string;
   const bankName = params.bankName as string;
-  const { addFunds, refreshWallet } = useBalance();
+  const { refreshWallet } = useBalance();
   const haptics = useHaptics();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [monoConfig, setMonoConfig] = useState<any>(null);
+  
+  // DirectDebit hooks
+  const { mutate: initiateMandate, isPending: isCreatingMandate } = useInitiateMandate();
+  const { mutate: fundWallet, isPending: isFunding } = useFundWallet();
+  const { data: mandates, isLoading: isLoadingMandates } = useUserMandates();
+  const { bankAccounts } = useRealtimeBankAccounts();
+  
+  // Find the bank account
+  const bankAccount = bankAccounts.find(acc => acc.id === methodId || acc.mono_account_id === monoAccountId);
 
   const handleFundWallet = async () => {
     try {
       setIsProcessing(true);
       
-      // DirectPay removed - using DirectDebit with mandates instead
-
-      // For other payment methods, process normally
-      const numericAmount = parseFloat(amount.replace(/,/g, ''));
-      console.log('Funding wallet with amount:', numericAmount);
-      await addFunds?.(numericAmount);
-      haptics.success();
-      
-      // Navigate to success screen
-      router.replace({
-        pathname: '/deposit-flow/success',
-        params: {
-          amount,
-          methodTitle: methodTitle || getMethodTitle(newMethodType)
+      // For DirectDebit, check if mandate exists and is active
+      if (paymentType === 'mono-directdebit' && bankAccount && monoAccountId) {
+        const numericAmount = parseFloat(amount.replace(/,/g, ''));
+        
+        // Find active mandate for this bank account
+        const activeMandate = mandates?.find(
+          m => m.bank_account_id === bankAccount.id && m.status === 'active'
+        );
+        
+        if (!activeMandate) {
+          // No active mandate - create one first
+          Alert.alert(
+            'Mandate Required',
+            'You need to authorize a mandate first. This allows us to debit your bank account only when you choose to fund your wallet, up to ₦1,000,000 total. You can cancel anytime.',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => setIsProcessing(false) },
+              {
+                text: 'Authorize',
+                onPress: async () => {
+                  try {
+                    initiateMandate(
+                      {
+                        bankAccountId: bankAccount.id,
+                        monoAccountId: monoAccountId,
+                        accountName: bankAccount.account_name,
+                        accountNumber: bankAccount.account_number,
+                        bankName: bankAccount.bank_name,
+                        amount: 1000000, // Maximum authorization: ₦1,000,000
+                      },
+                      {
+                        onSuccess: (data) => {
+                          // If mandate URL is provided, open Mono widget for authorization
+                          if (data.mono_url) {
+                            // User needs to authorize via Mono widget
+                            Alert.alert(
+                              'Authorization Required',
+                              'Please authorize the mandate using the Mono widget. After authorization, you can fund your wallet.',
+                              [
+                                { 
+                                  text: 'OK',
+                                  onPress: () => {
+                                    setIsProcessing(false);
+                                    // Navigate back - user will need to retry after authorization
+                                  }
+                                }
+                              ]
+                            );
+                          } else if (data.status === 'active') {
+                            // Mandate already active, proceed with debit
+                            handleExecuteDebit(data.mandate.id, numericAmount);
+                          } else {
+                            setIsProcessing(false);
+                            Alert.alert('Info', 'Mandate created. Please authorize it and try again.');
+                          }
+                        },
+                        onError: (error) => {
+                          haptics.error();
+                          Alert.alert('Error', error.message || 'Failed to create mandate');
+                          setIsProcessing(false);
+                        },
+                      }
+                    );
+                  } catch (error) {
+                    haptics.error();
+                    Alert.alert('Error', 'Failed to initiate mandate');
+                    setIsProcessing(false);
+                  }
+                },
+              },
+            ]
+          );
+          return;
         }
-      });
+        
+        // Execute debit using active mandate
+        handleExecuteDebit(activeMandate.id, numericAmount);
+      } else {
+        // For other payment methods, process normally (if needed)
+        haptics.error();
+        Alert.alert('Error', 'Invalid payment method');
+        setIsProcessing(false);
+      }
     } catch (error) {
       haptics.error();
       console.error('Error funding wallet:', error);
       setIsProcessing(false);
     }
+  };
+
+  const handleExecuteDebit = (mandateId: string, amount: number) => {
+    fundWallet(
+      {
+        mandateId,
+        amount,
+        description: `Wallet funding: ₦${amount}`,
+      },
+      {
+        onSuccess: () => {
+          haptics.success();
+          refreshWallet();
+          router.replace({
+            pathname: '/deposit-flow/success',
+            params: {
+              amount: amount.toString(),
+              methodTitle: `${bankName || 'Bank'} • DirectDebit`,
+            },
+          });
+        },
+        onError: (error) => {
+          haptics.error();
+          Alert.alert('Payment Error', error.message || 'Failed to fund wallet');
+          setIsProcessing(false);
+        },
+      }
+    );
   };
 
   const handleMonoSuccess = () => {
@@ -167,9 +272,15 @@ export default function AuthorizationScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title={isProcessing ? "Processing..." : "Fund wallet now"}
+        title={
+          isProcessing || isCreatingMandate || isFunding 
+            ? "Processing..." 
+            : paymentType === 'mono-directdebit' 
+              ? "Fund wallet now" 
+              : "Fund wallet now"
+        }
         onPress={handleFundWallet}
-        disabled={isProcessing}
+        disabled={isProcessing || isCreatingMandate || isFunding || isLoadingMandates}
       />
       
       <SafeFooter />
