@@ -41,7 +41,7 @@ export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: Pi
         {
           width: keySize,
           height: keySize,
-          borderRadius: keySize / 2,
+          borderRadius: keySize / 3,
           backgroundColor: isDark ? colors.backgroundSecondary : colors.backgroundTertiary,
           borderColor: colors.border,
         },
@@ -137,7 +137,7 @@ export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: Pi
             {
               width: keySize,
               height: keySize,
-              borderRadius: keySize / 2,
+              borderRadius: keySize / 3,
               backgroundColor: isDark ? colors.backgroundSecondary : colors.backgroundTertiary,
               borderColor: colors.border,
             },

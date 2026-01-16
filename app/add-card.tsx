@@ -638,4 +638,3 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: '#FFFFFF',
   },
 });
-

@@ -239,8 +239,8 @@ export function useCreatePayout() {
           // SECURITY: Unlock funds if plan creation fails
           try {
             const unlockResult = await supabase.rpc('unlock_funds', {
-              arg_user_id: session.user.id,
-              arg_amount: totalAmount
+            arg_user_id: session.user.id,
+            arg_amount: totalAmount
             });
             if (unlockResult?.error) {
               console.error('Error unlocking funds after plan creation failure:', unlockResult.error);
@@ -258,8 +258,8 @@ export function useCreatePayout() {
         // SECURITY: Ensure funds are unlocked if plan creation fails
         try {
           const unlockResult = await supabase.rpc('unlock_funds', {
-            arg_user_id: session.user.id,
-            arg_amount: totalAmount
+          arg_user_id: session.user.id,
+          arg_amount: totalAmount
           });
           if (unlockResult?.error) {
             console.error('Error unlocking funds after plan creation failure:', unlockResult.error);

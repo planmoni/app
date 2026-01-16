@@ -3310,6 +3310,11 @@
   resolved "https://registry.npmjs.org/@types/stack-utils/-/stack-utils-2.0.3.tgz"
   integrity sha512-9aEbYZ3TbYMznPdcdr3SmIrLXwC/AKZXQeCf9Pgao5CKb8CyHuEX5jzWPTkvregvhRJHcpRO6BFoGW9ycaOkYw==
 
+"@types/validator@^13.6.3":
+  version "13.15.10"
+  resolved "https://registry.npmjs.org/@types/validator/-/validator-13.15.10.tgz"
+  integrity sha512-T8L6i7wCuyoK8A/ZeLYt1+q0ty3Zb9+qbSSvrIVitzT3YjZqkTZ40IbRsPanlB4h1QB3JVL1SYCdR6ngtFYcuA==
+
 "@types/ws@^8.18.1":
   version "8.18.1"
   resolved "https://registry.npmjs.org/@types/ws/-/ws-8.18.1.tgz"
@@ -8363,6 +8368,15 @@ react-native-paper@^5.14.5:
     color "^3.1.2"
     use-latest-callback "^0.2.3"
 
+react-native-paystack-webview@^5.0.3:
+  version "5.0.3"
+  resolved "https://registry.npmjs.org/react-native-paystack-webview/-/react-native-paystack-webview-5.0.3.tgz"
+  integrity sha512-NkQX2YD0Jqir+VAEnpRbBi/HeqZSpCcUHOpB3OSA9Ez1PdJ7jhx7kkhl6dB0CPaqrPHUXjPG7aZoXoA7V7b81Q==
+  dependencies:
+    "@types/validator" "^13.6.3"
+    react-native-webview "*"
+    validator "^13.6.0"
+
 react-native-qrcode-svg@^6.3.15:
   version "6.3.15"
   resolved "https://registry.npmjs.org/react-native-qrcode-svg/-/react-native-qrcode-svg-6.3.15.tgz"
@@ -9768,6 +9782,11 @@ validate-npm-package-name@^5.0.0:
   version "5.0.1"
   resolved "https://registry.npmjs.org/validate-npm-package-name/-/validate-npm-package-name-5.0.1.tgz"
   integrity sha512-OljLrQ9SQdOUqTaQxqL5dEfZWrXExyyWsozYlAWFawPVNuD83igl7uJD2RTkNMbniIYgt8l81eCJGIdQF7avLQ==
+
+validator@^13.6.0:
+  version "13.15.26"
+  resolved "https://registry.npmjs.org/validator/-/validator-13.15.26.tgz"
+  integrity sha512-spH26xU080ydGggxRyR1Yhcbgx+j3y5jbNXk/8L+iRvdIEQ4uTRH2Sgf2dokud6Q4oAtsbNvJ1Ft+9xmm6IZcA==
 
 vary@~1.1.2:
   version "1.1.2"

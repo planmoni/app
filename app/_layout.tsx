@@ -16,6 +16,8 @@ import UpdateAppModal from '@/components/UpdateAppModal';
 import { UserActivityTracker } from '@/hooks/useUserActivityTracking';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { QueryClientProvider } from '@/contexts/QueryClientProvider';
+import { PaystackProvider } from 'react-native-paystack-webview';
+import Constants from 'expo-constants';
 
 
 import { usePageTracking } from '@/hooks/usePageTracking';
@@ -583,31 +585,44 @@ export default function RootLayout() {
     }
   }, []);
 
+  // Get Paystack public key from environment
+  const paystackPublicKey = 
+    Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
+    Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ||
+    process.env.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
+    process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ||
+    'pk_test_placeholder'; // Fallback to prevent provider error
+
   return (
     <AppErrorProvider>
       <QueryClientProvider>
         <ThemeProvider>
           <TextSizeProvider>
             <ToastProvider>
-              <AuthProvider>
-                <AppVersionProvider>
-                  <PinProvider>
-                    <AppLockProvider>
-                      <NotificationProvider>
-                        <BalanceProvider>
-                          <BottomNavProvider>
-                            <AppBlur>
-                              <UserActivityTracker>
-                                <RootLayoutNav />
-                              </UserActivityTracker>
-                            </AppBlur>
-                          </BottomNavProvider>
-                        </BalanceProvider>
-                      </NotificationProvider>
-                    </AppLockProvider>
-                  </PinProvider>
-                </AppVersionProvider>
-              </AuthProvider>
+              <PaystackProvider 
+                publicKey={paystackPublicKey}
+                defaultChannels={['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer']}
+              >
+                <AuthProvider>
+                  <AppVersionProvider>
+                    <PinProvider>
+                      <AppLockProvider>
+                        <NotificationProvider>
+                          <BalanceProvider>
+                            <BottomNavProvider>
+                              <AppBlur>
+                                <UserActivityTracker>
+                                  <RootLayoutNav />
+                                </UserActivityTracker>
+                              </AppBlur>
+                            </BottomNavProvider>
+                          </BalanceProvider>
+                        </NotificationProvider>
+                      </AppLockProvider>
+                    </PinProvider>
+                  </AppVersionProvider>
+                </AuthProvider>
+              </PaystackProvider>
             </ToastProvider>
           </TextSizeProvider>
         </ThemeProvider>
