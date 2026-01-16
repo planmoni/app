@@ -64,13 +64,15 @@ async function addFundsToWallet(userId: string, amount: number, reference: strin
     const finalTotalAmount = totalAmount || paystackAmountInNaira || amount;
     
     // If we have totalAmount but no fees, let the function auto-calculate fees
-    // The function will calculate: fees = (totalAmount * 0.015) + 100
+    // The function will calculate fees using new structure:
+    // - Amount < ₦2500: fees = amount * 0.015 (no flat fee)
+    // - Amount ≥ ₦2500: fees = min((amount * 0.015) + 100, 2000)
     // And then: amount_to_credit = totalAmount - fees
     const finalAmount = amount; // This will be overridden by function if totalAmount is provided
     const finalFees = fees || 0; // If 0, function will auto-calculate
     
     console.log(`💰 Processing deposit: Total paid: ₦${finalTotalAmount.toLocaleString()}, Fees: ₦${finalFees.toLocaleString()}, Amount to credit: ₦${finalAmount.toLocaleString()}`);
-    console.log(`📋 Function will auto-calculate fees if needed (1.5% + NGN 100)`);
+    console.log(`📋 Function will auto-calculate fees if needed (new structure: <₦2500 = 1.5% only, ≥₦2500 = 1.5% + ₦100 capped at ₦2000)`);
 
     // Process deposit atomically using process_paystack_deposit function
     // The function will automatically calculate and deduct fees if total_amount is provided

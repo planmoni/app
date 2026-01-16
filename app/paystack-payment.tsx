@@ -76,13 +76,38 @@ export default function PaystackPaymentScreen() {
     return parseFloat(amount) || 0;
   };
 
-  // Calculate Paystack fee: 1.5% + NGN 100
+  // Calculate Paystack fee with new structure:
+  // - Amount < ₦2500: 1.5% only (no flat fee)
+  // - Amount ≥ ₦2500: 1.5% + ₦100, capped at ₦2000
   // Fee is calculated on the amount user wants to add (what they'll receive)
   const calculatePaystackFee = (amount: number): number => {
     if (amount <= 0) return 0;
     const percentageFee = amount * 0.015; // 1.5%
-    const flatFee = 100; // NGN 100
-    return percentageFee + flatFee;
+    
+    if (amount < 2500) {
+      // No flat fee for amounts under ₦2500
+      return percentageFee;
+    } else {
+      // For amounts >= ₦2500: 1.5% + 100, capped at ₦2000
+      const feeWithFlat = percentageFee + 100;
+      return Math.min(feeWithFlat, 2000);
+    }
+  };
+
+  // Get the fee label text based on amount
+  const getPaystackFeeLabel = (amount: number): string => {
+    if (amount <= 0) return 'Paystack Fee';
+    
+    if (amount < 2500) {
+      return 'Paystack Fee (1.5%)';
+    } else {
+      const fee = calculatePaystackFee(amount);
+      if (fee >= 2000) {
+        return 'Paystack Fee (₦2000)';
+      } else {
+        return 'Paystack Fee (1.5% + ₦100)';
+      }
+    }
   };
 
   // Calculate total amount to pay (amount user wants + fee)
@@ -372,7 +397,9 @@ export default function PaystackPaymentScreen() {
                 </Text>
               </View>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Paystack Fee (1.5% + ₦100)</Text>
+                <Text style={styles.summaryLabel}>
+                  {getPaystackFeeLabel(getNumericAmount())}
+                </Text>
                 <Text style={[styles.summaryValue, styles.feeText]}>
                   ₦{calculatePaystackFee(getNumericAmount()).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Text>
