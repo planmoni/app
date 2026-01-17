@@ -94,3 +94,4 @@ COMMENT ON COLUMN mono_mandates.mono_mandate_id IS 'Mono mandate ID returned aft
 COMMENT ON COLUMN mono_mandates.mono_reference IS 'Unique reference for this mandate, used for debits';
 
 
+
