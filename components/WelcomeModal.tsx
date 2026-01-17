@@ -172,15 +172,15 @@ const SLIDES = [
   
   {
     id: '1',
-    title: 'Welcome to Financial Control',
-    description: "Put yourself on a salary, gain control and stay on track with your finances.",
+    title: 'Stay funded always',
+    description: "Turn your one-time funds into regular payouts and stay funded even when expenses are frequent and income is unpredictable",
     image: require('@/assets/images/StayInControl.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
   },
   {
     id: '2',
-    title: 'Choose when and how you get paid',
+    title: 'Put Yourself on a Personal Salary Schedule',
     description: 'Split lump-sums into scheduled daily, weekly, bi-weekly or monthly payouts that work for your lifestyle.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     gradient: ['#059669', '#10B981'],
@@ -189,7 +189,7 @@ const SLIDES = [
   {
     id: '3',
     title: 'Stabilize your Cash Flow',
-    description: 'Secure your money, automate payouts & say goodbye to irregular income forever.',
+    description: 'Secure your money with automated payouts and say goodbye to irregular income forever.',
     image: require('@/assets/images/SmartSavings.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',

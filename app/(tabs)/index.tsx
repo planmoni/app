@@ -938,6 +938,7 @@ export default function HomeScreen() {
                 <Text style={styles.greeting}>
                   {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
                 </Text>
+                <Text style={styles.subGreeting}> Create payout plans to stay funded always</Text>
                 {!isAuthenticated && (
                   <Pressable 
                     onPress={() => router.push('/(auth)/login')} 
