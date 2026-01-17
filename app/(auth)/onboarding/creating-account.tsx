@@ -88,11 +88,12 @@ export default function CreatingAccountScreen() {
           setCreationProgress('Account created successfully!');
           
           // Set flag to show KYC verification modal after signup
-          try {
-            await AsyncStorage.setItem('show_kyc_modal_after_signup', 'true');
-          } catch (error) {
-            console.error('Error setting KYC modal flag:', error);
-          }
+          // DISABLED: Modal no longer shows after onboarding completion
+          // try {
+          //   await AsyncStorage.setItem('show_kyc_modal_after_signup', 'true');
+          // } catch (error) {
+          //   console.error('Error setting KYC modal flag:', error);
+          // }
           
           // Navigate directly to dashboard after account creation
           setTimeout(() => {

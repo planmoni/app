@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -40,7 +40,7 @@ export function useEmergencyWithdrawal() {
   };
 
   // Check for existing pending or completed withdrawals for a plan
-  const checkExistingWithdrawal = async (planId: string): Promise<{ exists: boolean; status?: string }> => {
+  const checkExistingWithdrawal = useCallback(async (planId: string): Promise<{ exists: boolean; status?: string }> => {
     try {
       if (!session?.user?.id) {
         return { exists: false };
@@ -66,7 +66,7 @@ export function useEmergencyWithdrawal() {
       console.error('Error in checkExistingWithdrawal:', err);
       return { exists: false };
     }
-  };
+  }, [session?.user?.id]);
 
   const processEmergencyWithdrawal = async (request: EmergencyWithdrawalRequest) => {
     try {

@@ -1,17 +1,45 @@
-import { View, Text, StyleSheet, Pressable, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform, ScrollView, useColorScheme, Modal } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Calendar, ChevronRight, ChevronDown, ArrowLeft, X, CalendarDays } from 'lucide-react-native';
-import { useState } from 'react';
+import { Calendar, ChevronRight, ChevronDown, ArrowLeft, X, CalendarDays, Clock, ChevronLeft, Plus } from 'lucide-react-native';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useWindowDimensions } from 'react-native';
+import { supabase } from '@/lib/supabase';
+import { PayoutFeeFrequency } from '@/types/payout-fees';
 
 type FrequencyOption = {
   value: string;
   label: string;
+};
+
+type DurationOption = {
+  value: number;
+  label: string;
+  description: string;
+};
+
+type DayOfWeekOption = {
+  value: number;
+  label: string;
+};
+
+type TimePickerProps = {
+  isVisible: boolean;
+  onClose: () => void;
+  onSelect: (hour: number, minute: number) => void;
+  selectedHour: number;
+  selectedMinute: number;
+};
+
+type DatePickerProps = {
+  isVisible: boolean;
+  onClose: () => void;
+  onSelect: (date: string) => void;
+  selectedDates: string[];
 };
 
 const FREQUENCY_OPTIONS: FrequencyOption[] = [
@@ -24,44 +52,611 @@ const FREQUENCY_OPTIONS: FrequencyOption[] = [
   { value: 'annually', label: 'Annually' },
 ];
 
+const DAYS_OF_WEEK: DayOfWeekOption[] = [
+  { value: 0, label: 'Every Sunday' },
+  { value: 1, label: 'Every Monday' },
+  { value: 2, label: 'Every Tuesday' },
+  { value: 3, label: 'Every Wednesday' },
+  { value: 4, label: 'Every Thursday' },
+  { value: 5, label: 'Every Friday' },
+  { value: 6, label: 'Every Saturday' },
+];
+
+function TimePicker({ isVisible, onClose, onSelect, selectedHour, selectedMinute }: TimePickerProps) {
+  const { colors } = useTheme();
+  const [hour, setHour] = useState(selectedHour);
+  const [minute, setMinute] = useState(selectedMinute);
+  
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const minutes = Array.from({ length: 60 }, (_, i) => i);
+  
+  const handleConfirm = () => {
+    onSelect(hour, minute);
+    onClose();
+  };
+  
+  const styles = createTimePickerStyles(colors);
+  
+  return (
+    <Modal
+      visible={isVisible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Select Time</Text>
+            <Pressable style={styles.closeButton} onPress={onClose}>
+              <X size={20} color={colors.text} />
+            </Pressable>
+          </View>
+          
+          <View style={styles.timeContainer}>
+            <View style={styles.timeSection}>
+              <Text style={styles.timeLabel}>Hour</Text>
+              <ScrollView 
+                style={styles.timeScroll} 
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled={Platform.OS === 'android'}
+                bounces={Platform.OS === 'ios'}
+              >
+                {hours.map((h) => (
+                  <Pressable
+                    key={h}
+                    style={[styles.timeOption, hour === h && styles.selectedTimeOption]}
+                    onPress={() => setHour(h)}
+                  >
+                    <Text style={[
+                      styles.timeOptionText,
+                      hour === h && styles.selectedTimeOptionText
+                    ]}>
+                      {h.toString().padStart(2, '0')}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+            
+            <Text style={styles.timeSeparator}>:</Text>
+            
+            <View style={styles.timeSection}>
+              <Text style={styles.timeLabel}>Minute</Text>
+              <ScrollView 
+                style={styles.timeScroll} 
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled={Platform.OS === 'android'}
+                bounces={Platform.OS === 'ios'}
+              >
+                {minutes.filter(m => m % 5 === 0).map((m) => (
+                  <Pressable
+                    key={m}
+                    style={[styles.timeOption, minute === m && styles.selectedTimeOption]}
+                    onPress={() => setMinute(m)}
+                  >
+                    <Text style={[
+                      styles.timeOptionText,
+                      minute === m && styles.selectedTimeOptionText
+                    ]}>
+                      {m.toString().padStart(2, '0')}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+          
+          <View style={styles.modalActions}>
+            <Pressable style={styles.cancelButton} onPress={onClose}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+            <Pressable style={styles.confirmButton} onPress={handleConfirm}>
+              <Text style={styles.confirmButtonText}>Confirm</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function DatePicker({ isVisible, onClose, onSelect, selectedDates }: DatePickerProps) {
+  const { colors } = useTheme();
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const { width } = useWindowDimensions();
+  const isSmallScreen = width < 380;
+
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+
+  const formatDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatDateForDisplay = (dateString: string) => {
+    const date = new Date(dateString);
+    return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+  };
+
+  const handleDateSelect = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(date);
+    selectedDate.setHours(0, 0, 0, 0);
+    
+    if (selectedDate <= today) {
+      return;
+    }
+
+    const dateString = formatDate(date);
+    const isDateAlreadySelected = selectedDates.includes(dateString);
+    
+    if (isDateAlreadySelected) {
+      onSelect(dateString);
+      return;
+    }
+    
+    if (selectedDates.length >= 7) {
+      return;
+    }
+    
+    onSelect(dateString);
+  };
+
+  const isDateSelected = (date: Date) => {
+    return selectedDates.includes(formatDate(date));
+  };
+
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear();
+  };
+
+  const isTodayOrPastDate = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkDate = new Date(date);
+    checkDate.setHours(0, 0, 0, 0);
+    return checkDate <= today;
+  };
+
+  const styles = createDatePickerStyles(colors, isSmallScreen);
+
+  return (
+    <Modal
+      visible={isVisible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.calendarHeader}>
+            <Text style={styles.calendarTitle}>
+              {selectedDates.length >= 7 
+                ? `Maximum 7 dates selected (${selectedDates.length}/7)`
+                : `Select dates (${selectedDates.length}/7)`}
+            </Text>
+            <View style={styles.monthNavigation}>
+              <Pressable style={styles.navigationButton} onPress={handlePrevMonth}>
+                <ChevronLeft size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
+              </Pressable>
+              <Text style={styles.monthYearText}>
+                {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
+              </Text>
+              <Pressable style={styles.navigationButton} onPress={handleNextMonth}>
+                <ChevronRight size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.calendar}>
+            <View style={styles.weekDays}>
+              {DAYS.map(day => (
+                <View key={day} style={styles.weekDay}>
+                  <Text style={styles.weekDayText}>{day}</Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.daysGrid}>
+              {Array.from({ length: getFirstDayOfMonth(currentDate) }).map((_, index) => (
+                <View key={`empty-${index}`} style={styles.dayCell}>
+                  <Text style={styles.dayText}></Text>
+                </View>
+              ))}
+              
+              {Array.from({ length: getDaysInMonth(currentDate) }).map((_, index) => {
+                const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), index + 1);
+                const isDisabled = isTodayOrPastDate(date);
+                const isDateAlreadySelected = isDateSelected(date);
+                const isTodayDate = isToday(date);
+                const isMaxDatesReached = selectedDates.length >= 7 && !isDateAlreadySelected;
+
+                return (
+                  <Pressable
+                    key={`day-${index}`}
+                    style={[
+                      styles.dayCell,
+                      isDateAlreadySelected && styles.selectedDay,
+                      isTodayDate && !isDateAlreadySelected && !isDisabled && !isMaxDatesReached && styles.todayDay,
+                      (isDisabled || isMaxDatesReached) && styles.disabledDay,
+                    ]}
+                    onPress={() => !isDisabled && !isMaxDatesReached && handleDateSelect(date)}
+                    disabled={isDisabled || isMaxDatesReached}
+                  >
+                    <Text style={[
+                      styles.dayText,
+                      isDateAlreadySelected && styles.selectedDayText,
+                      isTodayDate && !isDateAlreadySelected && !isDisabled && !isMaxDatesReached && styles.todayDayText,
+                      (isDisabled || isMaxDatesReached) && styles.disabledDayText,
+                    ]}>
+                      {index + 1}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {selectedDates.length > 0 && (
+            <View style={styles.selectedDatesContainer}>
+              <Text style={styles.selectedDatesTitle}>Selected Dates:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectedDatesList}>
+                {selectedDates.sort().map((date, index) => (
+                  <View key={index} style={styles.selectedDateChip}>
+                    <Text style={styles.selectedDateText}>{formatDateForDisplay(date)}</Text>
+                    <Pressable
+                      onPress={() => onSelect(date)}
+                      style={styles.removeDateButton}
+                    >
+                      <X size={14} color={colors.text} />
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          <View style={styles.modalActions}>
+            <Pressable 
+              style={[styles.modalButton, styles.doneButton]}
+              onPress={onClose}
+            >
+              <Text style={styles.doneButtonText}>Done</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function FrequencySelectionScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const haptics = useHaptics();
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 380;
+  const isDark = useColorScheme() === 'dark';
 
-  const [selectedFrequency, setSelectedFrequency] = useState<string | null>('daily');
+  const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
   const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState<'frequency' | 'custom'>('frequency');
+  
+  // Schedule-related state
+  const [totalAmount, setTotalAmount] = useState(params.totalAmount as string || '0');
+  const [payoutAmount, setPayoutAmount] = useState('0');
+  const [selectedDuration, setSelectedDuration] = useState<DurationOption | null>(null);
+  const [showDurationPicker, setShowDurationPicker] = useState(false);
+  const [selectedHour, setSelectedHour] = useState(12);
+  const [selectedMinute, setSelectedMinute] = useState(0);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<number | null>(null);
+  const [showDayOfWeekPicker, setShowDayOfWeekPicker] = useState(false);
+  const [numberOfPayouts, setNumberOfPayouts] = useState(0);
+  const [customDates, setCustomDates] = useState<string[]>([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  
+  const isUpdatingDurationRef = useRef(false);
+  const lastSelectedFrequencyRef = useRef<string>('');
 
-  const handleSelectDates = () => {
-    if (Platform.OS !== 'web') {
-      haptics.mediumImpact();
+  // Duration options based on frequency
+  const getDurationOptions = (frequency: string, totalAmount?: string): DurationOption[] => {
+    switch (frequency) {
+      case 'daily':
+        const numericAmount = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+        const isAmountBelow50K = numericAmount > 0 && numericAmount < 50000;
+        
+        if (isAmountBelow50K) {
+          return [{ value: 7, label: '1 Week', description: '7 daily payments' }];
+        }
+        
+        return [
+          { value: 7, label: '1 Week', description: '7 daily payments' },
+          { value: 30, label: '1 Month', description: '30 daily payments' },
+          { value: 90, label: '3 Months', description: '90 daily payments' }
+        ];
+      case 'weekly_specific':
+        const numericAmountWeekly = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+        const isAmountBelow50KWeekly = numericAmountWeekly > 0 && numericAmountWeekly < 50000;
+        
+        if (isAmountBelow50KWeekly) {
+          return [
+            { value: 4, label: '1 Month', description: '4 weekly payments' },
+            { value: 12, label: '3 Months', description: '12 weekly payments' }
+          ];
+        }
+        
+        return [
+          { value: 4, label: '1 Month', description: '4 weekly payments' },
+          { value: 12, label: '3 Months', description: '12 weekly payments' },
+          { value: 24, label: '6 Months', description: '24 weekly payments' },
+          { value: 52, label: '1 Year', description: '52 weekly payments' }
+        ];
+      case 'biweekly':
+        const numericAmountBiweekly = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+        const isAmountBelow50KBiweekly = numericAmountBiweekly > 0 && numericAmountBiweekly < 50000;
+        
+        if (isAmountBelow50KBiweekly) {
+          return [
+            { value: 2, label: '1 Month', description: '2 bi-weekly payments' },
+            { value: 6, label: '3 Months', description: '6 bi-weekly payments' }
+          ];
+        }
+        
+        return [
+          { value: 2, label: '1 Month', description: '2 bi-weekly payments' },
+          { value: 6, label: '3 Months', description: '6 bi-weekly payments' },
+          { value: 12, label: '6 Months', description: '12 bi-weekly payments' },
+          { value: 26, label: '1 Year', description: '26 bi-weekly payments' }
+        ];
+      case 'end_of_month':
+        const numericAmountMonthly = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+        const isAmountBelow50KMonthly = numericAmountMonthly > 0 && numericAmountMonthly < 50000;
+        
+        if (isAmountBelow50KMonthly) {
+          return [
+            { value: 1, label: '1 Month', description: '1 monthly payment' },
+            { value: 3, label: '3 Months', description: '3 monthly payments' }
+          ];
+        }
+        
+        return [
+          { value: 1, label: '1 Month', description: '1 monthly payment' },
+          { value: 3, label: '3 Months', description: '3 monthly payments' },
+          { value: 6, label: '6 Months', description: '6 monthly payments' },
+          { value: 12, label: '1 Year', description: '12 monthly payments' }
+        ];
+      case 'quarterly':
+        return [
+          { value: 1, label: '3 Months', description: '1 quarterly payment' },
+          { value: 2, label: '6 Months', description: '2 quarterly payments' },
+          { value: 4, label: '1 Year', description: '4 quarterly payments' },
+          { value: 8, label: '2 Years', description: '8 quarterly payments' }
+        ];
+      case 'biannual':
+        return [
+          { value: 1, label: '6 Months', description: '1 bi-annual payment' },
+          { value: 2, label: '1 Year', description: '2 bi-annual payments' },
+          { value: 4, label: '2 Years', description: '4 bi-annual payments' },
+          { value: 6, label: '3 Years', description: '6 bi-annual payments' }
+        ];
+      case 'annually':
+        return [
+          { value: 1, label: '1 Year', description: '1 annual payment' },
+          { value: 2, label: '2 Years', description: '2 annual payments' },
+          { value: 3, label: '3 Years', description: '3 annual payments' },
+          { value: 5, label: '5 Years', description: '5 annual payments' }
+        ];
+      default:
+        return [{ value: 12, label: '1 Year', description: '12 monthly payments' }];
+    }
+  };
+
+  // Fetch fee percentage for a given frequency
+  const fetchFeePercentage = useCallback(async (frequency: string): Promise<number> => {
+    try {
+      // Map frequency to database frequency type
+      let dbFrequency: PayoutFeeFrequency;
+      if (frequency === 'weekly_specific') {
+        dbFrequency = 'weekly_specific';
+      } else if (frequency === 'end_of_month') {
+        dbFrequency = 'end_of_month';
+      } else if (frequency === 'custom') {
+        dbFrequency = 'custom';
+      } else {
+        dbFrequency = frequency as PayoutFeeFrequency;
+      }
+      
+      const { data, error } = await supabase
+        .from('payout_fees')
+        .select('fee_percentage')
+        .eq('frequency', dbFrequency)
+        .eq('is_active', true)
+        .single();
+      
+      if (error || !data) {
+        console.warn('Error fetching fee percentage for', frequency, error);
+        return 0;
+      }
+      
+      return data.fee_percentage || 0;
+    } catch (error) {
+      console.error('Error in fetchFeePercentage:', error);
+      return 0;
+    }
+  }, []);
+
+  const calculatePayoutAmount = useCallback(async (total: string, payouts: number, frequency?: string) => {
+    const numericTotal = parseFloat(total.replace(/,/g, ''));
+    if (!isNaN(numericTotal) && payouts > 0) {
+      const freq = frequency || selectedFrequency || 'daily';
+      const feePercentage = await fetchFeePercentage(freq);
+      const feeAmount = numericTotal * (feePercentage / 100);
+      const netAmount = numericTotal - feeAmount;
+      const baseAmount = netAmount / payouts;
+      const roundedDown = Math.floor(baseAmount * 100) / 100;
+      const formattedAmount = roundedDown.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+      
+      if (formattedAmount !== payoutAmount) {
+        setPayoutAmount(formattedAmount);
+      }
+    }
+  }, [payoutAmount, selectedFrequency, fetchFeePercentage]);
+
+  // Initialize from params
+  useEffect(() => {
+    if (params.totalAmount) {
+      setTotalAmount(params.totalAmount as string);
     }
     
-    // Immediately navigate to schedule page with custom frequency
-    router.push({
-      pathname: '/create-payout/schedule',
-      params: {
-        totalAmount: params.totalAmount || '',
-        frequency: 'custom',
-        payoutAmount: params.payoutAmount || '',
-        duration: params.duration || '',
-        startDate: params.startDate || '',
-        bankName: params.bankName || '',
-        accountNumber: params.accountNumber || '',
-        accountName: params.accountName || '',
-        bankAccountId: params.bankAccountId || '',
-        payoutAccountId: params.payoutAccountId || '',
-        emergencyWithdrawal: 'true', // Always enabled
-        customDates: params.customDates || '',
-        dayOfWeek: params.dayOfWeek || '',
-        payoutHour: params.payoutHour || '',
-        payoutMinute: params.payoutMinute || '',
+    // Initialize frequency and related fields when editing from review page
+    if (params.frequency) {
+      const freq = params.frequency as string;
+      setSelectedFrequency(freq);
+      lastSelectedFrequencyRef.current = freq;
+      
+      // Set active tab based on frequency
+      if (freq === 'custom') {
+        setActiveTab('custom');
+      } else {
+        setActiveTab('frequency');
       }
-    });
-  };
+      
+      // Initialize duration if provided
+      if (params.duration) {
+        const durationValue = parseInt(params.duration as string);
+        setNumberOfPayouts(durationValue);
+        
+        // Find matching duration option
+        const durationOptions = getDurationOptions(freq, params.totalAmount as string);
+        const matchingDuration = durationOptions.find(opt => opt.value === durationValue);
+        if (matchingDuration) {
+          setSelectedDuration(matchingDuration);
+        }
+      }
+      
+      // Initialize time if provided
+      if (params.payoutHour) {
+        setSelectedHour(parseInt(params.payoutHour as string));
+      }
+      if (params.payoutMinute) {
+        setSelectedMinute(parseInt(params.payoutMinute as string));
+      }
+      
+      // Initialize day of week if provided
+      if (params.dayOfWeek) {
+        setSelectedDayOfWeek(parseInt(params.dayOfWeek as string));
+      }
+      
+      // Initialize payout amount if provided
+      if (params.payoutAmount) {
+        setPayoutAmount(params.payoutAmount as string);
+      }
+    }
+  }, [params.totalAmount, params.frequency, params.duration, params.payoutAmount, params.payoutHour, params.payoutMinute, params.dayOfWeek]);
+
+  // Update duration when frequency changes
+  useEffect(() => {
+    if (isUpdatingDurationRef.current || !selectedFrequency) {
+      return;
+    }
+    
+    if (selectedFrequency === lastSelectedFrequencyRef.current) {
+      return;
+    }
+    
+    isUpdatingDurationRef.current = true;
+    lastSelectedFrequencyRef.current = selectedFrequency;
+    
+    const durationOptions = getDurationOptions(selectedFrequency, totalAmount);
+    
+    let defaultDuration;
+    if (selectedFrequency === 'daily') {
+      const numericAmount = totalAmount ? parseFloat(totalAmount.replace(/,/g, '')) : 0;
+      const isAmountBelow50K = numericAmount > 0 && numericAmount < 50000;
+      
+      if (isAmountBelow50K) {
+        defaultDuration = durationOptions.find(opt => opt.value === 7) || durationOptions[0];
+      } else {
+        defaultDuration = durationOptions.find(opt => opt.value === 30) || durationOptions[0];
+      }
+    } else {
+      defaultDuration = durationOptions[durationOptions.length - 1];
+    }
+    
+    if (defaultDuration) {
+      setSelectedDuration(defaultDuration);
+      setNumberOfPayouts(defaultDuration.value);
+      if (totalAmount && totalAmount !== '0') {
+        calculatePayoutAmount(totalAmount, defaultDuration.value, selectedFrequency);
+      }
+    }
+    
+    // Show day of week picker if weekly_specific
+    if (selectedFrequency === 'weekly_specific') {
+      setTimeout(() => {
+        setShowDayOfWeekPicker(true);
+      }, 300);
+    }
+    
+    setTimeout(() => {
+      isUpdatingDurationRef.current = false;
+    }, 100);
+  }, [selectedFrequency, totalAmount, calculatePayoutAmount]);
+
+  // Update amount when duration changes (only for frequency tab)
+  useEffect(() => {
+    if (activeTab === 'frequency' && selectedDuration && totalAmount && totalAmount !== '0' && selectedFrequency) {
+      calculatePayoutAmount(totalAmount, selectedDuration.value, selectedFrequency);
+    } else if (activeTab === 'frequency' && !selectedDuration) {
+      setPayoutAmount('0');
+    }
+  }, [selectedDuration, totalAmount, selectedFrequency, activeTab, calculatePayoutAmount]);
+
+  // Reset payout amount when switching tabs
+  useEffect(() => {
+    if (activeTab === 'custom') {
+      // Clear frequency-related amount when switching to custom
+      if (selectedFrequency) {
+        setPayoutAmount('0');
+      }
+    } else if (activeTab === 'frequency') {
+      // Clear custom dates amount when switching to frequency
+      if (customDates.length > 0) {
+        setPayoutAmount('0');
+      }
+    }
+  }, [activeTab]);
 
   const handleFrequencySelect = (frequency: string) => {
     if (Platform.OS !== 'web') {
@@ -71,42 +666,53 @@ export default function FrequencySelectionScreen() {
     setShowFrequencyDropdown(false);
   };
 
-  const handleContinue = () => {
-    // For custom tab, navigate directly to schedule
-    if (activeTab === 'custom') {
-      handleSelectDates();
-      return;
-    }
-
-    // For frequency tab, check if frequency is selected
-    if (!selectedFrequency) {
-      return;
-    }
-
+  const handleDurationSelect = (duration: DurationOption) => {
     if (Platform.OS !== 'web') {
-      haptics.mediumImpact();
+      haptics.selection();
     }
+    
+    isUpdatingDurationRef.current = true;
+    setSelectedDuration(duration);
+    setNumberOfPayouts(duration.value);
+    
+    if (totalAmount && totalAmount !== '0') {
+      calculatePayoutAmount(totalAmount, duration.value, selectedFrequency || undefined);
+    }
+    
+    setShowDurationPicker(false);
+    
+    setTimeout(() => {
+      isUpdatingDurationRef.current = false;
+    }, 100);
+  };
 
-    router.push({
-      pathname: '/create-payout/schedule',
-      params: {
-        totalAmount: params.totalAmount || '',
-        frequency: selectedFrequency,
-        payoutAmount: params.payoutAmount || '',
-        duration: params.duration || '',
-        startDate: params.startDate || '',
-        bankName: params.bankName || '',
-        accountNumber: params.accountNumber || '',
-        accountName: params.accountName || '',
-        bankAccountId: params.bankAccountId || '',
-        payoutAccountId: params.payoutAccountId || '',
-        emergencyWithdrawal: 'true', // Always enabled
-        customDates: params.customDates || '',
-        dayOfWeek: params.dayOfWeek || '',
-        payoutHour: params.payoutHour || '',
-        payoutMinute: params.payoutMinute || '',
-      }
-    });
+  const handleTimeSelect = (hour: number, minute: number) => {
+    if (Platform.OS !== 'web') {
+      haptics.selection();
+    }
+    setSelectedHour(hour);
+    setSelectedMinute(minute);
+  };
+
+  const handleDayOfWeekSelect = (dayValue: number) => {
+    if (Platform.OS !== 'web') {
+      haptics.selection();
+    }
+    setSelectedDayOfWeek(dayValue);
+    setShowDayOfWeekPicker(false);
+  };
+
+  const getTimeDisplay = () => {
+    const hourStr = selectedHour.toString().padStart(2, '0');
+    const minuteStr = selectedMinute.toString().padStart(2, '0');
+    const period = selectedHour >= 12 ? 'PM' : 'AM';
+    const displayHour = selectedHour === 0 ? 12 : selectedHour > 12 ? selectedHour - 12 : selectedHour;
+    return `${displayHour.toString().padStart(2, '0')}:${minuteStr} ${period}`;
+  };
+
+  const getDayOfWeekName = () => {
+    if (selectedDayOfWeek === null) return 'Select Day';
+    return DAYS_OF_WEEK.find(day => day.value === selectedDayOfWeek)?.label || 'Select Day';
   };
 
   const getSelectedFrequencyLabel = () => {
@@ -117,7 +723,169 @@ export default function FrequencySelectionScreen() {
     return option?.label || 'Select payment frequency';
   };
 
-  const styles = createStyles(colors, isSmallScreen);
+  // Initialize custom dates from params
+  useEffect(() => {
+    if (params.customDates) {
+      try {
+        const dates = JSON.parse(params.customDates as string);
+        if (Array.isArray(dates)) {
+          setCustomDates(dates);
+        }
+      } catch (e) {
+        console.error('Error parsing custom dates:', e);
+      }
+    }
+  }, [params.customDates]);
+
+  // Calculate payout amount when custom dates change (only for custom tab)
+  useEffect(() => {
+    if (activeTab === 'custom') {
+      if (customDates.length > 0 && totalAmount && totalAmount !== '0') {
+        // Calculate amount for custom dates
+        calculatePayoutAmount(totalAmount, customDates.length, 'custom').catch(error => {
+          console.error('Error calculating payout amount for custom dates:', error);
+        });
+      } else {
+        // Reset payout amount when no dates selected
+        setPayoutAmount('0');
+      }
+    }
+  }, [customDates, totalAmount, activeTab, calculatePayoutAmount]);
+
+  const handleSelectDates = () => {
+    if (Platform.OS !== 'web') {
+      haptics.mediumImpact();
+    }
+    setShowDatePicker(true);
+  };
+
+  const handleDateSelect = (date: string) => {
+    if (customDates.includes(date)) {
+      setCustomDates(customDates.filter(d => d !== date));
+    } else {
+      if (customDates.length < 7) {
+        setCustomDates([...customDates, date].sort((a, b) => {
+          return new Date(a).getTime() - new Date(b).getTime();
+        }));
+      }
+    }
+  };
+
+  const handleContinue = () => {
+    // For custom tab, validate dates are selected
+    if (activeTab === 'custom') {
+      if (customDates.length === 0) {
+        if (Platform.OS !== 'web') {
+          haptics.error();
+        }
+        return;
+      }
+      
+      if (Platform.OS !== 'web') {
+        haptics.mediumImpact();
+      }
+
+      router.push({
+        pathname: '/create-payout/destination',
+        params: {
+          totalAmount: params.totalAmount || totalAmount || '',
+          frequency: 'custom',
+          payoutAmount: payoutAmount && payoutAmount !== '0' ? payoutAmount : (params.payoutAmount || ''),
+          duration: customDates.length.toString(),
+          startDate: customDates[0] || '',
+          bankName: params.bankName || '',
+          accountNumber: params.accountNumber || '',
+          accountName: params.accountName || '',
+          bankAccountId: params.bankAccountId || '',
+          payoutAccountId: params.payoutAccountId || '',
+          emergencyWithdrawal: 'true',
+          customDates: JSON.stringify(customDates),
+          dayOfWeek: '',
+          payoutHour: selectedHour.toString(),
+          payoutMinute: selectedMinute.toString(),
+        }
+      });
+      return;
+    }
+
+    // Validate frequency is selected
+    if (!selectedFrequency) {
+      return;
+    }
+
+    // Validate day of week for weekly_specific
+    if (selectedFrequency === 'weekly_specific' && selectedDayOfWeek === null) {
+      if (Platform.OS !== 'web') {
+        haptics.error();
+      }
+      return;
+    }
+
+    // Validate duration is selected
+    if (!selectedDuration) {
+      return;
+    }
+
+    if (Platform.OS !== 'web') {
+      haptics.mediumImpact();
+    }
+
+    // Calculate start date
+    let startDate: string;
+    if (selectedFrequency === 'weekly_specific' && typeof selectedDayOfWeek === 'number') {
+      const today = new Date();
+      const currentDay = today.getDay();
+      let daysToAdd = (selectedDayOfWeek - currentDay + 7) % 7;
+      if (daysToAdd === 0) daysToAdd = 0;
+      const firstPayoutDate = new Date(today);
+      firstPayoutDate.setDate(today.getDate() + daysToAdd);
+      startDate = firstPayoutDate.toISOString().split('T')[0];
+    } else if (selectedFrequency === 'daily') {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(selectedHour, selectedMinute, 0, 0);
+      startDate = tomorrow.toISOString().split('T')[0];
+    } else {
+      startDate = new Date().toISOString().split('T')[0];
+    }
+
+    router.push({
+      pathname: '/create-payout/destination',
+      params: {
+        totalAmount: params.totalAmount || '',
+        frequency: selectedFrequency,
+        payoutAmount: payoutAmount,
+        duration: numberOfPayouts.toString(),
+        startDate: startDate,
+        bankName: params.bankName || '',
+        accountNumber: params.accountNumber || '',
+        accountName: params.accountName || '',
+        bankAccountId: params.bankAccountId || '',
+        payoutAccountId: params.payoutAccountId || '',
+        emergencyWithdrawal: 'true', // Always enabled by default
+        customDates: '',
+        dayOfWeek: selectedDayOfWeek !== null ? selectedDayOfWeek.toString() : '',
+        payoutHour: selectedHour.toString(),
+        payoutMinute: selectedMinute.toString(),
+      }
+    });
+  };
+
+  const isContinueDisabled = () => {
+    if (activeTab === 'custom') {
+      return customDates.length === 0;
+    }
+    if (!selectedFrequency || !selectedDuration) {
+      return true;
+    }
+    if (selectedFrequency === 'weekly_specific' && selectedDayOfWeek === null) {
+      return true;
+    }
+    return false;
+  };
+
+  const styles = createStyles(colors, isSmallScreen, isDark);
+  const durationOptions = selectedFrequency ? getDurationOptions(selectedFrequency, totalAmount) : [];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -256,6 +1024,143 @@ export default function FrequencySelectionScreen() {
                   </View>
                 )}
               </View>
+
+              {/* Show schedule fields when frequency is selected */}
+              {selectedFrequency && selectedFrequency !== 'custom' && (
+                <>
+                  {/* Time Selector */}
+                  <View style={styles.section}>
+                    <Text style={styles.sectionLabel}>What time?</Text>
+                    <Pressable 
+                      style={styles.selectButton}
+                      onPress={() => {
+                        if (Platform.OS !== 'web') {
+                          haptics.selection();
+                        }
+                        setShowTimePicker(true);
+                      }}
+                    >
+                      <Clock size={20} color={colors.textSecondary} />
+                      <Text style={styles.selectButtonText}>{getTimeDisplay()}</Text>
+                      <ChevronDown size={20} color={colors.textSecondary} />
+                    </Pressable>
+                  </View>
+
+                  {/* Day of Week Selector for Weekly */}
+                  {selectedFrequency === 'weekly_specific' && (
+                    <View style={styles.section}>
+                      <Text style={styles.sectionLabel}>Select Day of Week</Text>
+                      <Pressable 
+                        style={styles.selectButton}
+                        onPress={() => {
+                          if (Platform.OS !== 'web') {
+                            haptics.selection();
+                          }
+                          setShowDayOfWeekPicker(!showDayOfWeekPicker);
+                        }}
+                      >
+                        <Text style={styles.selectButtonText}>
+                          {selectedDayOfWeek !== null ? getDayOfWeekName() : 'Select a day'}
+                        </Text>
+                        <ChevronDown size={20} color={colors.textSecondary} />
+                      </Pressable>
+                      
+                      {showDayOfWeekPicker && (
+                        <View style={styles.dropdownContainer}>
+                          {DAYS_OF_WEEK.map((day) => (
+                            <Pressable
+                              key={day.value}
+                              style={[
+                                styles.dropdownOption,
+                                selectedDayOfWeek === day.value && styles.dropdownOptionSelected
+                              ]}
+                              onPress={() => handleDayOfWeekSelect(day.value)}
+                            >
+                              <Text style={[
+                                styles.dropdownOptionText,
+                                selectedDayOfWeek === day.value && styles.dropdownOptionTextSelected
+                              ]}>
+                                {day.label}
+                              </Text>
+                              {selectedDayOfWeek === day.value && (
+                                <View style={styles.checkmark}>
+                                  <Text style={styles.checkmarkText}>✓</Text>
+                                </View>
+                              )}
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Duration Selector */}
+                  <View style={styles.section}>
+                    <Text style={styles.sectionLabel}>How long?</Text>
+                    <Pressable 
+                      style={styles.selectButton}
+                      onPress={() => {
+                        if (Platform.OS !== 'web') {
+                          haptics.selection();
+                        }
+                        setShowDurationPicker(!showDurationPicker);
+                      }}
+                    >
+                      <Text style={styles.selectButtonText}>
+                        {selectedDuration ? `${selectedDuration.label} - ${selectedDuration.description}` : 'Select duration'}
+                      </Text>
+                      <ChevronDown size={20} color={colors.textSecondary} />
+                    </Pressable>
+                    
+                    {showDurationPicker && (
+                      <View style={styles.dropdownContainer}>
+                        {durationOptions.map((option) => (
+                          <Pressable
+                            key={option.value}
+                            style={[
+                              styles.dropdownOption,
+                              selectedDuration?.value === option.value && styles.dropdownOptionSelected
+                            ]}
+                            onPress={() => handleDurationSelect(option)}
+                          >
+                            <View style={styles.durationOptionContent}>
+                              <Text style={[
+                                styles.dropdownOptionText,
+                                selectedDuration?.value === option.value && styles.dropdownOptionTextSelected
+                              ]}>
+                                {option.label}
+                              </Text>
+                              <Text style={styles.durationDescription}>{option.description}</Text>
+                            </View>
+                            {selectedDuration?.value === option.value && (
+                              <View style={styles.checkmark}>
+                                <Text style={styles.checkmarkText}>✓</Text>
+                              </View>
+                            )}
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Amount per Duration - Only show for frequency tab */}
+                  {activeTab === 'frequency' && selectedDuration && payoutAmount !== '0' && (
+                    <View style={styles.amountSection}>
+                      <Text style={styles.amountLabel}>Amount per payout</Text>
+                      <Text style={styles.amountValue}>₦{payoutAmount}</Text>
+                      <Text style={styles.amountDescription}>
+                        {numberOfPayouts} {selectedFrequency === 'daily' ? 'daily' : 
+                         selectedFrequency === 'weekly_specific' ? 'weekly' :
+                         selectedFrequency === 'biweekly' ? 'bi-weekly' :
+                         selectedFrequency === 'end_of_month' ? 'monthly' :
+                         selectedFrequency === 'quarterly' ? 'quarterly' :
+                         selectedFrequency === 'biannual' ? 'bi-annual' :
+                         'annual'} payment{numberOfPayouts !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
             </View>
           )}
 
@@ -264,7 +1169,7 @@ export default function FrequencySelectionScreen() {
             <View style={styles.tabContent}>
               <View style={styles.section}>
                 <Text style={styles.sectionDescription}>
-                  Select the dates you want to get paid
+                  Select up to 7 dates you want to get paid
                 </Text>
                 <Pressable
                   style={[styles.selectButton, styles.selectButtonSelected]}
@@ -272,11 +1177,46 @@ export default function FrequencySelectionScreen() {
                 >
                   <CalendarDays size={20} color="#1E3A8A" />
                   <Text style={[styles.selectButtonText, styles.selectButtonTextSelected]}>
-                    Select dates
+                    {customDates.length > 0 ? `${customDates.length} date${customDates.length !== 1 ? 's' : ''} selected` : 'Select dates'}
                   </Text>
                   <ChevronRight size={20} color="#1E3A8A" />
                 </Pressable>
+                {customDates.length > 0 && (
+                  <View style={styles.selectedDatesPreview}>
+                    {customDates.slice(0, 3).map((date, index) => {
+                      const dateObj = new Date(date);
+                      const formatted = `${dateObj.getDate()}/${dateObj.getMonth() + 1}/${dateObj.getFullYear()}`;
+                      return (
+                        <View key={index} style={styles.dateChip}>
+                          <Text style={styles.dateChipText}>{formatted}</Text>
+                          <Pressable
+                            onPress={() => handleDateSelect(date)}
+                            style={styles.removeChipButton}
+                          >
+                            <X size={14} color={colors.textSecondary} />
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                    {customDates.length > 3 && (
+                      <Text style={styles.moreDatesText}>+{customDates.length - 3} more</Text>
+                    )}
+                  </View>
+                )}
               </View>
+
+              {/* Amount Breakdown for Custom Dates - Only show for custom tab */}
+              {activeTab === 'custom' && customDates.length > 0 && totalAmount && totalAmount !== '0' && (
+                <View style={styles.amountSection}>
+                  <Text style={styles.amountLabel}>Amount per payout</Text>
+                  <Text style={styles.amountValue}>
+                    {payoutAmount && payoutAmount !== '0' ? `₦${payoutAmount}` : 'Calculating...'}
+                  </Text>
+                  <Text style={styles.amountDescription}>
+                    {customDates.length} custom payment{customDates.length !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -285,14 +1225,29 @@ export default function FrequencySelectionScreen() {
       <FloatingButton 
         title="Continue"
         onPress={handleContinue}
-        disabled={activeTab === 'frequency' && !selectedFrequency}
+        disabled={isContinueDisabled()}
         hapticType="medium"
+      />
+
+      <TimePicker
+        isVisible={showTimePicker}
+        onClose={() => setShowTimePicker(false)}
+        onSelect={handleTimeSelect}
+        selectedHour={selectedHour}
+        selectedMinute={selectedMinute}
+      />
+
+      <DatePicker
+        isVisible={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        onSelect={handleDateSelect}
+        selectedDates={customDates}
       />
     </SafeAreaView>
   );
 }
 
-const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -369,7 +1324,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     fontSize: 16,
     fontWeight: '500',
     color: colors.text,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   sectionDescription: {
     fontSize: 14,
@@ -385,7 +1340,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
-    padding: 25,
+    padding: 16,
     gap: 12,
   },
   selectButtonSelected: {
@@ -394,12 +1349,12 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   },
   selectButtonText: {
     flex: 1,
-    fontSize: 20,
+    fontSize: 16,
     color: colors.text,
     fontWeight: '500',
   },
   selectButtonTextSelected: {
-    color: '#1E3A8A',
+    color: isDark ? colors.text : '#1E3A8A',
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -425,7 +1380,7 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     color: colors.textSecondary,
   },
   activeTabText: {
-    color: '#1E3A8A',
+    color: isDark ? colors.text : '#1E3A8A',
     fontWeight: '600',
   },
   tabContent: {
@@ -458,6 +1413,14 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   dropdownOptionTextSelected: {
     color: '#1E3A8A',
   },
+  durationOptionContent: {
+    flex: 1,
+  },
+  durationDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
   checkmark: {
     width: 24,
     height: 24,
@@ -470,5 +1433,356 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  amountSection: {
+    backgroundColor: colors.accentBackground,
+    borderWidth: 1,
+    borderColor: '#1E3A8A',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+  },
+  amountLabel: {
+    fontSize: 14,
+    color: isDark ? '#fff' : '#1E3A8A',
+    marginBottom: 8,
+  },
+  amountValue: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: isDark ? '#fff' : '#1E3A8A',
+    marginBottom: 4,
+  },
+  amountDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  selectedDatesPreview: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  dateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundTertiary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 8,
+  },
+  dateChipText: {
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  removeChipButton: {
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moreDatesText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    alignSelf: 'center',
+  },
+});
+
+const createTimePickerStyles = (colors: any) => StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+    maxHeight: '70%',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    gap: 20,
+  },
+  timeSection: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  timeLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginBottom: 12,
+    fontWeight: '500',
+  },
+  timeScroll: {
+    maxHeight: 200,
+    width: '100%',
+  },
+  timeOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderRadius: 8,
+    marginVertical: 2,
+  },
+  selectedTimeOption: {
+    backgroundColor: colors.accentBackground,
+  },
+  timeOptionText: {
+    fontSize: 18,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  selectedTimeOptionText: {
+    color: '#1E3A8A',
+    fontWeight: '600',
+  },
+  timeSeparator: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundTertiary,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  confirmButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#1E3A8A',
+    alignItems: 'center',
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+});
+
+const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+    maxHeight: '90%',
+  },
+  calendarHeader: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  calendarTitle: {
+    fontSize: isSmallScreen ? 16 : 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  monthNavigation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  navigationButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  monthYearText: {
+    fontSize: isSmallScreen ? 16 : 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  calendar: {
+    padding: 20,
+  },
+  weekDays: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  weekDay: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  weekDayText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dayCell: {
+    width: '14.28%',
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    marginVertical: 2,
+  },
+  selectedDay: {
+    backgroundColor: '#1E3A8A',
+  },
+  todayDay: {
+    backgroundColor: colors.accentBackground,
+    borderWidth: 1,
+    borderColor: '#1E3A8A',
+  },
+  disabledDay: {
+    opacity: 0.3,
+  },
+  dayText: {
+    fontSize: isSmallScreen ? 14 : 16,
+    color: colors.text,
+  },
+  selectedDayText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  todayDayText: {
+    color: '#1E3A8A',
+    fontWeight: '600',
+  },
+  disabledDayText: {
+    color: colors.textTertiary,
+  },
+  selectedDatesContainer: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    maxHeight: 150,
+  },
+  selectedDatesTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 12,
+  },
+  selectedDatesList: {
+    flexDirection: 'row',
+  },
+  selectedDateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accentBackground,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+    gap: 8,
+  },
+  selectedDateText: {
+    fontSize: 12,
+    color: '#1E3A8A',
+    fontWeight: '500',
+  },
+  removeDateButton: {
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalActions: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  modalButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  doneButton: {
+    backgroundColor: '#1E3A8A',
+  },
+  doneButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  selectedDatesPreview: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  dateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundTertiary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 8,
+  },
+  dateChipText: {
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  removeChipButton: {
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moreDatesText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    alignSelf: 'center',
   },
 });

@@ -25,7 +25,7 @@ export function useCreatePayout() {
     bankAccountId,
     payoutAccountId,
     customDates,
-    emergencyWithdrawalEnabled = false,
+    emergencyWithdrawalEnabled = true, // Default to enabled
     dayOfWeek,
     payoutHour,
     payoutMinute

@@ -306,41 +306,41 @@ export default function HomeScreen() {
   }, [session?.user?.id]);
 
   // Show KYC Verification Modal ONLY after onboarding completes (signup)
-  // Disabled: No longer shows on app open - only shows once after onboarding
-  useFocusEffect(
-    useCallback(() => {
-      const checkAndShowKYCModal = async () => {
-        // Early returns: don't check if already shown, no session, or still loading
-        if (!session?.user?.id || hasShownKYCModalThisSession || kycProgressLoading) {
-          return;
-        }
-        
-        try {
-          // ONLY show if the signup flag is set (onboarding just completed)
-          const showAfterSignup = await AsyncStorage.getItem('show_kyc_modal_after_signup');
-          
-          // Only show modal if signup flag is set (onboarding completed)
-          if (showAfterSignup === 'true') {
-            // Small delay to ensure smooth transition
-            const timer = setTimeout(() => {
-              setShowKYCVerificationModal(true);
-              setHasShownKYCModalThisSession(true);
-              // Clear the signup flag after showing
-              AsyncStorage.removeItem('show_kyc_modal_after_signup');
-            }, 1000);
-            return () => clearTimeout(timer);
-          }
-        } catch (error) {
-          console.error('Error checking KYC modal flag:', error);
-        }
-      };
-      
-      // Wait for progress to load before checking
-      if (session?.user?.id && !kycProgressLoading) {
-        checkAndShowKYCModal();
-      }
-    }, [session?.user?.id, kycProgressLoading, hasShownKYCModalThisSession])
-  );
+  // DISABLED: Modal no longer shows after onboarding completion
+  // useFocusEffect(
+  //   useCallback(() => {
+  //     const checkAndShowKYCModal = async () => {
+  //       // Early returns: don't check if already shown, no session, or still loading
+  //       if (!session?.user?.id || hasShownKYCModalThisSession || kycProgressLoading) {
+  //         return;
+  //       }
+  //       
+  //       try {
+  //         // ONLY show if the signup flag is set (onboarding just completed)
+  //         const showAfterSignup = await AsyncStorage.getItem('show_kyc_modal_after_signup');
+  //         
+  //         // Only show modal if signup flag is set (onboarding completed)
+  //         if (showAfterSignup === 'true') {
+  //           // Small delay to ensure smooth transition
+  //           const timer = setTimeout(() => {
+  //             setShowKYCVerificationModal(true);
+  //             setHasShownKYCModalThisSession(true);
+  //             // Clear the signup flag after showing
+  //             AsyncStorage.removeItem('show_kyc_modal_after_signup');
+  //           }, 1000);
+  //           return () => clearTimeout(timer);
+  //         }
+  //       } catch (error) {
+  //         console.error('Error checking KYC modal flag:', error);
+  //       }
+  //     };
+  //     
+  //     // Wait for progress to load before checking
+  //     if (session?.user?.id && !kycProgressLoading) {
+  //       checkAndShowKYCModal();
+  //     }
+  //   }, [session?.user?.id, kycProgressLoading, hasShownKYCModalThisSession])
+  // );
 
   // Show AccountInformationModal only when coming from Tier1CompletionModal
   const params = useLocalSearchParams();
@@ -1037,7 +1037,6 @@ export default function HomeScreen() {
         {/* Quick Topup Card */}
         
 
-        <ImageCarousel images={carouselImages} />
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
@@ -1054,6 +1053,9 @@ export default function HomeScreen() {
           onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}
           onShowHowItWorks={() => setShowHowItWorksModal(true)}
         />
+
+<ImageCarousel images={carouselImages} />
+
 
               <View style={styles.bottomPadding} />
 

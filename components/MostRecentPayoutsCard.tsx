@@ -244,7 +244,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Most Recent</Text>
         <Pressable style={styles.viewAllButton} onPress={handleViewAllTransactions}>
-          <Text style={styles.viewAllText}>View all</Text>
+          <Text style={styles.viewAllText}>See all transactions</Text>
         </Pressable>
       </View>
       <View style={styles.cardContainer}>
@@ -353,10 +353,14 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: colors.text,
   },
   viewAllButton: {
-    paddingVertical: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: '#ECECEC',
+    borderRadius: 30,
   },
   viewAllText: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.text,
     fontWeight: '600',
   },

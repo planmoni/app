@@ -70,22 +70,34 @@ export default function ViewPayoutScreen() {
 
   // Check for existing emergency withdrawals when plan is loaded
   useEffect(() => {
+    let isMounted = true;
+    
     const checkWithdrawal = async () => {
       if (!plan?.id) return;
       
       setIsCheckingWithdrawal(true);
       try {
         const existing = await checkExistingWithdrawal(plan.id);
-        setHasExistingWithdrawal(existing.exists);
+        if (isMounted) {
+          setHasExistingWithdrawal(existing.exists);
+        }
       } catch (error) {
         console.error('Error checking existing withdrawal:', error);
-        setHasExistingWithdrawal(false);
+        if (isMounted) {
+          setHasExistingWithdrawal(false);
+        }
       } finally {
-        setIsCheckingWithdrawal(false);
+        if (isMounted) {
+          setIsCheckingWithdrawal(false);
+        }
       }
     };
     
     checkWithdrawal();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [plan?.id, checkExistingWithdrawal]);
 
   useEffect(() => {

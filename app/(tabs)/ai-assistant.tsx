@@ -1974,7 +1974,7 @@ export default function AIAssistantScreen() {
           bankAccountId: null, // We're using payout accounts
           payoutAccountId: selectedAccount.id,
           customDates: [],
-          emergencyWithdrawalEnabled: emergencyEnabled || false
+          emergencyWithdrawalEnabled: emergencyEnabled !== false // Default to true
         });
 
         // Success message
