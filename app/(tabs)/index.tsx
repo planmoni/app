@@ -25,6 +25,7 @@ import {
   MoreHorizontal,
   Building2,
   ChevronRight,
+  ShieldCheck,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -929,9 +930,6 @@ export default function HomeScreen() {
                   fontSize={typeof textSizeMultiplier === 'number' && !isNaN(textSizeMultiplier) 
                     ? getScaledFontSize(18, textSizeMultiplier) 
                     : 18}
-                  kycTier={typeof currentTier === 'number' && !isNaN(currentTier) ? currentTier : 0}
-                  hasAccount={hasAccount}
-                  tier1Complete={checkTierCompletion().tier1}
                 />
               </Pressable>
             ) : (
@@ -970,7 +968,7 @@ export default function HomeScreen() {
                 </Pressable>
               )}
             </View>
-            <Text style={styles.subGreeting}>It's time to plan your finances</Text>
+            {/* <Text style={styles.subGreeting}>It's time to plan your finances</Text> */}
           </View>
         </View>
 
@@ -1070,90 +1068,39 @@ export default function HomeScreen() {
         
 
         {/* Quick Topup Card */}
-        {isAuthenticated && (
-          <Pressable
-            onPress={() => {
-              impact();
-              router.push('/deposit-flow/payment-methods');
-              logAnalyticsEvent('quick_topup_click', { source: 'home_screen' });
-            }}
-            style={[styles.quickTopupCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-          >
-            <View style={styles.quickTopupContent}>
-              <View style={styles.quickTopupIconContainer}>
-                <Plus size={24} color={colors.primary} />
-              </View>
-              <View style={styles.quickTopupTextContainer}>
-                <Text style={[styles.quickTopupTitle, { color: colors.text }]}>
-                  Quick Topup
-                </Text>
-                <Text style={[styles.quickTopupSubtitle, { color: colors.textSecondary }]}>
-                  Add money to your wallet
-                </Text>
-              </View>
-              <ChevronRight size={20} color={colors.textSecondary} />
-            </View>
-          </Pressable>
-        )}
-
-        {/* Linked Accounts Quick Access */}
-        {isAuthenticated && (
-          <Pressable
-            onPress={() => {
-              router.push('/linked-accounts');
-              logAnalyticsEvent('linked_accounts_click', { source: 'home_screen' });
-            }}
-            style={[styles.linkedAccountsCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-          >
-            <View style={styles.linkedAccountsContent}>
-              <View style={styles.linkedAccountsIconContainer}>
-                <Building2 size={24} color={colors.primary} />
-              </View>
-              <View style={styles.linkedAccountsTextContainer}>
-                <Text style={[styles.linkedAccountsTitle, { color: colors.text }]}>
-                  Linked Bank Accounts
-                </Text>
-                <Text style={[styles.linkedAccountsSubtitle, { color: colors.textSecondary }]}>
-                  Manage your bank accounts for deposits
-                </Text>
-              </View>
-              <ChevronRight size={20} color={colors.textSecondary} />
-            </View>
-          </Pressable>
-        )}
-
-        {/* DirectDebit Test Section - Development Only */}
-        {__DEV__ && isAuthenticated && (
-          <Pressable
-            onPress={() => {
-              router.push('/deposit-flow/payment-methods');
-              logAnalyticsEvent('directdebit_test_click', { source: 'home_screen' });
-            }}
-            style={[styles.linkedAccountsCard, { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 2 }]}
-          >
-            <View style={styles.linkedAccountsContent}>
-              <View style={styles.linkedAccountsIconContainer}>
-                <Building2 size={24} color={colors.primary} />
-              </View>
-              <View style={styles.linkedAccountsTextContainer}>
-                <Text style={[styles.linkedAccountsTitle, { color: colors.text }]}>
-                  🧪 Test DirectDebit
-                </Text>
-                <Text style={[styles.linkedAccountsSubtitle, { color: colors.textSecondary }]}>
-                  Test Mono DirectDebit mandate & funding flow
-                </Text>
-              </View>
-              <ChevronRight size={20} color={colors.primary} />
-            </View>
-          </Pressable>
-        )}
+        
 
         <ImageCarousel images={carouselImages} />
         {isAuthenticated && progress && !(
           progress.id_face_verified === true || 
           progress.id_face_verified === 1 ||
           progress.id_face_verified === 'true'
-        ) && <KYCCard />}
+        )}
+        
+        {/* Verify Identity Button */}
+        {isAuthenticated && (
+          <Pressable
+            style={[styles.verifyIdentityCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+            onPress={() => {
+              impact();
+              router.push('/kyc/simplified');
+            }}
+          >
+            <View style={styles.verifyIdentityContent}>
+              <View style={[styles.verifyIdentityIconContainer, { backgroundColor: colors.primary + '20' }]}>
+                <ShieldCheck size={24} color={colors.primary} />
+              </View>
+              <View style={styles.verifyIdentityTextContainer}>
+                <Text style={[styles.verifyIdentityTitle, { color: colors.text }]}>Verify your Identity</Text>
+                <Text style={[styles.verifyIdentityDescription, { color: colors.textSecondary }]}>
+                  Complete KYC verification with just your BVN and a selfie
+                </Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </View>
+          </Pressable>
+        )}
+        
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
@@ -2086,6 +2033,38 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   quickTopupSubtitle: {
     fontSize: getScaledFontSize(14, textSizeMultiplier),
+  },
+  verifyIdentityCard: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+  },
+  verifyIdentityContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  verifyIdentityIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  verifyIdentityTextContainer: {
+    flex: 1,
+    gap: 4,
+  },
+  verifyIdentityTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  verifyIdentityDescription: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 
 });

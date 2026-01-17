@@ -454,19 +454,11 @@ export default function SettingsScreen() {
                 lastName={lastName} 
                 size={60}
                 fontSize={getScaledFontSize(24, textSizeMultiplier)}
-                kycTier={currentTier || 0}
-                hasAccount={hasAccount}
-                tier1Complete={checkTierCompletion().tier1}
               />
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{firstName} {lastName}</Text>
                 <Text style={styles.profileEmail}>{email}</Text>
                 <View style={styles.badgeContainer}>
-                  <View style={[styles.tierBadge, { backgroundColor: getTierBadgeColor(currentTier || 0) }]}>
-                    <Text style={[styles.tierBadgeText, { color: getTierBadgeTextColor(currentTier || 0) }]}>
-                      {getTierBadgeLabel(currentTier || 0)}
-                    </Text>
-                  </View>
                   {!isLoading2FA && twoFactorEnabled && (
                     <View style={styles.twoFactorBadge}>
                       <Text style={styles.twoFactorText}>2FA</Text>
@@ -648,7 +640,7 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            {/* <Pressable 
               style={styles.settingItem}
               onPress={handleTransactionLimits}
             >
@@ -660,7 +652,7 @@ export default function SettingsScreen() {
                 <Text style={styles.settingDescription}>See your transaction limits</Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
+            </Pressable> */}
 
             <View style={styles.divider} />
 
