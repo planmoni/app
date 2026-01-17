@@ -27,14 +27,14 @@ export default function FirstNameScreen() {
     setIsButtonEnabled(firstName.trim().length > 0);
   }, [firstName]);
 
-  // Filter input to only allow letters (no spaces, numbers, or special characters)
-  const filterLettersOnly = (text: string): string => {
-    // Remove all non-letter characters (keeps only A-Z, a-z, including accented characters)
-    return text.replace(/[^a-zA-ZÀ-ÿ]/g, '');
+  // Filter input to disallow @#$!*&% and spaces
+  const filterInvalidChars = (text: string): string => {
+    // Remove @#$!*&% and spaces
+    return text.replace(/[@#$!*&%\s]/g, '');
   };
 
   const handleTextChange = (text: string) => {
-    const filteredText = filterLettersOnly(text);
+    const filteredText = filterInvalidChars(text);
     setFirstName(filteredText);
     setError(null);
   };

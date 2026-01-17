@@ -89,7 +89,7 @@ export default function AddFundsScreen() {
                 <PaystackLogo width={24} height={24} />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>Continue with Paystack</Text>
+                <Text style={styles.optionTitle}>Fund with Paystack</Text>
                 <Text style={styles.optionDescription}>
                   Add funds with Credit/Debit cards, Transfers, Direct Debit, USSD, and more.
                 </Text>

@@ -25,7 +25,6 @@ import {
   MoreHorizontal,
   Building2,
   ChevronRight,
-  ShieldCheck,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -42,7 +41,9 @@ import {
   BackHandler,
   InteractionManager,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -88,6 +89,7 @@ export default function HomeScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { updateLastActiveOnInteraction } = useAppLock();
+  const insets = useSafeAreaInsets();
   const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress, currentTier } = useKYCProgress();
@@ -624,43 +626,14 @@ export default function HomeScreen() {
       return;
     }
     
-    // Check if user has completed Tier 1
-    const tierCompletion = checkTierCompletion();
-    
-    // Check if user has an account
-    let hasAccount = false;
-    if (session?.user?.id) {
-      try {
-        const { data } = await supabase
-          .from('safehaven_accounts')
-          .select('id, account_number')
-          .eq('user_id', session.user.id)
-          .eq('is_deleted', false)
-          .not('account_number', 'ilike', 'PENDING_%')
-          .maybeSingle();
-        
-        hasAccount = !!(data && data.account_number && !data.account_number.startsWith('PENDING_'));
-      } catch (error) {
-        console.error('Error checking account:', error);
-      }
-    }
-    
-    // If Tier 1 is complete AND has account, navigate directly to add funds page
-    if (tierCompletion.tier1 && hasAccount) {
-      isNavigatingToAddFundsRef.current = true;
-      router.push('/add-funds');
-      logAnalyticsEvent('add_funds_click');
-      // Reset flag after navigation completes
-      setTimeout(() => {
-        isNavigatingToAddFundsRef.current = false;
-      }, 1000);
-      return;
-    }
-    
-    // If Tier 1 not complete or no account, show ClaimAccountModal
-    // The modal will handle navigation if account exists after checking
-    setShowClaimAccountModal(true);
-    logAnalyticsEvent('add_funds_click_claim_modal');
+    // Always navigate to add funds page regardless of KYC status
+    isNavigatingToAddFundsRef.current = true;
+    router.push('/add-funds');
+    logAnalyticsEvent('add_funds_click');
+    // Reset flag after navigation completes
+    setTimeout(() => {
+      isNavigatingToAddFundsRef.current = false;
+    }, 1000);
   };
 
   const handleCreatePayout = () => {
@@ -901,7 +874,8 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
+      <StatusBar style="light" />
       <ScrollView 
         style={styles.scrollView} 
         contentContainerStyle={styles.scrollContent}
@@ -918,120 +892,112 @@ export default function HomeScreen() {
             onRefresh={handleRefresh}
           />
         }
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            {isAuthenticated ? (
-              <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
-                <InitialsAvatar 
-                  firstName={firstName} 
-                  lastName={lastName} 
-                  size={48}
-                  fontSize={typeof textSizeMultiplier === 'number' && !isNaN(textSizeMultiplier) 
-                    ? getScaledFontSize(18, textSizeMultiplier) 
-                    : 18}
-                />
-              </Pressable>
-            ) : (
-              <Pressable style={styles.avatarButton}>
-                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
-                  <MoreHorizontal size={24} color={'#fff'} />
-                </View>
-              </Pressable>
-            )}
-            <View style={styles.headerActions}>
-              <NotificationIcon />
-              <Pressable 
-                onPress={handleHelpPress} 
-                style={styles.helpButton}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <PlanmoniLoader size="small" />
-                ) : (
-                  <HelpCircleIcon size={24} color={colors.text} />
-                )}
-              </Pressable>
-            </View>
-          </View>
-          <View style={styles.greetingContainer}>
-            <View style={styles.greetingRow}>
-              <Text style={styles.greeting}>
-                {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
-              </Text>
-              {!isAuthenticated && (
-                <Pressable 
-                  onPress={() => router.push('/(auth)/login')} 
-                  style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
-                >
-                  <Text style={[styles.loginButtonText, {color: isDark ? '#fff' : colors.primary }]}>Login</Text>
-                </Pressable>
-              )}
-            </View>
-            {/* <Text style={styles.subGreeting}>It's time to plan your finances</Text> */}
-          </View>
-        </View>
-
-        <ImageBackground 
-          source={require('@/assets/images/background.png')} 
-          style={styles.balanceCard}
-          resizeMode="cover"
+        <LinearGradient
+          colors={isDark ? ['#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F'] : ['#1E3A8A', '#1E3A8A', '#1E3A8A', '#1E3A8A', '#F7F7F7', '#fff']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          locations={[0, 0.3, 0.5, 0.6, 0.85, 1]}
+          style={[styles.gradientContainer, { paddingTop: insets.top }]}
         >
-          <View style={styles.balanceCardContent}>
-            <View style={styles.balanceLabelContainer}>
-              <View style={styles.balanceLabelGroup}>
-                <Text style={styles.balanceLabel}>Your balance</Text>
+          <View style={styles.gradientContent}>
+            <View style={styles.header}>
+              <View style={styles.headerTop}>
+                {isAuthenticated ? (
+                  <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
+                    <View style={styles.whiteAvatarContainer}>
+                      <Text style={styles.whiteAvatarText}>
+                        {firstName?.[0]?.toUpperCase() || ''}{lastName?.[0]?.toUpperCase() || ''}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ) : (
+                  <Pressable style={styles.avatarButton}>
+                    <View style={[styles.avatarPlaceholder, { backgroundColor: '#fff' }]}>
+                      <MoreHorizontal size={24} color={'#1E3A8A'} />
+                    </View>
+                  </Pressable>
+                )}
+                <View style={styles.headerActions}>
+                  <NotificationIcon color="#fff" />
+                  <Pressable 
+                    onPress={handleHelpPress} 
+                    style={styles.helpButton}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <PlanmoniLoader size="small" />
+                    ) : (
+                      <HelpCircleIcon size={24} color={'#fff'} />
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+              <View style={styles.greetingContainer}>
+                <Text style={styles.greeting}>
+                  {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
+                </Text>
+                {!isAuthenticated && (
+                  <Pressable 
+                    onPress={() => router.push('/(auth)/login')} 
+                    style={[styles.loginButton, { borderColor: '#fff' }]}
+                  >
+                    <Text style={[styles.loginButtonText, {color: '#fff' }]}>Login</Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+
+          <View style={styles.balanceCard}>
+            <View style={styles.balanceCardContent}>
+              <View style={styles.balanceLabelContainer}>
+                <View style={styles.balanceLabelGroup}>
+                  <Text style={styles.balanceLabel}>Your balance</Text>
+                  <Pressable 
+                    onPress={toggleBalances}
+                    style={styles.eyeIconButton}
+                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                  >
+                    {showBalances ? (
+                      <EyeOff size={16} color={colors.textSecondary} />
+                    ) : (
+                      <Eye size={16} color={colors.textSecondary} />
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+              <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
+              <View style={styles.lockedSection}>
+                <View style={styles.lockedLabelContainer}>
+                  <Clock size={16} color={colors.textSecondary} />
+                  <Text style={styles.lockedLabel}>You have {formatBalance(lockedBalance)} in payout plans</Text>
+                </View>
+              </View>
+              <View style={styles.buttonGroup}>
                 <Pressable 
-                  onPress={toggleBalances}
-                  style={styles.eyeIconButton}
-                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                  style={styles.addFundsButton} 
+                  onPress={handleAddFunds}
                 >
-                  {showBalances ? (
-                    <EyeOff size={16} color={colors.textSecondary} />
-                  ) : (
-                    <Eye size={16} color={colors.textSecondary} />
-                  )}
+                  <Plus size={25} color={isDark ? '#fff' : '#000'}/>
+                  <Text style={[styles.addFundsText, { color: isDark ? '#fff' : '#000' }]}>Add funds</Text>
+                </Pressable>
+                <Pressable 
+                  style={styles.createButton} 
+                  onPress={handleCreatePayout}
+                >
+                  <CalendarCheck size={22} color={isDark ? '#fff' : '#000'} />
+                  <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#000' }]}>Start</Text>
                 </Pressable>
               </View>
-              {/* <Pressable 
-                onPress={handleViewHistory}
-                style={styles.historyButton}
-                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-              >
-                <History size={20} color={colors.textSecondary} />
-              </Pressable> */}
-            </View>
-            <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
-            <View style={styles.lockedSection}>
-              <View style={styles.lockedLabelContainer}>
-                <Clock size={16} color={colors.textSecondary} />
-                <Text style={styles.lockedLabel}>{formatBalance(lockedBalance)} in active payout plans</Text>
-              </View>
-              {/* <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text> */}
-            </View>
-            <View style={styles.buttonGroup}>
-              <Pressable 
-                style={styles.addFundsButton} 
-                onPress={handleAddFunds}
-              >
-                
-                <Plus size={20} color={isDark ? '#fff' : colors.primary}/>
-                <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
-              </Pressable>
-              <Pressable 
-                style={styles.createButton} 
-                onPress={handleCreatePayout}
-              >
-                <CalendarCheck size={22} color={'#fff'} />
-                <Text style={styles.createButtonText}>Plan</Text>
-              </Pressable>
-              
             </View>
           </View>
-        </ImageBackground>
+          </View>
+        </LinearGradient>
         
-        {/* On Track Card */}
-        <OnTrackCard payoutPlans={payoutPlans} />
+        <View style={styles.contentContainer}>
+              {/* On Track Card */}
+              <OnTrackCard payoutPlans={payoutPlans} />
         {/* AI Suggestion Section - Only show for authenticated users */}
         {isAuthenticated && (
           <AISuggestionCard 
@@ -1071,36 +1037,6 @@ export default function HomeScreen() {
         
 
         <ImageCarousel images={carouselImages} />
-        {isAuthenticated && progress && !(
-          progress.id_face_verified === true || 
-          progress.id_face_verified === 1 ||
-          progress.id_face_verified === 'true'
-        )}
-        
-        {/* Verify Identity Button */}
-        {isAuthenticated && (
-          <Pressable
-            style={[styles.verifyIdentityCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
-            onPress={() => {
-              impact();
-              router.push('/kyc/simplified');
-            }}
-          >
-            <View style={styles.verifyIdentityContent}>
-              <View style={[styles.verifyIdentityIconContainer, { backgroundColor: colors.primary + '20' }]}>
-                <ShieldCheck size={24} color={colors.primary} />
-              </View>
-              <View style={styles.verifyIdentityTextContainer}>
-                <Text style={[styles.verifyIdentityTitle, { color: colors.text }]}>Verify your Identity</Text>
-                <Text style={[styles.verifyIdentityDescription, { color: colors.textSecondary }]}>
-                  Complete KYC verification with just your BVN and a selfie
-                </Text>
-              </View>
-              <ChevronRight size={20} color={colors.textTertiary} />
-            </View>
-          </Pressable>
-        )}
-        
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
@@ -1118,10 +1054,10 @@ export default function HomeScreen() {
           onShowHowItWorks={() => setShowHowItWorksModal(true)}
         />
 
-        <View style={styles.bottomPadding} />
+              <View style={styles.bottomPadding} />
 
-        <RatingCard />
-
+              <RatingCard />
+            </View>
       </ScrollView>
 
       <Animated.View style={[
@@ -1140,15 +1076,15 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
-          <Plus size={20} color={isDark ? '#fff' : colors.primary} />
-          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
+          <Plus size={20} color={isDark ? '#fff' : '#000'} />
+          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : '#000' }]}>Add funds</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <CalendarCheck size={22} color={'#fff'} />
-          <Text style={styles.createButtonText}>Plan</Text>
+          <CalendarCheck size={22} color={isDark ? '#fff' : '#000'} />
+          <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#000' }]}>Start</Text>
         </Pressable>
         
       </Animated.View>
@@ -1293,8 +1229,7 @@ export default function HomeScreen() {
           showButtons={false}
         />
       )}
-      
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1311,11 +1246,20 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
     paddingBottom: 80,
   },
+  contentContainer: {
+    paddingHorizontal: 16,
+  },
+  gradientContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 0,
+  },
+  gradientContent: {
+    paddingBottom: 16,
+  },
   header: {
-    marginBottom: Platform.OS === 'ios' ? 20 : 10,
+    marginBottom: 20,
   },
   headerTop: {
     flexDirection: 'row',
@@ -1331,6 +1275,19 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   avatarButton: {
     borderRadius: 24,
     overflow: 'visible', // Changed to visible to allow badge to show
+  },
+  whiteAvatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  whiteAvatarText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1E3A8A',
   },
   avatarPlaceholder: {
     width: 48,
@@ -1354,24 +1311,17 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   greetingContainer: {
-    marginLeft: 0,
-  },
-  greetingRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 12,
+    marginTop: 12,
   },
   greeting: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 19, textSizeMultiplier),
     fontWeight: '600',
-    color: colors.text,
+    color: '#fff',
     marginTop: Platform.OS === 'ios' ? 5 : 5,
     marginBottom: Platform.OS === 'ios' ? 5 : 5,
     flex: 1,
@@ -1383,12 +1333,18 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     lineHeight: 18,
   },
   balanceCard: {
-    borderRadius: 15,
-    borderWidth: 0.5,
-    backgroundColor: colors.accentBackground,
-    borderColor: colors.border,
+    borderRadius: 20,
+    backgroundColor: isDark ? colors.card : '#fff',
     overflow: 'hidden',
-    marginBottom: 10,
+    marginTop: 0,
+    marginBottom: 0,
+    // borderWidth: 2,
+    // borderColor: isDark ? '#29323E' : '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
   },
   balanceCardContent: {
     paddingVertical: Platform.OS === 'ios' ? 16 : 15,
@@ -1408,7 +1364,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   balanceLabel: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
     fontWeight: '600',
-    color: colors.text,
+    color: colors.textSecondary,
   },
   historyButton: {
     padding: 4,
@@ -1417,10 +1373,10 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     padding: 4,
   },
   balanceAmount: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 35 : 30, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 38 : 35, textSizeMultiplier),
     fontWeight: '700',
-    color: colors.text,
-    marginBottom: Platform.OS === 'ios' ? 5 : -1,
+    color: isDark ? '#fff' : '#000',
+    marginBottom: Platform.OS === 'ios' ? 8 : 5,
   },
   lockedSection: {
     flexDirection: 'row',
@@ -1437,6 +1393,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   lockedLabel: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     color: colors.textSecondary,
+    fontWeight: '400',
   },
   lockedAmount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
@@ -1450,35 +1407,36 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   createButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: colors.primary,
+    backgroundColor: isDark ? colors.card : '#F7F7F7',
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderRadius: Platform.OS === 'ios' ? 20 : 15,
-    height: Platform.OS === 'ios' ? 55 : 45,
+    borderWidth: 1.5, 
+    borderColor: '#CFCFCF',
+    borderRadius: 50,
+    height: Platform.OS === 'ios' ? 60 : 55,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
   createButtonText: {
-    color: '#fff',
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
+    color: '#000',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 17, textSizeMultiplier),
     fontWeight: '600',
   },
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: Platform.OS === 'ios' ? colors.backgroundBlack + '70' : colors.background + '10',
+    backgroundColor: isDark ? colors.card : '#F7F7F7',
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderWidth: 2, 
-    borderColor: isDark ? '#fff' : colors.primary,
-    borderRadius: Platform.OS === 'ios' ? 20 : 15,
-    height: Platform.OS === 'ios' ? 55 : 45,
+    borderWidth: 1.5, 
+    borderColor: '#CFCFCF',
+    borderRadius: 50,
+    height: Platform.OS === 'ios' ? 60 : 55,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 5,
   },
   addFundsText: {
-    color: colors.primary,
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 17, textSizeMultiplier),
     fontWeight: '600',
     textAlign: 'center',
     justifyContent: 'center',
@@ -2033,38 +1991,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   quickTopupSubtitle: {
     fontSize: getScaledFontSize(14, textSizeMultiplier),
-  },
-  verifyIdentityCard: {
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-  },
-  verifyIdentityContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  verifyIdentityIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  verifyIdentityTextContainer: {
-    flex: 1,
-    gap: 4,
-  },
-  verifyIdentityTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  verifyIdentityDescription: {
-    fontSize: 14,
-    lineHeight: 20,
   },
 
 });

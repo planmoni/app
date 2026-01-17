@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, Info, Building2, Zap, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, Copy, Info, CheckCircle } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -223,49 +223,17 @@ export default function BankTransferScreen() {
               </View>
             </>
           ) : (
-            // User doesn't have account - show options
+            // User doesn't have account - show claim account message
             <>
               <View style={styles.noAccountContainer}>
-                <View style={styles.noAccountIconContainer}>
-                  <Building2 size={48} color={colors.primary} />
-                </View>
-                <Text style={styles.noAccountTitle}>Set up your bank account</Text>
-                <Text style={styles.noAccountDescription}>
-                  Choose how you want to receive bank transfers
+                <Text style={styles.noAccountMessage}>
+                  You currently do not have a SafeHaven account, Claim your account now.
                 </Text>
-              </View>
-
-              <View style={styles.optionsContainer}>
                 <Pressable
-                  style={styles.optionCard}
-                  onPress={handleQuickTransfer}
-                >
-                  <View style={styles.optionIconContainer}>
-                    <Zap size={24} color={colors.primary} />
-                  </View>
-                  <View style={styles.optionContent}>
-                    <Text style={styles.optionTitle}>Quick Transfer via Virtual Account</Text>
-                    <Text style={styles.optionDescription}>
-                      Get a virtual account number instantly for quick transfers
-                    </Text>
-                  </View>
-                </Pressable>
-
-                <Pressable
-                  style={styles.optionCard}
+                  style={styles.claimButton}
                   onPress={handleClaimAccount}
                 >
-                  <View style={styles.optionIconContainer}>
-                    <CheckCircle size={24} color={colors.primary} />
-                  </View>
-                  <View style={styles.optionContent}>
-                    <Text style={styles.optionTitle}>Claim a Permanent Bank Account</Text>
-                    <Text style={styles.optionDescription}>
-                      {isTier1Complete
-                        ? 'Get your permanent SafeHaven account number'
-                        : 'Complete KYC to get your permanent account number'}
-                    </Text>
-                  </View>
+                  <Text style={styles.claimButtonText}>Claim your account</Text>
                 </Pressable>
               </View>
             </>
@@ -434,68 +402,30 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   },
   noAccountContainer: {
     alignItems: 'center',
-    marginBottom: 32,
-    marginTop: 20,
-  },
-  noAccountIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    backgroundColor: colors.accentBackground,
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginTop: 60,
+    paddingHorizontal: isSmallScreen ? 16 : 24,
   },
-  noAccountTitle: {
-    fontSize: isSmallScreen ? 20 : 24,
-    fontWeight: '700',
+  noAccountMessage: {
+    fontSize: isSmallScreen ? 16 : 18,
+    fontWeight: '500',
     color: colors.text,
-    marginBottom: 8,
     textAlign: 'center',
+    lineHeight: 26,
+    marginBottom: 32,
   },
-  noAccountDescription: {
-    fontSize: isSmallScreen ? 14 : 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  optionsContainer: {
-    gap: 16,
-  },
-  optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: isSmallScreen ? 16 : 20,
-    gap: 16,
-  },
-  optionIconContainer: {
-    width: 48,
-    height: 48,
+  claimButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: isSmallScreen ? 14 : 16,
+    paddingHorizontal: isSmallScreen ? 32 : 40,
     borderRadius: 12,
-    backgroundColor: colors.accentBackground,
-    justifyContent: 'center',
+    minWidth: 200,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    justifyContent: 'center',
   },
-  optionContent: {
-    flex: 1,
-  },
-  optionTitle: {
+  claimButtonText: {
     fontSize: isSmallScreen ? 16 : 18,
     fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  optionDescription: {
-    fontSize: isSmallScreen ? 13 : 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
+    color: '#fff',
   },
 });
