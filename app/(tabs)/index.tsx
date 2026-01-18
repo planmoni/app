@@ -913,20 +913,24 @@ export default function HomeScreen() {
         onScrollBeginDrag={() => updateLastActiveOnInteraction()}
         onTouchStart={() => updateLastActiveOnInteraction()}
         scrollEventThrottle={16}
+        bounces={true}
+        alwaysBounceVertical={true}
+        contentInsetAdjustmentBehavior="never"
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
+            tintColor={isDark ? '#fff' : '#fff'}
           />
         }
         showsVerticalScrollIndicator={false}
       >
         <LinearGradient
-          colors={isDark ? ['#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F'] : ['#1E3A8A', '#1E3A8A', '#1E3A8A', '#1E3A8A', '#F7F7F7', '#fff']}
+          colors={isDark ? ['#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F'] : ['#1E3A8A', '#1E3A8A', '#1E3A8A', '#1E3A8A', '#F7F7F7', '#F8FAFC']}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           locations={[0, 0.3, 0.5, 0.6, 0.85, 1]}
-          style={[styles.gradientContainer, { paddingTop: insets.top }]}
+          style={[styles.gradientContainer, { paddingTop: insets.top + 200, marginTop: -200 }]}
         >
           <View style={styles.gradientContent}>
             <View style={styles.header}>
@@ -1042,7 +1046,7 @@ export default function HomeScreen() {
               >
                 <View style={styles.lockedLabelContainer}>
                   <Clock size={16} color={colors.textSecondary} />
-                  <Text style={styles.lockedLabel}>Total locked balance: {formatBalance(lockedBalance)}</Text>
+                  <Text style={styles.lockedLabel}>{formatBalance(lockedBalance)} locked in active payout plans</Text>
                 </View>
               </Animated.View>
               <View style={styles.buttonGroup}>
@@ -1330,6 +1334,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   scrollView: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   scrollContent: {
     paddingBottom: 80,
@@ -1447,7 +1452,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Platform.OS === 'ios' ? 8 : -1,
+    marginBottom: 12,
   },
   expandButton: {
     padding: 4,
@@ -1474,14 +1479,14 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 40 : 35, textSizeMultiplier),
     fontWeight: '700',
     color: isDark ? '#fff' : colors.primary,
-    marginBottom: Platform.OS === 'ios' ? 5 : 5,
+    marginBottom: 12,
   },
   lockedSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: Platform.OS === 'ios' ? 8 : 6,
-    marginBottom: Platform.OS === 'ios' ? 10 : 5,
+    marginBottom: 12,
   },
   lockedLabelContainer: {
     flexDirection: 'row',

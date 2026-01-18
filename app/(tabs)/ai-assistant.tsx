@@ -1798,7 +1798,7 @@ export default function AIAssistantScreen() {
         },
         {
           id: `emergency-rules-${Date.now()}`,
-          content: 'Emergency Withdrawal Rules:\n- Instant withdrawal: 12% processing fee\n- 24-hour withdrawal: 10% processing fee\n- 72-hour withdrawal: 6% processing fee',
+          content: 'Emergency Withdrawal Rules:\n- Instant withdrawal: 1.5% processing fee',
           sender: 'ai',
           type: 'text',
           timestamp: new Date(),

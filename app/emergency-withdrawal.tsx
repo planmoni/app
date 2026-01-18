@@ -26,7 +26,7 @@ export default function EmergencyWithdrawalScreen() {
   const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport, hasEmergencyPin, hasAppLockPin } = usePin();
   const { options: withdrawalOptions, loading: optionsLoading, getDisplayName, getColorForType } = useEmergencyWithdrawalOptions();
   
-  const [selectedOption, setSelectedOption] = useState<'instant' | '24hrs' | '72hrs' | null>(null);
+  const [selectedOption, setSelectedOption] = useState<'instant' | null>(null);
   const [plan, setPlan] = useState<any>(null);
   const [showPinVerification, setShowPinVerification] = useState(false);
   const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
@@ -70,6 +70,7 @@ export default function EmergencyWithdrawalScreen() {
       : null;
 
     // Determine available options based on time elapsed
+    // Only instant withdrawals are available after 24 hours
     let availableOptions: any[] = [];
     let defaultOption = null;
 
@@ -77,16 +78,12 @@ export default function EmergencyWithdrawalScreen() {
       // SECURITY: Less than 24 hours - NO withdrawals allowed
       availableOptions = [];
       defaultOption = null;
-    } else if (timeElapsedHours < 72) {
-      // Between 24-72 hours - instant and 24hrs allowed
-      availableOptions = withdrawalOptions.filter(option => 
-        option.type === 'instant' || option.type === '24hrs'
-      );
-      defaultOption = '24hrs'; // Default to 24hrs for better fee
     } else {
-      // More than 72 hours - all options allowed
-      availableOptions = withdrawalOptions;
-      defaultOption = '72hrs'; // Default to 72hrs for best fee
+      // After 24 hours - only instant withdrawal allowed
+      availableOptions = withdrawalOptions.filter(option => 
+        option.type === 'instant'
+      );
+      defaultOption = 'instant';
     }
 
     return { 
@@ -105,7 +102,7 @@ export default function EmergencyWithdrawalScreen() {
       // Clear selection if withdrawals are disabled
       setSelectedOption(null);
     } else if (defaultOption && !selectedOption) {
-      setSelectedOption(defaultOption as 'instant' | '24hrs' | '72hrs');
+      setSelectedOption(defaultOption as 'instant' | null);
     }
   }, [defaultOption, selectedOption, isWithdrawalDisabled]);
 
@@ -150,13 +147,14 @@ export default function EmergencyWithdrawalScreen() {
     return calculateNetAmount(remainingAmount, selectedOption);
   }, [plan, selectedOption, calculateNetAmount]);
   
-  // Get the actual withdrawal amount (remaining amount in plan)
+  // Get the actual withdrawal amount (remaining amount in plan) - rounded down to 2 decimals
   const getWithdrawalAmount = useCallback(() => {
     if (!plan) return 0;
-    return plan.total_amount - (plan.completed_payouts * plan.payout_amount);
+    const amount = plan.total_amount - (plan.completed_payouts * plan.payout_amount);
+    return Math.floor(amount * 100) / 100; // Round down to 2 decimal places
   }, [plan]);
   
-  const handleOptionSelect = useCallback((option: 'instant' | '24hrs' | '72hrs') => {
+  const handleOptionSelect = useCallback((option: 'instant') => {
     haptics.selection();
     setSelectedOption(option);
   }, [haptics]);
@@ -423,7 +421,7 @@ export default function EmergencyWithdrawalScreen() {
                     isSelected && styles.selectedOption,
                     isDisabled && styles.disabledOption
                   ]}
-                  onPress={() => !isDisabled && handleOptionSelect(option.type as 'instant' | '24hrs' | '72hrs')}
+                  onPress={() => !isDisabled && handleOptionSelect(option.type as 'instant')}
                   disabled={isDisabled}
                 >
                   <View style={styles.optionHeader}>
@@ -442,9 +440,7 @@ export default function EmergencyWithdrawalScreen() {
                         {option.percentage}% processing fee
                       </Text>
                       <Text style={[styles.optionDescription, isDisabled && styles.disabledText]}>
-                        {option.type === 'instant' ? 'Money sent immediately' :
-                         option.type === '24hrs' ? 'Money sent within 24 hours' :
-                         'Money sent within 72 hours'}
+                        Money sent immediately
                       </Text>
                     </View>
                     {isSelected && (
@@ -470,10 +466,7 @@ export default function EmergencyWithdrawalScreen() {
               }
             </Text>
             <Text style={styles.timeInfoSubtext}>
-              {timeElapsedHours < 72 
-                ? "Instant and 24-hour withdrawals are available"
-                : "All withdrawal options are available"
-              }
+              Instant withdrawal is available
             </Text>
           </View>
         )}

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Planmoni",
     "slug": "planmoni",
-    "version": "1.2.7",
+    "version": "1.2.8",
     "orientation": "portrait",
     "icon": "./assets/images/AppIcon.png",
     "scheme": "myapp",
@@ -22,7 +22,7 @@
       "versionCode": 3,
       "softwareKeyboardLayoutMode": "resize",
       "useNextNotificationsApi": true,
-     "permissions": [
+      "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_EXTERNAL_STORAGE"
@@ -33,7 +33,9 @@
       "bundleIdentifier": "app.planmoni",
       "buildNumber": "1",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "This app uses location services to provide a better experience.",
         "NSLocationAlwaysUsageDescription": "This app uses location services to provide a better experience.",
@@ -44,7 +46,9 @@
       },
       "entitlements": {
         "aps-environment": "development",
-        "keychain-access-groups": ["$(AppIdentifierPrefix)app.planmoni"]
+        "keychain-access-groups": [
+          "$(AppIdentifierPrefix)app.planmoni"
+        ]
       }
     },
     "web": {
@@ -68,10 +72,10 @@
       "expo-web-browser",
       [
         "expo-build-properties",
-        { 
-          "android": { 
-            "compileSdkVersion": 35, 
-            "targetSdkVersion": 35, 
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
             "minSdkVersion": 24,
             "buildToolsVersion": "35.0.0"
           },
