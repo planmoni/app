@@ -1428,8 +1428,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     overflow: 'hidden',
     marginTop: 0,
     marginBottom: 0,
-    // borderWidth: 2,
-    // borderColor: isDark ? '#29323E' : '#E2E8F0',
+    borderWidth: 1,
+    borderColor: isDark ? '#29323E' : '#E2E8F0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -1474,7 +1474,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 40 : 35, textSizeMultiplier),
     fontWeight: '700',
     color: isDark ? '#fff' : colors.primary,
-    marginBottom: Platform.OS === 'ios' ? 8 : 5,
+    marginBottom: Platform.OS === 'ios' ? 5 : 5,
   },
   lockedSection: {
     flexDirection: 'row',
@@ -1486,7 +1486,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   lockedLabelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     gap: 8,
   },
   lockedLabel: {

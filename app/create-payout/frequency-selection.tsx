@@ -1444,13 +1444,13 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
   },
   amountLabel: {
     fontSize: 14,
-    color: isDark ? colors.primary :'#fff',
+    color: colors.text,
     marginBottom: 8,
   },
   amountValue: {
     fontSize: 30,
     fontWeight: '700',
-    color: isDark ? colors.primary :'#fff',
+    color: colors.text,
     marginBottom: 4,
   },
   amountDescription: {

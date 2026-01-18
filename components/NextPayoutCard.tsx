@@ -50,7 +50,7 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
             <Text style={styles.payoutName}>{nextPayout.name}</Text>
             <View style={styles.activeTag}>
               <Text style={styles.activeTagText}>
-                {nextPayout.status === 'active' ? 'Outgoing' : 'Paused'}
+                {nextPayout.status === 'active' ? 'Next Payout' : 'Paused'}
               </Text>
             </View>
           </View>

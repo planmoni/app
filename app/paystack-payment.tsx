@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Pressable,
   TextInput,
-  ScrollView,
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
@@ -19,6 +18,8 @@ import { usePaystack } from 'react-native-paystack-webview';
 import { supabase } from '@/lib/supabase';
 import { useBalance } from '@/contexts/BalanceContext';
 import Constants from 'expo-constants';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import FloatingButton from '@/components/FloatingButton';
 
 export default function PaystackPaymentScreen() {
   const { colors, isDark } = useTheme();
@@ -47,7 +48,7 @@ export default function PaystackPaymentScreen() {
 
   const handleBack = () => {
     haptics.lightImpact();
-    router.back();30
+    router.back();
   };
 
   const handleClose = () => {
@@ -357,14 +358,7 @@ export default function PaystackPaymentScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: Math.max(20, insets.bottom) },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           {/* Amount Input Section */}
           <View style={styles.amountSection}>
@@ -417,34 +411,16 @@ export default function PaystackPaymentScreen() {
             Powered by Paystack.
           </Text>
         </View>
-      </ScrollView>
+      </KeyboardAvoidingWrapper>
 
-      {/* Pay Button */}
-      <View
-        style={[
-          styles.footer,
-          { paddingBottom: Math.max(16, insets.bottom) },
-        ]}
-      >
-        <Pressable
-          style={[
-            styles.payButton,
-            (!isValidAmount() || isLoading || isProcessing) && styles.payButtonDisabled,
-          ]}
-          onPress={handlePayment}
-          disabled={!isValidAmount() || isLoading || isProcessing}
-        >
-          {isLoading || isProcessing ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.payButtonText}>
-              {isProcessing
-                ? 'Verifying Payment...'
-                : `Pay ₦${getTotalAmountToPay().toLocaleString()}`}
-            </Text>
-          )}
-        </Pressable>
-      </View>
+      {/* Floating Pay Button */}
+      <FloatingButton
+        title={isProcessing ? 'Verifying Payment...' : `Pay ₦${getTotalAmountToPay().toLocaleString()}`}
+        onPress={handlePayment}
+        disabled={!isValidAmount() || isLoading || isProcessing}
+        loading={isLoading || isProcessing}
+        hapticType="medium"
+      />
     </SafeAreaView>
   );
 }
@@ -481,12 +457,11 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
       fontSize: isSmallScreen ? 16 : 18,
       fontWeight: '600',
       color: colors.text,
-    },
-    scrollView: {
       flex: 1,
+      textAlign: 'center',
     },
     scrollContent: {
-      flexGrow: 1,
+      paddingBottom: 100,
     },
     content: {
       padding: isSmallScreen ? 16 : 20,
@@ -591,26 +566,5 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
       color: colors.textSecondary,
       lineHeight: 20,
       textAlign: 'center',
-    },
-    footer: {
-      padding: 16,
-      backgroundColor: colors.surface,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-    },
-    payButton: {
-      backgroundColor: colors.primary,
-      borderRadius: 12,
-      paddingVertical: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    payButtonDisabled: {
-      opacity: 0.5,
-    },
-    payButtonText: {
-      fontSize: isSmallScreen ? 16 : 18,
-      fontWeight: '700',
-      color: '#fff',
     },
   });
