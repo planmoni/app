@@ -924,7 +924,7 @@ export default function FrequencySelectionScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Text style={styles.title}>Choose a payment schedule</Text>
+          <Text style={styles.title}>Choose a disbursement schedule</Text>
 
           {/* Tabs */}
           <View style={styles.tabsContainer}>
@@ -1444,13 +1444,13 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
   },
   amountLabel: {
     fontSize: 14,
-    color: isDark ? '#fff' : '#1E3A8A',
+    color: isDark ? colors.primary :'#fff',
     marginBottom: 8,
   },
   amountValue: {
     fontSize: 30,
     fontWeight: '700',
-    color: isDark ? '#fff' : '#1E3A8A',
+    color: isDark ? colors.primary :'#fff',
     marginBottom: 4,
   },
   amountDescription: {

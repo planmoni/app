@@ -14,9 +14,11 @@ interface PayoutPlansSectionProps {
   activePlans: any[];
   onShowNewPlanInfo?: () => void;
   onShowHowItWorks?: () => void;
+  onShowWelcomeModal?: () => void;
+  isUserAuthenticated?: boolean;
 }
 
-function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks }: PayoutPlansSectionProps) {
+function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, onShowWelcomeModal, isUserAuthenticated = true }: PayoutPlansSectionProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { requireAuth, isAuthenticated } = useRequireAuth();
@@ -35,17 +37,26 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks }
   }, []);
 
   const handleViewAllPayouts = useCallback(() => {
+    if (!isUserAuthenticated && onShowWelcomeModal) {
+      onShowWelcomeModal();
+      return;
+    }
     router.push('/all-payouts');
     logAnalyticsEvent('view_all_payouts');
-  }, []);
+  }, [isUserAuthenticated, onShowWelcomeModal]);
 
   const handleCreatePayout = useCallback(() => {
+    if (!isUserAuthenticated && onShowWelcomeModal) {
+      onShowWelcomeModal();
+      logAnalyticsEvent('create_payout_click_modal');
+      return;
+    }
     // Always show the new plan info modal for these buttons
     if (onShowNewPlanInfo) {
       onShowNewPlanInfo();
       logAnalyticsEvent('create_payout_click_modal');
     }
-  }, [onShowNewPlanInfo]);
+  }, [onShowNewPlanInfo, onShowWelcomeModal, isUserAuthenticated]);
 
   const memoizedPlans = useMemo(() => {
     return activePlans.map((plan) => {

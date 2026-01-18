@@ -190,7 +190,7 @@ export default function AIAssistantScreen() {
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const { payoutAccounts, isLoading: payoutAccountsLoading, fetchPayoutAccounts } = usePayoutAccounts();
-  const [emergencyEnabled, setEmergencyEnabled] = useState<boolean | null>(null);
+  const [emergencyEnabled, setEmergencyEnabled] = useState<boolean | null>(true); // Default to enabled
   const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<number | null>(null);
   const { createPayout, isLoading: isCreatingPayout, error: createPayoutError } = useCreatePayout();
   const { banks } = useBanks();
@@ -1755,7 +1755,10 @@ export default function AIAssistantScreen() {
   // Handle user selecting a payout account
   const handleSelectAccount = (account: any) => {
     setSelectedAccount(account);
-    setPlanCreationStep('awaiting_emergency');
+    // Set emergency withdrawal to enabled by default
+    setEmergencyEnabled(true);
+    // Skip emergency withdrawal step and go directly to confirmation
+    setPlanCreationStep('confirming');
     setMessages(prev => [
       ...prev,
       {
@@ -1767,12 +1770,12 @@ export default function AIAssistantScreen() {
         metadata: { step: 'destination' }
       },
       {
-        id: `ask-emergency-${Date.now()}`,
-        content: 'Do you want to enable emergency withdrawals for this plan? (yes/no)',
+        id: `confirm-plan-${Date.now()}`,
+        content: 'Ready to create your plan? Type "confirm" to proceed or "cancel" to abort.',
         sender: 'ai',
         type: 'text',
         timestamp: new Date(),
-        metadata: { step: 'emergency' }
+        metadata: { step: 'confirm' }
       }
     ]);
   };
@@ -1974,7 +1977,7 @@ export default function AIAssistantScreen() {
           bankAccountId: null, // We're using payout accounts
           payoutAccountId: selectedAccount.id,
           customDates: [],
-          emergencyWithdrawalEnabled: emergencyEnabled !== false // Default to true
+          emergencyWithdrawalEnabled: true // Always enabled by default
         });
 
         // Success message
@@ -2596,131 +2599,16 @@ export default function AIAssistantScreen() {
               <Text style={[styles.featureTitle, { color: colors.text }]}>
                 Welcome to Planmoni AI
               </Text>
-              <Text style={[styles.featureSubtitle, { color: colors.textSecondary }]}>
-                Your intelligent financial assistant powered by AI
-              </Text>
             </View>
 
-            <View style={styles.featuresList}>
-              <View style={styles.featureCard}>
-                <View style={styles.featureContent}>
-                  <Text style={[styles.featureCardTitle, { color: colors.text }]}>
-                    Smart Payout Planning
-                  </Text>
-                  <View style={styles.bulletPoints}>
-                    <View style={styles.bulletPoint}>
-                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
-                        Create personalized payout schedules in natural language
-                      </Text>
-                    </View>
-                    <View style={styles.bulletPoint}>
-                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
-                        Get AI-powered suggestions based on your balance and goals
-                      </Text>
-                    </View>
-                    <View style={styles.bulletPoint}>
-                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
-                        Flexible scheduling: daily, weekly, bi-weekly, or monthly
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.featureCard}>
-                <View style={styles.featureContent}>
-                  <Text style={[styles.featureCardTitle, { color: colors.text }]}>
-                    Conversational Interface
-                  </Text>
-                  <View style={styles.bulletPoints}>
-                    <View style={styles.bulletPoint}>
-                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
-                        Chat naturally - no complex forms or confusing menus
-                      </Text>
-                    </View>
-                    <View style={styles.bulletPoint}>
-                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
-                        Ask questions like "Help me plan 50k for 2 months"
-                      </Text>
-                    </View>
-                    <View style={styles.bulletPoint}>
-                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
-                        AI guides you through plan creation step-by-step
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.featureCard}>
-                <View style={styles.featureContent}>
-                  <Text style={[styles.featureCardTitle, { color: colors.text }]}>
-                    Intelligent Insights
-                  </Text>
-                  <View style={styles.bulletPoints}>
-                    <View style={styles.bulletPoint}>
-                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
-                        Analyze your spending patterns and payout history
-                      </Text>
-                    </View>
-                    <View style={styles.bulletPoint}>
-                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
-                        Get personalized recommendations for better money management
-                      </Text>
-                    </View>
-                    <View style={styles.bulletPoint}>
-                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
-                        Track your progress and stay on top of your financial goals
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.featureCard}>
-                <View style={styles.featureContent}>
-                  <Text style={[styles.featureCardTitle, { color: colors.text }]}>
-                    Automated Execution
-                  </Text>
-                  <View style={styles.bulletPoints}>
-                    <View style={styles.bulletPoint}>
-                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
-                        Set it and forget it - plans execute automatically
-                      </Text>
-                    </View>
-                    <View style={styles.bulletPoint}>
-                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
-                        Emergency withdrawal options for unexpected needs
-                      </Text>
-                    </View>
-                    <View style={styles.bulletPoint}>
-                      <Text style={[styles.bullet, { color: colors.primary }]}>•</Text>
-                      <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
-                        Real-time notifications for all payout activities
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </View>
+            
 
             <View style={styles.ctaContainer}>
               <Pressable
                 style={[styles.ctaButton, { backgroundColor: colors.primary }]}
                 onPress={() => requireAuth(() => {}, '/(tabs)/ai-assistant')}
               >
-                <Text style={styles.ctaButtonText}>Get Started with Planmoni AI</Text>
+                <Text style={styles.ctaButtonText}>Get Started</Text>
               </Pressable>
               <Pressable
                 style={[styles.secondaryButton, { borderColor: colors.border }]}
@@ -2873,8 +2761,8 @@ export default function AIAssistantScreen() {
           </View>
         )}
         
-        {/* Emergency withdrawal input UI */}
-        {planCreationStep === 'awaiting_emergency' && (
+        {/* Emergency withdrawal input UI - DISABLED: Emergency withdrawals are now enabled by default */}
+        {/* {planCreationStep === 'awaiting_emergency' && (
           <View style={{ marginVertical: 12, marginBottom: 24 }}>
             <Text style={{ fontSize: getScaledFontSize(16, textSizeMultiplier), fontWeight: '600', marginBottom: 8, color: colors.text}}>Reply "yes" or "no" below:</Text>
             <TextInput
@@ -2896,7 +2784,7 @@ export default function AIAssistantScreen() {
               returnKeyType="done"
             />
           </View>
-        )}
+        )} */}
         {/* Plan confirmation input UI */}
         {planCreationStep === 'confirming' && (
           <View style={{ marginVertical: 12, marginBottom: 24 }}>

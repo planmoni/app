@@ -72,7 +72,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
         description = 'Payout sent to';
       } else if (tx.type === 'deposit') {
         planName = 'Wallet Deposit';
-        description = 'Added to your Planmoni wallet';
+        description = 'Deposit successful';
         // For deposits, we might not have bank info, so use a default
         bankName = 'Planmoni Wallet';
         accountNumber = '';

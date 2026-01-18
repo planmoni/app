@@ -25,6 +25,7 @@ import {
   MoreHorizontal,
   Building2,
   ChevronRight,
+  ChevronDown,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -108,6 +109,9 @@ export default function HomeScreen() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
+  const [showWelcomeModalForUnauth, setShowWelcomeModalForUnauth] = useState(false);
+  const [isBalanceCardExpanded, setIsBalanceCardExpanded] = useState(false);
+  const balanceCardAnimation = useRef(new Animated.Value(0)).current;
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
   const [hasShownTier1ClaimModal, setHasShownTier1ClaimModal] = useState(false);
   const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
@@ -134,6 +138,15 @@ export default function HomeScreen() {
   const [ClaimAccountModalComponent, setClaimAccountModalComponent] = useState<React.ComponentType<any> | null>(null);
   const [WelcomeModalComponent, setWelcomeModalComponent] = useState<React.ComponentType<any> | null>(null);
 
+  // Pre-load WelcomeModal immediately for faster launch (especially for unauthenticated users)
+  useEffect(() => {
+    if (!WelcomeModalComponent) {
+      import('@/components/WelcomeModal').then(module => {
+        setWelcomeModalComponent(() => module.default);
+      });
+    }
+  }, [WelcomeModalComponent]);
+
   // Load TransactionModal when needed
   useEffect(() => {
     if (isTransactionModalVisible && !TransactionModalComponent) {
@@ -151,15 +164,6 @@ export default function HomeScreen() {
       });
     }
   }, [showClaimAccountModal, ClaimAccountModalComponent]);
-
-  // Load WelcomeModal when needed
-  useEffect(() => {
-    if (showHowItWorksModal && !WelcomeModalComponent) {
-      import('@/components/WelcomeModal').then(module => {
-        setWelcomeModalComponent(() => module.default);
-      });
-    }
-  }, [showHowItWorksModal, WelcomeModalComponent]);
 
   // Prevent navigation back to welcome page when authenticated
   useEffect(() => {
@@ -607,6 +611,29 @@ export default function HomeScreen() {
     return showBalances ? `₦${amount.toLocaleString()}` : '******';
   };
 
+  // Toggle balance card expansion
+  const toggleBalanceCardExpansion = () => {
+    const toValue = isBalanceCardExpanded ? 0 : 1;
+    setIsBalanceCardExpanded(!isBalanceCardExpanded);
+    Animated.timing(balanceCardAnimation, {
+      toValue,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+    notification(); // Haptic feedback
+  };
+
+  // Calculate animated height for locked section
+  const lockedSectionHeight = balanceCardAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 50],
+  });
+
+  const lockedSectionOpacity = balanceCardAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
   // Ref to prevent duplicate navigation
   const isNavigatingToAddFundsRef = useRef(false);
 
@@ -619,9 +646,9 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // For unauthenticated users, show ClaimAccountModal
+    // For unauthenticated users, show WelcomeModal
     if (!isAuthenticated) {
-      setShowClaimAccountModal(true);
+      setShowWelcomeModalForUnauth(true);
       logAnalyticsEvent('add_funds_click_unauthenticated_modal');
       return;
     }
@@ -652,8 +679,8 @@ export default function HomeScreen() {
         logAnalyticsEvent('create_payout_click_modal');
       }
     } else {
-      // Unauthenticated users - show modal
-      setShowNewPlanInfoModal(true);
+      // Unauthenticated users - show WelcomeModal
+      setShowWelcomeModalForUnauth(true);
       logAnalyticsEvent('create_payout_click_modal');
     }
   };
@@ -920,7 +947,13 @@ export default function HomeScreen() {
                   </Pressable>
                 )}
                 <View style={styles.headerActions}>
-                  <NotificationIcon color="#fff" />
+                  {!isAuthenticated ? (
+                    <Pressable onPress={() => setShowWelcomeModalForUnauth(true)}>
+                      <NotificationIcon color="#fff" />
+                    </Pressable>
+                  ) : (
+                    <NotificationIcon color="#fff" />
+                  )}
                   <Pressable 
                     onPress={handleHelpPress} 
                     style={styles.helpButton}
@@ -935,46 +968,83 @@ export default function HomeScreen() {
                 </View>
               </View>
               <View style={styles.greetingContainer}>
-                <Text style={styles.greeting}>
-                  {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
-                </Text>
-                <Text style={styles.subGreeting}> Create payout plans to stay funded always</Text>
-                {!isAuthenticated && (
-                  <Pressable 
-                    onPress={() => router.push('/(auth)/login')} 
-                    style={[styles.loginButton, { borderColor: '#fff' }]}
-                  >
-                    <Text style={[styles.loginButtonText, {color: '#fff' }]}>Login</Text>
-                  </Pressable>
-                )}
+                <View style={styles.greetingRow}>
+                  <Text style={styles.greeting}>
+                    {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
+                  </Text>
+                  {!isAuthenticated && (
+                    <Pressable 
+                      onPress={() => router.push('/(auth)/login')} 
+                      style={[styles.loginButton, { borderColor: '#fff' }]}
+                    >
+                      <Text style={[styles.loginButtonText, {color: '#fff' }]}>Login</Text>
+                    </Pressable>
+                  )}
+                </View>
+                {/* <Text style={styles.subGreeting}> Create payout plans, stay funded always</Text> */}
               </View>
             </View>
 
           <View style={styles.balanceCard}>
             <View style={styles.balanceCardContent}>
-              <View style={styles.balanceLabelContainer}>
-                <View style={styles.balanceLabelGroup}>
-                  <Text style={styles.balanceLabel}>Your balance</Text>
+              <Pressable 
+                onPress={toggleBalanceCardExpansion}
+                style={styles.balanceHeaderPressable}
+              >
+                <View style={styles.balanceLabelContainer}>
+                  <View style={styles.balanceLabelGroup}>
+                    <Text style={styles.balanceLabel}>Your available balance</Text>
+                    <Pressable 
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        toggleBalances();
+                      }}
+                      style={styles.eyeIconButton}
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                    >
+                      {showBalances ? (
+                        <EyeOff size={16} color={colors.textSecondary} />
+                      ) : (
+                        <Eye size={16} color={colors.textSecondary} />
+                      )}
+                    </Pressable>
+                  </View>
                   <Pressable 
-                    onPress={toggleBalances}
-                    style={styles.eyeIconButton}
-                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                    onPress={toggleBalanceCardExpansion}
+                    style={styles.expandButton}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    {showBalances ? (
-                      <EyeOff size={16} color={colors.textSecondary} />
-                    ) : (
-                      <Eye size={16} color={colors.textSecondary} />
-                    )}
+                    <Animated.View
+                      style={{
+                        transform: [{
+                          rotate: balanceCardAnimation.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0deg', '180deg'],
+                          }),
+                        }],
+                      }}
+                    >
+                      <ChevronDown size={20} color={colors.textSecondary} />
+                    </Animated.View>
                   </Pressable>
                 </View>
-              </View>
+              </Pressable>
               <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
-              <View style={styles.lockedSection}>
+              <Animated.View 
+                style={[
+                  styles.lockedSection,
+                  {
+                    height: lockedSectionHeight,
+                    opacity: lockedSectionOpacity,
+                    overflow: 'hidden',
+                  }
+                ]}
+              >
                 <View style={styles.lockedLabelContainer}>
                   <Clock size={16} color={colors.textSecondary} />
-                  <Text style={styles.lockedLabel}>You have {formatBalance(lockedBalance)} in payout plans</Text>
+                  <Text style={styles.lockedLabel}>Total locked balance: {formatBalance(lockedBalance)}</Text>
                 </View>
-              </View>
+              </Animated.View>
               <View style={styles.buttonGroup}>
                 <Pressable 
                   style={styles.addFundsButton} 
@@ -1050,11 +1120,16 @@ export default function HomeScreen() {
         {/* Payout Plans Section */}
         <PayoutPlansSection 
           activePlans={activePlans} 
-          onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}
+          onShowNewPlanInfo={() => isAuthenticated ? setShowNewPlanInfoModal(true) : setShowWelcomeModalForUnauth(true)}
           onShowHowItWorks={() => setShowHowItWorksModal(true)}
+          onShowWelcomeModal={() => setShowWelcomeModalForUnauth(true)}
+          isUserAuthenticated={isAuthenticated}
         />
 
-<ImageCarousel images={carouselImages} />
+<ImageCarousel 
+          images={carouselImages} 
+          onImagePress={!isAuthenticated ? () => setShowWelcomeModalForUnauth(true) : undefined}
+        />
 
 
               <View style={styles.bottomPadding} />
@@ -1232,6 +1307,14 @@ export default function HomeScreen() {
           showButtons={false}
         />
       )}
+
+      {/* Welcome Modal for Unauthenticated Users */}
+      {showWelcomeModalForUnauth && WelcomeModalComponent && (
+        <WelcomeModalComponent
+          isVisible={showWelcomeModalForUnauth}
+          onClose={() => setShowWelcomeModalForUnauth(false)}
+        />
+      )}
     </View>
   );
 }
@@ -1321,18 +1404,22 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   greetingContainer: {
     marginTop: 12,
   },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
   greeting: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 19, textSizeMultiplier),
     fontWeight: '600',
     color: '#fff',
-    marginTop: Platform.OS === 'ios' ? 5 : 5,
-    marginBottom: Platform.OS === 'ios' ? 5 : 5,
     flex: 1,
   },
   subGreeting: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
     fontWeight: '400',
-    color: colors.textSecondary,
+    color: colors.backgroundSecondary,
     lineHeight: 18,
   },
   balanceCard: {
@@ -1353,11 +1440,19 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     paddingVertical: Platform.OS === 'ios' ? 16 : 15,
     paddingHorizontal: Platform.OS === 'ios' ? 16 : 15,
   },
+  balanceHeaderPressable: {
+    width: '100%',
+  },
   balanceLabelContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Platform.OS === 'ios' ? 8 : -1,
+  },
+  expandButton: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   balanceLabelGroup: {
     flexDirection: 'row',
@@ -1376,21 +1471,22 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     padding: 4,
   },
   balanceAmount: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 38 : 35, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 40 : 35, textSizeMultiplier),
     fontWeight: '700',
-    color: isDark ? '#fff' : '#000',
+    color: isDark ? '#fff' : colors.primary,
     marginBottom: Platform.OS === 'ios' ? 8 : 5,
   },
   lockedSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 5,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 6,
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   lockedLabelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     gap: 8,
   },
   lockedLabel: {
