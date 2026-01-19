@@ -23,6 +23,9 @@ import {
   CalendarCheck,
   Clock,
   MoreHorizontal,
+  Building2,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -39,7 +42,9 @@ import {
   BackHandler,
   InteractionManager,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -85,6 +90,7 @@ export default function HomeScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { updateLastActiveOnInteraction } = useAppLock();
+  const insets = useSafeAreaInsets();
   const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress, currentTier } = useKYCProgress();
@@ -103,6 +109,9 @@ export default function HomeScreen() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
+  const [showWelcomeModalForUnauth, setShowWelcomeModalForUnauth] = useState(false);
+  const [isBalanceCardExpanded, setIsBalanceCardExpanded] = useState(false);
+  const balanceCardAnimation = useRef(new Animated.Value(0)).current;
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
   const [hasShownTier1ClaimModal, setHasShownTier1ClaimModal] = useState(false);
   const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
@@ -129,6 +138,15 @@ export default function HomeScreen() {
   const [ClaimAccountModalComponent, setClaimAccountModalComponent] = useState<React.ComponentType<any> | null>(null);
   const [WelcomeModalComponent, setWelcomeModalComponent] = useState<React.ComponentType<any> | null>(null);
 
+  // Pre-load WelcomeModal immediately for faster launch (especially for unauthenticated users)
+  useEffect(() => {
+    if (!WelcomeModalComponent) {
+      import('@/components/WelcomeModal').then(module => {
+        setWelcomeModalComponent(() => module.default);
+      });
+    }
+  }, [WelcomeModalComponent]);
+
   // Load TransactionModal when needed
   useEffect(() => {
     if (isTransactionModalVisible && !TransactionModalComponent) {
@@ -146,15 +164,6 @@ export default function HomeScreen() {
       });
     }
   }, [showClaimAccountModal, ClaimAccountModalComponent]);
-
-  // Load WelcomeModal when needed
-  useEffect(() => {
-    if (showHowItWorksModal && !WelcomeModalComponent) {
-      import('@/components/WelcomeModal').then(module => {
-        setWelcomeModalComponent(() => module.default);
-      });
-    }
-  }, [showHowItWorksModal, WelcomeModalComponent]);
 
   // Prevent navigation back to welcome page when authenticated
   useEffect(() => {
@@ -301,41 +310,41 @@ export default function HomeScreen() {
   }, [session?.user?.id]);
 
   // Show KYC Verification Modal ONLY after onboarding completes (signup)
-  // Disabled: No longer shows on app open - only shows once after onboarding
-  useFocusEffect(
-    useCallback(() => {
-      const checkAndShowKYCModal = async () => {
-        // Early returns: don't check if already shown, no session, or still loading
-        if (!session?.user?.id || hasShownKYCModalThisSession || kycProgressLoading) {
-          return;
-        }
-        
-        try {
-          // ONLY show if the signup flag is set (onboarding just completed)
-          const showAfterSignup = await AsyncStorage.getItem('show_kyc_modal_after_signup');
-          
-          // Only show modal if signup flag is set (onboarding completed)
-          if (showAfterSignup === 'true') {
-            // Small delay to ensure smooth transition
-            const timer = setTimeout(() => {
-              setShowKYCVerificationModal(true);
-              setHasShownKYCModalThisSession(true);
-              // Clear the signup flag after showing
-              AsyncStorage.removeItem('show_kyc_modal_after_signup');
-            }, 1000);
-            return () => clearTimeout(timer);
-          }
-        } catch (error) {
-          console.error('Error checking KYC modal flag:', error);
-        }
-      };
-      
-      // Wait for progress to load before checking
-      if (session?.user?.id && !kycProgressLoading) {
-        checkAndShowKYCModal();
-      }
-    }, [session?.user?.id, kycProgressLoading, hasShownKYCModalThisSession])
-  );
+  // DISABLED: Modal no longer shows after onboarding completion
+  // useFocusEffect(
+  //   useCallback(() => {
+  //     const checkAndShowKYCModal = async () => {
+  //       // Early returns: don't check if already shown, no session, or still loading
+  //       if (!session?.user?.id || hasShownKYCModalThisSession || kycProgressLoading) {
+  //         return;
+  //       }
+  //       
+  //       try {
+  //         // ONLY show if the signup flag is set (onboarding just completed)
+  //         const showAfterSignup = await AsyncStorage.getItem('show_kyc_modal_after_signup');
+  //         
+  //         // Only show modal if signup flag is set (onboarding completed)
+  //         if (showAfterSignup === 'true') {
+  //           // Small delay to ensure smooth transition
+  //           const timer = setTimeout(() => {
+  //             setShowKYCVerificationModal(true);
+  //             setHasShownKYCModalThisSession(true);
+  //             // Clear the signup flag after showing
+  //             AsyncStorage.removeItem('show_kyc_modal_after_signup');
+  //           }, 1000);
+  //           return () => clearTimeout(timer);
+  //         }
+  //       } catch (error) {
+  //         console.error('Error checking KYC modal flag:', error);
+  //       }
+  //     };
+  //     
+  //     // Wait for progress to load before checking
+  //     if (session?.user?.id && !kycProgressLoading) {
+  //       checkAndShowKYCModal();
+  //     }
+  //   }, [session?.user?.id, kycProgressLoading, hasShownKYCModalThisSession])
+  // );
 
   // Show AccountInformationModal only when coming from Tier1CompletionModal
   const params = useLocalSearchParams();
@@ -602,6 +611,29 @@ export default function HomeScreen() {
     return showBalances ? `₦${amount.toLocaleString()}` : '******';
   };
 
+  // Toggle balance card expansion
+  const toggleBalanceCardExpansion = () => {
+    const toValue = isBalanceCardExpanded ? 0 : 1;
+    setIsBalanceCardExpanded(!isBalanceCardExpanded);
+    Animated.timing(balanceCardAnimation, {
+      toValue,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+    notification(); // Haptic feedback
+  };
+
+  // Calculate animated height for locked section
+  const lockedSectionHeight = balanceCardAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 50],
+  });
+
+  const lockedSectionOpacity = balanceCardAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
   // Ref to prevent duplicate navigation
   const isNavigatingToAddFundsRef = useRef(false);
 
@@ -614,9 +646,9 @@ export default function HomeScreen() {
     // Trigger medium impact haptic feedback
     impact();
     
-    // For unauthenticated users, show ClaimAccountModal
+    // For unauthenticated users, show WelcomeModal
     if (!isAuthenticated) {
-      setShowClaimAccountModal(true);
+      setShowWelcomeModalForUnauth(true);
       logAnalyticsEvent('add_funds_click_unauthenticated_modal');
       return;
     }
@@ -721,27 +753,32 @@ export default function HomeScreen() {
         logAnalyticsEvent('create_payout_click_modal');
       }
     } else {
-      // Unauthenticated users - show modal
-      setShowNewPlanInfoModal(true);
+      // Unauthenticated users - show WelcomeModal
+      setShowWelcomeModalForUnauth(true);
       logAnalyticsEvent('create_payout_click_modal');
     }
   };
 
   const handleAISuggestionPress = (suggestion: any) => {
     // Check authentication first
-    if (!requireAuth(() => {}, '/create-payout/schedule')) {
+    if (!requireAuth(() => {}, '/create-payout/frequency-selection')) {
       return;
     }
     
     // Trigger haptic feedback
     impact();
-    // Navigate directly to schedule page with full balance and suggested frequency
+    
+    // Map frequency to match frequency-selection screen expectations
+    // 'weekly' should be mapped to 'weekly_specific'
+    const mappedFrequency = suggestion.frequency === 'weekly' ? 'weekly_specific' : suggestion.frequency;
+    
+    // Navigate to frequency-selection page with full balance and suggested frequency
     router.push({
-      pathname: '/create-payout/schedule',
+      pathname: '/create-payout/frequency-selection',
       params: {
         totalAmount: availableBalance.toString(),
-        suggestedFrequency: suggestion.frequency,
-        suggestedDuration: suggestion.duration.toString()
+        frequency: mappedFrequency,
+        duration: suggestion.duration.toString()
       }
     });
     logAnalyticsEvent('ai_suggestion_used', {
@@ -943,7 +980,8 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
+      <StatusBar style="light" />
       <ScrollView 
         style={styles.scrollView} 
         contentContainerStyle={styles.scrollContent}
@@ -954,129 +992,166 @@ export default function HomeScreen() {
         onScrollBeginDrag={() => updateLastActiveOnInteraction()}
         onTouchStart={() => updateLastActiveOnInteraction()}
         scrollEventThrottle={16}
+        bounces={true}
+        alwaysBounceVertical={true}
+        contentInsetAdjustmentBehavior="never"
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
+            tintColor={isDark ? '#fff' : '#fff'}
           />
         }
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            {isAuthenticated ? (
-              <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
-                <InitialsAvatar 
-                  firstName={firstName} 
-                  lastName={lastName} 
-                  size={48}
-                  fontSize={typeof textSizeMultiplier === 'number' && !isNaN(textSizeMultiplier) 
-                    ? getScaledFontSize(18, textSizeMultiplier) 
-                    : 18}
-                  kycTier={typeof currentTier === 'number' && !isNaN(currentTier) ? currentTier : 0}
-                  hasAccount={hasAccount}
-                  tier1Complete={checkTierCompletion().tier1}
-                />
-              </Pressable>
-            ) : (
-              <Pressable style={styles.avatarButton}>
-                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
-                  <MoreHorizontal size={24} color={'#fff'} />
+        <LinearGradient
+          colors={isDark ? ['#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F'] : ['#1E3A8A', '#1E3A8A', '#1E3A8A', '#1E3A8A', '#F7F7F7', '#F8FAFC']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          locations={[0, 0.3, 0.5, 0.6, 0.85, 1]}
+          style={[styles.gradientContainer, { paddingTop: insets.top + 200, marginTop: -200 }]}
+        >
+          <View style={styles.gradientContent}>
+            <View style={styles.header}>
+              <View style={styles.headerTop}>
+                {isAuthenticated ? (
+                  <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
+                    <View style={styles.whiteAvatarContainer}>
+                      <Text style={styles.whiteAvatarText}>
+                        {firstName?.[0]?.toUpperCase() || ''}{lastName?.[0]?.toUpperCase() || ''}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ) : (
+                  <Pressable style={styles.avatarButton}>
+                    <View style={[styles.avatarPlaceholder, { backgroundColor: '#fff' }]}>
+                      <MoreHorizontal size={24} color={'#1E3A8A'} />
+                    </View>
+                  </Pressable>
+                )}
+                <View style={styles.headerActions}>
+                  {!isAuthenticated ? (
+                    <Pressable onPress={() => setShowWelcomeModalForUnauth(true)}>
+                      <NotificationIcon color="#fff" />
+                    </Pressable>
+                  ) : (
+                    <NotificationIcon color="#fff" />
+                  )}
+                  <Pressable 
+                    onPress={handleHelpPress} 
+                    style={styles.helpButton}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <PlanmoniLoader size="small" />
+                    ) : (
+                      <HelpCircleIcon size={24} color={'#fff'} />
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+              <View style={styles.greetingContainer}>
+                <View style={styles.greetingRow}>
+                  <Text style={styles.greeting}>
+                    {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
+                  </Text>
+                  {!isAuthenticated && (
+                    <Pressable 
+                      onPress={() => router.push('/(auth)/login')} 
+                      style={[styles.loginButton, { borderColor: '#fff' }]}
+                    >
+                      <Text style={[styles.loginButtonText, {color: '#fff' }]}>Login</Text>
+                    </Pressable>
+                  )}
+                </View>
+                {/* <Text style={styles.subGreeting}> Create payout plans, stay funded always</Text> */}
+              </View>
+            </View>
+
+          <View style={styles.balanceCard}>
+            <View style={styles.balanceCardContent}>
+              <Pressable 
+                onPress={toggleBalanceCardExpansion}
+                style={styles.balanceHeaderPressable}
+              >
+                <View style={styles.balanceLabelContainer}>
+                  <View style={styles.balanceLabelGroup}>
+                    <Text style={styles.balanceLabel}>Your available balance</Text>
+                    <Pressable 
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        toggleBalances();
+                      }}
+                      style={styles.eyeIconButton}
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                    >
+                      {showBalances ? (
+                        <EyeOff size={16} color={colors.textSecondary} />
+                      ) : (
+                        <Eye size={16} color={colors.textSecondary} />
+                      )}
+                    </Pressable>
+                  </View>
+                  <Pressable 
+                    onPress={toggleBalanceCardExpansion}
+                    style={styles.expandButton}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Animated.View
+                      style={{
+                        transform: [{
+                          rotate: balanceCardAnimation.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0deg', '180deg'],
+                          }),
+                        }],
+                      }}
+                    >
+                      <ChevronDown size={20} color={colors.textSecondary} />
+                    </Animated.View>
+                  </Pressable>
                 </View>
               </Pressable>
-            )}
-            <View style={styles.headerActions}>
-              <NotificationIcon />
-              <Pressable 
-                onPress={handleHelpPress} 
-                style={styles.helpButton}
-                disabled={isLoading}
+              <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
+              <Animated.View 
+                style={[
+                  styles.lockedSection,
+                  {
+                    height: lockedSectionHeight,
+                    opacity: lockedSectionOpacity,
+                    overflow: 'hidden',
+                  }
+                ]}
               >
-                {isLoading ? (
-                  <PlanmoniLoader size="small" />
-                ) : (
-                  <HelpCircleIcon size={24} color={colors.text} />
-                )}
-              </Pressable>
-            </View>
-          </View>
-          <View style={styles.greetingContainer}>
-            <View style={styles.greetingRow}>
-              <Text style={styles.greeting}>
-                {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
-              </Text>
-              {!isAuthenticated && (
+                <View style={styles.lockedLabelContainer}>
+                  <Clock size={16} color={colors.textSecondary} />
+                  <Text style={styles.lockedLabel}>{formatBalance(lockedBalance)} locked in active payout plans</Text>
+                </View>
+              </Animated.View>
+              <View style={styles.buttonGroup}>
                 <Pressable 
-                  onPress={() => router.push('/(auth)/login')} 
-                  style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
+                  style={styles.addFundsButton} 
+                  onPress={handleAddFunds}
                 >
-                  <Text style={[styles.loginButtonText, {color: isDark ? '#fff' : colors.primary }]}>Login</Text>
+                  <Plus size={25} color={isDark ? '#fff' : '#000'}/>
+                  <Text style={[styles.addFundsText, { color: isDark ? '#fff' : '#000' }]}>Add funds</Text>
                 </Pressable>
-              )}
-            </View>
-            <Text style={styles.subGreeting}>It's time to plan your finances</Text>
-          </View>
-        </View>
-
-        <ImageBackground 
-          source={require('@/assets/images/background.png')} 
-          style={styles.balanceCard}
-          resizeMode="cover"
-        >
-          <View style={styles.balanceCardContent}>
-            <View style={styles.balanceLabelContainer}>
-              <View style={styles.balanceLabelGroup}>
-                <Text style={styles.balanceLabel}>Your balance</Text>
                 <Pressable 
-                  onPress={toggleBalances}
-                  style={styles.eyeIconButton}
-                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                  style={styles.createButton} 
+                  onPress={handleCreatePayout}
                 >
-                  {showBalances ? (
-                    <EyeOff size={16} color={colors.textSecondary} />
-                  ) : (
-                    <Eye size={16} color={colors.textSecondary} />
-                  )}
+                  <CalendarCheck size={22} color={isDark ? '#fff' : '#000'} />
+                  <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#000' }]}>Start</Text>
                 </Pressable>
               </View>
-              {/* <Pressable 
-                onPress={handleViewHistory}
-                style={styles.historyButton}
-                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-              >
-                <History size={20} color={colors.textSecondary} />
-              </Pressable> */}
-            </View>
-            <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
-            <View style={styles.lockedSection}>
-              <View style={styles.lockedLabelContainer}>
-                <Clock size={16} color={colors.textSecondary} />
-                <Text style={styles.lockedLabel}>{formatBalance(lockedBalance)} in active payout plans</Text>
-              </View>
-              {/* <Text style={styles.lockedAmount}>{formatBalance(lockedBalance)}</Text> */}
-            </View>
-            <View style={styles.buttonGroup}>
-              <Pressable 
-                style={styles.addFundsButton} 
-                onPress={handleAddFunds}
-              >
-                
-                <Plus size={20} color={isDark ? '#fff' : colors.primary}/>
-                <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
-              </Pressable>
-              <Pressable 
-                style={styles.createButton} 
-                onPress={handleCreatePayout}
-              >
-                <CalendarCheck size={22} color={'#fff'} />
-                <Text style={styles.createButtonText}>Plan</Text>
-              </Pressable>
-              
             </View>
           </View>
-        </ImageBackground>
+          </View>
+        </LinearGradient>
         
-        {/* On Track Card */}
-        <OnTrackCard payoutPlans={payoutPlans} />
+        <View style={styles.contentContainer}>
+              {/* On Track Card */}
+              <OnTrackCard payoutPlans={payoutPlans} />
         {/* AI Suggestion Section - Only show for authenticated users */}
         {isAuthenticated && (
           <AISuggestionCard 
@@ -1112,13 +1187,9 @@ export default function HomeScreen() {
         </View> */}
         
 
-        <ImageCarousel images={carouselImages} />
-        {isAuthenticated && progress && (() => {
-          const isVerified = progress.id_face_verified === true || 
-            (typeof progress.id_face_verified === 'number' && progress.id_face_verified === 1) ||
-            (typeof progress.id_face_verified === 'string' && progress.id_face_verified === 'true');
-          return !isVerified && <KYCCard />;
-        })()}
+        {/* Quick Topup Card */}
+        
+
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
@@ -1132,14 +1203,22 @@ export default function HomeScreen() {
         {/* Payout Plans Section */}
         <PayoutPlansSection 
           activePlans={activePlans} 
-          onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}
+          onShowNewPlanInfo={() => isAuthenticated ? setShowNewPlanInfoModal(true) : setShowWelcomeModalForUnauth(true)}
           onShowHowItWorks={() => setShowHowItWorksModal(true)}
+          onShowWelcomeModal={() => setShowWelcomeModalForUnauth(true)}
+          isUserAuthenticated={isAuthenticated}
         />
 
-        <View style={styles.bottomPadding} />
+<ImageCarousel 
+          images={carouselImages} 
+          onImagePress={!isAuthenticated ? () => setShowWelcomeModalForUnauth(true) : undefined}
+        />
 
-        <RatingCard />
 
+              <View style={styles.bottomPadding} />
+
+              <RatingCard />
+            </View>
       </ScrollView>
 
       <Animated.View style={[
@@ -1158,15 +1237,15 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
-          <Plus size={20} color={isDark ? '#fff' : colors.primary} />
-          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
+          <Plus size={20} color={isDark ? '#fff' : '#000'} />
+          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : '#000' }]}>Add funds</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <CalendarCheck size={22} color={'#fff'} />
-          <Text style={styles.createButtonText}>Plan</Text>
+          <CalendarCheck size={22} color={isDark ? '#fff' : '#000'} />
+          <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#000' }]}>Start</Text>
         </Pressable>
         
       </Animated.View>
@@ -1311,8 +1390,15 @@ export default function HomeScreen() {
           showButtons={false}
         />
       )}
-      
-    </SafeAreaView>
+
+      {/* Welcome Modal for Unauthenticated Users */}
+      {showWelcomeModalForUnauth && WelcomeModalComponent && (
+        <WelcomeModalComponent
+          isVisible={showWelcomeModalForUnauth}
+          onClose={() => setShowWelcomeModalForUnauth(false)}
+        />
+      )}
+    </View>
   );
 }
 
@@ -1327,13 +1413,23 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   scrollView: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   scrollContent: {
-    padding: 16,
     paddingBottom: 80,
   },
+  contentContainer: {
+    paddingHorizontal: 16,
+  },
+  gradientContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 0,
+  },
+  gradientContent: {
+    paddingBottom: 16,
+  },
   header: {
-    marginBottom: Platform.OS === 'ios' ? 20 : 10,
+    marginBottom: 20,
   },
   headerTop: {
     flexDirection: 'row',
@@ -1349,6 +1445,19 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   avatarButton: {
     borderRadius: 24,
     overflow: 'visible', // Changed to visible to allow badge to show
+  },
+  whiteAvatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  whiteAvatarText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1E3A8A',
   },
   avatarPlaceholder: {
     width: 48,
@@ -1372,51 +1481,58 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.backgroundTertiary,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   greetingContainer: {
-    marginLeft: 0,
+    marginTop: 12,
   },
   greetingRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
   greeting: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 19, textSizeMultiplier),
     fontWeight: '600',
-    color: colors.text,
-    marginTop: Platform.OS === 'ios' ? 5 : 5,
-    marginBottom: Platform.OS === 'ios' ? 5 : 5,
+    color: '#fff',
     flex: 1,
   },
   subGreeting: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
     fontWeight: '400',
-    color: colors.textSecondary,
+    color: colors.backgroundSecondary,
     lineHeight: 18,
   },
   balanceCard: {
-    borderRadius: 15,
-    borderWidth: 0.5,
-    backgroundColor: colors.accentBackground,
-    borderColor: colors.border,
+    borderRadius: 20,
+    backgroundColor: isDark ? colors.card : '#fff',
     overflow: 'hidden',
-    marginBottom: 10,
+    marginTop: 0,
+    marginBottom: 0,
+    borderWidth: 1,
+    borderColor: isDark ? '#29323E' : '#E2E8F0',
+ 
   },
   balanceCardContent: {
     paddingVertical: Platform.OS === 'ios' ? 16 : 15,
     paddingHorizontal: Platform.OS === 'ios' ? 16 : 15,
   },
+  balanceHeaderPressable: {
+    width: '100%',
+  },
   balanceLabelContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Platform.OS === 'ios' ? 8 : -1,
+    marginBottom: 12,
+  },
+  expandButton: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   balanceLabelGroup: {
     flexDirection: 'row',
@@ -1426,7 +1542,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   balanceLabel: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
     fontWeight: '600',
-    color: colors.text,
+    color: colors.textSecondary,
   },
   historyButton: {
     padding: 4,
@@ -1435,17 +1551,17 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     padding: 4,
   },
   balanceAmount: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 35 : 30, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 40 : 35, textSizeMultiplier),
     fontWeight: '700',
-    color: colors.text,
-    marginBottom: Platform.OS === 'ios' ? 5 : -1,
+    color: isDark ? '#fff' : colors.primary,
+    marginBottom: 12,
   },
   lockedSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 5,
-    marginBottom: Platform.OS === 'ios' ? 10 : 5,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 6,
+    marginBottom: 12,
   },
   lockedLabelContainer: {
     flexDirection: 'row',
@@ -1455,6 +1571,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   lockedLabel: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     color: colors.textSecondary,
+    fontWeight: '400',
   },
   lockedAmount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
@@ -1468,35 +1585,36 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   createButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: colors.primary,
+    backgroundColor: isDark ? colors.card : '#F7F7F7',
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderRadius: Platform.OS === 'ios' ? 20 : 15,
-    height: Platform.OS === 'ios' ? 55 : 45,
+    borderWidth: 1.5, 
+    borderColor: '#CFCFCF',
+    borderRadius: 50,
+    height: Platform.OS === 'ios' ? 60 : 55,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
   createButtonText: {
-    color: '#fff',
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
+    color: '#000',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 17, textSizeMultiplier),
     fontWeight: '600',
   },
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: Platform.OS === 'ios' ? colors.backgroundBlack + '70' : colors.background + '10',
+    backgroundColor: isDark ? colors.card : '#F7F7F7',
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderWidth: 2, 
-    borderColor: isDark ? '#fff' : colors.primary,
-    borderRadius: Platform.OS === 'ios' ? 20 : 15,
-    height: Platform.OS === 'ios' ? 55 : 45,
+    borderWidth: 1.5, 
+    borderColor: '#CFCFCF',
+    borderRadius: 50,
+    height: Platform.OS === 'ios' ? 60 : 55,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 5,
   },
   addFundsText: {
-    color: colors.primary,
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 17, textSizeMultiplier),
     fontWeight: '600',
     textAlign: 'center',
     justifyContent: 'center',

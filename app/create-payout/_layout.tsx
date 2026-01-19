@@ -15,7 +15,6 @@ export default function CreatePayoutLayout() {
       <Stack.Screen name="frequency-selection" />
       <Stack.Screen name="schedule" />
       <Stack.Screen name="destination" />
-      <Stack.Screen name="rules" />
       <Stack.Screen name="review" />
       <Stack.Screen name="success" />
     </Stack>

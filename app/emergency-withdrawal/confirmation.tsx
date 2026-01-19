@@ -27,32 +27,20 @@ export default function EmergencyWithdrawalConfirmationScreen() {
   }, []);
   
   const getOptionDetails = () => {
-    switch (option) {
-      case 'instant':
+    // Only instant withdrawals are available
+    if (option === 'instant') {
         return {
           title: 'Instant Withdrawal',
           description: 'Your funds will be processed immediately',
           timeframe: 'within minutes',
         };
-      case '24h':
-        return {
-          title: '24-Hour Withdrawal',
-          description: 'Your funds will be processed within 24 hours',
-          timeframe: 'within 24 hours',
-        };
-      case '72h':
-        return {
-          title: '72-Hour Withdrawal',
-          description: 'Your funds will be processed within 72 hours',
-          timeframe: 'within 72 hours',
-        };
-      default:
-        return {
-          title: 'Emergency Withdrawal',
-          description: 'Your funds will be processed',
-          timeframe: 'soon',
-        };
     }
+    // Default fallback
+        return {
+      title: 'Instant Withdrawal',
+      description: 'Your funds will be processed immediately',
+      timeframe: 'within minutes',
+        };
   };
   
   const optionDetails = getOptionDetails();

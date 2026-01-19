@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PayoutPlan } from '@/hooks/useRealtimePayoutPlans';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
+import { supabase } from '@/lib/supabase';
 
 interface OnTrackCardProps {
   payoutPlans: PayoutPlan[];
@@ -21,21 +22,104 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
   const { textSizeMultiplier } = useTextSize();
   const [isDismissed, setIsDismissed] = useState(false);
   const [shouldShow, setShouldShow] = useState(false);
+  const [customAmountsByPlan, setCustomAmountsByPlan] = useState<Record<string, Record<string, number>>>({});
+  const [customDatesByPlan, setCustomDatesByPlan] = useState<Record<string, string[]>>({});
+  const [calculation, setCalculation] = useState<{
+    totalPayout: number;
+    timeValue: number;
+    timeUnit: 'day' | 'year';
+    calculationHash: string;
+  } | null>(null);
+
+  // Fetch custom payout dates and amounts for custom plans
+  useEffect(() => {
+    const fetchCustomData = async () => {
+      const customPlans = payoutPlans.filter(plan => plan.status === 'active' && plan.frequency === 'custom');
+      if (customPlans.length === 0) {
+        setCustomAmountsByPlan({});
+        setCustomDatesByPlan({});
+        return;
+      }
+
+      try {
+        const planIds = customPlans.map(plan => plan.id);
+        const { data, error } = await supabase
+          .from('custom_payout_dates')
+          .select('payout_plan_id, payout_date, amount')
+          .in('payout_plan_id', planIds)
+          .order('payout_date', { ascending: true });
+
+        if (error) throw error;
+
+        // Group by plan_id: { planId: { date: amount } }
+        const amountsByPlan: Record<string, Record<string, number>> = {};
+        const datesByPlan: Record<string, string[]> = {};
+        
+        data?.forEach((item: any) => {
+          if (!amountsByPlan[item.payout_plan_id]) {
+            amountsByPlan[item.payout_plan_id] = {};
+            datesByPlan[item.payout_plan_id] = [];
+          }
+          const amount = item.amount !== null && item.amount !== undefined 
+            ? parseFloat(item.amount.toString()) 
+            : 0;
+          amountsByPlan[item.payout_plan_id][item.payout_date] = amount > 0 ? amount : 0;
+          datesByPlan[item.payout_plan_id].push(item.payout_date);
+        });
+
+        setCustomAmountsByPlan(amountsByPlan);
+        setCustomDatesByPlan(datesByPlan);
+      } catch (error) {
+        console.error('Error fetching custom payout data:', error);
+        setCustomAmountsByPlan({});
+        setCustomDatesByPlan({});
+      }
+    };
+
+    fetchCustomData();
+  }, [payoutPlans]);
 
   // Calculate total payout and longest duration
-  const calculation = useMemo(() => {
+  useEffect(() => {
     const activePlans = payoutPlans.filter(plan => plan.status === 'active');
     
     if (activePlans.length === 0) {
-      return null;
+      setCalculation(null);
+      return;
     }
 
     // Calculate total scheduled payout amount
-    const totalPayout = activePlans.reduce((sum, plan) => {
+    let totalPayout = 0;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    activePlans.forEach(plan => {
       const remainingPayouts = plan.duration - plan.completed_payouts;
-      const remainingAmount = remainingPayouts * plan.payout_amount;
-      return sum + remainingAmount;
-    }, 0);
+      
+      if (remainingPayouts <= 0) return; // Skip completed plans
+
+      if (plan.frequency === 'custom') {
+        // For custom plans, use actual custom amounts and dates
+        const customDates = customDatesByPlan[plan.id] || [];
+        const customAmounts = customAmountsByPlan[plan.id] || {};
+        
+        // Filter to only future dates
+        const futureDates = customDates.filter(date => {
+          const dateObj = new Date(date);
+          dateObj.setHours(0, 0, 0, 0);
+          return dateObj >= now;
+        });
+
+        // Sum the amounts for future dates
+        futureDates.forEach(date => {
+          const amount = customAmounts[date] || plan.payout_amount;
+          totalPayout += amount;
+        });
+      } else {
+        // For regular plans, use payout_amount * remaining payouts
+        totalPayout += remainingPayouts * plan.payout_amount;
+      }
+    });
 
     // Find the plan with the longest duration (last payout date)
     let lastPayoutDate: Date | null = null;
@@ -44,63 +128,71 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
       if (!plan.start_date) return;
       
       const startDate = new Date(plan.start_date);
-      let planLastDate = new Date(startDate);
+      let planLastDate: Date | null = null;
       const remainingPayouts = plan.duration - plan.completed_payouts;
       
       if (remainingPayouts <= 0) return; // Skip completed plans
       
-      // Calculate last payout date based on frequency and remaining payouts
-      switch (plan.frequency) {
-        case 'daily':
-          // For daily, use next_payout_date if available, otherwise calculate from start date
-          if (plan.next_payout_date) {
-            const nextDate = new Date(plan.next_payout_date);
-            // Last payout date = next date + (remaining payouts - 1) days
-            planLastDate = new Date(nextDate);
-            planLastDate.setDate(nextDate.getDate() + (remainingPayouts - 1));
-          } else {
-            // Calculate from start date: start + completed payouts + (remaining - 1) days
-            planLastDate.setDate(startDate.getDate() + plan.completed_payouts + (remainingPayouts - 1));
+      if (plan.frequency === 'custom') {
+        // For custom plans, use the actual last date from custom dates
+        const customDates = customDatesByPlan[plan.id] || [];
+        if (customDates.length > 0) {
+          // Filter to only future dates and get the last one
+          const futureDates = customDates
+            .filter(date => {
+              const dateObj = new Date(date);
+              dateObj.setHours(0, 0, 0, 0);
+              return dateObj >= now;
+            })
+            .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+          
+          if (futureDates.length > 0) {
+            planLastDate = new Date(futureDates[futureDates.length - 1]);
           }
-          break;
-        case 'weekly':
-          // Add remaining payouts * 7 days
-          planLastDate.setDate(startDate.getDate() + (plan.completed_payouts * 7) + ((remainingPayouts - 1) * 7));
-          break;
-        case 'biweekly':
-          // Add remaining payouts * 14 days
-          planLastDate.setDate(startDate.getDate() + (plan.completed_payouts * 14) + ((remainingPayouts - 1) * 14));
-          break;
-        case 'monthly':
-          // Add remaining payouts months
-          planLastDate.setMonth(startDate.getMonth() + plan.completed_payouts + (remainingPayouts - 1));
-          break;
-        case 'custom':
-          // For custom, use next_payout_date if available, otherwise estimate
-          if (plan.next_payout_date) {
-            const nextDate = new Date(plan.next_payout_date);
-            // Estimate last date by adding remaining payouts (assume monthly interval for custom)
-            planLastDate = new Date(nextDate);
-            planLastDate.setMonth(nextDate.getMonth() + (remainingPayouts - 1));
-          } else {
-            // Fallback: estimate based on start date (assume monthly)
+        }
+      } else {
+        // Calculate last payout date based on frequency and remaining payouts
+        planLastDate = new Date(startDate);
+        
+        switch (plan.frequency) {
+          case 'daily':
+            // For daily, use next_payout_date if available, otherwise calculate from start date
+            if (plan.next_payout_date) {
+              const nextDate = new Date(plan.next_payout_date);
+              // Last payout date = next date + (remaining payouts - 1) days
+              planLastDate = new Date(nextDate);
+              planLastDate.setDate(nextDate.getDate() + (remainingPayouts - 1));
+            } else {
+              // Calculate from start date: start + completed payouts + (remaining - 1) days
+              planLastDate.setDate(startDate.getDate() + plan.completed_payouts + (remainingPayouts - 1));
+            }
+            break;
+          case 'weekly':
+            // Add remaining payouts * 7 days
+            planLastDate.setDate(startDate.getDate() + (plan.completed_payouts * 7) + ((remainingPayouts - 1) * 7));
+            break;
+          case 'biweekly':
+            // Add remaining payouts * 14 days
+            planLastDate.setDate(startDate.getDate() + (plan.completed_payouts * 14) + ((remainingPayouts - 1) * 14));
+            break;
+          case 'monthly':
+            // Add remaining payouts months
             planLastDate.setMonth(startDate.getMonth() + plan.completed_payouts + (remainingPayouts - 1));
-          }
-          break;
+            break;
+        }
       }
       
-      if (!lastPayoutDate || planLastDate > lastPayoutDate) {
+      if (planLastDate && (!lastPayoutDate || planLastDate > lastPayoutDate)) {
         lastPayoutDate = planLastDate;
       }
     });
 
     if (!lastPayoutDate || totalPayout === 0) {
-      return null;
+      setCalculation(null);
+      return;
     }
 
     // Calculate time until last payout in days
-    const now = new Date();
-    // TypeScript narrowing: lastPayoutDate is guaranteed to be Date here
     const finalLastPayoutDate: Date = lastPayoutDate;
     const lastPayoutTime: number = finalLastPayoutDate.getTime();
     const daysDiff = Math.ceil(
@@ -125,13 +217,13 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
       timeUnit = 'year';
     }
 
-    return {
+    setCalculation({
       totalPayout,
       timeValue,
       timeUnit,
       calculationHash: `${totalPayout}-${lastPayoutTime}`,
-    };
-  }, [payoutPlans]);
+    });
+  }, [payoutPlans, customAmountsByPlan, customDatesByPlan]);
 
   // Check if we should show the card (new calculation)
   useEffect(() => {
@@ -212,7 +304,7 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
         <Text style={styles.message}>
         🎯 You're on track to receive{' '}
           <Text style={styles.bold}>{formatAmount(calculation.totalPayout)}</Text>
-          {' '}over the next{' '}
+          {' '}to your bank account over the next{' '}
           <Text style={styles.bold}>{calculation.timeValue}</Text>
           {' '}{calculation.timeUnit}{calculation.timeValue !== 1 ? 's' : ''}.
         </Text>

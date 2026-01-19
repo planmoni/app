@@ -1,7 +1,7 @@
 {
   "name": "planmoni",
   "main": "expo-router/entry",
-  "version": "1.2.6",
+  "version": "1.2.8",
   "scripts": {
     "start": "expo start --dev-client",
     "dev": "npx expo start",
@@ -12,7 +12,8 @@
     "web": "npx expo start --web",
     "lint": "expo lint",
     "prebuild": "node scripts/preserve-native-assets.js backup && npx expo prebuild --clean && node scripts/preserve-native-assets.js restore",
-    "prebuild:ios": "node scripts/preserve-native-assets.js backup && npx expo prebuild --platform ios --clean && node scripts/preserve-native-assets.js restore && cd ios && pod install"
+    "prebuild:ios": "node scripts/preserve-native-assets.js backup && npx expo prebuild --platform ios --clean && node scripts/preserve-native-assets.js restore && cd ios && pod install",
+    "version:increment": "node scripts/increment-version.js"
   },
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",

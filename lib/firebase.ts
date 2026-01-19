@@ -1,62 +1,62 @@
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAnalytics, isSupported, logEvent } from "firebase/analytics";
+import { getMessaging, getToken, onMessage, isSupported as isMessagingSupported } from 'firebase/messaging';
 import { Platform } from "react-native";
 
-// Firebase is auto-initialized from google-services.json (Android) and GoogleService-Info.plist (iOS)
-// No manual initialization needed for @react-native-firebase
+// Firebase configuration from google-services.json and GoogleService-Info.plist
+const firebaseConfig = {
+  apiKey:
+    Platform.OS === "ios"
+      ? "AIzaSyBibsoY8hIOFqjQtU5OL2FtCONAY6l7a2o"
+      : "AIzaSyBhtjKTOiy6bk0b6Ev6iBwTkFM_Kv08768",
+  authDomain: "planmoni-7e669.firebaseapp.com",
+  projectId: "planmoni-7e669",
+  storageBucket: "planmoni-7e669.firebasestorage.app",
+  messagingSenderId: "355142174582",
+  appId:
+    Platform.OS === "ios"
+      ? "1:355142174582:ios:abcb903ab52233cfbc9c57"
+      : "1:355142174582:android:a5602dca3caf5bb5bc9c57",
+  measurementId: "G-LF79E01J2Z", // IMPORTANT: Replace with your actual measurement ID from Firebase console
+};
 
-// Conditionally import Firebase modules (may not be available until native rebuild)
-let messaging: any = null;
-let FirebaseMessagingTypes: any = null;
+// Initialize Firebase - check if app already exists to prevent duplicate app error
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+// Initialize Analytics with a check for web platform support
 let analytics: any = null;
+let messaging: any = null;
 
-try {
-  const messagingModule = require('@react-native-firebase/messaging');
-  messaging = messagingModule.default;
-  FirebaseMessagingTypes = messagingModule.FirebaseMessagingTypes;
-} catch (e) {
-  console.log('Firebase Messaging not available - native module not linked. Rebuild required.');
-}
-
-try {
-  analytics = require('@react-native-firebase/analytics').default;
-} catch (e) {
-  console.log('Firebase Analytics not available (optional package)');
-}
-
-let messagingInitialized = false;
+// Function to initialize analytics
+export const initializeAnalytics = async () => {
+  try {
+    // Check if analytics is supported (important for web)
+    if (await isSupported()) {
+      analytics = getAnalytics(app);
+      console.log("Firebase Analytics initialized successfully");
+      return analytics;
+    } else {
+      console.log('Firebase Analytics is not supported in this environment');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error initializing Firebase Analytics:', error);
+    return null;
+  }
+};
 
 // Function to initialize messaging
 export const initializeMessaging = async () => {
   try {
-    if (!messaging) {
-      console.log('Firebase Messaging not available - native module not linked');
+    // Check if messaging is supported
+    if (await isMessagingSupported()) {
+      messaging = getMessaging(app);
+      console.log('Firebase Messaging initialized successfully');
+      return messaging;
+    } else {
+      console.log('Firebase Messaging is not supported in this environment');
       return null;
     }
-
-    if (messagingInitialized) {
-      return messaging();
-    }
-
-    // Request permission for iOS
-    if (Platform.OS === 'ios') {
-      const authStatus = await messaging().requestPermission();
-      const enabled =
-        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-
-      if (!enabled) {
-        console.log('Firebase Messaging permission not granted');
-        return null;
-      }
-    }
-
-    // Register device for remote messages (iOS)
-    if (Platform.OS === 'ios') {
-      await messaging().registerDeviceForRemoteMessages();
-    }
-
-    messagingInitialized = true;
-    console.log('Firebase Messaging initialized successfully');
-    return messaging();
   } catch (error) {
     console.error('Error initializing Firebase Messaging:', error);
     return null;
@@ -64,23 +64,23 @@ export const initializeMessaging = async () => {
 };
 
 // Function to get FCM token
-export const getFCMToken = async (): Promise<string | null> => {
+export const getFCMToken = async () => {
   try {
-    const messagingInstance = await initializeMessaging();
+    if (!messaging) {
+      messaging = await initializeMessaging();
+    }
     
-    if (!messagingInstance) {
+    if (!messaging) {
       console.log('Messaging not available');
       return null;
     }
 
-    const token = await messagingInstance.getToken();
+    const token = await getToken(messaging, {
+      vapidKey: 'YOUR_VAPID_KEY' // Replace with your VAPID key
+    });
     
-    if (token) {
-      console.log('FCM Token obtained successfully');
-      return token;
-    }
-    
-    return null;
+    console.log('FCM Token:', token);
+    return token;
   } catch (error) {
     console.error('Error getting FCM token:', error);
     return null;
@@ -89,19 +89,15 @@ export const getFCMToken = async (): Promise<string | null> => {
 
 // Function to handle foreground messages
 export const onForegroundMessage = (callback: (payload: any) => void) => {
-  try {
-    if (!messaging) {
-      console.log('Firebase Messaging not available - cannot set up foreground listener');
-      return () => {};
-    }
-    return messaging().onMessage(async (remoteMessage: any) => {
-      console.log('Foreground message received:', remoteMessage);
-      callback(remoteMessage);
-    });
-  } catch (error) {
-    console.error('Error setting up foreground message listener:', error);
+  if (!messaging) {
+    console.log('Messaging not available for foreground messages');
     return () => {};
   }
+
+  return onMessage(messaging, (payload) => {
+    console.log('Foreground message received:', payload);
+    callback(payload);
+  });
 };
 
 // Function to log events safely
@@ -110,23 +106,20 @@ export const logAnalyticsEvent = async (
   eventParams?: Record<string, any>
 ) => {
   try {
+    // Initialize analytics if not already initialized
+    if (!analytics) {
+      analytics = await initializeAnalytics();
+    }
+
+    // Only log if analytics is available
     if (analytics) {
-      await analytics().logEvent(eventName, eventParams);
+      logEvent(analytics, eventName, eventParams);
       console.log(`Analytics event logged: ${eventName}`, eventParams);
-    } else {
-      // Analytics not available, silently skip (non-critical)
-      console.log(`[Analytics] ${eventName}`, eventParams);
     }
   } catch (error) {
     console.error(`Error logging analytics event ${eventName}:`, error);
   }
 };
 
-// Export messaging instance getter
-export const getMessaging = () => {
-  if (!messaging) {
-    console.log('Firebase Messaging not available');
-    return null;
-  }
-  return messaging();
-};
+// Export the Firebase app for use in other modules
+export { app, messaging };

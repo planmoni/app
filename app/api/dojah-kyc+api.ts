@@ -146,8 +146,18 @@ export async function POST(request: Request) {
     // Determine which Dojah endpoint to use based on verification type
     switch (verificationType) {
       case 'bvn':
-        endpoint = '/v1/kyc/bvn/advance';
-        payload = { bvn: verificationData.bvn };
+        // If selfie_image is provided, use BVN + selfie verification endpoint
+        // This endpoint returns face match results and BVN photo
+        if (verificationData.selfie_image) {
+          endpoint = '/v1/kyc/bvn/verify';
+          payload = { 
+            bvn: verificationData.bvn,
+            selfie_image: verificationData.selfie_image 
+          };
+        } else {
+          endpoint = '/v1/kyc/bvn/advance';
+          payload = { bvn: verificationData.bvn };
+        }
         break;
       case 'nin':
         endpoint = '/v1/kyc/nin';

@@ -195,6 +195,11 @@ function AISuggestionCard({
     const totalAmount = availableBalance;
     
     defaultSuggestions.forEach((suggestion) => {
+      // Filter out daily-30-suggestion if amount is less than 50k
+      if (suggestion.id === 'daily-30-suggestion' && availableBalance < 50000) {
+        return; // Skip this suggestion
+      }
+      
       // Get duration options for this frequency
       const durationOptions = getDurationOptions(suggestion.frequency);
       

@@ -172,15 +172,15 @@ const SLIDES = [
   
   {
     id: '1',
-    title: 'Welcome to Financial Control',
-    description: "Put yourself on a salary, gain control and stay on track with your finances.",
+    title: 'Stay funded always',
+    description: "Turn your one-time funds into regular payouts and stay funded, create a consistent cash flow that sorts everyday expenses.",
     image: require('@/assets/images/StayInControl.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
   },
   {
     id: '2',
-    title: 'Choose when and how you get paid',
+    title: 'Put Yourself on a Personal Salary Schedule',
     description: 'Split lump-sums into scheduled daily, weekly, bi-weekly or monthly payouts that work for your lifestyle.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     gradient: ['#059669', '#10B981'],
@@ -189,7 +189,7 @@ const SLIDES = [
   {
     id: '3',
     title: 'Stabilize your Cash Flow',
-    description: 'Secure your money, automate payouts & say goodbye to irregular income forever.',
+    description: 'Secure your money with automated payouts and say goodbye to irregular income forever.',
     image: require('@/assets/images/SmartSavings.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
@@ -215,6 +215,7 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
   const { colors, isDark } = useTheme();
   const scrollX = useSharedValue(0);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isNavigating, setIsNavigating] = useState(false);
   const scrollViewRef = useRef<Animated.ScrollView>(null);
 
   const modalHeight = height * 0.9;
@@ -225,6 +226,7 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
       // Reset to first slide
       setCurrentIndex(0);
       scrollX.value = 0;
+      setIsNavigating(false); // Reset navigation state when modal opens
       // Small delay to ensure ScrollView is mounted
       setTimeout(() => {
         scrollViewRef.current?.scrollTo({ x: 0, animated: false });
@@ -243,13 +245,23 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
   });
 
   const handleSignUp = () => {
+    if (isNavigating) return; // Prevent multiple clicks
+    setIsNavigating(true);
     onClose();
-    router.push('/(auth)/onboarding/first-name');
+    // Add a small delay to ensure modal closes before navigation
+    setTimeout(() => {
+      router.push('/(auth)/onboarding/first-name');
+    }, 300);
   };
 
   const handleSignIn = () => {
+    if (isNavigating) return; // Prevent multiple clicks
+    setIsNavigating(true);
     onClose();
-    router.push('/(auth)/login');
+    // Add a small delay to ensure modal closes before navigation
+    setTimeout(() => {
+      router.push('/(auth)/login');
+    }, 300);
   };
 
   const isSmallScreen = height < 700;
@@ -354,17 +366,26 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
               <Pressable
                 style={styles.signInButton}
                 onPress={handleSignIn}
+                disabled={isNavigating}
               >
                 <Text style={styles.signInButtonText}>Sign In</Text>
               </Pressable>
               <Pressable
                 style={[styles.signUpButton, {
-                  backgroundColor: colors.primary
+                  backgroundColor: colors.primary,
+                  opacity: isNavigating ? 0.6 : 1
                 }]}
                 onPress={handleSignUp}
+                disabled={isNavigating}
               >
                 <Text style={styles.signUpButtonText}>Sign Up</Text>
               </Pressable>
+            </View>
+            <View style={styles.availabilityContainer}>
+              <Text style={styles.flagIcon}>🇳🇬</Text>
+              <Text style={styles.availabilityText}>
+                This app is only available in Nigeria
+              </Text>
             </View>
           </BlurView>
         </View>
@@ -466,7 +487,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   slideTitle: {
     fontWeight: '800',
-    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1.2,
+    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1.1,
     lineHeight: Platform.OS === 'ios' ? responsive.titleSize * 1.1 : responsive.titleSize * 1.1,
     letterSpacing: -0.5,
     color: isDark ? colors.text : colors.primary,
@@ -475,8 +496,8 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   slideDescription: {
     color: colors.text,
     textAlign: 'center',
-    fontSize: Platform.OS === 'ios' ? responsive.descriptionSize * 1.2: responsive.descriptionSize * 1.2,
-    lineHeight: Platform.OS === 'ios' ? responsive.descriptionSize * 1.6 : responsive.descriptionSize * 1.5,
+    fontSize: Platform.OS === 'ios' ? responsive.descriptionSize * 1.0: responsive.descriptionSize * 1.2,
+    lineHeight: Platform.OS === 'ios' ? responsive.descriptionSize * 1.4 : responsive.descriptionSize * 1.5,
     maxWidth: '90%',
   },
   pagination: {
@@ -539,6 +560,22 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     color: isDark ? '#fff' : colors.primary,
     fontSize: 16,
     fontWeight: '600',
+  },
+  availabilityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    gap: 6,
+  },
+  flagIcon: {
+    fontSize: 16,
+  },
+  availabilityText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '400',
   },
 });
 

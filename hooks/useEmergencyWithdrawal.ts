@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { router } from 'expo-router';
 
-export type EmergencyWithdrawalOption = 'instant' | '24hrs' | '72hrs';
+export type EmergencyWithdrawalOption = 'instant';
 
 export type EmergencyWithdrawalRequest = {
   planId: string;
@@ -21,31 +21,34 @@ export function useEmergencyWithdrawal() {
   const { session } = useAuth();
   const { showToast } = useToast();
 
+  // Helper function to round down to 2 decimal places
+  const roundDownTo2Decimals = (value: number): number => {
+    return Math.floor(value * 100) / 100;
+  };
+
   const calculateFee = (amount: number, option: EmergencyWithdrawalOption): number => {
-    switch (option) {
-      case 'instant':
-        return amount * 0.12; // 12% fee
-      case '24hrs':
-        return amount * 0.10; // 10% fee
-      case '72hrs':
-        return amount * 0.06; // 6% fee
-      default:
-        return 0;
+    // Only instant withdrawals are available at 1.5% fee
+    if (option === 'instant') {
+      const fee = amount * 0.015; // 1.5% fee
+      return roundDownTo2Decimals(fee);
     }
+    return 0;
   };
 
   const calculateNetAmount = (amount: number, option: EmergencyWithdrawalOption): number => {
     const fee = calculateFee(amount, option);
-    return Math.round((amount - fee) * 100) / 100; // Round to 2 decimal places
+    return roundDownTo2Decimals(amount - fee); // Round down to 2 decimal places
   };
 
-  // Check for existing pending or completed withdrawals for a plan
-  const checkExistingWithdrawal = async (planId: string): Promise<{ exists: boolean; status?: string }> => {
+  // Check for existing withdrawals for a plan (any status except failed/cancelled)
+  const checkExistingWithdrawal = useCallback(async (planId: string): Promise<{ exists: boolean; status?: string }> => {
     try {
       if (!session?.user?.id) {
         return { exists: false };
       }
 
+      // Check for any active withdrawal (pending, processing, completed, scheduled)
+      // Failed and cancelled withdrawals are excluded to allow retries
       const { data, error } = await supabase
         .from('emergency_withdrawals')
         .select('id, status')
@@ -66,7 +69,7 @@ export function useEmergencyWithdrawal() {
       console.error('Error in checkExistingWithdrawal:', err);
       return { exists: false };
     }
-  };
+  }, [session?.user?.id]);
 
   const processEmergencyWithdrawal = async (request: EmergencyWithdrawalRequest) => {
     try {
@@ -97,9 +100,12 @@ export function useEmergencyWithdrawal() {
 
       console.log('Processing emergency withdrawal:', request);
 
+      // Round down withdrawal amount to 2 decimal places
+      const roundedWithdrawalAmount = roundDownTo2Decimals(request.withdrawalAmount);
+
       // First, create the emergency withdrawal record
-      const feeAmount = calculateFee(request.withdrawalAmount, request.option);
-      const netAmount = calculateNetAmount(request.withdrawalAmount, request.option);
+      const feeAmount = calculateFee(roundedWithdrawalAmount, request.option);
+      const netAmount = calculateNetAmount(roundedWithdrawalAmount, request.option);
       const reference = `EMG_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
       
       const { data: withdrawalRecord, error: createError } = await supabase
@@ -107,7 +113,7 @@ export function useEmergencyWithdrawal() {
         .insert({
           user_id: session.user.id,
           payout_plan_id: request.planId,
-          withdrawal_amount: request.withdrawalAmount,
+          withdrawal_amount: roundedWithdrawalAmount,
           fee_amount: feeAmount,
           net_amount: netAmount,
           withdrawal_type: request.option,
@@ -131,7 +137,7 @@ export function useEmergencyWithdrawal() {
         .insert({
           user_id: session.user.id,
           type: 'withdrawal',
-          amount: request.withdrawalAmount,
+          amount: roundedWithdrawalAmount,
           status: 'pending',
           source: 'payout_plan',
           destination: 'bank_account',
@@ -165,11 +171,46 @@ export function useEmergencyWithdrawal() {
         })
       });
       
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseError) {
+        // If response is not JSON, get text instead
+        const text = await response.text();
+        console.error('Emergency withdrawal processing failed - non-JSON response:', text);
+        throw new Error(text || `Failed to process emergency withdrawal (${response.status})`);
+      }
 
-      if (!response.ok || !result.success) {
-        console.error('Emergency withdrawal processing failed:', result);
-        throw new Error(result.error || 'Failed to process emergency withdrawal');
+      if (!response.ok) {
+        // Extract error message from various possible response formats
+        // Priority: details (for transfer failures) > error > message > status text
+        const errorMessage = result?.details || 
+                            result?.error || 
+                            result?.message || 
+                            (typeof result === 'string' ? result : null) ||
+                            response.statusText ||
+                            `Failed to process emergency withdrawal (${response.status})`;
+        console.error('Emergency withdrawal processing failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          result,
+          extractedError: errorMessage
+        });
+        throw new Error(errorMessage);
+      }
+
+      if (!result.success) {
+        // For non-200 responses that still have success: false
+        // Priority: details (for transfer failures) > error > message
+        const errorMessage = result?.details || 
+                            result?.error || 
+                            result?.message ||
+                            'Failed to process emergency withdrawal';
+        console.error('Emergency withdrawal processing failed (success: false):', {
+          result,
+          extractedError: errorMessage
+        });
+        throw new Error(errorMessage);
       }
 
       console.log('Emergency withdrawal processed successfully:', result);
@@ -202,10 +243,7 @@ export function useEmergencyWithdrawal() {
       const accountDetails = result.data?.account_details || 'Your bank account';
 
       // Get processing time from response or calculate it
-      const processingTime = result.data?.processing_time_text || 
-                           (request.option === 'instant' ? 'Immediate' : 
-                            request.option === '24hrs' ? 'Within 24 hours' : 
-                            'Within 72 hours');
+      const processingTime = result.data?.processing_time_text || 'Immediate';
 
       // Navigate to confirmation screen with withdrawal details
       router.replace({
@@ -213,7 +251,7 @@ export function useEmergencyWithdrawal() {
         params: {
           planId: request.planId,
           planName: request.planName,
-          planAmount: request.withdrawalAmount.toString(),
+          planAmount: roundedWithdrawalAmount.toString(),
           option: request.option,
           feeAmount: feeAmount.toString(),
           netAmount: netAmount.toString(),

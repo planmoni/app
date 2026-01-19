@@ -206,7 +206,7 @@ export default function AddFundsScreen() {
               <View style={styles.optionContent}>
                 <Text style={styles.optionTitle}>Your Account Details</Text>
                 <Text style={styles.optionDescription}>
-                  Transfer money directly from your bank account
+                  Transfer money directly from your bank account with no fees
                 </Text>
               </View>
               <ArrowRight size={20} color={colors.textSecondary} />
@@ -221,14 +221,9 @@ export default function AddFundsScreen() {
                 <PaystackLogo width={24} height={24} />
               </View>
               <View style={styles.optionContent}>
-                <View style={styles.optionTitleRow}>
-                  <Text style={styles.optionTitle}>Continue with Paystack</Text>
-                  <View style={[styles.securityBadge, { backgroundColor: colors.success }]}>
-                    <Shield size={12} color="#fff" />
-                  </View>
-                </View>
+                <Text style={styles.optionTitle}>Fund with Paystack</Text>
                 <Text style={styles.optionDescription}>
-                  Add funds with Credit/Debit cards, Transfers, Direct Debit, USSD, and more.
+                  Add funds with Credit/Debit cards, Transfers, Direct Debit, USSD, and more. Paystack fees apply.
                 </Text>
               </View>
               <ArrowRight size={20} color={colors.textSecondary} />

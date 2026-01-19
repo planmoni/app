@@ -23,17 +23,54 @@ const getOpenAIAPIKey = () => {
 const OPENAI_API_KEY = getOpenAIAPIKey();
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
+export interface OpenAIMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_call_id?: string;
+  name?: string;
+  tool_calls?: ToolCall[];
+}
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+export interface FunctionDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: 'object';
+      properties: Record<string, any>;
+      required?: string[];
+    };
+  };
+}
+
+export interface OpenAIResponse {
+  content: string | null;
+  tool_calls?: ToolCall[];
+}
+
 export async function getOpenAIChatCompletion({
   messages,
-  model = 'gpt-3.5-turbo',
+  model = 'gpt-4-turbo-preview',
   temperature = 0.7,
-  max_tokens = 512,
+  max_tokens = 2000,
+  tools,
 }: {
-  messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
+  messages: OpenAIMessage[];
   model?: string;
   temperature?: number;
   max_tokens?: number;
-}): Promise<string> {
+  tools?: FunctionDefinition[];
+}): Promise<OpenAIResponse> {
   if (!OPENAI_API_KEY) {
     const errorMsg = 'OpenAI API key is not set in environment variables.';
     console.error('OpenAI API Key Error:', {
@@ -56,6 +93,23 @@ export async function getOpenAIChatCompletion({
       });
     }
 
+    const requestBody: any = {
+      model,
+      messages: messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+        ...(msg.tool_calls && { tool_calls: msg.tool_calls }),
+        ...(msg.tool_call_id && { tool_call_id: msg.tool_call_id }),
+        ...(msg.name && { name: msg.name }),
+      })),
+      temperature,
+      max_tokens,
+    };
+
+    if (tools && tools.length > 0) {
+      requestBody.tools = tools;
+    }
+
     const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
@@ -63,12 +117,7 @@ export async function getOpenAIChatCompletion({
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'User-Agent': `Planmoni-App/${Platform.OS}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        max_tokens,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (__DEV__) {
@@ -92,17 +141,23 @@ export async function getOpenAIChatCompletion({
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content?.trim() || '';
+    const message = data.choices?.[0]?.message || {};
+    const content = message.content?.trim() || null;
+    const tool_calls = message.tool_calls || undefined;
     
     if (__DEV__) {
       console.log('OpenAI API Success:', {
-        contentLength: content.length,
+        contentLength: content?.length || 0,
+        toolCallsCount: tool_calls?.length || 0,
         usage: data.usage,
         platform: Platform.OS
       });
     }
     
-    return content;
+    return {
+      content,
+      tool_calls,
+    };
   } catch (err: any) {
     // Enhanced error logging for debugging
     const errorInfo = {
@@ -142,7 +197,7 @@ export async function testOpenAIConnection(): Promise<boolean> {
       temperature: 0,
       max_tokens: 5
     });
-    return typeof result === 'string' && result.toLowerCase().includes('hello');
+    return typeof result.content === 'string' && result.content.toLowerCase().includes('hello');
   } catch (e) {
     return false;
   }

@@ -39,6 +39,7 @@ interface ImageCarouselProps {
   height?: number;
   images?: Banner[];
   showDimensions?: boolean; // New prop to show/hide dimensions
+  onImagePress?: () => void; // Optional callback to override default image press behavior
 }
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -54,6 +55,7 @@ export default function ImageCarousel({
   height = Platform.OS === 'android' ? 140 : 150,
   images: propImages,
   showDimensions = false, // Default to false for production
+  onImagePress: overrideOnImagePress,
 }: ImageCarouselProps) {
   const { colors, isDark } = useTheme();
   const [images, setImages] = useState<Banner[]>(propImages || []);
@@ -209,10 +211,12 @@ export default function ImageCarousel({
   });
 
   const handleImagePress = useCallback((banner: Banner) => {
-    if (banner.link_url) {
+    if (overrideOnImagePress) {
+      overrideOnImagePress();
+    } else if (banner.link_url) {
       router.push(banner.link_url);
     }
-  }, []);
+  }, [overrideOnImagePress]);
 
   // Calculate dynamic height based on image dimensions
   const calculateDynamicHeight = useCallback(() => {
