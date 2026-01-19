@@ -379,6 +379,9 @@ export default function KYCUpgradeScreen() {
       if (targetStep === 'id_face_match' && progress.bvn_verified && (bvn || formData?.bvn)) {
         setShowBvnOption(true);
       }
+      
+      // Reset loading state to ensure Continue button is not stuck in disabled state
+      setIsLoading(false);
     }
   }, [progress, progressLoading, currentStep, getFirstIncompleteStep, bvn, formData?.bvn, stepInitialized]);
 
@@ -4974,25 +4977,49 @@ export default function KYCUpgradeScreen() {
         {renderCurrentStep()}
       </KeyboardAvoidingWrapper>
       
-      {currentStep && !(currentStep === 'review' && progress?.overall_completed) && (
-        <FloatingButton 
-          title={currentStep === 'review' ? "Submit Verification" : "Continue"}
-          onPress={handleNextStep}
-          disabled={
-            isLoading || 
-            formDataLoading ||
-            progressLoading ||
-            isResolvingBvn || 
-            isVerifyingDocuments || 
-            (currentStep === 'liveness_verification' && progress?.liveness_test_completed) ||
-            (currentStep === 'bvn_verification' && bvnVerified) ||
-            (currentStep === 'id_face_match' && documentsVerified) ||
-            (currentStep === 'id_face_match' && !!ninIdentityId && (!otp.trim() || !phoneNumber.trim())) ||
-            (currentStep === 'id_face_match' && !!bvnIdentityId && (!otp.trim() || !phoneNumber.trim()))
-          }
-          loading={isLoading || formDataLoading || progressLoading || isResolvingBvn || isVerifyingDocuments}
-        />
-      )}
+      {currentStep && !(currentStep === 'review' && progress?.overall_completed) && (() => {
+        const isButtonDisabled = 
+          isLoading || 
+          formDataLoading ||
+          progressLoading ||
+          isResolvingBvn || 
+          isVerifyingDocuments || 
+          (currentStep === 'liveness_verification' && progress?.liveness_test_completed) ||
+          (currentStep === 'bvn_verification' && bvnVerified) ||
+          (currentStep === 'documents_verification' && progress?.documents_verified) ||
+          (currentStep === 'id_face_match' && documentsVerified) ||
+          (currentStep === 'id_face_match' && !!ninIdentityId && (!otp.trim() || !phoneNumber.trim())) ||
+          (currentStep === 'id_face_match' && !!bvnIdentityId && (!otp.trim() || !phoneNumber.trim()));
+        
+        // Debug logging to track button state
+        if (isButtonDisabled) {
+          console.log('[KYC] Continue button is DISABLED. Reasons:', {
+            currentStep,
+            isLoading,
+            formDataLoading,
+            progressLoading,
+            isResolvingBvn,
+            isVerifyingDocuments,
+            livenessCompleted: progress?.liveness_test_completed,
+            bvnVerified,
+            documentsVerified,
+            documentsVerifiedInProgress: progress?.documents_verified,
+            hasNinIdentityId: !!ninIdentityId,
+            hasBvnIdentityId: !!bvnIdentityId,
+            hasOtp: !!otp.trim(),
+            hasPhoneNumber: !!phoneNumber.trim()
+          });
+        }
+        
+        return (
+          <FloatingButton 
+            title={currentStep === 'review' ? "Submit Verification" : "Continue"}
+            onPress={handleNextStep}
+            disabled={isButtonDisabled}
+            loading={isLoading || formDataLoading || progressLoading || isResolvingBvn || isVerifyingDocuments}
+          />
+        );
+      })()}
       
       {renderDatePickerModal()}
       

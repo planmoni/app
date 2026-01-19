@@ -65,7 +65,10 @@ export const useKYCProgress = () => {
 
   // Load KYC progress
   const loadProgress = useCallback(async () => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -142,6 +145,7 @@ export const useKYCProgress = () => {
       console.error('Error loading KYC progress:', err);
       setError(err instanceof Error ? err.message : 'Failed to load progress');
     } finally {
+      // Ensure loading is always set to false
       setLoading(false);
     }
   }, [session?.user?.id]);

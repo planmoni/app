@@ -53,11 +53,28 @@ export default function ForgotPasswordScreen() {
     setError(null);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
-        redirectTo: 'planmoni://reset-password',
+      const normalizedEmail = email.toLowerCase().trim();
+      
+      // Use custom password reset flow via Edge Function (uses Resend email service)
+      // This bypasses Supabase's built-in email service which may not be configured
+      const { data, error } = await supabase.functions.invoke('send-password-reset', {
+        body: { email: normalizedEmail }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Password reset function error:', error);
+        throw new Error(error.message || 'Failed to send reset email. Please try again.');
+      }
+
+      if (!data || !data.success) {
+        const errorMsg = data?.error || data?.details || 'Failed to send reset email';
+        console.error('Password reset failed:', data);
+        throw new Error(errorMsg);
+      }
+
+      // Log success for debugging
+      console.log('Password reset email sent successfully:', { email: normalizedEmail, data });
+      
       haptics.notification(Haptics.NotificationFeedbackType.Success);
       setIsEmailSent(true);
       showToast('Password reset email sent successfully', 'success');
@@ -66,6 +83,13 @@ export default function ForgotPasswordScreen() {
       const errorMessage = err instanceof Error ? err.message : 'Failed to send reset email';
       setError(errorMessage);
       showToast(errorMessage, 'error');
+      
+      // Enhanced error logging for debugging
+      console.error('Password reset error details:', {
+        error: err,
+        email: email.toLowerCase().trim(),
+        errorString: JSON.stringify(err, Object.getOwnPropertyNames(err), 2)
+      });
     } finally {
       setIsLoading(false);
     }

@@ -23,8 +23,6 @@ import {
   CalendarCheck,
   Clock,
   MoreHorizontal,
-  Building2,
-  ChevronRight,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -622,13 +620,57 @@ export default function HomeScreen() {
       logAnalyticsEvent('add_funds_click_unauthenticated_modal');
       return;
     }
-    
-    // Check if user has completed Tier 1
-    const tierCompletion = checkTierCompletion();
-    
-    // Check if user has an account
-    let hasAccount = false;
-    if (session?.user?.id) {
+
+    if (!session?.user?.id) {
+      Alert.alert('Error', 'Please log in to continue');
+      return;
+    }
+
+    try {
+      // Import lightweight verification check
+      const { checkVerificationStatus, performBasicFraudCheck } = await import('@/utils/verification-check');
+      
+      // Step 1: Check KYC verification (Liveness + BVN)
+      const verificationResult = await checkVerificationStatus(session.user.id);
+      
+      if (!verificationResult.canProceed) {
+        // User hasn't completed required verification
+        const missingStepsText = verificationResult.missingSteps.join(' and ');
+        
+        Alert.alert(
+          'Verification Required',
+          verificationResult.reason || `Please complete ${missingStepsText} to add funds.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Start Verification',
+              onPress: () => {
+                router.push(verificationResult.redirectTo || '/kyc/tier1');
+                logAnalyticsEvent('add_funds_redirect_to_verification', {
+                  missing_steps: verificationResult.missingSteps
+                });
+              }
+            }
+          ]
+        );
+        return;
+      }
+
+      // Step 2: Perform basic fraud check
+      const fraudCheck = await performBasicFraudCheck(session.user.id);
+      
+      if (!fraudCheck.passed) {
+        Alert.alert(
+          'Verification Failed',
+          fraudCheck.reason || 'Unable to proceed. Please try again later.',
+          [{ text: 'OK', style: 'default' }]
+        );
+        logAnalyticsEvent('add_funds_fraud_blocked');
+        return;
+      }
+
+      // Step 3: Check if user has an account
+      let hasAccount = false;
       try {
         const { data } = await supabase
           .from('safehaven_accounts')
@@ -642,24 +684,25 @@ export default function HomeScreen() {
       } catch (error) {
         console.error('Error checking account:', error);
       }
-    }
-    
-    // If Tier 1 is complete AND has account, navigate directly to add funds page
-    if (tierCompletion.tier1 && hasAccount) {
+      
+      // Step 4: All checks passed - navigate to add funds
       isNavigatingToAddFundsRef.current = true;
       router.push('/add-funds');
-      logAnalyticsEvent('add_funds_click');
+      logAnalyticsEvent('add_funds_click_verified');
+      
       // Reset flag after navigation completes
       setTimeout(() => {
         isNavigatingToAddFundsRef.current = false;
       }, 1000);
-      return;
+      
+    } catch (error) {
+      console.error('Error in handleAddFunds:', error);
+      Alert.alert(
+        'Error',
+        'Something went wrong. Please try again.',
+        [{ text: 'OK', style: 'default' }]
+      );
     }
-    
-    // If Tier 1 not complete or no account, show ClaimAccountModal
-    // The modal will handle navigation if account exists after checking
-    setShowClaimAccountModal(true);
-    logAnalyticsEvent('add_funds_click_claim_modal');
   };
 
   const handleCreatePayout = () => {
@@ -1069,91 +1112,13 @@ export default function HomeScreen() {
         </View> */}
         
 
-        {/* Quick Topup Card */}
-        {isAuthenticated && (
-          <Pressable
-            onPress={() => {
-              impact();
-              router.push('/deposit-flow/payment-methods');
-              logAnalyticsEvent('quick_topup_click', { source: 'home_screen' });
-            }}
-            style={[styles.quickTopupCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-          >
-            <View style={styles.quickTopupContent}>
-              <View style={styles.quickTopupIconContainer}>
-                <Plus size={24} color={colors.primary} />
-              </View>
-              <View style={styles.quickTopupTextContainer}>
-                <Text style={[styles.quickTopupTitle, { color: colors.text }]}>
-                  Quick Topup
-                </Text>
-                <Text style={[styles.quickTopupSubtitle, { color: colors.textSecondary }]}>
-                  Add money to your wallet
-                </Text>
-              </View>
-              <ChevronRight size={20} color={colors.textSecondary} />
-            </View>
-          </Pressable>
-        )}
-
-        {/* Linked Accounts Quick Access */}
-        {isAuthenticated && (
-          <Pressable
-            onPress={() => {
-              router.push('/linked-accounts');
-              logAnalyticsEvent('linked_accounts_click', { source: 'home_screen' });
-            }}
-            style={[styles.linkedAccountsCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-          >
-            <View style={styles.linkedAccountsContent}>
-              <View style={styles.linkedAccountsIconContainer}>
-                <Building2 size={24} color={colors.primary} />
-              </View>
-              <View style={styles.linkedAccountsTextContainer}>
-                <Text style={[styles.linkedAccountsTitle, { color: colors.text }]}>
-                  Linked Bank Accounts
-                </Text>
-                <Text style={[styles.linkedAccountsSubtitle, { color: colors.textSecondary }]}>
-                  Manage your bank accounts for deposits
-                </Text>
-              </View>
-              <ChevronRight size={20} color={colors.textSecondary} />
-            </View>
-          </Pressable>
-        )}
-
-        {/* DirectDebit Test Section - Development Only */}
-        {__DEV__ && isAuthenticated && (
-          <Pressable
-            onPress={() => {
-              router.push('/deposit-flow/payment-methods');
-              logAnalyticsEvent('directdebit_test_click', { source: 'home_screen' });
-            }}
-            style={[styles.linkedAccountsCard, { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 2 }]}
-          >
-            <View style={styles.linkedAccountsContent}>
-              <View style={styles.linkedAccountsIconContainer}>
-                <Building2 size={24} color={colors.primary} />
-              </View>
-              <View style={styles.linkedAccountsTextContainer}>
-                <Text style={[styles.linkedAccountsTitle, { color: colors.text }]}>
-                  🧪 Test DirectDebit
-                </Text>
-                <Text style={[styles.linkedAccountsSubtitle, { color: colors.textSecondary }]}>
-                  Test Mono DirectDebit mandate & funding flow
-                </Text>
-              </View>
-              <ChevronRight size={20} color={colors.primary} />
-            </View>
-          </Pressable>
-        )}
-
         <ImageCarousel images={carouselImages} />
-        {isAuthenticated && progress && !(
-          progress.id_face_verified === true || 
-          progress.id_face_verified === 1 ||
-          progress.id_face_verified === 'true'
-        ) && <KYCCard />}
+        {isAuthenticated && progress && (() => {
+          const isVerified = progress.id_face_verified === true || 
+            (typeof progress.id_face_verified === 'number' && progress.id_face_verified === 1) ||
+            (typeof progress.id_face_verified === 'string' && progress.id_face_verified === 'true');
+          return !isVerified && <KYCCard />;
+        })()}
         <PendingActionsCard />
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
@@ -2018,74 +1983,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   bottomPadding: {
     height: 1,
-  },
-  linkedAccountsCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    shadowColor: '#000000',
-    shadowOffset: { width: 1, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-  },
-  linkedAccountsContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  linkedAccountsIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  linkedAccountsTextContainer: {
-    flex: 1,
-    gap: 4,
-  },
-  linkedAccountsTitle: {
-    fontSize: getScaledFontSize(16, textSizeMultiplier),
-    fontWeight: '600',
-  },
-  linkedAccountsSubtitle: {
-    fontSize: getScaledFontSize(14, textSizeMultiplier),
-  },
-  quickTopupCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    shadowColor: '#000000',
-    shadowOffset: { width: 1, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-  },
-  quickTopupContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  quickTopupIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  quickTopupTextContainer: {
-    flex: 1,
-    gap: 4,
-  },
-  quickTopupTitle: {
-    fontSize: getScaledFontSize(16, textSizeMultiplier),
-    fontWeight: '600',
-  },
-  quickTopupSubtitle: {
-    fontSize: getScaledFontSize(14, textSizeMultiplier),
   },
 
 });

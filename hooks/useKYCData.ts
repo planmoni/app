@@ -57,7 +57,10 @@ export const useKYCData = () => {
 
   // Load KYC form data
   const loadFormData = useCallback(async () => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -82,6 +85,7 @@ export const useKYCData = () => {
       console.error('Error loading KYC form data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load form data');
     } finally {
+      // Ensure loading is always set to false
       setLoading(false);
     }
   }, [session?.user?.id]);

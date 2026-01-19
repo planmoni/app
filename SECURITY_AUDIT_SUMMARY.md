@@ -12,7 +12,7 @@
 
 **Exposed Secrets:**
 - `EXPO_PUBLIC_MONO_SECRET_KEY` - Used in 4 client files
-- `EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY` - Used in 6 client files  
+- `EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY` - Used in 6 client files
 - `EXPO_PUBLIC_DOJAH_PRIVATE_KEY` - Used in 2 client files
 - `EXPO_PUBLIC_OPENAI_API_KEY` - Used in 1 client file
 - `EXPO_PUBLIC_RESEND_API_KEY` - Used in 1 client file
