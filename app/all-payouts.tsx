@@ -148,7 +148,7 @@ export default function AllPayoutsScreen() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
-        return { bg: '#DCFCE7', text: '#22C55E', icon: TrendingUp };
+        return { bg: colors.primary, text: colors.accent, icon: TrendingUp };
       case 'cancelled':
         return { bg: '#FEE2E2', text: '#EF4444', icon: XCircle };
       case 'completed':

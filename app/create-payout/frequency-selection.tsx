@@ -876,9 +876,27 @@ export default function FrequencySelectionScreen() {
       haptics.selection();
     }
     setIsEqualSplit(false);
+    
+    // Only allow numbers and decimal point
+    let filteredAmount = amount.replace(/[^0-9.]/g, '');
+    
+    // Prevent multiple decimal points
+    const parts = filteredAmount.split('.');
+    if (parts.length > 2) {
+      filteredAmount = parts[0] + '.' + parts.slice(1).join('');
+    }
+    
+    // Limit to 2 decimal places
+    if (filteredAmount.includes('.')) {
+      const [integerPart, decimalPart] = filteredAmount.split('.');
+      if (decimalPart && decimalPart.length > 2) {
+        filteredAmount = integerPart + '.' + decimalPart.substring(0, 2);
+      }
+    }
+    
     setDateAmounts(prev => ({
       ...prev,
-      [date]: amount
+      [date]: filteredAmount
     }));
   };
 
@@ -1464,9 +1482,36 @@ export default function FrequencySelectionScreen() {
                           </Text>
                         )}
                         {remainder < 0 && (
-                          <Text style={styles.remainderWarning}>
-                            Total allocated exceeds available amount. Please adjust amounts.
-                          </Text>
+                          <Pressable
+                            onPress={() => {
+                              haptics.selection();
+                              router.push({
+                                pathname: '/create-payout/amount',
+                                params: {
+                                  totalAmount: totalAmount,
+                                  frequency: params.frequency || '',
+                                  payoutAmount: params.payoutAmount || '',
+                                  duration: params.duration || '',
+                                  startDate: params.startDate || '',
+                                  bankName: params.bankName || '',
+                                  accountNumber: params.accountNumber || '',
+                                  accountName: params.accountName || '',
+                                  bankAccountId: params.bankAccountId || '',
+                                  payoutAccountId: params.payoutAccountId || '',
+                                  emergencyWithdrawal: params.emergencyWithdrawal || 'false',
+                                  customDates: params.customDates || '',
+                                  customDateAmounts: params.customDateAmounts || '',
+                                  dayOfWeek: params.dayOfWeek || '',
+                                  payoutHour: params.payoutHour || '',
+                                  payoutMinute: params.payoutMinute || '',
+                                }
+                              });
+                            }}
+                          >
+                            <Text style={styles.remainderWarning}>
+                              Total allocated exceeds available amount. Please adjust amounts > here.
+                            </Text>
+                          </Pressable>
                         )}
                       </View>
                     );

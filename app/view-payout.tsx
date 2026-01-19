@@ -63,6 +63,7 @@ export default function ViewPayoutScreen() {
   const [hasExistingWithdrawal, setHasExistingWithdrawal] = useState(false);
   const [customDateAmounts, setCustomDateAmounts] = useState<Record<string, number>>({});
   const [customDatesCount, setCustomDatesCount] = useState<number>(0);
+  const [nextPayoutAmount, setNextPayoutAmount] = useState<number | null>(null);
   const [showBreakdownModal, setShowBreakdownModal] = useState(false);
   
   // Animation values
@@ -111,6 +112,7 @@ export default function ViewPayoutScreen() {
       if (!plan || plan.frequency !== 'custom') {
         setCustomDateAmounts({});
         setCustomDatesCount(0);
+        setNextPayoutAmount(null);
         return;
       }
 
@@ -142,6 +144,20 @@ export default function ViewPayoutScreen() {
             // If amount is null, undefined, or 0, use plan's payout_amount as fallback
             amounts[item.payout_date] = amount > 0 ? amount : plan.payout_amount;
           });
+
+          // Get the next payout amount if next_payout_date exists
+          if (plan.next_payout_date) {
+            const nextDateString = new Date(plan.next_payout_date).toISOString().split('T')[0];
+            const nextAmount = amounts[nextDateString];
+            if (nextAmount !== undefined) {
+              setNextPayoutAmount(nextAmount);
+            } else {
+              // If no custom amount found for next date, use plan's payout_amount
+              setNextPayoutAmount(plan.payout_amount);
+            }
+          } else {
+            setNextPayoutAmount(null);
+          }
         }
 
         console.log('Processed custom amounts:', amounts, 'Count:', Object.keys(amounts).length);
@@ -150,13 +166,14 @@ export default function ViewPayoutScreen() {
         console.error('Error fetching custom payout amounts:', error);
         setCustomDateAmounts({});
         setCustomDatesCount(0);
+        setNextPayoutAmount(null);
       }
     };
 
     if (plan?.id) {
       fetchCustomAmounts();
     }
-  }, [plan?.id, plan?.frequency]);
+  }, [plan?.id, plan?.frequency, plan?.next_payout_date]);
 
   useEffect(() => {
     if (plan) {
@@ -567,11 +584,11 @@ export default function ViewPayoutScreen() {
                 </>
               )}
             </View>
-            <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
+            {/* <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
               <Text style={[styles.statusText, { color: statusColors.text }]}>
                 {plan.status.charAt(0).toUpperCase() + plan.status.slice(1)}
               </Text>
-            </View>
+            </View> */}
           </View>
           
           <View style={styles.heroStats}>
@@ -670,7 +687,9 @@ export default function ViewPayoutScreen() {
               {plan.status === 'cancelled' 
                 ? `Cancelled: ${new Date(plan.updated_at).toLocaleDateString()}`
                 : plan.next_payout_date 
-                  ? `Next payout: ${new Date(plan.next_payout_date).toLocaleDateString()}`
+                  ? plan.frequency === 'custom' && nextPayoutAmount !== null
+                    ? `Next payout: ${new Date(plan.next_payout_date).toLocaleDateString()} • ${formatCurrency(nextPayoutAmount)}`
+                    : `Next payout: ${new Date(plan.next_payout_date).toLocaleDateString()}`
                   : plan.status === 'completed' 
                     ? 'Plan completed'
                     : 'Plan paused'
@@ -694,8 +713,8 @@ export default function ViewPayoutScreen() {
           
           <View style={styles.scheduleGrid}>
             <View style={styles.scheduleItem}>
-              <View style={[styles.scheduleIcon, { backgroundColor: 'rgba(30, 58, 138, 0.1)' }]}>
-                <CalendarIcon size={20} color="#1E3A8A" />
+              <View style={[styles.scheduleIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <CalendarIcon size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.scheduleInfo}>
                 <Text style={styles.scheduleLabel}>Frequency</Text>
@@ -706,8 +725,8 @@ export default function ViewPayoutScreen() {
             </View>
 
             <View style={styles.scheduleItem}>
-              <View style={[styles.scheduleIcon, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
-                <ClockIcon size={20} color="#8B5CF6" />
+              <View style={[styles.scheduleIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <ClockIcon size={20} color={colors.textSecondary}/>
               </View>
               <View style={styles.scheduleInfo}>
                 <Text style={styles.scheduleLabel}>Duration</Text>
@@ -716,8 +735,8 @@ export default function ViewPayoutScreen() {
             </View>
 
             <View style={styles.scheduleItem}>
-              <View style={[styles.scheduleIcon, { backgroundColor: 'rgba(34, 197, 94, 0.1)' }]}>
-                <DollarSign size={20} color="#22C55E" />
+              <View style={[styles.scheduleIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <DollarSign size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.scheduleInfo}>
                 <Text style={styles.scheduleLabel}>Per Payout</Text>
@@ -743,7 +762,7 @@ export default function ViewPayoutScreen() {
             </View>
 
             <View style={styles.scheduleItem}>
-              <View style={[styles.scheduleIcon, { backgroundColor: 'rgba(14, 165, 233, 0.1)' }]}>
+              <View style={[styles.scheduleIcon, { backgroundColor: colors.backgroundTertiary }]}>
                 {(() => {
                   const bankName = plan.payout_accounts?.bank_name || plan.bank_accounts?.bank_name || '';
                   const bankIcon = getBankIconLogo(bankName);
@@ -762,7 +781,7 @@ export default function ViewPayoutScreen() {
                       />
                     );
                   } else {
-                    return <Building2 size={20} color="#0EA5E9" />;
+                    return <Building2 size={20} color={colors.textSecondary} />;
                   }
                 })()}
               </View>
@@ -901,7 +920,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.text,
   },
   headerSubtitle: {
@@ -986,10 +1005,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   heroCard: {
     borderRadius: 24,
     padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   heroHeader: {
     flexDirection: 'row',
@@ -1002,8 +1019,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginRight: 12,
   },
   heroTitle: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
@@ -1031,7 +1048,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   heroStatValue: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
@@ -1062,10 +1079,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   progressCard: {
     borderRadius: 24,
     padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   progressHeader: {
     flexDirection: 'row',
@@ -1080,7 +1095,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   progressPercentage: {
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.primary,
   },
   progressBarContainer: {
@@ -1108,7 +1123,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   progressStatValue: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
@@ -1133,14 +1148,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   scheduleCard: {
     borderRadius: 24,
     padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 20,
   },
@@ -1169,8 +1182,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 4,
   },
   scheduleValue: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
     color: colors.text,
   },
   customAmountsSchedule: {
@@ -1249,10 +1262,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   emergencyCard: {
     borderRadius: 24,
     padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   warningHeader: {
     flexDirection: 'row',

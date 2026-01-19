@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -9,6 +9,7 @@ import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { supabase } from '@/lib/supabase';
 
 interface NextPayoutCardProps {
   nextPayout: any;
@@ -19,9 +20,51 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
   const { showBalances } = useBalance();
   const { textSizeMultiplier } = useTextSize();
   const { isAuthenticated } = useRequireAuth();
+  const [nextPayoutAmount, setNextPayoutAmount] = useState<number | null>(null);
+
   const formatBalance = (amount: number) => {
     return showBalances ? `₦${amount.toLocaleString()}` : '*********';
   };
+
+  // Fetch custom payout amount for the next payout date if it's a custom plan
+  useEffect(() => {
+    const fetchNextPayoutAmount = async () => {
+      if (!nextPayout || nextPayout.frequency !== 'custom' || !nextPayout.next_payout_date) {
+        setNextPayoutAmount(null);
+        return;
+      }
+
+      try {
+        const nextDateString = new Date(nextPayout.next_payout_date).toISOString().split('T')[0];
+        const { data, error } = await supabase
+          .from('custom_payout_dates')
+          .select('amount')
+          .eq('payout_plan_id', nextPayout.id)
+          .eq('payout_date', nextDateString)
+          .single();
+
+        if (error) {
+          console.error('Error fetching next payout amount:', error);
+          // Fallback to plan's payout_amount
+          setNextPayoutAmount(nextPayout.payout_amount);
+          return;
+        }
+
+        if (data && data.amount !== null && data.amount !== undefined) {
+          const amount = parseFloat(data.amount.toString());
+          setNextPayoutAmount(amount > 0 ? amount : nextPayout.payout_amount);
+        } else {
+          // If no custom amount found, use plan's payout_amount
+          setNextPayoutAmount(nextPayout.payout_amount);
+        }
+      } catch (error) {
+        console.error('Error fetching next payout amount:', error);
+        setNextPayoutAmount(nextPayout.payout_amount);
+      }
+    };
+
+    fetchNextPayoutAmount();
+  }, [nextPayout?.id, nextPayout?.frequency, nextPayout?.next_payout_date, nextPayout?.payout_amount]);
 
   const handleViewPayout = (id: string) => {
     router.push({
@@ -57,7 +100,9 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
           
           <View style={styles.payoutDetails}>
             <View style={styles.payoutInfo}>
-              <Text style={styles.payoutAmount}>{formatBalance(nextPayout.payout_amount)}</Text>
+              <Text style={styles.payoutAmount}>
+                {formatBalance(nextPayoutAmount !== null ? nextPayoutAmount : nextPayout.payout_amount)}
+              </Text>
               
               {/* Payout Account Information */}
               {(nextPayout.payout_accounts || nextPayout.bank_accounts) && (
