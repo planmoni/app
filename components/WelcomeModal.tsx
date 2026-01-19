@@ -366,6 +366,12 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
                 <Text style={styles.signUpButtonText}>Sign Up</Text>
               </Pressable>
             </View>
+            <View style={styles.availabilityContainer}>
+              <Text style={styles.flagIcon}>🇳🇬</Text>
+              <Text style={styles.availabilityText}>
+                This app is only available in Nigeria
+              </Text>
+            </View>
           </BlurView>
         </View>
       </View>
@@ -466,7 +472,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   slideTitle: {
     fontWeight: '800',
-    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1.2,
+    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1.1,
     lineHeight: Platform.OS === 'ios' ? responsive.titleSize * 1.1 : responsive.titleSize * 1.1,
     letterSpacing: -0.5,
     color: isDark ? colors.text : colors.primary,
@@ -475,8 +481,8 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   slideDescription: {
     color: colors.text,
     textAlign: 'center',
-    fontSize: Platform.OS === 'ios' ? responsive.descriptionSize * 1.2: responsive.descriptionSize * 1.2,
-    lineHeight: Platform.OS === 'ios' ? responsive.descriptionSize * 1.6 : responsive.descriptionSize * 1.5,
+    fontSize: Platform.OS === 'ios' ? responsive.descriptionSize * 1.0: responsive.descriptionSize * 1.2,
+    lineHeight: Platform.OS === 'ios' ? responsive.descriptionSize * 1.4 : responsive.descriptionSize * 1.5,
     maxWidth: '90%',
   },
   pagination: {
@@ -539,6 +545,22 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     color: isDark ? '#fff' : colors.primary,
     fontSize: 16,
     fontWeight: '600',
+  },
+  availabilityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    gap: 6,
+  },
+  flagIcon: {
+    fontSize: 16,
+  },
+  availabilityText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '400',
   },
 });
 

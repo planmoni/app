@@ -1509,7 +1509,7 @@ export default function FrequencySelectionScreen() {
                             }}
                           >
                             <Text style={styles.remainderWarning}>
-                              Total allocated exceeds available amount. Please adjust amounts > here.
+                              Total allocated exceeds available amount. Please adjust amounts here.
                             </Text>
                           </Pressable>
                         )}
