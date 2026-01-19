@@ -146,6 +146,7 @@ serve(async (req) => {
       // Declare variables outside try block for use in catch block
       let transferReference: string | null = null
       let automatedPayout: any = null
+      let actualPayoutAmount: number = plan.payout_amount // Default to plan amount
       
       try {
         console.log(`Processing payout for plan: ${plan.name} (${plan.id})`)
@@ -222,6 +223,23 @@ serve(async (req) => {
           throw new Error("Incomplete bank account information")
         }
 
+        // For custom frequency, get the amount from custom_payout_dates for today's date
+        if (plan.frequency === "custom") {
+          const { data: customDateData } = await supabase
+            .from("custom_payout_dates")
+            .select("amount")
+            .eq("payout_plan_id", plan.id)
+            .eq("payout_date", todayString)
+            .single()
+          
+          if (customDateData && customDateData.amount !== null) {
+            actualPayoutAmount = parseFloat(customDateData.amount.toString())
+            console.log(`Using custom amount ${actualPayoutAmount} for date ${todayString}`)
+          } else {
+            console.log(`No custom amount found for date ${todayString}, using plan default: ${plan.payout_amount}`)
+          }
+        }
+
         // Create automated payout record
         transferReference = `AUTO_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
         
@@ -231,7 +249,7 @@ serve(async (req) => {
             payout_plan_id: plan.id,
             user_id: plan.user_id,
             scheduled_date: todayString,
-            amount: plan.payout_amount,
+            amount: actualPayoutAmount,
             status: "processing",
             transfer_reference: transferReference,
             payout_account_id: plan.payout_account_id,
@@ -330,14 +348,14 @@ serve(async (req) => {
           throw new Error("SafeHaven account does not allow debits")
         }
 
-        if (safeHavenAccount.account_balance < plan.payout_amount) {
-          throw new Error(`Insufficient balance. Available: ₦${safeHavenAccount.account_balance}, Required: ₦${plan.payout_amount}`)
+        if (safeHavenAccount.account_balance < actualPayoutAmount) {
+          throw new Error(`Insufficient balance. Available: ₦${safeHavenAccount.account_balance}, Required: ₦${actualPayoutAmount}`)
         }
 
         console.log("Processing SafeHaven transfer:", {
           fromAccount: safeHavenAccount.account_number,
           toAccount: accountDetails.account_number,
-          amount: plan.payout_amount
+          amount: actualPayoutAmount
         })
 
         // Step 1: Perform name enquiry first
@@ -381,7 +399,7 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             saveBeneficiary: true,
-            amount: plan.payout_amount,
+            amount: actualPayoutAmount,
             beneficiaryAccountNumber: accountDetails.account_number,
             beneficiaryBankCode: accountDetails.bank_code,
             debitAccountNumber: safeHavenAccount.account_number,
@@ -431,7 +449,7 @@ serve(async (req) => {
           .insert({
             user_id: plan.user_id,
             type: "payout",
-            amount: plan.payout_amount,
+            amount: actualPayoutAmount,
             status: transferResult.status === "Completed" ? "completed" : "pending",
             source: "payout_plan",
             destination: "bank_account",
@@ -544,7 +562,7 @@ serve(async (req) => {
               user_id: plan.user_id,
               type: "payout_completed",
               title: "Payout Completed",
-              description: `Your payout of ₦${plan.payout_amount.toLocaleString()} from "${plan.name}" has been processed successfully.`,
+              description: `Your payout of ₦${actualPayoutAmount.toLocaleString()} from "${plan.name}" has been processed successfully.`,
               status: "unread",
               payout_plan_id: plan.id
             })
@@ -557,7 +575,7 @@ serve(async (req) => {
               user_id: plan.user_id,
               type: "payout_processing",
               title: "Payout Processing",
-              description: `Your payout of ₦${plan.payout_amount.toLocaleString()} from "${plan.name}" is being processed. You will be notified when it completes.`,
+              description: `Your payout of ₦${actualPayoutAmount.toLocaleString()} from "${plan.name}" is being processed. You will be notified when it completes.`,
               status: "unread",
               payout_plan_id: plan.id
             })
@@ -579,14 +597,14 @@ serve(async (req) => {
             transfer_id: transferId,
             transfer_code: paymentReference,
             transfer_status: transferResult.status,
-            amount: plan.payout_amount
+            amount: actualPayoutAmount
           }
         )
         
         results.push({
           planId: plan.id,
           planName: plan.name,
-          amount: plan.payout_amount,
+          amount: actualPayoutAmount,
           status: transferResult.status === "Completed" ? "success" : "processing",
           transferId: transferId,
           transferCode: paymentReference,
@@ -654,7 +672,7 @@ serve(async (req) => {
         results.push({
           planId: plan.id,
           planName: plan.name,
-          amount: plan.payout_amount,
+          amount: actualPayoutAmount,
           status: "failed",
           error: error.message
         })

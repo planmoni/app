@@ -25,6 +25,7 @@ export function useCreatePayout() {
     bankAccountId,
     payoutAccountId,
     customDates,
+    customDateAmounts,
     emergencyWithdrawalEnabled = true, // Default to enabled
     dayOfWeek,
     payoutHour,
@@ -40,6 +41,7 @@ export function useCreatePayout() {
     bankAccountId?: string | null;
     payoutAccountId?: string | null;
     customDates?: string[];
+    customDateAmounts?: Record<string, string>;
     emergencyWithdrawalEnabled?: boolean;
     dayOfWeek?: number;
     payoutHour?: number;
@@ -273,14 +275,27 @@ export function useCreatePayout() {
 
       // 📆 Insert custom dates if needed
       if (dbFrequency === "custom" && customDates?.length) {
+        const datesToInsert = customDates.map((date) => {
+          const baseRecord: any = {
+            payout_plan_id: payoutPlan.id,
+            payout_date: date,
+          };
+          
+          // Add amount if provided for this date
+          if (customDateAmounts && customDateAmounts[date]) {
+            const amountStr = customDateAmounts[date];
+            const numericAmount = parseFloat(amountStr.replace(/,/g, ''));
+            if (!isNaN(numericAmount) && numericAmount > 0) {
+              baseRecord.amount = numericAmount;
+            }
+          }
+          
+          return baseRecord;
+        });
+
         const { error: datesError } = await supabase
           .from("custom_payout_dates")
-          .insert(
-            customDates.map((date) => ({
-              payout_plan_id: payoutPlan.id,
-              payout_date: date,
-            }))
-          );
+          .insert(datesToInsert);
 
         if (datesError) {
           console.error("Error adding custom dates:", datesError);

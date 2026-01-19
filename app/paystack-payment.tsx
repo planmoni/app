@@ -416,8 +416,8 @@ export default function PaystackPaymentScreen() {
       {/* Floating Pay Button */}
       <FloatingButton
         title={isProcessing ? 'Verifying Payment...' : `Pay ₦${getTotalAmountToPay().toLocaleString()}`}
-        onPress={handlePayment}
-        disabled={!isValidAmount() || isLoading || isProcessing}
+          onPress={handlePayment}
+          disabled={!isValidAmount() || isLoading || isProcessing}
         loading={isLoading || isProcessing}
         hapticType="medium"
       />

@@ -36,15 +36,28 @@ export default function PlanCreationModal({
   const generateSuggestions = (): SuggestedPlan[] => {
     const suggestions: SuggestedPlan[] = [];
 
-    // Daily plan - 30 days
+    // Daily plan - 30 days (only show if depositAmount >= 50000)
+    if (depositAmount >= 50000) {
+      suggestions.push({
+        id: 'daily-30',
+        title: 'Daily Plan',
+        description: '30 daily payments',
+        frequency: 'daily',
+        duration: 30,
+        color: '#8B5CF6',
+        icon: <TrendingUp size={20} color="#8B5CF6" />,
+      });
+    }
+
+    // Daily plan - 7 days (always available)
     suggestions.push({
-      id: 'daily-30',
+      id: 'daily-7',
       title: 'Daily Plan',
-      description: '30 daily payments',
+      description: '7 daily payments',
       frequency: 'daily',
-      duration: 30,
-      color: '#8B5CF6',
-      icon: <TrendingUp size={20} color="#8B5CF6" />,
+      duration: 7,
+      color: '#7C3AED',
+      icon: <TrendingUp size={20} color="#7C3AED" />,
     });
 
     // Weekly plan - 4 weeks
@@ -52,7 +65,7 @@ export default function PlanCreationModal({
       id: 'weekly-4',
       title: 'Weekly Plan',
       description: '4 weekly payments',
-      frequency: 'weekly',
+      frequency: 'weekly_specific',
       duration: 4,
       color: '#10B981',
       icon: <PiggyBank size={20} color="#10B981" />,
@@ -63,7 +76,7 @@ export default function PlanCreationModal({
       id: 'monthly-3',
       title: 'Monthly Plan',
       description: '3 monthly payments',
-      frequency: 'monthly',
+      frequency: 'end_of_month',
       duration: 3,
       color: '#3B82F6',
       icon: <Calendar size={20} color="#3B82F6" />,
@@ -79,13 +92,13 @@ export default function PlanCreationModal({
     haptics.mediumImpact();
     onClose();
     
-    // Navigate to schedule page with suggested parameters
+    // Navigate to frequency-selection page with suggested parameters
     router.push({
-      pathname: '/create-payout/schedule',
+      pathname: '/create-payout/frequency-selection',
       params: {
         totalAmount: depositAmount.toString(),
-        suggestedFrequency: suggestion.frequency,
-        suggestedDuration: suggestion.duration.toString(),
+        frequency: suggestion.frequency,
+        duration: suggestion.duration.toString(),
       },
     });
   };

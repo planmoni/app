@@ -173,7 +173,7 @@ const SLIDES = [
   {
     id: '1',
     title: 'Stay funded always',
-    description: "Turn your one-time funds into regular payouts and stay funded even when expenses are frequent and income is unpredictable",
+    description: "Turn your one-time funds into regular payouts and stay funded, create a consistent cash flow that sorts everyday expenses.",
     image: require('@/assets/images/StayInControl.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',

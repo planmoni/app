@@ -44,6 +44,7 @@ export default function ReviewScreen() {
   const payoutAccountId = params.payoutAccountId as string;
   const emergencyWithdrawal = params.emergencyWithdrawal !== 'false'; // Default to true
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
+  const customDateAmounts = params.customDateAmounts ? JSON.parse(params.customDateAmounts as string) : {};
   const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
   const payoutHour = params.payoutHour ? parseInt(params.payoutHour as string) : undefined;
   const payoutMinute = params.payoutMinute ? parseInt(params.payoutMinute as string) : undefined;
@@ -136,6 +137,7 @@ export default function ReviewScreen() {
       console.log('- Bank account ID:', bankAccountId || null);
       console.log('- Payout account ID:', payoutAccountId || null);
       console.log('- Custom dates:', customDates);
+      console.log('- Custom date amounts:', customDateAmounts);
       console.log('- Emergency withdrawal enabled:', emergencyWithdrawal);
       
       if (Platform.OS !== 'web') {
@@ -154,6 +156,7 @@ export default function ReviewScreen() {
         bankAccountId: bankAccountId || null,
         payoutAccountId: payoutAccountId || null,
         customDates,
+        customDateAmounts: Object.keys(customDateAmounts).length > 0 ? customDateAmounts : undefined,
         emergencyWithdrawalEnabled: emergencyWithdrawal,
         payoutHour: payoutHour,
         payoutMinute: payoutMinute,
@@ -164,7 +167,7 @@ export default function ReviewScreen() {
         haptics.error();
       }
     }
-  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, emergencyWithdrawal, haptics, createPayout, isLoading]);
+  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, customDateAmounts, emergencyWithdrawal, haptics, createPayout, isLoading]);
 
   const handleStartPlan = useCallback(async () => {
     if (hasInsufficientBalance) {
@@ -396,6 +399,7 @@ export default function ReviewScreen() {
                         payoutAccountId: payoutAccountId,
                         emergencyWithdrawal: emergencyWithdrawal.toString(),
                         customDates: customDates ? JSON.stringify(customDates) : '',
+                        customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
@@ -414,7 +418,20 @@ export default function ReviewScreen() {
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Payout Frequency</Text>
                   <Text style={styles.detailValue}>{formatPayoutFrequency(frequency, dayOfWeek)}</Text>
-                  <Text style={styles.detailSubtext}>{`₦${payoutAmount}`} per payout</Text>
+                  {frequency === 'custom' && customDates.length > 0 && Object.keys(customDateAmounts).length > 0 ? (
+                    <View style={styles.customAmountsList}>
+                      {customDates.map((date: string) => {
+                        const amount = customDateAmounts[date] || payoutAmount;
+                        return (
+                          <Text key={date} style={styles.detailSubtext}>
+                            {formatDisplayDate(date)}: ₦{parseFloat(amount.toString().replace(/,/g, '')).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </Text>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <Text style={styles.detailSubtext}>{`₦${payoutAmount}`} per payout</Text>
+                  )}
                 </View>
                 <Pressable 
                   style={styles.editButton} 
@@ -437,6 +454,7 @@ export default function ReviewScreen() {
                         payoutAccountId: payoutAccountId,
                         emergencyWithdrawal: emergencyWithdrawal.toString(),
                         customDates: customDates ? JSON.stringify(customDates) : '',
+                        customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
@@ -478,6 +496,7 @@ export default function ReviewScreen() {
                         payoutAccountId: payoutAccountId,
                         emergencyWithdrawal: emergencyWithdrawal.toString(),
                         customDates: customDates ? JSON.stringify(customDates) : '',
+                        customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
@@ -538,6 +557,7 @@ export default function ReviewScreen() {
                         payoutAccountId: payoutAccountId,
                         emergencyWithdrawal: emergencyWithdrawal.toString(),
                         customDates: customDates ? JSON.stringify(customDates) : '',
+                        customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
@@ -889,5 +909,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   insufficientBalance: {
     color: colors.error,
+  },
+  customAmountsList: {
+    marginTop: 4,
+    gap: 4,
   },
 });

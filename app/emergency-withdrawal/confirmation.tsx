@@ -29,18 +29,18 @@ export default function EmergencyWithdrawalConfirmationScreen() {
   const getOptionDetails = () => {
     // Only instant withdrawals are available
     if (option === 'instant') {
-      return {
-        title: 'Instant Withdrawal',
-        description: 'Your funds will be processed immediately',
-        timeframe: 'within minutes',
-      };
+        return {
+          title: 'Instant Withdrawal',
+          description: 'Your funds will be processed immediately',
+          timeframe: 'within minutes',
+        };
     }
     // Default fallback
-    return {
+        return {
       title: 'Instant Withdrawal',
       description: 'Your funds will be processed immediately',
       timeframe: 'within minutes',
-    };
+        };
   };
   
   const optionDetails = getOptionDetails();

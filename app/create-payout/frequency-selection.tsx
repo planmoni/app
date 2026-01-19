@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, Platform, ScrollView, useColorScheme, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform, ScrollView, useColorScheme, Modal, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Calendar, ChevronRight, ChevronDown, ArrowLeft, X, CalendarDays, Clock, ChevronLeft, Plus } from 'lucide-react-native';
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
+import Button from '@/components/Button';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useWindowDimensions } from 'react-native';
 import { supabase } from '@/lib/supabase';
@@ -365,6 +366,16 @@ export default function FrequencySelectionScreen() {
   const isSmallScreen = width < 380;
   const isDark = useColorScheme() === 'dark';
 
+  const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const formatDateForDisplay = (dateString: string) => {
+    const date = new Date(dateString);
+    return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+  };
+
   const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
   const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState<'frequency' | 'custom'>('frequency');
@@ -382,6 +393,12 @@ export default function FrequencySelectionScreen() {
   const [numberOfPayouts, setNumberOfPayouts] = useState(0);
   const [customDates, setCustomDates] = useState<string[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  
+  // Individual amounts per date for custom dates
+  const [dateAmounts, setDateAmounts] = useState<Record<string, string>>({});
+  const [netAmount, setNetAmount] = useState<number>(0); // Total amount after fees
+  const [feeAmount, setFeeAmount] = useState<number>(0);
+  const [isEqualSplit, setIsEqualSplit] = useState(true);
   
   const isUpdatingDurationRef = useRef(false);
   const lastSelectedFrequencyRef = useRef<string>('');
@@ -581,9 +598,46 @@ export default function FrequencySelectionScreen() {
       // Initialize payout amount if provided
       if (params.payoutAmount) {
         setPayoutAmount(params.payoutAmount as string);
+        
+        // Initialize individual amounts for custom dates
+        if (freq === 'custom' && params.customDates) {
+          try {
+            const dates = JSON.parse(params.customDates as string);
+            if (Array.isArray(dates) && dates.length > 0) {
+              // Check if we have individual amounts from params
+              if (params.customDateAmounts) {
+                try {
+                  const amounts = JSON.parse(params.customDateAmounts as string);
+                  if (amounts && typeof amounts === 'object') {
+                    setDateAmounts(amounts);
+                    setIsEqualSplit(false);
+                  }
+                } catch (e) {
+                  console.error('Error parsing custom date amounts:', e);
+                }
+              } else {
+                // Check if using custom amount (not equal split) based on average
+                const numericPayoutAmt = parseFloat(params.payoutAmount.toString().replace(/,/g, ''));
+                const numericTotal = parseFloat(params.totalAmount.toString().replace(/,/g, ''));
+                const expectedPayoutAmt = numericTotal / dates.length;
+                
+                // If payout amount doesn't match expected (total/dates), it's a custom amount
+                if (Math.abs(numericPayoutAmt - expectedPayoutAmt) > 0.01) {
+                  setIsEqualSplit(false);
+                  // We can't reconstruct individual amounts from average, so leave empty
+                  // User will need to set them again
+                } else {
+                  setIsEqualSplit(true);
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Error parsing custom dates in initialization:', e);
+          }
+        }
       }
     }
-  }, [params.totalAmount, params.frequency, params.duration, params.payoutAmount, params.payoutHour, params.payoutMinute, params.dayOfWeek]);
+  }, [params.totalAmount, params.frequency, params.duration, params.payoutAmount, params.payoutHour, params.payoutMinute, params.dayOfWeek, params.customDates]);
 
   // Update duration when frequency changes
   useEffect(() => {
@@ -737,20 +791,42 @@ export default function FrequencySelectionScreen() {
     }
   }, [params.customDates]);
 
-  // Calculate payout amount when custom dates change (only for custom tab)
+  // Calculate fees and net amount for custom dates
   useEffect(() => {
-    if (activeTab === 'custom') {
-      if (customDates.length > 0 && totalAmount && totalAmount !== '0') {
-        // Calculate amount for custom dates
-        calculatePayoutAmount(totalAmount, customDates.length, 'custom').catch(error => {
-          console.error('Error calculating payout amount for custom dates:', error);
-        });
-      } else {
-        // Reset payout amount when no dates selected
-        setPayoutAmount('0');
-      }
+    if (activeTab === 'custom' && totalAmount && totalAmount !== '0') {
+      const calculateFees = async () => {
+        try {
+          const feePercentage = await fetchFeePercentage('custom');
+          const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+          const calculatedFee = numericTotal * (feePercentage / 100);
+          const calculatedNet = numericTotal - calculatedFee;
+          setFeeAmount(calculatedFee);
+          setNetAmount(calculatedNet);
+          
+          // If equal split, distribute net amount equally
+          if (isEqualSplit && customDates.length > 0) {
+            const amountPerDate = calculatedNet / customDates.length;
+            const roundedAmount = Math.floor(amountPerDate * 100) / 100;
+            const newDateAmounts: Record<string, string> = {};
+            customDates.forEach(date => {
+              newDateAmounts[date] = roundedAmount.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              });
+            });
+            setDateAmounts(newDateAmounts);
+          }
+        } catch (error) {
+          console.error('Error calculating fees:', error);
+        }
+      };
+      calculateFees();
+    } else if (activeTab === 'custom' && (!totalAmount || totalAmount === '0')) {
+      setDateAmounts({});
+      setNetAmount(0);
+      setFeeAmount(0);
     }
-  }, [customDates, totalAmount, activeTab, calculatePayoutAmount]);
+  }, [activeTab, totalAmount, customDates, isEqualSplit, fetchFeePercentage]);
 
   const handleSelectDates = () => {
     if (Platform.OS !== 'web') {
@@ -761,14 +837,83 @@ export default function FrequencySelectionScreen() {
 
   const handleDateSelect = (date: string) => {
     if (customDates.includes(date)) {
+      // Remove date and its amount
       setCustomDates(customDates.filter(d => d !== date));
+      setDateAmounts(prev => {
+        const newAmounts = { ...prev };
+        delete newAmounts[date];
+        return newAmounts;
+      });
     } else {
       if (customDates.length < 7) {
-        setCustomDates([...customDates, date].sort((a, b) => {
+        const newDates = [...customDates, date].sort((a, b) => {
           return new Date(a).getTime() - new Date(b).getTime();
-        }));
+        });
+        setCustomDates(newDates);
+        // If equal split, add amount for new date
+        if (isEqualSplit && netAmount > 0 && newDates.length > 0) {
+          const amountPerDate = netAmount / newDates.length;
+          const roundedAmount = Math.floor(amountPerDate * 100) / 100;
+          setDateAmounts(prev => {
+            const updated = { ...prev };
+            newDates.forEach(d => {
+              if (!updated[d]) {
+                updated[d] = roundedAmount.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                });
+              }
+            });
+            return updated;
+          });
+        }
       }
     }
+  };
+
+  const handleDateAmountChange = (date: string, amount: string) => {
+    if (Platform.OS !== 'web') {
+      haptics.selection();
+    }
+    setIsEqualSplit(false);
+    setDateAmounts(prev => ({
+      ...prev,
+      [date]: amount
+    }));
+  };
+
+  const handleEqualSplitToggle = () => {
+    if (Platform.OS !== 'web') {
+      haptics.selection();
+    }
+    setIsEqualSplit(!isEqualSplit);
+    if (!isEqualSplit && customDates.length > 0 && netAmount > 0) {
+      // Recalculate equal split
+      const amountPerDate = netAmount / customDates.length;
+      const roundedAmount = Math.floor(amountPerDate * 100) / 100;
+      const newDateAmounts: Record<string, string> = {};
+      customDates.forEach(date => {
+        newDateAmounts[date] = roundedAmount.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      });
+      setDateAmounts(newDateAmounts);
+    }
+  };
+
+  // Calculate total allocated and remainder
+  const calculateAllocatedAndRemainder = () => {
+    let totalAllocated = 0;
+    customDates.forEach(date => {
+      const amountStr = dateAmounts[date] || '0';
+      const numericAmount = parseFloat(amountStr.replace(/,/g, ''));
+      if (!isNaN(numericAmount)) {
+        totalAllocated += numericAmount;
+      }
+    });
+    const remainder = netAmount - totalAllocated;
+    return { totalAllocated, remainder };
   };
 
   const handleContinue = () => {
@@ -785,12 +930,21 @@ export default function FrequencySelectionScreen() {
         haptics.mediumImpact();
       }
 
+      // Calculate average payout amount for display (used in review screen)
+      const { totalAllocated } = calculateAllocatedAndRemainder();
+      const averagePayoutAmount = customDates.length > 0 
+        ? (totalAllocated / customDates.length).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })
+        : '0';
+      
       router.push({
         pathname: '/create-payout/destination',
         params: {
           totalAmount: params.totalAmount || totalAmount || '',
           frequency: 'custom',
-          payoutAmount: payoutAmount && payoutAmount !== '0' ? payoutAmount : (params.payoutAmount || ''),
+          payoutAmount: averagePayoutAmount,
           duration: customDates.length.toString(),
           startDate: customDates[0] || '',
           bankName: params.bankName || '',
@@ -800,6 +954,7 @@ export default function FrequencySelectionScreen() {
           payoutAccountId: params.payoutAccountId || '',
           emergencyWithdrawal: 'true',
           customDates: JSON.stringify(customDates),
+          customDateAmounts: JSON.stringify(dateAmounts), // Pass individual amounts
           dayOfWeek: '',
           payoutHour: selectedHour.toString(),
           payoutMinute: selectedMinute.toString(),
@@ -873,7 +1028,14 @@ export default function FrequencySelectionScreen() {
 
   const isContinueDisabled = () => {
     if (activeTab === 'custom') {
-      return customDates.length === 0;
+      if (customDates.length === 0) return true;
+      // Check if all dates have amounts and total doesn't exceed net amount
+      const { totalAllocated, remainder } = calculateAllocatedAndRemainder();
+      const allDatesHaveAmounts = customDates.every(date => {
+        const amount = dateAmounts[date];
+        return amount && !isNaN(parseFloat(amount.replace(/,/g, ''))) && parseFloat(amount.replace(/,/g, '')) > 0;
+      });
+      return !allDatesHaveAmounts || remainder < 0;
     }
     if (!selectedFrequency || !selectedDuration) {
       return true;
@@ -963,7 +1125,7 @@ export default function FrequencySelectionScreen() {
                 styles.tabText,
                 activeTab === 'custom' && styles.activeTabText
               ]}>
-                Custom dates
+                Custom
               </Text>
             </Pressable>
           </View>
@@ -1194,8 +1356,8 @@ export default function FrequencySelectionScreen() {
                             style={styles.removeChipButton}
                           >
                             <X size={14} color={colors.textSecondary} />
-                          </Pressable>
-                        </View>
+                </Pressable>
+              </View>
                       );
                     })}
                     {customDates.length > 3 && (
@@ -1208,13 +1370,107 @@ export default function FrequencySelectionScreen() {
               {/* Amount Breakdown for Custom Dates - Only show for custom tab */}
               {activeTab === 'custom' && customDates.length > 0 && totalAmount && totalAmount !== '0' && (
                 <View style={styles.amountSection}>
-                  <Text style={styles.amountLabel}>Amount per payout</Text>
-                  <Text style={styles.amountValue}>
-                    {payoutAmount && payoutAmount !== '0' ? `₦${payoutAmount}` : 'Calculating...'}
-                  </Text>
-                  <Text style={styles.amountDescription}>
-                    {customDates.length} custom payment{customDates.length !== 1 ? 's' : ''}
-                  </Text>
+                  <View style={styles.amountHeader}>
+                    <Text style={styles.amountLabel}>Set amount per date</Text>
+                    <Pressable
+                      style={styles.splitToggle}
+                      onPress={handleEqualSplitToggle}
+                    >
+                      <Text style={[
+                        styles.splitToggleText,
+                        isEqualSplit && styles.splitToggleTextActive
+                      ]}>
+                        Equal Split
+                      </Text>
+                    </Pressable>
+                  </View>
+                  
+                  {/* Show fee and net amount info */}
+                  {feeAmount > 0 && (
+                    <View style={styles.feeInfo}>
+                      <Text style={styles.feeInfoText}>
+                        Fee: ₦{feeAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Text>
+                      <Text style={styles.feeInfoText}>
+                        Net amount: ₦{netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Individual date amounts */}
+                  <View style={styles.datesAmountsContainer}>
+                    {customDates.map((date, index) => {
+                      const formattedDate = formatDateForDisplay(date);
+                      const amountValue = dateAmounts[date] || '';
+                      const allocatedUpToThis = customDates.slice(0, index + 1).reduce((sum, d) => {
+                        const amt = parseFloat((dateAmounts[d] || '0').replace(/,/g, ''));
+                        return sum + (isNaN(amt) ? 0 : amt);
+                      }, 0);
+                      const remainderUpToThis = netAmount - allocatedUpToThis;
+                      
+                      return (
+                        <View key={date} style={styles.dateAmountRow}>
+                          <View style={styles.dateAmountInfo}>
+                            <Text style={styles.dateAmountLabel}>{formattedDate}</Text>
+                            {remainderUpToThis < 0 && (
+                              <Text style={styles.dateAmountWarning}>
+                                Exceeds available
+                              </Text>
+                            )}
+                          </View>
+                          <View style={styles.dateAmountInputContainer}>
+                            <Text style={styles.currencySymbolSmall}>₦</Text>
+                            <TextInput
+                              style={styles.dateAmountInput}
+                              keyboardType="numeric"
+                              value={amountValue}
+                              onChangeText={(text) => handleDateAmountChange(date, text)}
+                              placeholder="0.00"
+                              placeholderTextColor={colors.textTertiary}
+                            />
+                          </View>
+                          {remainderUpToThis >= 0 && remainderUpToThis < netAmount && (
+                            <Text style={styles.dateRemainderText}>
+                              Remaining: ₦{remainderUpToThis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </Text>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  {/* Total summary */}
+                  {(() => {
+                    const { totalAllocated, remainder } = calculateAllocatedAndRemainder();
+                    return (
+                      <View style={styles.totalSummary}>
+                        <View style={styles.totalSummaryRow}>
+                          <Text style={styles.totalSummaryLabel}>Total allocated:</Text>
+                          <Text style={styles.totalSummaryValue}>
+                            ₦{totalAllocated.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </Text>
+                        </View>
+                        {remainder !== 0 && (
+                          <View style={styles.totalSummaryRow}>
+                            <Text style={styles.totalSummaryLabel}>Remainder:</Text>
+                            <Text style={[styles.totalSummaryValue, remainder > 0 ? styles.remainderPositive : styles.remainderNegative]}>
+                              ₦{Math.abs(remainder).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </Text>
+                          </View>
+                        )}
+                        {remainder > 0 && (
+                          <Text style={styles.remainderNote}>
+                            This remainder will be returned to your available balance.
+                          </Text>
+                        )}
+                        {remainder < 0 && (
+                          <Text style={styles.remainderWarning}>
+                            Total allocated exceeds available amount. Please adjust amounts.
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  })()}
                 </View>
               )}
             </View>
@@ -1243,6 +1499,7 @@ export default function FrequencySelectionScreen() {
         onSelect={handleDateSelect}
         selectedDates={customDates}
       />
+
     </SafeAreaView>
   );
 }
@@ -1442,20 +1699,237 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
     padding: 16,
     marginTop: 8,
   },
+  amountHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   amountLabel: {
     fontSize: 14,
     color: colors.text,
-    marginBottom: 8,
+  },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
   amountValue: {
     fontSize: 30,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
   },
   amountDescription: {
     fontSize: 14,
     color: colors.textSecondary,
+  },
+  splitToggle: {
+    backgroundColor: colors.backgroundTertiary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  splitToggleText: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: colors.textSecondary,
+  },
+  splitToggleTextActive: {
+    color: isDark ? colors.text : '#1E3A8A',
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: isSmallScreen ? 18 : 20,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 16,
+  },
+  modalInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  currencySymbol: {
+    fontSize: isSmallScreen ? 18 : 20,
+    color: colors.textSecondary,
+    marginRight: 8,
+  },
+  modalInput: {
+    flex: 1,
+    fontSize: isSmallScreen ? 18 : 20,
+    color: colors.text,
+  },
+  modalCalculationInfo: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    gap: 12,
+  },
+  modalCalculationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalCalculationLabel: {
+    fontSize: isSmallScreen ? 14 : 16,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  modalCalculationValue: {
+    fontSize: isSmallScreen ? 14 : 16,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  modalRemainderNote: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  modalWarningNote: {
+    fontSize: isSmallScreen ? 12 : 14,
+    color: colors.error || '#EF4444',
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    borderRadius: 20,
+  },
+  modalConfirmButton: {
+    flex: 1,
+    backgroundColor: '#1E3A8A',
+    borderRadius: 20,
+  },
+  feeInfo: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 4,
+  },
+  feeInfoText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  datesAmountsContainer: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  dateAmountRow: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dateAmountInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  dateAmountLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  dateAmountWarning: {
+    fontSize: 12,
+    color: colors.error || '#EF4444',
+    fontWeight: '500',
+  },
+  dateAmountInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 4,
+  },
+  currencySymbolSmall: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginRight: 8,
+  },
+  dateAmountInput: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  dateRemainderText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  totalSummary: {
+    backgroundColor: colors.backgroundTertiary,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+    gap: 8,
+  },
+  totalSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalSummaryLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  totalSummaryValue: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  remainderPositive: {
+    color: '#22C55E',
+  },
+  remainderNegative: {
+    color: colors.error || '#EF4444',
+  },
+  remainderNote: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  remainderWarning: {
+    fontSize: 12,
+    color: colors.error || '#EF4444',
+    fontWeight: '500',
+    marginTop: 4,
   },
   selectedDatesPreview: {
     flexDirection: 'row',

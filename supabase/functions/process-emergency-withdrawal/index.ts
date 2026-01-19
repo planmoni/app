@@ -272,22 +272,22 @@ serve(async (req: Request) => {
 
     // Only instant withdrawals are allowed after 24 hours
     if (withdrawal.withdrawal_type !== "instant") {
-      return new Response(
-        JSON.stringify({ 
+        return new Response(
+          JSON.stringify({ 
           error: "Invalid withdrawal type. Only 'instant' withdrawals are allowed." 
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
-    }
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
 
-    correctWithdrawalType = "instant"
+        correctWithdrawalType = "instant"
     feePercentage = 1.50
 
     // For scheduled withdrawals being processed, use existing fee_amount if available
     if (isScheduledAndReady && withdrawal.fee_amount && withdrawal.fee_amount > 0) {
       feePercentage = (withdrawal.fee_amount / remainingAmount) * 100
       console.log(`Using existing fee_amount (${feePercentage.toFixed(2)}%) for scheduled withdrawal`)
-    } else {
+      } else {
       console.log(`Using instant withdrawal with ${feePercentage}% fee`)
     }
 

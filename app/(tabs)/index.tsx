@@ -687,19 +687,24 @@ export default function HomeScreen() {
 
   const handleAISuggestionPress = (suggestion: any) => {
     // Check authentication first
-    if (!requireAuth(() => {}, '/create-payout/schedule')) {
+    if (!requireAuth(() => {}, '/create-payout/frequency-selection')) {
       return;
     }
     
     // Trigger haptic feedback
     impact();
-    // Navigate directly to schedule page with full balance and suggested frequency
+    
+    // Map frequency to match frequency-selection screen expectations
+    // 'weekly' should be mapped to 'weekly_specific'
+    const mappedFrequency = suggestion.frequency === 'weekly' ? 'weekly_specific' : suggestion.frequency;
+    
+    // Navigate to frequency-selection page with full balance and suggested frequency
     router.push({
-      pathname: '/create-payout/schedule',
+      pathname: '/create-payout/frequency-selection',
       params: {
         totalAmount: availableBalance.toString(),
-        suggestedFrequency: suggestion.frequency,
-        suggestedDuration: suggestion.duration.toString()
+        frequency: mappedFrequency,
+        duration: suggestion.duration.toString()
       }
     });
     logAnalyticsEvent('ai_suggestion_used', {
@@ -1435,11 +1440,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginBottom: 0,
     borderWidth: 1,
     borderColor: isDark ? '#29323E' : '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 5,
+ 
   },
   balanceCardContent: {
     paddingVertical: Platform.OS === 'ios' ? 16 : 15,

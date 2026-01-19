@@ -142,15 +142,15 @@ serve(async (req: Request) => {
 
     // Only instant withdrawals are allowed after 24 hours
     if (withdrawal.withdrawal_type !== "instant") {
-      return new Response(
-        JSON.stringify({ 
+        return new Response(
+          JSON.stringify({ 
           error: "Invalid withdrawal type. Only 'instant' withdrawals are allowed." 
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
-    }
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
 
-    correctWithdrawalType = "instant"
+        correctWithdrawalType = "instant"
     feePercentage = 1.50
 
     console.log(`Selected withdrawal type: ${correctWithdrawalType}, Fee percentage: ${feePercentage}%`)
@@ -196,8 +196,8 @@ serve(async (req: Request) => {
     let status = "processing"
     
     // Instant withdrawals are always processed immediately
-    scheduledProcessingTime = new Date()
-    status = "processing"
+      scheduledProcessingTime = new Date()
+      status = "processing"
 
     // Update withdrawal status and scheduled time
     const { error: updateError } = await supabase
