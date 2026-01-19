@@ -1337,11 +1337,11 @@ export default function FrequencySelectionScreen() {
                   style={[styles.selectButton, styles.selectButtonSelected]}
                   onPress={handleSelectDates}
                 >
-                  <CalendarDays size={20} color="#1E3A8A" />
+                  <CalendarDays size={20} color={colors.text} />
                   <Text style={[styles.selectButtonText, styles.selectButtonTextSelected]}>
                     {customDates.length > 0 ? `${customDates.length} date${customDates.length !== 1 ? 's' : ''} selected` : 'Select dates'}
                   </Text>
-                  <ChevronRight size={20} color="#1E3A8A" />
+                  <ChevronRight size={20} color={colors.text} />
                 </Pressable>
                 {customDates.length > 0 && (
                   <View style={styles.selectedDatesPreview}>
@@ -1602,7 +1602,7 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
   },
   selectButtonSelected: {
     backgroundColor: colors.accentBackground,
-    borderColor: '#1E3A8A',
+    borderColor: colors.primary,
   },
   selectButtonText: {
     flex: 1,
@@ -1611,7 +1611,7 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
     fontWeight: '500',
   },
   selectButtonTextSelected: {
-    color: isDark ? colors.text : '#1E3A8A',
+    color: colors.text,
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -1634,10 +1634,10 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
   tabText: {
     fontSize: 16,
     fontWeight: '500',
-    color: colors.textSecondary,
+    color: isDark ? colors.textSecondary : '#fff',
   },
   activeTabText: {
-    color: isDark ? colors.text : '#1E3A8A',
+    color: isDark ? colors.primary : '#fff',
     fontWeight: '600',
   },
   tabContent: {
@@ -1737,7 +1737,7 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
     color: colors.textSecondary,
   },
   splitToggleTextActive: {
-    color: isDark ? colors.text : '#1E3A8A',
+    color: isDark ? colors.text : '#fff',
     fontWeight: '600',
   },
   modalOverlay: {
@@ -2200,7 +2200,7 @@ const createDatePickerStyles = (colors: any, isSmallScreen: boolean) => StyleShe
   },
   selectedDateText: {
     fontSize: 12,
-    color: '#1E3A8A',
+    color: colors.text,
     fontWeight: '500',
   },
   removeDateButton: {
