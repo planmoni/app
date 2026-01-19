@@ -1634,10 +1634,10 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
   tabText: {
     fontSize: 16,
     fontWeight: '500',
-    color: isDark ? colors.textSecondary : '#fff',
+    color: colors.textSecondary,
   },
   activeTabText: {
-    color: isDark ? colors.primary : '#fff',
+    color: colors.text,
     fontWeight: '600',
   },
   tabContent: {
@@ -1737,7 +1737,7 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
     color: colors.textSecondary,
   },
   splitToggleTextActive: {
-    color: isDark ? colors.text : '#fff',
+    color: colors.text,
     fontWeight: '600',
   },
   modalOverlay: {
