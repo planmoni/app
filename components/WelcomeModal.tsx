@@ -215,6 +215,7 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
   const { colors, isDark } = useTheme();
   const scrollX = useSharedValue(0);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isNavigating, setIsNavigating] = useState(false);
   const scrollViewRef = useRef<Animated.ScrollView>(null);
 
   const modalHeight = height * 0.9;
@@ -225,6 +226,7 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
       // Reset to first slide
       setCurrentIndex(0);
       scrollX.value = 0;
+      setIsNavigating(false); // Reset navigation state when modal opens
       // Small delay to ensure ScrollView is mounted
       setTimeout(() => {
         scrollViewRef.current?.scrollTo({ x: 0, animated: false });
@@ -243,13 +245,23 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
   });
 
   const handleSignUp = () => {
+    if (isNavigating) return; // Prevent multiple clicks
+    setIsNavigating(true);
     onClose();
-    router.push('/(auth)/onboarding/first-name');
+    // Add a small delay to ensure modal closes before navigation
+    setTimeout(() => {
+      router.push('/(auth)/onboarding/first-name');
+    }, 300);
   };
 
   const handleSignIn = () => {
+    if (isNavigating) return; // Prevent multiple clicks
+    setIsNavigating(true);
     onClose();
-    router.push('/(auth)/login');
+    // Add a small delay to ensure modal closes before navigation
+    setTimeout(() => {
+      router.push('/(auth)/login');
+    }, 300);
   };
 
   const isSmallScreen = height < 700;
@@ -354,14 +366,17 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
               <Pressable
                 style={styles.signInButton}
                 onPress={handleSignIn}
+                disabled={isNavigating}
               >
                 <Text style={styles.signInButtonText}>Sign In</Text>
               </Pressable>
               <Pressable
                 style={[styles.signUpButton, {
-                  backgroundColor: colors.primary
+                  backgroundColor: colors.primary,
+                  opacity: isNavigating ? 0.6 : 1
                 }]}
                 onPress={handleSignUp}
+                disabled={isNavigating}
               >
                 <Text style={styles.signUpButtonText}>Sign Up</Text>
               </Pressable>
