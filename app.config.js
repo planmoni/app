@@ -30,28 +30,27 @@ module.exports = {
       bundleIdentifier: "app.planmoni",
       infoPlist: {
         UIBackgroundModes: ["remote-notification"],
+        LSApplicationQueriesSchemes: ["paystack", "opay", "https", "http"],
+        CFBundleURLTypes: [
+          {
+            CFBundleURLSchemes: ["myapp", "app.planmoni"]
+          },
+          {
+            CFBundleURLSchemes: ["exp+planmoni"]
+          },
+          {
+            CFBundleURLSchemes: ["paystack", "opay"]
+          }
+        ],
+        NSCameraUsageDescription: "This app needs access to camera for liveness verification",
+        NSMicrophoneUsageDescription: "This app uses the microphone to provide a better experience.",
+        NSPhotoLibraryUsageDescription: "This app uses the photo library to provide a better experience."
       },
-      package: "com.planmoni", // ← choose your unique package name
-      "userInterfaceStyle": "automatic",
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_EXTERNAL_STORAGE"
-      ]
-    },
-    ios: {
-      "bundleIdentifier": "app.planmoni",
-      "userInterfaceStyle": "automatic",
-      "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"], // ✅ Required for push notifications
-        "NSCameraUsageDescription": "This app needs access to camera for liveness verification",
-        "NSMicrophoneUsageDescription": "This app uses the microphone to provide a better experience.",
-        "NSPhotoLibraryUsageDescription": "This app uses the photo library to provide a better experience."
-      },
-      "entitlements": {
+      entitlements: {
         "aps-environment": "development", // ✅ Required for push notification, change to "production" for Testflight and App Store builds
         "keychain-access-groups": ["$(AppIdentifierPrefix)app.planmoni"]
-      }
+      },
+      userInterfaceStyle: "automatic",
     },
     "plugins": [
       [
