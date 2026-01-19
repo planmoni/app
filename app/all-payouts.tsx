@@ -19,7 +19,7 @@ import {
   Clock as ClockIcon,
   X
 } from 'lucide-react-native';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Pressable, 
   ScrollView, 
@@ -35,9 +35,11 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
-import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
+import { formatPayoutFrequency, formatPayoutDateTime, formatDisplayDate } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
+import CustomAmountsBreakdownModal from '@/components/CustomAmountsBreakdownModal';
+import { supabase } from '@/lib/supabase';
 
 type TabType = 'all' | 'active' | 'cancelled' | 'completed';
 
@@ -53,6 +55,47 @@ export default function AllPayoutsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
+  const [customDateAmounts, setCustomDateAmounts] = useState<Record<string, Record<string, number>>>({});
+  const [showBreakdownModal, setShowBreakdownModal] = useState(false);
+  const [selectedPlanForBreakdown, setSelectedPlanForBreakdown] = useState<string | null>(null);
+
+  // Fetch custom payout dates with amounts
+  useEffect(() => {
+    const fetchCustomAmounts = async () => {
+      const customPlans = payoutPlans.filter(plan => plan.frequency === 'custom');
+      if (customPlans.length === 0) {
+        setCustomDateAmounts({});
+        return;
+      }
+
+      try {
+        const planIds = customPlans.map(plan => plan.id);
+        const { data, error } = await supabase
+          .from('custom_payout_dates')
+          .select('payout_plan_id, payout_date, amount')
+          .in('payout_plan_id', planIds)
+          .order('payout_date', { ascending: true });
+
+        if (error) throw error;
+
+        // Group by plan_id: { planId: { date: amount } }
+        const amountsByPlan: Record<string, Record<string, number>> = {};
+        data?.forEach(item => {
+          if (!amountsByPlan[item.payout_plan_id]) {
+            amountsByPlan[item.payout_plan_id] = {};
+          }
+          amountsByPlan[item.payout_plan_id][item.payout_date] = parseFloat(item.amount?.toString() || '0') || 0;
+        });
+
+        setCustomDateAmounts(amountsByPlan);
+      } catch (error) {
+        console.error('Error fetching custom payout amounts:', error);
+        setCustomDateAmounts({});
+      }
+    };
+
+    fetchCustomAmounts();
+  }, [payoutPlans]);
 
   const handleCreatePayout = () => {
     haptics.mediumImpact();
@@ -438,9 +481,25 @@ export default function AllPayoutsScreen() {
                       </View>
                       <View style={styles.detailContent}>
                         <Text style={styles.detailLabel}>Per Payout</Text>
-                        <Text style={styles.detailValue}>
-                          {formatCurrency(plan.payout_amount)}
-                        </Text>
+                        {plan.frequency === 'custom' && customDateAmounts[plan.id] && Object.keys(customDateAmounts[plan.id]).length > 0 ? (
+                          <View style={styles.customAmountsDetail}>
+                            <Text style={styles.detailValue}>Custom Amounts</Text>
+                            <Pressable
+                              onPress={() => {
+                                setSelectedPlanForBreakdown(plan.id);
+                                setShowBreakdownModal(true);
+                                haptics.selection();
+                              }}
+                              style={styles.seeBreakdownLink}
+                            >
+                              <Text style={styles.seeBreakdownText}>See breakdown</Text>
+                            </Pressable>
+                          </View>
+                        ) : (
+                          <Text style={styles.detailValue}>
+                            {formatCurrency(plan.payout_amount)}
+                          </Text>
+                        )}
                       </View>
                     </View>
                     
@@ -517,6 +576,18 @@ export default function AllPayoutsScreen() {
           handleAddFunds();
         }}
       />
+
+      {selectedPlanForBreakdown && customDateAmounts[selectedPlanForBreakdown] && (
+        <CustomAmountsBreakdownModal
+          isVisible={showBreakdownModal}
+          onClose={() => {
+            setShowBreakdownModal(false);
+            setSelectedPlanForBreakdown(null);
+          }}
+          customAmounts={customDateAmounts[selectedPlanForBreakdown]}
+          formatCurrency={formatCurrency}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -888,6 +959,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  customAmountsDetail: {
+    gap: 4,
+  },
+  seeBreakdownLink: {
+    marginTop: 4,
+  },
+  seeBreakdownText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
   footer: {
     flexDirection: 'row',

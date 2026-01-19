@@ -1,14 +1,15 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { Plus } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
-import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
+import { formatPayoutFrequency, formatPayoutDateTime, formatDisplayDate } from '@/lib/formatters';
 import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { supabase } from '@/lib/supabase';
 
 interface PayoutPlansSectionProps {
   activePlans: any[];
@@ -23,6 +24,41 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
   const { textSizeMultiplier } = useTextSize();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { showBalances, balance, availableBalance } = useBalance();
+  const [customDateAmounts, setCustomDateAmounts] = useState<Record<string, Record<string, number>>>({});
+
+  // Fetch custom payout dates with amounts
+  useEffect(() => {
+    const fetchCustomAmounts = async () => {
+      const customPlans = activePlans.filter(plan => plan.frequency === 'custom');
+      if (customPlans.length === 0) return;
+
+      try {
+        const planIds = customPlans.map(plan => plan.id);
+        const { data, error } = await supabase
+          .from('custom_payout_dates')
+          .select('payout_plan_id, payout_date, amount')
+          .in('payout_plan_id', planIds)
+          .order('payout_date', { ascending: true });
+
+        if (error) throw error;
+
+        // Group by plan_id: { planId: { date: amount } }
+        const amountsByPlan: Record<string, Record<string, number>> = {};
+        data?.forEach(item => {
+          if (!amountsByPlan[item.payout_plan_id]) {
+            amountsByPlan[item.payout_plan_id] = {};
+          }
+          amountsByPlan[item.payout_plan_id][item.payout_date] = parseFloat(item.amount?.toString() || '0') || 0;
+        });
+
+        setCustomDateAmounts(amountsByPlan);
+      } catch (error) {
+        console.error('Error fetching custom payout amounts:', error);
+      }
+    };
+
+    fetchCustomAmounts();
+  }, [activePlans]);
 
   const formatBalance = useCallback((amount: number) => {
     return showBalances ? `₦${amount.toLocaleString()}` : '*********';
@@ -61,7 +97,17 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
   const memoizedPlans = useMemo(() => {
     return activePlans.map((plan) => {
       const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
-      const completedAmount = plan.completed_payouts * plan.payout_amount;
+      
+      // For custom plans, calculate completed amount from custom dates
+      let completedAmount = 0;
+      if (plan.frequency === 'custom' && customDateAmounts[plan.id]) {
+        // Sum amounts from completed payouts (we'd need to track which dates were completed)
+        // For now, use the plan's payout_amount as fallback
+        completedAmount = plan.completed_payouts * plan.payout_amount;
+      } else {
+        completedAmount = plan.completed_payouts * plan.payout_amount;
+      }
+      
       const dayOfWeek = (plan as any).metadata?.dayOfWeek;
       const originalFrequency = (plan as any).metadata?.originalFrequency || plan.frequency;
       
@@ -71,9 +117,10 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
         completedAmount,
         dayOfWeek,
         originalFrequency,
+        customAmounts: customDateAmounts[plan.id] || {},
       };
     });
-  }, [activePlans]);
+  }, [activePlans, customDateAmounts]);
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
@@ -111,9 +158,34 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
                   <Text style={styles.planFrequency}>
                     {formatPayoutFrequency(plan.originalFrequency, plan.dayOfWeek)}
                   </Text>
-                  <Text style={styles.planDot}>•</Text>
-                  <Text style={styles.planValue}>{formatBalance(plan.payout_amount)}</Text>
+                  {plan.frequency === 'custom' && Object.keys(plan.customAmounts || {}).length > 0 ? (
+                    <View style={styles.customAmountsContainer}>
+                      <Text style={styles.planDot}>•</Text>
+                      <Text style={styles.planValue}>Custom amounts</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.planDot}>•</Text>
+                      <Text style={styles.planValue}>{formatBalance(plan.payout_amount)}</Text>
+                    </>
+                  )}
                 </View>
+                {plan.frequency === 'custom' && Object.keys(plan.customAmounts || {}).length > 0 && (
+                  <View style={styles.customAmountsList}>
+                    {/* {Object.entries(plan.customAmounts)
+                      .slice(0, 3)
+                      .map(([date, amount]) => (
+                        <Text key={date} style={styles.customAmountItem}>
+                          {formatDisplayDate(date)}: {formatBalance(amount)}
+                        </Text>
+                      ))} */}
+                    {Object.keys(plan.customAmounts).length > 3 && (
+                      <Text style={styles.customAmountMore}>
+                        +{Object.keys(plan.customAmounts).length - 3} more
+                      </Text>
+                    )}
+                  </View>
+                )}
                 <View style={styles.progressBar}>
                   <View style={[styles.progressFill, { width: `${plan.progress}%` }]} />
                 </View>
@@ -337,6 +409,24 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   howItWorksButtonText: {
     fontSize: getScaledFontSize(15, textSizeMultiplier),
     fontWeight: '400',
+  },
+  customAmountsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  customAmountsList: {
+    marginTop: 8,
+    gap: 4,
+  },
+  customAmountItem: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
+    color: colors.textSecondary,
+  },
+  customAmountMore: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
+    color: colors.textSecondary,
+    fontStyle: 'italic',
   },
 });
 

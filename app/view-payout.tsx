@@ -39,8 +39,10 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
 import { useEmergencyWithdrawal } from '@/hooks/useEmergencyWithdrawal';
 import * as Haptics from 'expo-haptics';
-import { formatPayoutFrequency } from '@/lib/formatters';
+import { formatPayoutFrequency, formatDisplayDate } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
+import CustomAmountsBreakdownModal from '@/components/CustomAmountsBreakdownModal';
+import { supabase } from '@/lib/supabase';
 
 
 export default function ViewPayoutScreen() {
@@ -59,6 +61,9 @@ export default function ViewPayoutScreen() {
   const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'settings'>('overview');
   const [isCheckingWithdrawal, setIsCheckingWithdrawal] = useState(false);
   const [hasExistingWithdrawal, setHasExistingWithdrawal] = useState(false);
+  const [customDateAmounts, setCustomDateAmounts] = useState<Record<string, number>>({});
+  const [customDatesCount, setCustomDatesCount] = useState<number>(0);
+  const [showBreakdownModal, setShowBreakdownModal] = useState(false);
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -99,6 +104,59 @@ export default function ViewPayoutScreen() {
       isMounted = false;
     };
   }, [plan?.id, checkExistingWithdrawal]);
+
+  // Fetch custom payout dates with amounts for custom frequency plans
+  useEffect(() => {
+    const fetchCustomAmounts = async () => {
+      if (!plan || plan.frequency !== 'custom') {
+        setCustomDateAmounts({});
+        setCustomDatesCount(0);
+        return;
+      }
+
+      try {
+        console.log('Fetching custom amounts for plan:', plan.id);
+        const { data, error } = await supabase
+          .from('custom_payout_dates')
+          .select('payout_date, amount')
+          .eq('payout_plan_id', plan.id)
+          .order('payout_date', { ascending: true });
+
+        if (error) {
+          console.error('Supabase error fetching custom amounts:', error);
+          throw error;
+        }
+
+        console.log('Custom dates data received:', data);
+
+        // Set the count of dates
+        setCustomDatesCount(data?.length || 0);
+
+        // Convert to Record<string, number>
+        const amounts: Record<string, number> = {};
+        if (data && data.length > 0) {
+          data.forEach((item: any) => {
+            const amount = item.amount !== null && item.amount !== undefined 
+              ? parseFloat(item.amount.toString()) 
+              : 0;
+            // If amount is null, undefined, or 0, use plan's payout_amount as fallback
+            amounts[item.payout_date] = amount > 0 ? amount : plan.payout_amount;
+          });
+        }
+
+        console.log('Processed custom amounts:', amounts, 'Count:', Object.keys(amounts).length);
+        setCustomDateAmounts(amounts);
+      } catch (error) {
+        console.error('Error fetching custom payout amounts:', error);
+        setCustomDateAmounts({});
+        setCustomDatesCount(0);
+      }
+    };
+
+    if (plan?.id) {
+      fetchCustomAmounts();
+    }
+  }, [plan?.id, plan?.frequency]);
 
   useEffect(() => {
     if (plan) {
@@ -284,7 +342,7 @@ export default function ViewPayoutScreen() {
       params: {
         id: plan.id,
         name: plan.name,
-        amount: formatCurrency(plan.total_amount - (plan.completed_payouts * plan.payout_amount))
+        amount: formatCurrency(plan.total_amount - calculateCompletedAmount())
       }
     });
   };
@@ -310,6 +368,20 @@ export default function ViewPayoutScreen() {
 
   const calculateProgress = () => {
     return Math.round((plan.completed_payouts / plan.duration) * 100);
+  };
+
+  // Calculate completed amount for custom plans
+  const calculateCompletedAmount = () => {
+    if (plan.frequency === 'custom' && Object.keys(customDateAmounts).length > 0) {
+      // For custom plans, we need to sum the amounts of completed payouts
+      // Since we don't track which specific dates were completed, we'll use an average
+      // or we could fetch completed automated payouts to get exact amounts
+      // For now, use average amount per payout
+      const totalCustomAmount = Object.values(customDateAmounts).reduce((sum, amount) => sum + amount, 0);
+      const averageAmount = totalCustomAmount / Object.keys(customDateAmounts).length;
+      return plan.completed_payouts * averageAmount;
+    }
+    return plan.completed_payouts * plan.payout_amount;
   };
 
   // Get the original frequency and day of week from metadata
@@ -508,8 +580,28 @@ export default function ViewPayoutScreen() {
               <Text style={styles.heroStatLabel}>Total Value</Text>
             </View>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>{formatCurrency(plan.payout_amount)}</Text>
-              <Text style={styles.heroStatLabel}>Per Payout</Text>
+              {plan.frequency === 'custom' && customDatesCount > 0 ? (
+                <View style={styles.customAmountsHero}>
+                  <Text style={styles.heroStatValue}>Custom</Text>
+                  {/* <Text style={styles.heroStatLabel}>Per Payout</Text> */}
+                  {Object.keys(customDateAmounts).length > 0 && (
+                    <Pressable
+                      onPress={() => {
+                        setShowBreakdownModal(true);
+                        haptics.selection();
+                      }}
+                      style={styles.seeBreakdownLinkHero}
+                    >
+                      <Text style={styles.seeBreakdownTextHero}>breakdown</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.heroStatValue}>{formatCurrency(plan.payout_amount)}</Text>
+                  <Text style={styles.heroStatLabel}>Per Payout</Text>
+                </>
+              )}
             </View>
             <View style={styles.heroStat}>
               <Text style={styles.heroStatValue}>{plan.duration}</Text>
@@ -554,13 +646,13 @@ export default function ViewPayoutScreen() {
           <View style={styles.progressStats}>
             <View style={styles.progressStat}>
               <Text style={styles.progressStatValue}>
-                {formatCurrency(plan.completed_payouts * plan.payout_amount)}
+                {formatCurrency(calculateCompletedAmount())}
               </Text>
               <Text style={styles.progressStatLabel}>Completed</Text>
             </View>
             <View style={styles.progressStat}>
               <Text style={styles.progressStatValue}>
-                {formatCurrency(plan.total_amount - (plan.completed_payouts * plan.payout_amount))}
+                {formatCurrency(plan.total_amount - calculateCompletedAmount())}
               </Text>
               <Text style={styles.progressStatLabel}>Remaining</Text>
             </View>
@@ -629,7 +721,24 @@ export default function ViewPayoutScreen() {
               </View>
               <View style={styles.scheduleInfo}>
                 <Text style={styles.scheduleLabel}>Per Payout</Text>
-                <Text style={styles.scheduleValue}>{formatCurrency(plan.payout_amount)}</Text>
+                {plan.frequency === 'custom' && customDatesCount > 0 ? (
+                  <View style={styles.customAmountsSchedule}>
+                    <Text style={styles.scheduleValue}>Custom Amounts</Text>
+                    {Object.keys(customDateAmounts).length > 0 && (
+                      <Pressable
+                        onPress={() => {
+                          setShowBreakdownModal(true);
+                          haptics.selection();
+                        }}
+                        style={styles.seeBreakdownLink}
+                      >
+                        <Text style={styles.seeBreakdownText}>See breakdown</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                ) : (
+                  <Text style={styles.scheduleValue}>{formatCurrency(plan.payout_amount)}</Text>
+                )}
               </View>
             </View>
 
@@ -745,6 +854,15 @@ export default function ViewPayoutScreen() {
       </ScrollView>
       
       <SafeFooter />
+
+      {plan && plan.frequency === 'custom' && customDatesCount > 0 && Object.keys(customDateAmounts).length > 0 && (
+        <CustomAmountsBreakdownModal
+          isVisible={showBreakdownModal}
+          onClose={() => setShowBreakdownModal(false)}
+          customAmounts={customDateAmounts}
+          formatCurrency={formatCurrency}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -922,6 +1040,25 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: '500',
   },
+  customPayoutSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  customAmountsHero: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  seeBreakdownLinkHero: {
+    marginTop: 4,
+  },
+  seeBreakdownTextHero: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
+  },
   progressCard: {
     borderRadius: 24,
     padding: 24,
@@ -1035,6 +1172,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+  },
+  customAmountsSchedule: {
+    gap: 4,
+  },
+  seeBreakdownLink: {
+    marginTop: 4,
+  },
+  seeBreakdownText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
   scheduleSubtext: {
     fontSize: 14,
