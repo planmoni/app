@@ -172,15 +172,15 @@ const SLIDES = [
   
   {
     id: '1',
-    title: 'Stay funded always',
-    description: "Turn your one-time funds into regular payouts and stay funded, create a consistent cash flow that sorts everyday expenses.",
+    title: 'Auto Pay Your Way',
+    description: "Turn your one-time funds into regular auto payouts, create a consistent cash flow that sorts everyday expenses.",
     image: require('@/assets/images/StayInControl.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
   },
   {
     id: '2',
-    title: 'Put Yourself on a Personal Salary Schedule',
+    title: 'Put Yourself or Others on a Salary Schedule',
     description: 'Split lump-sums into scheduled daily, weekly, bi-weekly or monthly payouts that work for your lifestyle.',
     image: require('@/assets/images/PayYourselfOnTime.png'),
     gradient: ['#059669', '#10B981'],
@@ -188,7 +188,7 @@ const SLIDES = [
   },
   {
     id: '3',
-    title: 'Stabilize your Cash Flow',
+    title: 'Stabilize Cash Flow',
     description: 'Secure your money with automated payouts and say goodbye to irregular income forever.',
     image: require('@/assets/images/SmartSavings.png'),
     gradient: ['#1E3A8A', '#3B82F6'],

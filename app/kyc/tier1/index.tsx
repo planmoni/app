@@ -34,6 +34,7 @@ export default function Tier1KYCScreen() {
   const [otpData, setOtpData] = useState<{ nin: string; identityId: string; otpMessage?: string } | null>(null);
   const [bvnOtpData, setBvnOtpData] = useState<{ bvn: string; identityId: string; otpMessage?: string } | null>(null);
   const [isSendingBVNOTP, setIsSendingBVNOTP] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Wait for component to mount before checking completion
   useEffect(() => {
@@ -105,8 +106,39 @@ export default function Tier1KYCScreen() {
   );
 
   // Handle step completion
-  const handleLivenessComplete = () => {
-    setCurrentStep('bvn');
+  const handleLivenessComplete = async () => {
+    try {
+      // Set transitioning state to show loading during transition
+      setIsTransitioning(true);
+      
+      // Ensure progress is loaded before changing step
+      await loadProgress();
+      
+      // Wait a bit to ensure state has propagated
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Reload progress one more time to get the latest state
+      await loadProgress();
+      
+      // Always advance to BVN step to prevent blank screen
+      // The progress update has been called, so even if state hasn't propagated yet,
+      // it will be correct. The useTier1KYC hook will handle any corrections if needed.
+      console.log('✅ Advancing to BVN step after liveness completion');
+      setCurrentStep('bvn');
+      
+      // Clear transitioning state after BVN step has had time to render
+      // Use requestAnimationFrame to ensure the step is rendered before clearing loading
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          setIsTransitioning(false);
+        }, 100);
+      });
+    } catch (error) {
+      console.error('Error in handleLivenessComplete:', error);
+      // Always advance to prevent getting stuck on blank screen
+      setCurrentStep('bvn');
+      setIsTransitioning(false);
+    }
   };
 
   const handleBVNComplete = () => {
@@ -284,7 +316,7 @@ export default function Tier1KYCScreen() {
 
   // Show loading while checking progress or initializing step
   // This prevents showing the wrong step before the correct one is determined
-  if (!progress || !stepInitialized) {
+  if (!progress || !stepInitialized || isTransitioning) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.loadingContainer}>
@@ -297,8 +329,8 @@ export default function Tier1KYCScreen() {
   // Render current step
   const renderCurrentStep = () => {
     switch (currentStep) {
-      // case 'liveness':
-      //   return <LivenessStep onComplete={handleLivenessComplete} />;
+      case 'liveness':
+        return <LivenessStep onComplete={handleLivenessComplete} />;
       case 'bvn':
         return <BVNStep onComplete={handleBVNComplete} onSwitchToNIN={handleSwitchToNIN} />;
       case 'nin':
@@ -334,6 +366,38 @@ export default function Tier1KYCScreen() {
         return <BVNStep onComplete={handleBVNComplete} onSwitchToNIN={handleSwitchToNIN} />;
       default:
         // If currentStep is invalid or unexpected, determine correct step based on progress
+        // IMPORTANT: Always prioritize currentStep to avoid race conditions during step transitions
+        // This prevents blank screen when step is changing but progress hasn't updated yet
+        if (currentStep === 'bvn') {
+          return <BVNStep onComplete={handleBVNComplete} onSwitchToNIN={handleSwitchToNIN} />;
+        } else if (currentStep === 'nin') {
+          return <NINStep onComplete={handleNINComplete} onSwitchToBVN={handleSwitchFromNINToBVN} isSendingBVNOTP={isSendingBVNOTP} />;
+        } else if (currentStep === 'otp' || currentStep === 'bvn_otp') {
+          // OTP steps are handled above, but include here as fallback
+          if (currentStep === 'otp' && otpData) {
+            return (
+              <OTPStep 
+                onComplete={handleOTPComplete} 
+                nin={otpData.nin}
+                identityId={otpData.identityId}
+                otpMessage={otpData.otpMessage}
+                onSwitchToBVN={handleSwitchToBVN}
+              />
+            );
+          } else if (currentStep === 'bvn_otp' && formData?.bvn && bvnOtpData?.identityId) {
+            return (
+              <BVNOTPStep 
+                onComplete={handleBVNOTPComplete}
+                bvn={formData.bvn}
+                identityId={bvnOtpData.identityId}
+                otpMessage={bvnOtpData?.otpMessage}
+                onSwitchToNIN={handleSwitchToNINFromBVNOTP}
+              />
+            );
+          }
+        }
+        
+        // Fallback: determine step based on progress if currentStep is not set or invalid
         if (!progress?.liveness_test_completed) {
           return <LivenessStep onComplete={handleLivenessComplete} />;
         } else if (!progress?.bvn_verified) {

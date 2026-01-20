@@ -1066,8 +1066,8 @@ export default function HomeScreen() {
                   style={styles.createButton} 
                   onPress={handleCreatePayout}
                 >
-                  <CalendarCheck size={22} color={isDark ? '#fff' : '#000'} />
-                  <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#000' }]}>Start</Text>
+                  <CalendarCheck size={22} color={isDark ? '#fff' : '#fff'} />
+                  <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#fff' }]}>Auto Pay</Text>
                 </Pressable>
               </View>
             </View>
@@ -1170,8 +1170,8 @@ export default function HomeScreen() {
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <CalendarCheck size={22} color={isDark ? '#fff' : '#000'} />
-          <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#000' }]}>Start</Text>
+          <CalendarCheck size={22} color={isDark ? '#fff' : '#fff'} />
+          <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#fff' }]}>Auto Pay</Text>
         </Pressable>
         
       </Animated.View>
@@ -1453,7 +1453,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
   expandButton: {
     padding: 4,
@@ -1480,7 +1479,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 40 : 35, textSizeMultiplier),
     fontWeight: '700',
     color: isDark ? '#fff' : colors.primary,
-    marginBottom: 12,
+    marginBottom: -15,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   lockedSection: {
     flexDirection: 'row',
@@ -1507,16 +1508,17 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   buttonGroup: {
     flexDirection: 'row',
     gap: 12,
+    marginTop: 1,
   },
   createButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: isDark ? colors.card : '#F7F7F7',
+    backgroundColor: isDark ? colors.card : colors.primary,
     padding: Platform.OS === 'ios' ? 14 : 10,
     borderWidth: 1.5, 
-    borderColor: '#CFCFCF',
+    borderColor: colors.primary,
     borderRadius: 50,
-    height: Platform.OS === 'ios' ? 60 : 55,
+    height: Platform.OS === 'ios' ? 50 : 45,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
@@ -1534,7 +1536,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderWidth: 1.5, 
     borderColor: '#CFCFCF',
     borderRadius: 50,
-    height: Platform.OS === 'ios' ? 60 : 55,
+    height: Platform.OS === 'ios' ? 50 : 45,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,

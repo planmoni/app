@@ -221,7 +221,7 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
           <Text style={styles.emptyPayoutsText}>No scheduled payout plans</Text>
           <Pressable style={styles.createFirstPayoutButton} onPress={handleCreatePayout}>
             <Plus size={20} color={colors.text} />
-            <Text style={styles.createFirstPayoutText}>Create Your First Plan</Text>
+            <Text style={styles.createFirstPayoutText}>Create Your Payout</Text>
           </Pressable>
           {/* {!isAuthenticated && onShowHowItWorks && (
             <Pressable 

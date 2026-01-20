@@ -507,15 +507,16 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                     placeholderTextColor={colors.textTertiary}
                     value={formData.accountName}
                     onChangeText={(text) => {
-                      if (!accountResolved) {
-                        setFormData({...formData, accountName: text});
-                        if (formErrors.accountName) {
-                          setFormErrors({...formErrors, accountName: ''});
-                        }
+                      setFormData({...formData, accountName: text});
+                      if (formErrors.accountName) {
+                        setFormErrors({...formErrors, accountName: ''});
+                      }
+                      // Clear resolved state if user manually edits the name
+                      if (accountResolved && text !== formData.accountName) {
+                        setAccountResolved(false);
                       }
                     }}
-                    editable={false}
-                    // editable={!isSubmitting && !accountResolved && !isResolving}
+                    editable={!isSubmitting && !isResolving}
                   />
                   {accountResolved && (
                     <View style={styles.resolvedIcon}>
@@ -525,6 +526,11 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                 </View>
                 {formErrors.accountName && (
                   <Text style={styles.fieldError}>{formErrors.accountName}</Text>
+                )}
+                {accountResolved && (
+                  <Text style={styles.hintText}>
+                    Account name resolved. You can edit it if needed.
+                  </Text>
                 )}
               </View>
               
@@ -850,11 +856,17 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     borderColor: colors.success,
     backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
   },
-  fieldError: {
-    fontSize: isSmallScreen ? 11 : 12,
-    color: colors.error,
-    marginTop: 4,
-  },
+    fieldError: {
+      fontSize: isSmallScreen ? 11 : 12,
+      color: colors.error,
+      marginTop: 4,
+    },
+    hintText: {
+      fontSize: isSmallScreen ? 11 : 12,
+      color: colors.textSecondary,
+      marginTop: 4,
+      fontStyle: 'italic',
+    },
   activityIndicator: {
     marginLeft: 8,
   },

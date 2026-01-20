@@ -404,7 +404,7 @@ export default function AllPayoutsScreen() {
             {activeTab === 'all' && (
               <Pressable style={styles.createFirstButton} onPress={handleCreatePayout}>
                 <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.createFirstButtonText}>Create Your First Plan</Text>
+                <Text style={styles.createFirstButtonText}>Create Your First Payout Schedule</Text>
               </Pressable>
             )}
           </View>

@@ -54,6 +54,7 @@ export const useTier1KYC = () => {
   const [currentStep, setCurrentStep] = useState<Tier1Step>('liveness');
   const [stepInitialized, setStepInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isManuallyChangingStep, setIsManuallyChangingStep] = useState(false);
 
   // Calculate progress percentage
   // Tier 1 has 4 steps: Liveness (1), BVN (2), NIN Input (3), OTP Verification (4)
@@ -145,6 +146,14 @@ export const useTier1KYC = () => {
   // Use useLayoutEffect to set step synchronously before render
   // This prevents showing the wrong step before the correct one is determined
   useLayoutEffect(() => {
+    // Don't auto-update step if we're manually changing it
+    if (isManuallyChangingStep) {
+      if (!stepInitialized) {
+        setStepInitialized(true);
+      }
+      return;
+    }
+
     if (!progress) {
       if (!stepInitialized) {
         setCurrentStep('liveness');
@@ -173,11 +182,12 @@ export const useTier1KYC = () => {
     if (!stepInitialized) {
       setStepInitialized(true);
     }
-  }, [progress, currentStep, stepInitialized]);
+  }, [progress, currentStep, stepInitialized, isManuallyChangingStep]);
 
   // Also update step when progress fields change (for reactive updates)
   useEffect(() => {
-    if (!progress || !stepInitialized) return;
+    // Don't auto-update step if we're manually changing it
+    if (isManuallyChangingStep || !progress || !stepInitialized) return;
 
     const targetStep = determineStepFromProgress(progress, currentStep);
     
@@ -189,7 +199,7 @@ export const useTier1KYC = () => {
       
       setCurrentStep(targetStep);
     }
-  }, [progress?.liveness_test_completed, progress?.bvn_verified, progress?.id_face_verified, stepInitialized]);
+  }, [progress?.liveness_test_completed, progress?.bvn_verified, progress?.id_face_verified, stepInitialized, isManuallyChangingStep, currentStep]);
 
   // Move to next step
   const moveToNextStep = useCallback(() => {
@@ -202,9 +212,19 @@ export const useTier1KYC = () => {
     }
   }, [currentStep]);
 
+  // Wrapper for setCurrentStep that prevents auto-updates during manual changes
+  const setCurrentStepManual = useCallback((step: Tier1Step) => {
+    setIsManuallyChangingStep(true);
+    setCurrentStep(step);
+    // Reset the flag after a delay to allow progress to catch up
+    setTimeout(() => {
+      setIsManuallyChangingStep(false);
+    }, 1000);
+  }, []);
+
   return {
     currentStep,
-    setCurrentStep,
+    setCurrentStep: setCurrentStepManual,
     isLoading,
     setIsLoading,
     formData,
