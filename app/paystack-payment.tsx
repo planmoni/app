@@ -149,8 +149,8 @@ export default function PaystackPaymentScreen() {
       process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY;
     
     if (!publicKey || publicKey === 'pk_test_placeholder') {
-      console.error('🔴 Paystack public key is not configured!');
-      showToast('Payment configuration error. Please set EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY or EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY in your .env file and restart the app.', 'error');
+      console.error('🔴 Configuration error!');
+      showToast('Payment failed. Please contact support.', 'error');
       return;
     }
 
@@ -160,17 +160,17 @@ export default function PaystackPaymentScreen() {
 
     try {
       // Get the current user session
-      console.log('🔵 Getting user session...');
+      console.log('Get session...');
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
-        console.log('🔴 No session found');
+        console.warn('No session found');
         showToast('Please log in to continue', 'error');
         setIsLoading(false);
         return;
       }
 
-      console.log('🔵 Session found, getting user profile...');
+      console.log('Session found, get profile...');
       // Get user profile to get email
       const { data: profile } = await supabase
         .from('profiles')
@@ -179,15 +179,15 @@ export default function PaystackPaymentScreen() {
         .single();
 
       if (!profile?.email) {
-        console.log('🔴 No email found in profile');
+        console.warn('No email found in profile');
         showToast('Unable to get user email', 'error');
         setIsLoading(false);
         return;
       }
 
-      console.log('✅ Opening Paystack modal...');
+      console.log('Open Paystack modal...');
       const totalAmount = getTotalAmountToPay();
-      console.log('🔵 Payment details:', {
+      console.log('Get payment details:', {
         email: profile.email,
         amountToAdd: getNumericAmount(),
         fee: calculatePaystackFee(getNumericAmount()),
@@ -206,7 +206,7 @@ export default function PaystackPaymentScreen() {
       // Pass the amount to credit (before fees) in metadata so webhook can credit correct amount
       popup.checkout({
         email: profile.email,
-        amount: totalAmount, // Total amount including fee (package converts to kobo)
+        amount: totalAmount < MIN_AMOUNT ? MIN_AMOUNT : (totalAmount > MAX_AMOUNT ? MAX_AMOUNT : totalAmount), // Clamp amount between MIN and MAX to prevent invalid amounts
         reference: reference,
         metadata: {
           amount_to_credit: getNumericAmount(), // Amount user will receive (before fees)

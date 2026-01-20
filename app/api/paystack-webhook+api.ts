@@ -10,6 +10,10 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const PAYSTACK_WEBHOOK_SECRET = process.env.PAYSTACK_WEBHOOK_SECRET;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
+// SECURITY: Server-side amount limits (cannot be bypassed by client-side manipulation)
+const MIN_AMOUNT = 5000; // ₦5,000 minimum
+const MAX_AMOUNT = 5000000; // ₦5,000,000 maximum
+
 // Function to verify webhook signature
 function verifyWebhookSignature(payload: string, signature: string): boolean {
   if (!PAYSTACK_WEBHOOK_SECRET) {
@@ -29,6 +33,13 @@ function verifyWebhookSignature(payload: string, signature: string): boolean {
 // This function handles wallet update, transaction creation, events, and notifications
 async function addFundsToWallet(userId: string, amount: number, reference: string, accountNumber?: string, paystackData?: any, fees?: number, totalAmount?: number) {
   try {
+    // SECURITY: Server-side validation - double check amount limits
+    // This is a second layer of defense against client-side manipulation
+    if (amount < MIN_AMOUNT || amount > MAX_AMOUNT) {
+      console.error(`❌ SECURITY: Invalid amount in addFundsToWallet! Amount: ₦${amount.toLocaleString()} is outside valid range (₦${MIN_AMOUNT.toLocaleString()} - ₦${MAX_AMOUNT.toLocaleString()})`);
+      console.error(`❌ Transaction reference: ${reference}, User ID: ${userId}`);
+      throw new Error(`Invalid amount: Amount must be between ₦${MIN_AMOUNT.toLocaleString()} and ₦${MAX_AMOUNT.toLocaleString()}`);
+    }
     // Extract the actual amount paid from Paystack webhook (in naira)
     // Paystack sends amount in kobo, so we need to get it from paystackData
     const paystackAmountInNaira = paystackData?.amount ? paystackData.amount / 100 : null;
@@ -472,6 +483,16 @@ async function handleChargeSuccess(data: any) {
     }
 
     console.log(`💰 Final values: Total paid: ₦${totalAmount.toLocaleString()}, Fees: ₦${fees.toLocaleString()}, Amount to credit: ₦${amountToCredit.toLocaleString()}`);
+
+    // SECURITY: Server-side validation - reject amounts outside valid range
+    // This prevents client-side manipulation (debugging/editing) from bypassing limits
+    if (amountToCredit < MIN_AMOUNT || amountToCredit > MAX_AMOUNT) {
+      console.error(`❌ SECURITY: Invalid amount detected! Amount to credit: ₦${amountToCredit.toLocaleString()} is outside valid range (₦${MIN_AMOUNT.toLocaleString()} - ₦${MAX_AMOUNT.toLocaleString()})`);
+      console.error(`❌ Transaction reference: ${reference}, User ID: ${userId}`);
+      // Log security violation but don't process the deposit
+      // The payment was already made to Paystack, but we won't credit the wallet
+      return;
+    }
 
     // Process deposit - this function handles wallet update, transaction creation, events, and notifications
     // CRITICAL: Always pass amountInNaira as totalAmount so the function can auto-calculate fees

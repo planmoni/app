@@ -16,6 +16,10 @@ const PAYSTACK_IPS = [
   '52.214.14.220'
 ];
 
+// SECURITY: Server-side amount limits (cannot be bypassed by client-side manipulation)
+const MIN_AMOUNT = 5000; // ₦5,000 minimum
+const MAX_AMOUNT = 5000000; // ₦5,000,000 maximum
+
 Deno.serve(async (req) => {
   try {
     // Get client IP for validation
@@ -132,6 +136,16 @@ async function handleChargeSuccess(data) {
 
     const amountInNaira = data.amount / 100;
     console.log(`💳 Processing deposit: ₦${amountInNaira} for user ${paystackAccount.user_id}`);
+
+    // SECURITY: Server-side validation - reject amounts outside valid range
+    // This prevents client-side manipulation (debugging/editing) from bypassing limits
+    if (amountInNaira < MIN_AMOUNT || amountInNaira > MAX_AMOUNT) {
+      console.error(`❌ SECURITY: Invalid amount detected! Amount: ₦${amountInNaira.toLocaleString()} is outside valid range (₦${MIN_AMOUNT.toLocaleString()} - ₦${MAX_AMOUNT.toLocaleString()})`);
+      console.error(`❌ Transaction reference: ${data.reference}, User ID: ${paystackAccount.user_id}`);
+      // Log security violation but don't process the deposit
+      // The payment was already made to Paystack, but we won't credit the wallet
+      return;
+    }
 
     // Process deposit atomically
     const { data: result, error } = await supabase.rpc('process_paystack_deposit', {
