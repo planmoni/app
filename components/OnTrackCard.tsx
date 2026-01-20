@@ -151,34 +151,34 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
           }
         }
       } else {
-        // Calculate last payout date based on frequency and remaining payouts
+      // Calculate last payout date based on frequency and remaining payouts
         planLastDate = new Date(startDate);
         
-        switch (plan.frequency) {
-          case 'daily':
-            // For daily, use next_payout_date if available, otherwise calculate from start date
-            if (plan.next_payout_date) {
-              const nextDate = new Date(plan.next_payout_date);
-              // Last payout date = next date + (remaining payouts - 1) days
-              planLastDate = new Date(nextDate);
-              planLastDate.setDate(nextDate.getDate() + (remainingPayouts - 1));
-            } else {
-              // Calculate from start date: start + completed payouts + (remaining - 1) days
-              planLastDate.setDate(startDate.getDate() + plan.completed_payouts + (remainingPayouts - 1));
-            }
-            break;
-          case 'weekly':
-            // Add remaining payouts * 7 days
-            planLastDate.setDate(startDate.getDate() + (plan.completed_payouts * 7) + ((remainingPayouts - 1) * 7));
-            break;
-          case 'biweekly':
-            // Add remaining payouts * 14 days
-            planLastDate.setDate(startDate.getDate() + (plan.completed_payouts * 14) + ((remainingPayouts - 1) * 14));
-            break;
-          case 'monthly':
-            // Add remaining payouts months
-            planLastDate.setMonth(startDate.getMonth() + plan.completed_payouts + (remainingPayouts - 1));
-            break;
+      switch (plan.frequency) {
+        case 'daily':
+          // For daily, use next_payout_date if available, otherwise calculate from start date
+          if (plan.next_payout_date) {
+            const nextDate = new Date(plan.next_payout_date);
+            // Last payout date = next date + (remaining payouts - 1) days
+            planLastDate = new Date(nextDate);
+            planLastDate.setDate(nextDate.getDate() + (remainingPayouts - 1));
+          } else {
+            // Calculate from start date: start + completed payouts + (remaining - 1) days
+            planLastDate.setDate(startDate.getDate() + plan.completed_payouts + (remainingPayouts - 1));
+          }
+          break;
+        case 'weekly':
+          // Add remaining payouts * 7 days
+          planLastDate.setDate(startDate.getDate() + (plan.completed_payouts * 7) + ((remainingPayouts - 1) * 7));
+          break;
+        case 'biweekly':
+          // Add remaining payouts * 14 days
+          planLastDate.setDate(startDate.getDate() + (plan.completed_payouts * 14) + ((remainingPayouts - 1) * 14));
+          break;
+        case 'monthly':
+          // Add remaining payouts months
+          planLastDate.setMonth(startDate.getMonth() + plan.completed_payouts + (remainingPayouts - 1));
+          break;
         }
       }
       

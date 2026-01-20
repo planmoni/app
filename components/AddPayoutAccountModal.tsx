@@ -507,10 +507,10 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                     placeholderTextColor={colors.textTertiary}
                     value={formData.accountName}
                     onChangeText={(text) => {
-                      setFormData({...formData, accountName: text});
-                      if (formErrors.accountName) {
-                        setFormErrors({...formErrors, accountName: ''});
-                      }
+                        setFormData({...formData, accountName: text});
+                        if (formErrors.accountName) {
+                          setFormErrors({...formErrors, accountName: ''});
+                        }
                       // Clear resolved state if user manually edits the name
                       if (accountResolved && text !== formData.accountName) {
                         setAccountResolved(false);
@@ -856,11 +856,11 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
     borderColor: colors.success,
     backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
   },
-    fieldError: {
-      fontSize: isSmallScreen ? 11 : 12,
-      color: colors.error,
-      marginTop: 4,
-    },
+  fieldError: {
+    fontSize: isSmallScreen ? 11 : 12,
+    color: colors.error,
+    marginTop: 4,
+  },
     hintText: {
       fontSize: isSmallScreen ? 11 : 12,
       color: colors.textSecondary,

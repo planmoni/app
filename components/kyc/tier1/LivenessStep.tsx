@@ -120,7 +120,7 @@ export default function LivenessStep({ onComplete }: LivenessStepProps) {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Auto-advance to next step after ensuring modal is fully closed
-      onComplete();
+        onComplete();
       
     } catch (error) {
       console.error('Error handling liveness completion:', error);

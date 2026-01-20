@@ -71,6 +71,7 @@
     "lottie-react-native": "7.2.2",
     "lottie-web": "^5.12.2",
     "lucide-react-native": "^0.513.0",
+    "mixpanel-react-native": "^3.2.1",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.6",

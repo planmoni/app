@@ -16,6 +16,7 @@ import CustomSplashScreen from '@/components/SplashScreen';
 
 import OfflineBanner from '@/components/OfflineBanner';
 import { initializeAnalytics, logAnalyticsEvent } from '@/lib/firebase';
+import { initializeMixpanel, trackEvent } from '@/lib/mixpanel';
 
 interface CustomAppLayoutProps {
   children: ReactNode;
@@ -49,6 +50,20 @@ export default function CustomAppLayout({ children }: CustomAppLayoutProps) {
     const setupAnalytics = async () => {
       await initializeAnalytics();
       logAnalyticsEvent('app_open');
+      
+      // Initialize Mixpanel
+      const mixpanel = await initializeMixpanel();
+      
+      // Track app open event to verify Mixpanel is working
+      if (mixpanel) {
+        trackEvent('App Opened', {
+          timestamp: new Date().toISOString(),
+          platform: 'mobile'
+        });
+        console.log('✅ Mixpanel initialized and test event sent');
+      } else {
+        console.warn('⚠️ Mixpanel initialization failed');
+      }
     };
     setupAnalytics();
   }, []);

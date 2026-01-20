@@ -323,11 +323,9 @@ export default function LivenessTestEnhanced({
       // Let the parent component handle closing and transitioning to BVN step
       if (onComplete && storageUrl) {
         console.log('[LivenessTest] Calling onComplete callback with URL:', storageUrl);
-        // Small delay to show success message, then call onComplete
-        // Parent will handle closing the modal
-        setTimeout(() => {
-          onComplete(storageUrl);
-        }, 300);
+        // Call onComplete immediately - parent will handle closing the modal
+        // This prevents the modal from staying open and potentially reopening
+        onComplete(storageUrl);
       } else {
         console.log('[LivenessTest] No onComplete callback or storageUrl');
         // If no callback, close after showing success

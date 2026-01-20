@@ -272,10 +272,10 @@ export default function ClaimAccountModal({
     // Check if Tier 1 is complete
     const tierCompletion = checkTierCompletion();
     
-    // If Tier 1 is not complete, navigate to KYC upgrade
+    // If Tier 1 is not complete, navigate to Tier 1 KYC flow
     if (!tierCompletion.tier1) {
       onClose();
-      router.push('/kyc-upgrade');
+      router.push('/kyc/tier1');
       return;
     }
     
@@ -304,7 +304,7 @@ export default function ClaimAccountModal({
   const handleStartKYC = () => {
     haptics.mediumImpact();
     onClose();
-    router.push('/kyc-upgrade');
+    router.push('/kyc/tier1');
   };
 
   // Don't show modal if we're still checking for account or if account exists

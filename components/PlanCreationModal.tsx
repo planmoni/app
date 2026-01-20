@@ -38,14 +38,14 @@ export default function PlanCreationModal({
 
     // Daily plan - 30 days (only show if depositAmount >= 50000)
     if (depositAmount >= 50000) {
-      suggestions.push({
-        id: 'daily-30',
-        title: 'Daily Plan',
-        description: '30 daily payments',
-        frequency: 'daily',
-        duration: 30,
-        color: '#8B5CF6',
-        icon: <TrendingUp size={20} color="#8B5CF6" />,
+    suggestions.push({
+      id: 'daily-30',
+      title: 'Daily Plan',
+      description: '30 daily payments',
+      frequency: 'daily',
+      duration: 30,
+      color: '#8B5CF6',
+      icon: <TrendingUp size={20} color="#8B5CF6" />,
       });
     }
 

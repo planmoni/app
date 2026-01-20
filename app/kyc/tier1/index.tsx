@@ -136,7 +136,7 @@ export default function Tier1KYCScreen() {
     } catch (error) {
       console.error('Error in handleLivenessComplete:', error);
       // Always advance to prevent getting stuck on blank screen
-      setCurrentStep('bvn');
+    setCurrentStep('bvn');
       setIsTransitioning(false);
     }
   };

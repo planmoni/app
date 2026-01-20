@@ -430,7 +430,7 @@ export default function ReviewScreen() {
                       })}
                     </View>
                   ) : (
-                    <Text style={styles.detailSubtext}>{`₦${payoutAmount}`} per payout</Text>
+                  <Text style={styles.detailSubtext}>{`₦${payoutAmount}`} per payout</Text>
                   )}
                 </View>
                 <Pressable 
