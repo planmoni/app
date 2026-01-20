@@ -32,6 +32,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications, setupTokenRefresh } from '@/lib/notifications';
 import { initializeMessaging } from '@/lib/firebase';
 import * as SystemUI from 'expo-system-ui';
+import * as Updates from 'expo-updates';
 // Conditionally import NavigationBar to handle cases where native module isn't available
 let NavigationBar: any = null;
 try {
@@ -313,6 +314,60 @@ function RootLayoutNav() {
       // Don't block app startup if fonts fail to load - use system fonts as fallback
     }
   }, [fontError]);
+
+  // Check for and apply OTA updates automatically
+  useEffect(() => {
+    const checkForUpdates = async () => {
+      // Only check for updates in production builds (not in development)
+      if (__DEV__) {
+        console.log('🔧 Development mode: Skipping OTA update check');
+        return;
+      }
+
+      try {
+        // Check if updates are enabled
+        if (!Updates.isEnabled) {
+          console.log('ℹ️ OTA updates are not enabled');
+          return;
+        }
+
+        console.log('🔄 Checking for OTA updates...');
+        
+        // Check for available updates
+        const update = await Updates.checkForUpdateAsync();
+        
+        if (update.isAvailable) {
+          console.log('✅ Update available, downloading...');
+          
+          // Download the update in the background
+          await Updates.fetchUpdateAsync();
+          
+          console.log('✅ Update downloaded, will apply on next app restart');
+          
+          // Reload the app to apply the update
+          // Use a small delay to ensure any pending operations complete
+          setTimeout(() => {
+            Updates.reloadAsync().catch((error) => {
+              console.error('❌ Error reloading app with update:', error);
+            });
+          }, 1000);
+        } else {
+          console.log('✅ App is up to date');
+        }
+      } catch (error) {
+        console.error('❌ Error checking for updates:', error);
+        // Don't block app startup if update check fails
+      }
+    };
+
+    // Check for updates after app initialization
+    // Wait a bit to ensure app is fully loaded
+    const timer = setTimeout(() => {
+      checkForUpdates();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // Track app initialization - keep splash visible until everything is ready
   useEffect(() => {

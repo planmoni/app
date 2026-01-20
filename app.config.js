@@ -12,7 +12,7 @@ module.exports = {
     updates: {
       url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83"
     },
-    runtimeVersion: "1.2.10",
+    runtimeVersion: "1.3.0",
     android: {
       package: "com.planmoni.app", // ← choose your unique package name
       permissions: [
