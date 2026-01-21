@@ -1067,7 +1067,7 @@ export default function HomeScreen() {
                   onPress={handleCreatePayout}
                 >
                   <CalendarCheck size={22} color={isDark ? '#fff' : '#fff'} />
-                  <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#fff' }]}>Payout</Text>
+                  <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#fff' }]}>New Payout</Text>
                 </Pressable>
               </View>
             </View>
@@ -1171,7 +1171,7 @@ export default function HomeScreen() {
           onPress={handleCreatePayout}
         >
           <CalendarCheck size={22} color={isDark ? '#fff' : '#fff'} />
-          <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#fff' }]}>Payout</Text>
+          <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#fff' }]}>New Payout</Text>
         </Pressable>
         
       </Animated.View>

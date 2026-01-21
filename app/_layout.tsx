@@ -27,7 +27,7 @@ import { usePayoutNotifications } from '@/hooks/usePayoutNotifications';
 import { useTransactionNotifications } from '@/hooks/useTransactionNotifications';
 import { SplashScreen, Stack , usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, StyleSheet, Platform } from 'react-native';
+import { Text, View, StyleSheet, Platform, AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications, setupTokenRefresh } from '@/lib/notifications';
 import { initializeMessaging } from '@/lib/firebase';
@@ -71,6 +71,9 @@ function RootLayoutNav() {
   // Track previous session state to detect transitions
   const previousSessionRef = useRef<typeof session>(null);
   const [isAuthTransitioning, setIsAuthTransitioning] = useState(false);
+  
+  // Track app state for update checks
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   
   // Track page changes for redirect after unlock
   usePageTracking();
@@ -317,56 +320,118 @@ function RootLayoutNav() {
 
   // Check for and apply OTA updates automatically
   useEffect(() => {
-    const checkForUpdates = async () => {
+    let isChecking = false;
+
+    const checkForUpdates = async (source: string = 'initial') => {
       // Only check for updates in production builds (not in development)
       if (__DEV__) {
         console.log('🔧 Development mode: Skipping OTA update check');
         return;
       }
 
+      // Prevent concurrent update checks
+      if (isChecking) {
+        console.log('⏳ Update check already in progress, skipping...');
+        return;
+      }
+
       try {
+        isChecking = true;
+        
         // Check if updates are enabled
         if (!Updates.isEnabled) {
           console.log('ℹ️ OTA updates are not enabled');
           return;
         }
 
-        console.log('🔄 Checking for OTA updates...');
+        // Get current update info for debugging
+        const currentlyRunningUpdate = Updates.updateId;
+        const runtimeVersion = Updates.runtimeVersion;
+        
+        console.log('🔄 Checking for OTA updates...', {
+          source,
+          currentlyRunningUpdate,
+          runtimeVersion,
+          updateUrl: Updates.url || 'N/A'
+        });
         
         // Check for available updates
         const update = await Updates.checkForUpdateAsync();
         
         if (update.isAvailable) {
-          console.log('✅ Update available, downloading...');
+          console.log('✅ Update available!', {
+            manifest: update.manifest?.id || 'N/A',
+            createdAt: update.manifest?.createdAt || 'N/A',
+            runtimeVersion: update.manifest?.runtimeVersion || 'N/A'
+          });
           
           // Download the update in the background
-          await Updates.fetchUpdateAsync();
+          const fetchResult = await Updates.fetchUpdateAsync();
           
-          console.log('✅ Update downloaded, will apply on next app restart');
-          
-          // Reload the app to apply the update
-          // Use a small delay to ensure any pending operations complete
-          setTimeout(() => {
-            Updates.reloadAsync().catch((error) => {
-              console.error('❌ Error reloading app with update:', error);
-            });
-          }, 1000);
+          if (fetchResult.isNew) {
+            console.log('✅ New update downloaded successfully, reloading app...');
+            
+            // Reload the app to apply the update
+            // Use a small delay to ensure any pending operations complete
+            setTimeout(() => {
+              Updates.reloadAsync().catch((error) => {
+                console.error('❌ Error reloading app with update:', error);
+                isChecking = false;
+              });
+            }, 1000);
+          } else {
+            console.log('ℹ️ Update downloaded but not new, already have this version');
+            isChecking = false;
+          }
         } else {
-          console.log('✅ App is up to date');
+          console.log('✅ App is up to date', {
+            currentlyRunningUpdate,
+            runtimeVersion
+          });
+          isChecking = false;
         }
       } catch (error) {
         console.error('❌ Error checking for updates:', error);
+        isChecking = false;
         // Don't block app startup if update check fails
       }
     };
 
-    // Check for updates after app initialization
-    // Wait a bit to ensure app is fully loaded
+    // Check for updates when app comes to foreground
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        // App came to foreground - check for updates
+        console.log('📱 App came to foreground, checking for updates...');
+        setTimeout(() => {
+          checkForUpdates('foreground');
+        }, 1000);
+      }
+      appStateRef.current = nextAppState;
+    };
+
+    // Initial check after app initialization
     const timer = setTimeout(() => {
-      checkForUpdates();
+      checkForUpdates('initial');
     }, 2000);
 
-    return () => clearTimeout(timer);
+    // Subscribe to app state changes
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    // Periodic check every 30 minutes (as fallback)
+    const intervalId = setInterval(() => {
+      if (appStateRef.current === 'active') {
+        checkForUpdates('periodic');
+      }
+    }, 30 * 60 * 1000); // 30 minutes
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(intervalId);
+      subscription?.remove();
+    };
   }, []);
 
   // Track app initialization - keep splash visible until everything is ready
