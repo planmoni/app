@@ -685,6 +685,21 @@ export default function HomeScreen() {
     }
   };
 
+  const handleIncomeAdvance = () => {
+    // Trigger medium impact haptic feedback
+    impact();
+
+    // For unauthenticated users, show WelcomeModal
+    if (!isAuthenticated) {
+      setShowWelcomeModalForUnauth(true);
+      logAnalyticsEvent('income_advance_click_unauthenticated_modal');
+      return;
+    }
+
+    router.push('/credit');
+    logAnalyticsEvent('income_advance_click');
+  };
+
   const handleAISuggestionPress = (suggestion: any) => {
     // Check authentication first
     if (!requireAuth(() => {}, '/create-payout/frequency-selection')) {
@@ -1114,6 +1129,23 @@ export default function HomeScreen() {
         
 
         {/* Quick Topup Card */}
+        <Pressable
+          style={[styles.quickTopupCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={handleIncomeAdvance}
+        >
+          <View style={styles.quickTopupContent}>
+            <View style={styles.quickTopupIconContainer}>
+              <Building2 size={22} color={colors.primary} />
+            </View>
+            <View style={styles.quickTopupTextContainer}>
+              <Text style={[styles.quickTopupTitle, { color: colors.text }]}>Income Advance</Text>
+              <Text style={[styles.quickTopupSubtitle, { color: colors.textSecondary }]}>
+                Get funds upfront and repay automatically via mandate
+              </Text>
+            </View>
+            <ChevronRight size={20} color={colors.textSecondary} />
+          </View>
+        </Pressable>
         
 
         <PendingActionsCard />
