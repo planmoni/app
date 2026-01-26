@@ -799,7 +799,7 @@ export default function ViewPayoutScreen() {
         </Animated.View>
 
 
-        {plan.status !== 'cancelled' && plan.status !== 'completed' && (
+        {/* {plan.status !== 'cancelled' && plan.status !== 'completed' && (
           <Animated.View 
             style={[
               styles.emergencyCard,
@@ -844,7 +844,7 @@ export default function ViewPayoutScreen() {
               </Text>
             </Pressable>
           </Animated.View>
-        )}
+        )} */}
 
         {plan.status === 'cancelled' && plan.emergency_withdrawal_enabled && (
           <Animated.View 

@@ -15,6 +15,12 @@ module.exports = {
     runtimeVersion: "1.3.1",
     android: {
       package: "com.planmoni.app", // ← choose your unique package name
+      blockedPermissions: [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
       permissions: [
         "android.permission.CAMERA",
         "android.permission.VIBRATE",

@@ -1170,7 +1170,6 @@ export default function HomeScreen() {
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <CalendarCheck size={22} color={isDark ? '#fff' : '#fff'} />
           <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#fff' }]}>New Payout</Text>
         </Pressable>
         
