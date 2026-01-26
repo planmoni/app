@@ -1,0 +1,29 @@
+{
+  "name": "@planmoni/sdk",
+  "version": "1.0.0",
+  "description": "Planmoni Platform SDK for TypeScript/JavaScript",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "planmoni",
+    "payments",
+    "wallet",
+    "disbursements",
+    "fintech"
+  ],
+  "author": "Planmoni",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}

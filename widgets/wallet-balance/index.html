@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planmoni Wallet Balance Widget</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 16px;
+      background: transparent;
+    }
+    
+    .widget-container {
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      min-width: 200px;
+    }
+    
+    .balance-label {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    
+    .balance-amount {
+      font-size: 24px;
+      font-weight: bold;
+      color: #1E3A8A;
+    }
+    
+    .info-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #eee;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+    
+    .error {
+      color: #d32f2f;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="widget-root" class="widget-container">
+    <div class="loading">Loading balance...</div>
+  </div>
+
+  <script>
+    // Widget configuration from URL params or parent message
+    const urlParams = new URLSearchParams(window.location.search);
+    const config = {
+      partner_id: urlParams.get('partner_id'),
+      wallet_id: urlParams.get('wallet_id'),
+      external_user_id: urlParams.get('external_user_id'),
+      api_key: urlParams.get('api_key'),
+      theme: urlParams.get('theme') || 'light',
+    };
+
+    const API_BASE = window.location.origin;
+
+    // Load wallet balance
+    async function loadBalance() {
+      const root = document.getElementById('widget-root');
+      
+      try {
+        const response = await fetch(
+          `${API_BASE}/api/v1/wallets/${config.wallet_id}/balance`,
+          {
+            headers: {
+              'X-API-Key': config.api_key,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to load balance');
+        }
+
+        const data = await response.json();
+        const balance = data.balance;
+
+        root.innerHTML = `
+          <div class="balance-label">Available Balance</div>
+          <div class="balance-amount">${balance.currency} ${balance.available.toLocaleString()}</div>
+          <div class="info-text">
+            Total: ${balance.currency} ${balance.total.toLocaleString()}
+            ${balance.locked > 0 ? `<br>Locked: ${balance.currency} ${balance.locked.toLocaleString()}` : ''}
+          </div>
+        `;
+
+        // Notify parent
+        if (window.parent !== window) {
+          window.parent.postMessage({
+            source: 'planmoni-widget',
+            type: 'balance_updated',
+            data: balance,
+            timestamp: new Date().toISOString(),
+          }, '*');
+        }
+      } catch (error) {
+        root.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+      }
+    }
+
+    // Initialize
+    if (config.wallet_id && config.api_key) {
+      loadBalance();
+      // Poll for updates every 30 seconds
+      setInterval(loadBalance, 30000);
+    } else {
+      document.getElementById('widget-root').innerHTML = 
+        '<div class="error">Missing required parameters</div>';
+    }
+  </script>
+</body>
+</html>
