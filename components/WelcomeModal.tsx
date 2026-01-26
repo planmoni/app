@@ -172,7 +172,7 @@ const SLIDES = [
   
   {
     id: '1',
-    title: 'Auto Pay Your Way',
+    title: 'Welcome to Financial Control',
     description: "Turn your one-time funds into regular auto payouts, create a consistent cash flow that sorts everyday expenses.",
     image: require('@/assets/images/StayInControl.png'),
     gradient: ['#1E3A8A', '#3B82F6'],

@@ -6,15 +6,21 @@ module.exports = {
     name: "Planmoni",
     owner: "planmoni", // 👈 Add this line
     slug: "planmoni",
-    version: "1.3.0",
+    version: "1.3.1",
     scheme: "myapp",
     userInterfaceStyle: "automatic", // Allow system to control theme
     updates: {
       url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83"
     },
-    runtimeVersion: "1.2.10",
+    runtimeVersion: "1.3.1",
     android: {
       package: "com.planmoni.app", // ← choose your unique package name
+      blockedPermissions: [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
       permissions: [
         "android.permission.CAMERA",
         "android.permission.VIBRATE",
