@@ -501,6 +501,45 @@ serve(async (req) => {
             case "weekly":
               nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
               break
+            case "weekly_specific":
+              // Get day_of_week from plan.day_of_week or metadata
+              // day_of_week: 0=Sunday, 1=Monday, ..., 6=Saturday
+              const dayOfWeek = plan.day_of_week ?? (plan.metadata as any)?.dayOfWeek
+              
+              if (dayOfWeek !== null && dayOfWeek !== undefined && dayOfWeek >= 0 && dayOfWeek <= 6) {
+                // Calculate the next payout date for weekly_specific
+                // Strategy: Find the next occurrence of the target day of week
+                // starting from start_date + (completed_payouts * 7 days)
+                
+                // Start from the week where the next payout should occur
+                // newCompletedPayouts is the count AFTER this payout is processed
+                const baseDate = new Date(startDate)
+                baseDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
+                
+                // Get the day of week for the base date
+                const baseDayOfWeek = baseDate.getDay()
+                
+                // Calculate days to add to reach the target day of week
+                // Formula: (target - current + 7) % 7 gives us days until next occurrence
+                let daysToAdd = (dayOfWeek - baseDayOfWeek + 7) % 7
+                
+                // If baseDate is already on the target day (daysToAdd === 0),
+                // we need to move to the NEXT week's occurrence
+                // This happens when start_date was on the target day and we're calculating
+                // the next payout after the first one
+                if (daysToAdd === 0) {
+                  daysToAdd = 7
+                }
+                
+                nextDate.setDate(baseDate.getDate() + daysToAdd)
+                
+                console.log(`Weekly_specific plan ${plan.id}: day_of_week=${dayOfWeek}, start_date=${startDate.toISOString()}, completed_payouts=${newCompletedPayouts}, baseDate=${baseDate.toISOString()}, baseDayOfWeek=${baseDayOfWeek}, daysToAdd=${daysToAdd}, nextDate=${nextDate.toISOString()}`)
+              } else {
+                // Fallback to regular weekly if day_of_week is missing or invalid
+                console.warn(`Plan ${plan.id} has weekly_specific frequency but invalid day_of_week (${dayOfWeek}). Falling back to weekly calculation.`)
+                nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
+              }
+              break
             case "biweekly":
               nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 14))
               break
