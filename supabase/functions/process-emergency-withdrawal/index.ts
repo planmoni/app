@@ -651,6 +651,31 @@ serve(async (req: Request) => {
         console.log(`Successfully updated plan ${withdrawal.payout_plan_id} status to cancelled`)
       }
 
+      // 💸 Record the emergency withdrawal fee (ledger + rollup)
+      // Idempotent via UNIQUE(source_type, source_id, fee_type) in user_fee_events.
+      try {
+        const { error: feeRecordError } = await supabase.rpc('record_user_fee', {
+          p_user_id: userId,
+          p_source_type: 'emergency_withdrawal',
+          p_source_id: withdrawal.id,
+          p_fee_type: 'withdrawal',
+          p_currency: 'NGN',
+          p_gross_amount: remainingAmount,
+          p_fee_percentage: feePercentage,
+          p_fee_amount: feeAmount,
+          p_metadata: {
+            payout_plan_id: withdrawal.payout_plan_id,
+            withdrawal_type: correctWithdrawalType,
+            reference: withdrawal.reference,
+          },
+        })
+        if (feeRecordError) {
+          console.error('Error recording user fee (emergency withdrawal):', feeRecordError)
+        }
+      } catch (e) {
+        console.error('Unexpected error recording user fee (emergency withdrawal):', e)
+      }
+
       // SECURITY: Log successful withdrawal for audit trail
       console.log(`✅ Successfully processed emergency withdrawal ${emergencyWithdrawalId} for user ${userId}. Amount: ₦${netAmount.toLocaleString()}, Fee: ₦${feeAmount.toLocaleString()}, Transfer: ${transferResult.reference || transferResult.paymentReference}`)
 
