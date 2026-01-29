@@ -256,6 +256,20 @@ export function useCreatePayout() {
 
         payoutPlan = planData;
         console.log('Payout plan created:', payoutPlan.id);
+
+        // 💸 Charge plan fee once (deduct from wallet) + record in user fees ledger/rollup
+        // This prevents the fee from ever reappearing in available balance.
+        const { data: feeChargeResult, error: feeChargeError } = await supabase.rpc('charge_plan_fee', {
+          p_plan_id: payoutPlan.id,
+        });
+        if (feeChargeError) {
+          console.error('Error charging plan fee:', feeChargeError);
+          throw feeChargeError;
+        }
+        if (feeChargeResult && feeChargeResult.success === false) {
+          console.error('charge_plan_fee failed:', feeChargeResult);
+          throw new Error(feeChargeResult.error || 'Failed to charge plan fee');
+        }
       } catch (planError) {
         // SECURITY: Ensure funds are unlocked if plan creation fails
         try {

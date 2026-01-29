@@ -41,10 +41,13 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
           .select('amount')
           .eq('payout_plan_id', nextPayout.id)
           .eq('payout_date', nextDateString)
-          .single();
+          .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 rows gracefully
 
         if (error) {
-          console.error('Error fetching next payout amount:', error);
+          // Only log non-PGRST116 errors (PGRST116 is expected when no rows found)
+          if (error.code !== 'PGRST116') {
+            console.error('Error fetching next payout amount:', error);
+          }
           // Fallback to plan's payout_amount
           setNextPayoutAmount(nextPayout.payout_amount);
           return;
@@ -58,7 +61,8 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
           setNextPayoutAmount(nextPayout.payout_amount);
         }
       } catch (error) {
-        console.error('Error fetching next payout amount:', error);
+        // Only log unexpected errors
+        console.error('Unexpected error fetching next payout amount:', error);
         setNextPayoutAmount(nextPayout.payout_amount);
       }
     };
@@ -72,7 +76,7 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
       params: { id }
     });
     logAnalyticsEvent('view_payout', { payout_id: id });
-  };
+  }
 
   // Don't render if user is not authenticated or no next payout
   if (!isAuthenticated || !nextPayout) return null;
