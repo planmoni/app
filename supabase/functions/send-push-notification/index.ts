@@ -97,6 +97,14 @@ async function getAccessToken(): Promise<string> {
   }
 }
 
+/**
+ * Payload for push notifications. All fields in `data` are forwarded to FCM
+ * and available to the app on notification tap. For deep linking, callers
+ * should always pass:
+ * - data.type: notification type (e.g. payout_ready, plan_expiry_reminder)
+ * - data.route: primary deep link path (e.g. /view-payout/[id]) so the app opens the right screen
+ * - data.plan_id: when applicable, plan uuid for plan-detail routes
+ */
 interface NotificationPayload {
   user_ids?: string[];
   notification_type:
@@ -104,7 +112,11 @@ interface NotificationPayload {
     | "payout_failed"
     | "deposit_received"
     | "security_alert"
-    | "general";
+    | "general"
+    | "daily_digest"
+    | "mid_plan"
+    | "re_engagement"
+    | "no_plan_yet";
   title: string;
   body: string;
   data?: Record<string, any>;
@@ -115,6 +127,7 @@ interface FCMToken {
   user_id: string;
   fcm_token: string;
   notification_preferences: Record<string, boolean>;
+  push_notifications?: Record<string, boolean>;
 }
 
 serve(async (req: Request) => {
@@ -213,9 +226,17 @@ serve(async (req: Request) => {
     // Filter tokens based on user notification preferences
     const filteredTokens = fcmTokens.filter((tokenData) => {
       const preferences = tokenData.notification_preferences || {};
+      const pushPrefs = tokenData.push_notifications || {};
 
-      // Check if user has enabled this type of notification
       switch (payload.notification_type) {
+        case "daily_digest":
+          return pushPrefs.enabled !== false && pushPrefs.daily_digest !== false;
+        case "mid_plan":
+          return pushPrefs.enabled !== false && pushPrefs.mid_plan !== false;
+        case "re_engagement":
+          return pushPrefs.enabled !== false && pushPrefs.re_engagement !== false;
+        case "no_plan_yet":
+          return pushPrefs.enabled !== false && pushPrefs.no_plan_nudge !== false;
         case "payout_ready":
         case "payout_failed":
           return preferences.payouts !== false;

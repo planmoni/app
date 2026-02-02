@@ -25,6 +25,7 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
 import { usePayoutNotifications } from '@/hooks/usePayoutNotifications';
 import { useTransactionNotifications } from '@/hooks/useTransactionNotifications';
+import { supabase } from '@/lib/supabase';
 import { SplashScreen, Stack , usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Text, View, StyleSheet, Platform, AppState, AppStateStatus } from 'react-native';
@@ -231,6 +232,35 @@ function RootLayoutNav() {
     }
   }, [session?.user?.id]);
 
+  // Update last_seen_at on app open and when app comes to foreground (for re-engagement and daily digest)
+  const lastSeenAppStateRef = useRef<AppStateStatus>(AppState.currentState);
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    const updateLastSeen = () => {
+      supabase
+        .from('profiles')
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq('id', userId)
+        .then(({ error }) => {
+          if (error) console.warn('Failed to update last_seen_at:', error?.message);
+        });
+    };
+
+    updateLastSeen();
+
+    const sub = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      const prev = lastSeenAppStateRef.current;
+      lastSeenAppStateRef.current = nextAppState;
+      if (prev.match(/inactive|background/) && nextAppState === 'active') {
+        updateLastSeen();
+      }
+    });
+
+    return () => sub?.remove();
+  }, [session?.user?.id]);
+
   // Handle notifications when app is opened from background/closed state
   useEffect(() => {
     const checkInitialNotification = async () => {
@@ -252,15 +282,24 @@ function RootLayoutNav() {
             return;
           }
 
-          // Handle event/notification navigation
+          // Handle event/notification navigation (prefer explicit route, then type + plan_id, then type map)
+          const notificationType = data?.type ?? data?.eventType ?? data?.notificationType;
+          const planId = data?.plan_id;
+
           if (data?.route) {
             console.log('🔔 App opened from notification, navigating to:', data.route);
             setTimeout(() => {
               const { router } = require('expo-router');
               router.push(data.route as any);
             }, 1000);
-          } else if (data?.eventType || data?.notificationType) {
-            // Navigate based on event/notification type
+          } else if (planId && ['payout_ready', 'payout_failed', 'plan_expiry_reminder', 'mid_plan'].includes(notificationType)) {
+            const route = `/view-payout/${planId}`;
+            console.log('🔔 App opened from notification, navigating to:', route);
+            setTimeout(() => {
+              const { router } = require('expo-router');
+              router.push(route as any);
+            }, 1000);
+          } else if (notificationType) {
             const routeMap: Record<string, string> = {
               payout_completed: '/all-payouts',
               payout_scheduled: '/all-payouts',
@@ -275,9 +314,16 @@ function RootLayoutNav() {
               payout: '/all-payouts',
               transaction: '/transactions',
               security: '/profile',
+              payout_ready: '/all-payouts',
+              payout_failed: '/all-payouts',
+              plan_expiry_reminder: '/all-payouts',
+              daily_digest: '/(tabs)/',
+              re_engagement: '/(tabs)/',
+              no_plan_yet: '/create-payout/amount',
+              streak: '/(tabs)/',
             };
-            const eventType = (data.eventType || data.notificationType) as string;
-            const route = routeMap[eventType] || '/(tabs)/';
+            const route = routeMap[notificationType] || '/(tabs)/';
+            console.log('🔔 App opened from notification, navigating to:', route);
             setTimeout(() => {
               const { router } = require('expo-router');
               router.push(route as any);
