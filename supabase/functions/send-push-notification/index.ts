@@ -116,7 +116,8 @@ interface NotificationPayload {
     | "daily_digest"
     | "mid_plan"
     | "re_engagement"
-    | "no_plan_yet";
+    | "no_plan_yet"
+    | "deposit_no_plan";
   title: string;
   body: string;
   data?: Record<string, any>;
@@ -237,6 +238,8 @@ serve(async (req: Request) => {
           return pushPrefs.enabled !== false && pushPrefs.re_engagement !== false;
         case "no_plan_yet":
           return pushPrefs.enabled !== false && pushPrefs.no_plan_nudge !== false;
+        case "deposit_no_plan":
+          return pushPrefs.enabled !== false && pushPrefs.deposit_no_plan_nudge !== false;
         case "payout_ready":
         case "payout_failed":
           return preferences.payouts !== false;

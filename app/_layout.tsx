@@ -320,6 +320,7 @@ function RootLayoutNav() {
               daily_digest: '/(tabs)/',
               re_engagement: '/(tabs)/',
               no_plan_yet: '/create-payout/amount',
+              deposit_no_plan: '/create-payout/amount',
               streak: '/(tabs)/',
             };
             const route = routeMap[notificationType] || '/(tabs)/';
