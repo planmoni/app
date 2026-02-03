@@ -12,14 +12,14 @@ import { useRealtimeBankAccounts } from '@/hooks/useRealtimeBankAccounts';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { MonoProvider, useMonoConnect } from '@mono.co/connect-react-native';
-import { useMonoAccountLinking } from '@/hooks/useMonoAccountLinking';
+// import { MonoProvider, useMonoConnect } from '@mono.co/connect-react-native';
+// import { useMonoAccountLinking } from '@/hooks/useMonoAccountLinking';
 import { supabase } from '@/lib/supabase';
 import { DeviceInfoService } from '@/lib/device-info';
 
 // Mono Link Account Button Component
 function LinkAccountButton({ colors, bankAccountsCount }: { colors: any; bankAccountsCount: number }) {
-  const { init } = useMonoConnect();
+  // const { init } = useMonoConnect();
   const haptics = useHaptics();
 
   const handlePress = () => {
@@ -33,31 +33,8 @@ function LinkAccountButton({ colors, bankAccountsCount }: { colors: any; bankAcc
       return;
     }
 
-    // SECURITY: Validate Mono public key before initializing
-    const monoPublicKey = process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || '';
-    if (!monoPublicKey) {
-      haptics.error();
-      Alert.alert(
-        'Configuration Error',
-        'Mono is not properly configured. Please contact support.',
-        [{ text: 'OK' }]
-      );
-      console.error('❌ EXPO_PUBLIC_MONO_PUBLIC_KEY is missing');
-      return;
-    }
-
-    try {
-      haptics.lightImpact();
-      init();
-    } catch (error) {
-      haptics.error();
-      console.error('❌ Error initializing Mono Connect:', error);
-      Alert.alert(
-        'Error',
-        'Failed to open Mono Connect. Please try again.',
-        [{ text: 'OK' }]
-      );
-    }
+    haptics.lightImpact();
+    Alert.alert("Update in Progress", "Bank account linking is currently being updated. Please try again later.");
   };
 
   const isDisabled = bankAccountsCount >= 2;
@@ -93,7 +70,7 @@ export default function LinkedAccountsScreen() {
   const { session } = useAuth();
   // const [showAddAccount, setShowAddAccount] = useState(false);
   const [monoCustomerId, setMonoCustomerId] = useState<string | null>(null);
-  const [isLoadingCustomer, setIsLoadingCustomer] = useState(true);
+  const [isLoadingCustomer, setIsLoadingCustomer] = useState(false); // Default to false since we aren't loading Mono
   const haptics = useHaptics();
   const { addFunds } = useBalance();
   const params = useLocalSearchParams();
@@ -112,218 +89,37 @@ export default function LinkedAccountsScreen() {
   } = useRealtimeBankAccounts();
 
   // Use Mono account linking hook
-  const { linkAccount } = useMonoAccountLinking();
+  // const { linkAccount } = useMonoAccountLinking();
 
+  /*
   // Check and create Mono customer if needed
   useEffect(() => {
     const setupMonoCustomer = async () => {
-      if (!session?.user?.id) {
-        setIsLoadingCustomer(false);
-        return;
-      }
-
-      try {
-        setIsLoadingCustomer(true);
-
-        // 1. Check if customer ID exists in profile
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('mono_customer_id, first_name, last_name, email')
-          .eq('id', session.user.id)
-          .single();
-
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
-          setIsLoadingCustomer(false);
-          return;
-        }
-
-        // 2. If customer ID exists and is not null/empty, use it
-        if (profile?.mono_customer_id && profile.mono_customer_id.trim() !== '') {
-          setMonoCustomerId(profile.mono_customer_id);
-          setIsLoadingCustomer(false);
-          return;
-        }
-
-        // 3. Get user location using IP geolocation
-        const locationInfo = await DeviceInfoService.getLocationInfo();
-        
-        // 4. Create new Mono customer
-        const monoSecretKey = process.env.EXPO_PUBLIC_MONO_SECRET_KEY;
-        
-        if (!monoSecretKey) {
-          console.error('Mono secret key is not configured');
-          setIsLoadingCustomer(false);
-          return;
-        }
-
-        const firstName = profile?.first_name || session.user.user_metadata?.first_name || '';
-        const lastName = profile?.last_name || session.user.user_metadata?.last_name || '';
-        const email = profile?.email || session.user.email || '';
-
-        if (!email) {
-          console.error('Cannot create Mono customer: email is required');
-          setIsLoadingCustomer(false);
-          return;
-        }
-
-        // 5. Build address from location (state/region and country)
-        const state = locationInfo.region && locationInfo.region !== 'Unknown' 
-          ? locationInfo.region 
-          : '';
-        const country = locationInfo.country && locationInfo.country !== 'Unknown'
-          ? locationInfo.country
-          : 'Nigeria'; // Default to Nigeria if location unavailable
-        
-        const addressParts = [];
-        
-        if (state) {
-          addressParts.push(state);
-        }
-        if (country) {
-          addressParts.push(country);
-        }
-        
-        const address = addressParts.length > 0 
-          ? addressParts.join(', ').toLowerCase()
-          : 'lagos, nigeria'; // Fallback address
-
-        const customerData = {
-          email: email,
-          type: 'individual',
-          last_name: lastName || '',
-          first_name: firstName || '',
-          address: address,
-          phone: '',
-        };
-
-
-        const response = await fetch('https://api.withmono.com/v2/customers', {
-          method: 'POST',
-          headers: {
-            'mono-sec-key': monoSecretKey,
-            'accept': 'application/json',
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify(customerData),
-        });
-
-        console.log('Customer data:', customerData);
-        console.log('Response:', response);
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error('Customer data:', customerData);
-          console.error('Error creating Mono :', errorData);
-          console.error('Response:', response);
-  
-          setIsLoadingCustomer(false);
-          return;
-        }
-
-        const result = await response.json();
-        const newCustomerId = result.data?.id;
-
-        if (!newCustomerId) {
-          console.error('No customer ID returned from Mono');
-          setIsLoadingCustomer(false);
-          return;
-        }
-
-        // 4. Save customer ID to profiles table
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ mono_customer_id: newCustomerId })
-          .eq('id', session.user.id);
-
-        if (updateError) {
-          console.error('Error saving Mono customer ID:', updateError);
-          // Still use the customer ID even if save fails
-        }
-
-        // 5. Update state
-        setMonoCustomerId(newCustomerId);
-      } catch (error) {
-        console.error('Error setting up Mono customer:', error);
-      } finally {
-        setIsLoadingCustomer(false);
-      }
+       // ... (Mono Customer Setup Logic commented out)
     };
 
     setupMonoCustomer();
   }, [session?.user?.id]);
+  */
 
+  /*
   const handleMonoSuccess = async (data: any) => {
-    try {
-      haptics.success();
-      const code = data.getAuthCode();
-      console.log("Access code", code);
-      
-      if (!session?.user?.id) {
-        Alert.alert('Error', 'Please log in to link your account');
-        return;
-      }
-
-      // Check if user already has 2 accounts
-      if (bankAccounts.length >= 2) {
-        haptics.error();
-        Alert.alert(
-          'Maximum Accounts Reached',
-          'You can only link a maximum of 2 bank accounts. Please remove an existing account before adding a new one.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
-      // Use the hook to link the account
-      const accountData = await linkAccount(code);
-
-      // Save account in your app
-      await addBankAccount({
-        bank_name: accountData.bankName,
-        bank_code: accountData.bankCode,
-        account_number: accountData.accountNumber,
-        account_name: accountData.accountName,
-        mono_account_id: accountData.accountId,
-        is_default: bankAccounts.length === 0,
-      });
-
-      // Refresh list
-      fetchBankAccounts?.();
-
-      Alert.alert(
-        'Success',
-        `Successfully linked ${accountData.bankName} account`,
-        [{ text: 'OK', onPress: () => {
-          if (fromDepositFlow && amount) {
-            router.replace({
-              pathname: '/deposit-flow/authorization',
-              params: {
-                amount,
-                methodTitle: 'Bank Account'
-              }
-            });
-          }
-        }}]
-      );
-    } catch (err) {
-      haptics.error();
-      console.error('Failed to link Mono account:', err);
-      Alert.alert(
-        'Error',
-        err instanceof Error ? err.message : 'Failed to link bank account. Please try again.'
-      );
-    }
+     // ... (Mono Success Logic)
   };
+  */
   
   // SECURITY: Validate Mono configuration before creating config
   const monoPublicKey = process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY || '';
-  const monoConfig = monoCustomerId && monoPublicKey ? {
+  
+  /*
+  // According to Mono README, for existing customers:
+  // data: { customer: { id: '...' } }
+  const monoConfig = monoPublicKey ? {
     publicKey: monoPublicKey,
     scope: 'auth' as const,
-    data: {
+    data: monoCustomerId ? {
       customer: { id: monoCustomerId }
-    },
+    } : undefined, // If no ID, Mono can prompt or we can pass details
     onClose: () => {
       console.log('Widget closed');
       haptics.lightImpact();
@@ -335,16 +131,7 @@ export default function LinkedAccountsScreen() {
     },
     reference: `planmoni_${session?.user?.id || 'unknown'}_${Date.now()}`,
   } : null;
-
-  // Show error if Mono is not configured
-  useEffect(() => {
-    if (!monoPublicKey) {
-      console.error('❌ EXPO_PUBLIC_MONO_PUBLIC_KEY is not set in environment variables');
-    }
-    if (!monoCustomerId && session?.user?.id) {
-      console.warn('⚠️ Mono customer ID not found - account linking may not work');
-    }
-  }, [monoPublicKey, monoCustomerId, session?.user?.id]);
+  */
 
   // const config = {
   //   selectedInstitution: {
@@ -356,42 +143,6 @@ export default function LinkedAccountsScreen() {
   // connect.init(monoConfig);
   // connect.init(config);
   
-  // const handleAddAccount = async (account: {
-  //   bankName: string;
-  //   accountNumber: string;
-  //   accountName: string;
-  // }) => {
-  //   try {
-  //     haptics.success();
-  //     const newAccount = await addBankAccount({
-  //       bank_name: account.bankName,
-  //       account_number: account.accountNumber,
-  //       account_name: account.accountName,
-  //       is_default: bankAccounts.length === 0 // Make first account default
-  //     });
-      
-  //     if (fromDepositFlow && amount) {
-  //       // Navigate to authorization screen
-  //       router.replace({
-  //         pathname: '/deposit-flow/authorization',
-  //         params: {
-  //           amount,
-  //           methodTitle: 'Bank Account'
-  //         }
-  //       });
-  //     } else {
-  //       // Just close the modal for regular flow
-  //       setShowAddAccount(false);
-  //     }
-      
-  //     return newAccount;
-  //   } catch (error) {
-  //     haptics.error();
-  //     console.error('Error adding bank account:', error);
-  //     throw error;
-  //   }
-  // };
-
   const handleMakeDefault = async (accountId: string) => {
     try {
       haptics.success();
@@ -432,31 +183,16 @@ export default function LinkedAccountsScreen() {
 
   const styles = createStyles(colors);
 
+  /*
   // Show error if Mono public key is missing (critical configuration error)
   if (!monoPublicKey) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={24} color={colors.text} />
-          </Pressable>
-          <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
-        </View>
-        <View style={styles.content}>
-          <View style={[styles.errorContainer, { backgroundColor: colors.errorLight || '#FEF2F2', padding: 20, borderRadius: 12, marginTop: 20 }]}>
-            <AlertTriangle size={24} color={colors.error || '#EF4444'} style={{ marginBottom: 12 }} />
-            <Text style={[styles.errorText, { color: colors.error || '#EF4444', fontWeight: '600', marginBottom: 8 }]}>
-              Mono Configuration Error
-            </Text>
-            <Text style={[styles.errorText, { color: colors.textSecondary, fontSize: 14 }]}>
-              EXPO_PUBLIC_MONO_PUBLIC_KEY is not set in your environment variables. Please configure it to use Mono account linking.
-            </Text>
-          </View>
-        </View>
-        <SafeFooter />
+        // ... Error UI
       </SafeAreaView>
     );
   }
+  */
 
   // Show loading if customer ID is being set up
   if (isLoadingCustomer) {
@@ -476,34 +212,17 @@ export default function LinkedAccountsScreen() {
     );
   }
 
+  /*
   // Show error if Mono config cannot be created (missing customer ID)
   if (!monoConfig) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={24} color={colors.text} />
-          </Pressable>
-          <Text style={styles.headerTitle}>Linked Bank Accounts</Text>
-        </View>
-        <View style={styles.content}>
-          <View style={[styles.errorContainer, { backgroundColor: colors.errorLight || '#FEF2F2', padding: 20, borderRadius: 12, marginTop: 20 }]}>
-            <AlertTriangle size={24} color={colors.error || '#EF4444'} style={{ marginBottom: 12 }} />
-            <Text style={[styles.errorText, { color: colors.error || '#EF4444', fontWeight: '600', marginBottom: 8 }]}>
-              Mono Customer Not Found
-            </Text>
-            <Text style={[styles.errorText, { color: colors.textSecondary, fontSize: 14 }]}>
-              Unable to set up Mono customer. Please try again or contact support.
-            </Text>
-          </View>
-        </View>
-        <SafeFooter />
-      </SafeAreaView>
+       // ... Error UI
     );
   }
+  */
 
   return (
-    <MonoProvider {...monoConfig}>
+    // <MonoProvider {...monoConfig}>
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
@@ -570,12 +289,28 @@ export default function LinkedAccountsScreen() {
                 </View>
 
                 <View style={styles.accountActions}>
-                  {fromDepositFlow && selectForPayment ? (
-                    <View style={styles.disabledPaymentNote}>
-                      <Text style={styles.disabledPaymentText}>
-                        Direct payment from linked accounts is currently unavailable
+                  {fromDepositFlow ? (
+                    <Pressable
+                      style={[styles.actionButton, styles.payButton]}
+                      onPress={() => {
+                        haptics.mediumImpact();
+                        router.replace({
+                          pathname: '/deposit-flow/authorization',
+                          params: {
+                            amount,
+                            methodId: account.id,
+                            methodTitle: `${account.bank_name} • DirectDebit`,
+                            monoAccountId: account.mono_account_id,
+                            bankName: account.bank_name,
+                            paymentType: 'mono-directdebit'
+                          }
+                        });
+                      }}
+                    >
+                      <Text style={[styles.actionButtonText, styles.payButtonText]}>
+                        Select for Payment
                       </Text>
-                    </View>
+                    </Pressable>
                   ) : (
                     <>
                       {!account.is_default && (
@@ -652,7 +387,7 @@ export default function LinkedAccountsScreen() {
       
       <SafeFooter />
     </SafeAreaView>
-    </MonoProvider>
+    // </MonoProvider>
   );
 }
 

@@ -400,6 +400,18 @@ async function handleMandateActivated(data: any) {
       console.error('❌ Error updating mandate status:', updateError);
     } else {
       console.log(`✅ Mandate ${mandateId} activated successfully`);
+      
+      // SYNC: Update the user's primary mandate_id in profiles for quick UI access
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ mandate_id: monoMandateId })
+        .eq('id', userId);
+        
+      if (profileError) {
+        console.error('❌ Error syncing mandate_id to profile:', profileError);
+      } else {
+        console.log(`✅ Profile ${userId} synced with mandate_id ${monoMandateId}`);
+      }
     }
   } catch (error) {
     console.error('❌ Error handling mandate activation:', error);

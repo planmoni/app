@@ -79,6 +79,16 @@ export default function PaymentMethodsScreen() {
     });
   };
 
+  const handleAddMono = () => {
+    haptics.mediumImpact();
+    router.push({
+      pathname: '/deposit-flow/amount',
+      params: {
+        newMethodType: 'mono'
+      }
+    });
+  };
+
   const handleMonoDirectDebit = (accountId: string, monoAccountId: string) => {
     haptics.mediumImpact();
     const account = bankAccounts.find(acc => acc.id === accountId);
@@ -285,6 +295,22 @@ export default function PaymentMethodsScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Choose a new payment method</Text>
                 
+                <Pressable 
+                  style={styles.newMethodButton}
+                  onPress={handleAddMono}
+                >
+                  <View style={styles.methodLeft}>
+                    <View style={styles.methodIconContainer}>
+                      <Building2 size={24} color={colors.primary} />
+                    </View>
+                    <View style={styles.methodInfo}>
+                      <Text style={styles.methodTitle}>Direct Bank Pay (Mono)</Text>
+                      <Text style={styles.methodSubtitle}>Pay directly from your bank account</Text>
+                    </View>
+                  </View>
+                  <ChevronRight size={20} color={colors.textTertiary} />
+                </Pressable>
+
                 <Pressable 
                   style={styles.newMethodButton}
                   onPress={handleAddCard}

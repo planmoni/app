@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, ArrowRight } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Building2 } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -32,6 +32,11 @@ export default function AddFundsScreen() {
   const handleCards = () => {
     haptics.mediumImpact();
     router.push('/paystack-payment');
+  };
+
+  const handleMono = () => {
+    haptics.mediumImpact();
+    router.push('/deposit-flow/deposit');
   };
 
   const handleLinkBank = () => {
@@ -92,6 +97,23 @@ export default function AddFundsScreen() {
                 <Text style={styles.optionTitle}>Fund with Paystack</Text>
                 <Text style={styles.optionDescription}>
                   Add funds with Credit/Debit cards, Transfers, Direct Debit, USSD, and more. Paystack fees apply.
+                </Text>
+              </View>
+              <ArrowRight size={20} color={colors.textSecondary} />
+            </Pressable>
+
+            {/* Mono Option */}
+            <Pressable
+              style={styles.optionCard}
+              onPress={handleMono}
+            >
+              <View style={styles.optionIconContainer}>
+                <Building2 size={24} color={colors.primary} />
+              </View>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionTitle}>Direct Bank Pay (Mono)</Text>
+                <Text style={styles.optionDescription}>
+                  Pay directly from your bank account with no fees. Secure and instant.
                 </Text>
               </View>
               <ArrowRight size={20} color={colors.textSecondary} />

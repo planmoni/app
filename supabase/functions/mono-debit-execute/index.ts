@@ -66,11 +66,16 @@ serve(async (req: Request) => {
     }
 
     const body: ExecuteDebitRequest = await req.json();
+    console.log('📦 Received debit request body:', JSON.stringify(body));
+
+    // Ensure amount is a number
+    const numericAmount = typeof body.amount === 'string' ? parseFloat(body.amount.replace(/,/g, '')) : body.amount;
 
     // Validate required fields
-    if (!body.mandateId || !body.amount || body.amount <= 0) {
+    if (!body.mandateId || !numericAmount || numericAmount <= 0) {
+      console.error('❌ Missing required fields in body:', body, 'Parsed Amount:', numericAmount);
       return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
+        JSON.stringify({ error: 'Missing required fields or invalid amount' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -84,28 +89,36 @@ serve(async (req: Request) => {
       .single();
 
     if (mandateError || !mandate) {
+      console.error('❌ Mandate lookup error:', mandateError, 'for ID:', body.mandateId);
       return new Response(
         JSON.stringify({ error: 'Mandate not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log('🔍 Found mandate:', JSON.stringify(mandate));
+
     if (mandate.status !== 'active') {
+      console.warn('⚠️ Mandate is not active. Status:', mandate.status);
       return new Response(
         JSON.stringify({ error: `Mandate is not active. Current status: ${mandate.status}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (!mandate.mono_reference) {
+    if (!mandate.mono_reference && !mandate.mono_mandate_id) {
+      console.error('❌ Missing mono_reference and mono_mandate_id in mandate record');
       return new Response(
         JSON.stringify({ error: 'Mandate reference not found' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // Use mono_mandate_id if available, otherwise fallback to mono_reference
+    const monoMandateRef = mandate.mono_mandate_id || mandate.mono_reference;
+
     // Convert amount to kobo
-    const amountInKobo = Math.round(body.amount * 100);
+    const amountInKobo = Math.round(numericAmount * 100);
 
     // Generate unique reference if not provided
     const reference = body.reference || `debit_${user.id}_${mandate.id}_${Date.now()}`;
@@ -120,7 +133,7 @@ serve(async (req: Request) => {
     const isKYCLevel0 = !kycData?.kyc_tier || kycData.kyc_tier === 0;
     const SINGLE_TRANSACTION_LIMIT = 50000; // ₦50,000
 
-    if (isKYCLevel0 && body.amount > SINGLE_TRANSACTION_LIMIT) {
+    if (isKYCLevel0 && numericAmount > SINGLE_TRANSACTION_LIMIT) {
       return new Response(
         JSON.stringify({ 
           error: `Amount exceeds KYC Level 0 limit of ₦${SINGLE_TRANSACTION_LIMIT.toLocaleString()}. Please complete KYC verification.` 
@@ -131,8 +144,8 @@ serve(async (req: Request) => {
 
     console.log('🚀 Executing Mono debit:', {
       mandateId: body.mandateId,
-      mandateReference: mandate.mono_reference,
-      amount: body.amount,
+      mandateReference: monoMandateRef,
+      amount: numericAmount,
       amountInKobo,
       reference,
     });
@@ -140,8 +153,8 @@ serve(async (req: Request) => {
     // Execute debit with Mono
     const debitPayload = {
       amount: amountInKobo,
-      mandate: mandate.mono_reference, // Use mandate reference, not ID
-      description: body.description || `DirectDebit: ₦${body.amount}`,
+      mandate: monoMandateRef, // Use mandate ID/reference
+      description: body.description || `DirectDebit: ₦${numericAmount}`,
       reference: reference,
       metadata: {
         user_id: user.id,
@@ -191,11 +204,11 @@ serve(async (req: Request) => {
       .insert({
         user_id: user.id,
         type: 'deposit',
-        amount: body.amount,
+        amount: numericAmount,
         status: 'pending', // Will be updated by webhook when settled
         source: 'mono_directdebit',
         destination: 'wallet',
-        description: body.description || `Mono DirectDebit: ₦${body.amount}`,
+        description: body.description || `Mono DirectDebit: ₦${numericAmount}`,
         reference: reference,
         metadata: {
           mono_debit_id: debitId,
@@ -218,7 +231,7 @@ serve(async (req: Request) => {
       debitId,
       status: debitStatus,
       reference,
-      amount: body.amount,
+      amount: numericAmount,
       settlementDate,
     });
 
@@ -229,7 +242,7 @@ serve(async (req: Request) => {
           debit_id: debitId,
           status: debitStatus,
           reference: reference,
-          amount: body.amount,
+          amount: numericAmount,
           mandate_id: body.mandateId,
           settlement_date: settlementDate,
           transaction_id: transaction?.id,

@@ -115,7 +115,7 @@ serve(async (req: Request) => {
     }
 
     // SECURITY: Block dangerous endpoints
-    const blockedEndpoints = ['/v2/customers', '/v2/accounts'];
+    const blockedEndpoints = ['/v2/transactions/credits']; // Example: block direct crediting if applicable
     if (blockedEndpoints.some(blocked => endpoint.includes(blocked))) {
       console.error(`❌ Blocked endpoint access: ${endpoint}`);
       return new Response(

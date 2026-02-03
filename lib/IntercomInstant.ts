@@ -1,5 +1,15 @@
 import { Platform } from 'react-native';
-import Intercom from '@intercom/intercom-react-native';
+
+// Lazy load Intercom to prevent crashes if native module is missing
+let Intercom: any = null;
+
+if (Platform.OS === 'ios' || Platform.OS === 'android') {
+  try {
+    Intercom = require('@intercom/intercom-react-native').default;
+  } catch (error) {
+    console.warn('[IntercomInstant] Native module unavailable, continuing without it.');
+  }
+}
 
 // Global state for instant Intercom access
 let isIntercomAuthenticated = false;

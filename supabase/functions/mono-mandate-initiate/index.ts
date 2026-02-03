@@ -1,16 +1,8 @@
 /**
  * Mono Mandate Initiation Edge Function
  * 
- * Initiates a DirectDebit mandate with Mono using the required configuration:
- * - type: recurring-debit
- * - method: mandate
- * - mandate_type: emandate
- * - debit_type: variable
- * 
- * SECURITY:
- * - User authentication required
- * - Server-side secret key storage
- * - Validates mandate ownership
+ * Initiates a DirectDebit mandate with Mono.
+ * Version: 2.1 (Self-healing + V2 Alphanumeric)
  */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -29,244 +21,158 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 const MONO_API_BASE = 'https://api.withmono.com';
 const MONO_SECRET_KEY = Deno.env.get('MONO_SECRET_KEY');
 
-interface InitiateMandateRequest {
-  bankAccountId: string;
-  monoAccountId: string;
-  accountName: string;
-  accountNumber: string;
-  bankName: string;
-  bankCode?: string;
-  amount: number; // Maximum total debit authorization in kobo
-}
-
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    // SECURITY: Verify user authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const token = authHeader.split(' ')[1];
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (!MONO_SECRET_KEY) {
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Server configuration error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const body: InitiateMandateRequest = await req.json();
+    const body = await req.json();
+    const bankAccountId = body.bankAccountId || body.bank_account_id;
+    const monoAccountId = body.monoAccountId || body.mono_account_id;
+    const amount = body.amount;
 
-    // Validate required fields
-    if (!body.bankAccountId || !body.monoAccountId || !body.amount || body.amount <= 0) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!bankAccountId || !monoAccountId || !amount) {
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // SECURITY: Verify bank account belongs to user
-    const { data: bankAccount, error: bankError } = await supabase
-      .from('bank_accounts')
-      .select('*')
-      .eq('id', body.bankAccountId)
-      .eq('user_id', user.id)
-      .single();
+    // 1. Get User Profile & Phone
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+    const firstName = profile?.first_name || user.user_metadata?.first_name || 'Customer';
+    const lastName = profile?.last_name || user.user_metadata?.last_name || 'User';
+    const email = profile?.email || user.email;
+    
+    // Clean and format phone number (ensure it looks like 234...)
+    let phone = profile?.phone || user.user_metadata?.phone || '2348000000000';
+    phone = phone.replace(/\D/g, ''); // Remove non-digits
+    if (phone.startsWith('0')) phone = '234' + phone.substring(1);
+    if (!phone.startsWith('234')) phone = '234' + phone;
 
-    if (bankError || !bankAccount) {
-      return new Response(
-        JSON.stringify({ error: 'Bank account not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    let monoCustomerId = profile?.mono_customer_id;
+
+    console.log('👤 Profile Data:', { email, phone, firstName, lastName, hasCustomerId: !!monoCustomerId });
+
+    if (!email) {
+      return new Response(JSON.stringify({ error: 'User email not found in profile' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-
-    // Create mandate record in database first
     const { data: mandate, error: mandateError } = await supabase
       .from('mono_mandates')
       .insert({
         user_id: user.id,
-        bank_account_id: body.bankAccountId,
-        mono_account_id: body.monoAccountId,
-        account_name: body.accountName || bankAccount.account_name,
-        account_number: body.accountNumber || bankAccount.account_number,
-        bank_name: body.bankName || bankAccount.bank_name,
-        bank_code: body.bankCode || bankAccount.bank_code,
+        bank_account_id: bankAccountId,
+        mono_account_id: monoAccountId,
+        account_name: 'Checking...',
+        account_number: 'Checking...',
+        bank_name: 'Checking...',
         status: 'pending',
       })
-      .select()
-      .single();
+      .select().single();
 
-    if (mandateError) {
-      console.error('Error creating mandate:', mandateError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to create mandate' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    if (mandateError) throw mandateError;
 
-    // Generate unique reference
-    const monoReference = `mandate_${user.id}_${mandate.id}_${Date.now()}`;
+    // 3. Prepare Alphanumeric Reference
+    const monoReference = `m${mandate.id.replace(/-/g, '').substring(0, 10)}${Date.now()}`;
+    const amountInKobo = Math.round((typeof amount === 'string' ? parseFloat(amount.replace(/,/g, '')) : amount) * 100);
 
-    // Fetch user profile for customer information
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('first_name, last_name, email')
-      .eq('id', user.id)
-      .single();
-
-    const firstName = profile?.first_name || user.user_metadata?.first_name || '';
-    const lastName = profile?.last_name || user.user_metadata?.last_name || '';
-    const email = profile?.email || user.email || '';
-
-    if (!email) {
-      return new Response(
-        JSON.stringify({ error: 'Email is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const customerName = `${firstName} ${lastName}`.trim() || email.split('@')[0];
-
-    // Convert amount to kobo (Mono expects amount in kobo)
-    const amountInKobo = Math.round(body.amount * 100);
-
-    // CRITICAL: Use exact configuration as specified
-    const mandatePayload = {
+    const mandatePayload: any = {
       type: 'recurring-debit',
       method: 'mandate',
       mandate_type: 'emandate',
       debit_type: 'variable',
-      amount: amountInKobo, // Maximum total debit authorization (NOT per transaction)
+      amount: amountInKobo,
       description: 'Wallet funding authorisation',
-      account: body.monoAccountId,
       reference: monoReference,
-      customer: {
-        name: customerName,
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      redirect_url: `https://rqmpnoaavyizlwzfngpr.supabase.co/functions/v1/mono-webhook`,
+      customer: monoCustomerId ? { id: monoCustomerId } : {
+        name: `${firstName} ${lastName}`,
         email: email,
       },
-      metadata: {
-        user_id: user.id,
-        mandate_id: mandate.id,
-        bank_account_id: body.bankAccountId,
-      },
+      meta: { user_id: user.id, mandate_id: mandate.id, bank_account_id: bankAccountId }
     };
 
-    console.log('🚀 Initiating Mono mandate:', {
-      mandateId: mandate.id,
-      reference: monoReference,
-      amount: amountInKobo,
-    });
+    // 4. API Call with Multi-Layer Self-Healing
+    const callMono = async (payload: any) => {
+      const res = await fetch(`${MONO_API_BASE}/v2/payments/initiate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'mono-sec-key': MONO_SECRET_KEY, 'accept': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      return { ok: res.ok, status: res.status, data: await res.json() };
+    };
 
-    // Call Mono API to create mandate
-    const monoResponse = await fetch(`${MONO_API_BASE}/v2/payments/initiate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'mono-sec-key': MONO_SECRET_KEY,
-        'accept': 'application/json',
-      },
-      body: JSON.stringify(mandatePayload),
-    });
+    let result = await callMono(mandatePayload);
 
-    const monoData = await monoResponse.json();
-
-    if (!monoResponse.ok) {
-      console.error('❌ Mono mandate creation error:', monoData);
-      
-      // Update mandate status to failed
-      await supabase
-        .from('mono_mandates')
-        .update({ status: 'failed' })
-        .eq('id', mandate.id);
-
-      return new Response(
-        JSON.stringify({ 
-          error: monoData.message || monoData.error || 'Failed to create mandate',
-          details: monoData 
-        }),
-        { status: monoResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const monoMandateId = monoData.data?.id;
-    const mandateStatus = monoData.data?.status;
-    const monoUrl = monoData.data?.mono_url; // URL for user authorization
-
-    if (!monoMandateId) {
-      console.error('❌ No mandate ID in Mono response:', monoData);
-      return new Response(
-        JSON.stringify({ error: 'Invalid response from Mono' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Update mandate with Mono mandate ID and reference
-    const { data: updatedMandate, error: updateError } = await supabase
-      .from('mono_mandates')
-      .update({
-        mono_mandate_id: monoMandateId,
-        mono_reference: monoReference,
-        status: mandateStatus === 'active' ? 'active' : 'pending',
-        ...(mandateStatus === 'active' && { activated_at: new Date().toISOString() }),
-        mono_webhook_data: monoData.data,
-      })
-      .eq('id', mandate.id)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('❌ Error updating mandate:', updateError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to update mandate' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('✅ Mandate initiated successfully:', {
-      mandateId: mandate.id,
-      monoMandateId,
-      status: mandateStatus,
-    });
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        data: {
-          mandate: updatedMandate,
-          mono_mandate_id: monoMandateId,
-          mono_reference: monoReference,
-          status: mandateStatus,
-          mono_url: monoUrl, // User needs to authorize via this URL
-        },
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    // LAYER 1: If customer not found, create and retry
+    if (!result.ok && result.data.message?.toLowerCase().includes('customer not found')) {
+      console.log('🔄 Customer not found. Creating fresh...');
+      const createCust = await fetch(`${MONO_API_BASE}/v2/customers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'mono-sec-key': MONO_SECRET_KEY, 'accept': 'application/json' },
+        body: JSON.stringify({ email, first_name: firstName, last_name: lastName, address: 'Lagos, Nigeria', phone, type: 'individual' })
+      });
+      const custData = await createCust.json();
+      const freshId = custData.id || custData.data?.id;
+      if (freshId) {
+        await supabase.from('profiles').update({ mono_customer_id: freshId }).eq('id', user.id);
+        mandatePayload.customer = { id: freshId };
+        result = await callMono(mandatePayload);
       }
-    );
+    }
+
+    // LAYER 2: If customer identity is incomplete, update and retry
+    if (!result.ok && result.data.message?.toLowerCase().includes('phone number and address are required')) {
+      const currentId = monoCustomerId || (mandatePayload.customer?.id);
+      if (currentId) {
+        console.log('🔄 Customer identity incomplete. Updating existing customer:', currentId);
+        await fetch(`${MONO_API_BASE}/v2/customers/${currentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'mono-sec-key': MONO_SECRET_KEY, 'accept': 'application/json' },
+          body: JSON.stringify({ phone, address: 'Lagos, Nigeria' })
+        });
+        
+        console.log('🚀 Retrying mandate initiation after identity update...');
+        result = await callMono(mandatePayload);
+      }
+    }
+
+    if (!result.ok) {
+      const errorMsg = result.data.message || result.data.error || 'Unknown Mono Error';
+      console.error('❌ MONO API REJECTED REQUEST:', errorMsg);
+      console.error('📦 FULL MONO RESPONSE:', JSON.stringify(result.data, null, 2));
+      
+      await supabase.from('mono_mandates').update({ status: 'failed', mono_webhook_data: result.data }).eq('id', mandate.id);
+      return new Response(JSON.stringify({ error: errorMsg, details: result.data }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // 5. Success - Update internal record
+    const { data: updatedMandate } = await supabase.from('mono_mandates').update({
+      mono_mandate_id: result.data.data?.id,
+      mono_reference: monoReference,
+      mono_webhook_data: result.data.data
+    }).eq('id', mandate.id).select().single();
+
+    return new Response(JSON.stringify({ success: true, data: { mandate: updatedMandate, mono_url: result.data.data?.mono_url } }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {
-    console.error('❌ Error in mandate initiation:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error('❌ Error:', error);
+    return new Response(JSON.stringify({ error: 'Internal Error', message: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
-

@@ -48,7 +48,7 @@ export default function AmountScreen() {
             fromDepositFlow: 'true'
           }
         });
-      } else if (newMethodType === 'bank-account') {
+      } else if (newMethodType === 'bank-account' || newMethodType === 'mono') {
         router.push({
           pathname: '/linked-accounts',
           params: {

@@ -1,7 +1,23 @@
 import { Platform } from 'react-native';
-import Intercom, { 
-  Visibility
-} from '@intercom/intercom-react-native';
+
+// Lazy load Intercom to prevent crashes if native module is missing
+let Intercom: any = null;
+let Visibility: { VISIBLE: string; GONE: string } = {
+  VISIBLE: 'VISIBLE',
+  GONE: 'GONE',
+};
+
+if (Platform.OS === 'ios' || Platform.OS === 'android') {
+  try {
+    const intercomModule = require('@intercom/intercom-react-native');
+    Intercom = intercomModule.default;
+    if (intercomModule.Visibility) {
+      Visibility = intercomModule.Visibility;
+    }
+  } catch (error) {
+    console.warn('[IntercomService] Native module unavailable, continuing without it.');
+  }
+}
 
 // Define types based on what's available
 interface IntercomUserAttributes {
@@ -35,6 +51,11 @@ class IntercomService {
       return;
     }
 
+    if (!Intercom) {
+      console.warn('Intercom native module not found');
+      return;
+    }
+
     try {
       if (Platform.OS === 'web') {
         console.log('Intercom not supported on web');
@@ -56,6 +77,8 @@ class IntercomService {
    * Login unidentified user (for guests)
    */
   async loginUnidentifiedUser(): Promise<void> {
+    if (!Intercom) return;
+
     try {
       if (!this.isInitialized) {
         await this.initialize();
@@ -72,6 +95,8 @@ class IntercomService {
    * Login user with attributes
    */
   async loginUser(userId: string, email: string, name?: string, company?: string): Promise<void> {
+    if (!Intercom) return;
+
     try {
       if (!this.isInitialized) {
         await this.initialize();
@@ -95,6 +120,8 @@ class IntercomService {
    * Update user attributes
    */
   async updateUser(attributes: Partial<IntercomUserAttributes>): Promise<void> {
+    if (!Intercom) return;
+
     try {
       if (!this.isInitialized) {
         console.warn('Intercom not initialized, cannot update user');
@@ -112,6 +139,8 @@ class IntercomService {
    * Logout user
    */
   async logout(): Promise<void> {
+    if (!Intercom) return;
+
     try {
       if (!this.isInitialized) {
         console.warn('Intercom not initialized, cannot logout');
@@ -129,6 +158,8 @@ class IntercomService {
    * Show Intercom messenger
    */
   async present(): Promise<void> {
+    if (!Intercom) return;
+
     try {
       if (!this.isInitialized) {
         console.warn('Intercom not initialized, cannot present messenger');
@@ -145,7 +176,9 @@ class IntercomService {
   /**
    * Set launcher visibility
    */
-  async setLauncherVisibility(visibility: Visibility): Promise<void> {
+  async setLauncherVisibility(visibility: typeof Visibility.VISIBLE | typeof Visibility.GONE): Promise<void> {
+    if (!Intercom) return;
+
     try {
       if (!this.isInitialized) {
         console.warn('Intercom not initialized, cannot set launcher visibility');
@@ -162,7 +195,9 @@ class IntercomService {
   /**
    * Set in-app message visibility
    */
-  async setInAppMessageVisibility(visibility: Visibility): Promise<void> {
+  async setInAppMessageVisibility(visibility: typeof Visibility.VISIBLE | typeof Visibility.GONE): Promise<void> {
+    if (!Intercom) return;
+
     try {
       if (!this.isInitialized) {
         console.warn('Intercom not initialized, cannot set in-app message visibility');
@@ -180,7 +215,7 @@ class IntercomService {
    * Check if Intercom is supported on current platform
    */
   isSupported(): boolean {
-    return Platform.OS !== 'web';
+    return Platform.OS !== 'web' && !!Intercom;
   }
 
   /**
