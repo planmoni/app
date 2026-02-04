@@ -10,92 +10,26 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import FloatingButton from '@/components/FloatingButton';
 import SafeFooter from '@/components/SafeFooter';
-import * as WebBrowser from 'expo-web-browser';
+import { MonoProvider, useMonoConnect } from '@mono.co/connect-react-native'; // SDK
 import { supabase } from '@/lib/supabase';
-import * as Linking from 'expo-linking';
 
-export default function DepositScreen() {
+function DepositContent({ hasMandate, onLinkSuccess, isLinking, monoCustomerId }: { hasMandate: boolean; onLinkSuccess: () => void; isLinking: boolean; monoCustomerId?: string }) {
   const { colors } = useTheme();
   const { session } = useAuth();
   const { refreshWallet } = useBalance();
   const haptics = useHaptics();
+  const { init } = useMonoConnect();
   
-  const [hasMandate, setHasMandate] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [amount, setAmount] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const checkMandate = useCallback(async () => {
-    if (!session?.user?.id) return;
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('mandate_id')
-        .eq('id', session.user.id)
-        .single();
-        
-      if (data?.mandate_id) {
-        setHasMandate(true);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLoading(false);
+  const handleLinkBank = () => {
+    if (!monoCustomerId) {
+      Alert.alert("Please Wait", "Preparing your secure connection...");
+      return;
     }
-  }, [session]);
-
-  useEffect(() => {
-    checkMandate();
-  }, [checkMandate]);
-
-  // Handle Deep Link Return
-  useEffect(() => {
-    const handleDeepLink = (event: { url: string }) => {
-      if (event.url.includes('mandate-status')) {
-        console.log("Deep link received:", event.url);
-        // Close browser and proceed
-        WebBrowser.dismissBrowser();
-        haptics.success();
-        Alert.alert('Success', 'Bank linking initiated! Please wait a few moments for verification.');
-        checkMandate();
-      }
-    };
-
-    const subscription = Linking.addEventListener('url', handleDeepLink);
-    return () => subscription.remove();
-  }, []);
-
-  const handleLinkBank = async () => {
-    if (!session?.user?.id) return;
-    
-    try {
-      setIsProcessing(true);
-      haptics.mediumImpact();
-
-      const email = session.user.email || '';
-      const firstName = session.user.user_metadata?.first_name || '';
-      const lastName = session.user.user_metadata?.last_name || '';
-      const fullName = `${firstName} ${lastName}`.trim() || 'Planmoni User';
-
-      // 1. Get Mandate Setup URL from Backend
-      const { mono_url } = await PaymentService.initiateMandateSetup(
-        session.user.id,
-        email,
-        fullName
-      );
-
-      if (mono_url) {
-        // 2. Open external system browser (Best for app switching/bank transfers)
-        await Linking.openURL(mono_url);
-        // Note: Success is handled by the Linking listener above when Mono redirects to planmoni://
-      }
-    } catch (error: any) {
-      console.error("Linking Error:", error);
-      haptics.error();
-      Alert.alert('Linking Failed', error.message || 'Failed to initiate bank linking.');
-    } finally {
-      setIsProcessing(false);
-    }
+    haptics.mediumImpact();
+    init(); // Open SDK Widget
   };
 
   const handlePayNow = async () => {
@@ -107,7 +41,6 @@ export default function DepositScreen() {
     try {
       setIsProcessing(true);
       haptics.mediumImpact();
-
       const numericAmount = parseFloat(amount.replace(/,/g, ''));
       
       await PaymentService.chargeSavedBank(
@@ -118,67 +51,38 @@ export default function DepositScreen() {
 
       haptics.success();
       refreshWallet();
-      
-      Alert.alert('Success', 'Deposit successful!', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)') }
-      ]);
+      setIsProcessing(false);
+      Alert.alert('Success', 'Deposit successful!', [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]);
 
     } catch (error: any) {
       haptics.error();
-      if (error.message.includes('Insufficient funds')) {
-        Alert.alert('Failed', 'Insufficient funds in your linked bank account.');
-      } else {
-        Alert.alert(
-          'Charge Failed', 
-          'We could not charge your saved bank. Please try linking it again.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Re-link Bank', onPress: handleLinkBank }
-          ]
-        );
-      }
-    } finally {
       setIsProcessing(false);
+      Alert.alert('Charge Failed', error.message || 'Could not charge your saved bank.');
     }
   };
 
   const styles = createStyles(colors);
 
-  if (isLoading) {
+  if (isLinking) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      </SafeAreaView>
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.text, { marginTop: 16 }]}>Finalizing bank link...</Text>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Direct Deposit</Text>
-      </View>
-
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
+    <>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.iconContainer}>
             <Building2 size={48} color={colors.primary} />
           </View>
           
-          <Text style={styles.title}>
-            {hasMandate ? 'Instant Deposit' : 'Link Bank for Deposits'}
-          </Text>
+          <Text style={styles.title}>{hasMandate ? 'Instant Deposit' : 'Link Bank for Deposits'}</Text>
           <Text style={styles.subtitle}>
-            {hasMandate 
-              ? 'Enter amount to charge your saved bank.' 
-              : 'Link your bank once, deposit instantly forever.'}
+            {hasMandate ? 'Enter amount to charge your saved bank.' : 'Link your bank once, deposit instantly forever.'}
           </Text>
 
           {hasMandate ? (
@@ -210,141 +114,142 @@ export default function DepositScreen() {
           <View style={styles.infoBox}>
             <ShieldCheck size={20} color={colors.textSecondary} />
             <Text style={styles.infoText}>
-              {hasMandate 
-                ? 'Secured by Mono Direct Debit.' 
-                : 'We use Mono to securely link your account.'}
+              {hasMandate ? 'Secured by Mono Direct Debit.' : 'We use Mono to securely link your account.'}
             </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
       <FloatingButton 
-        title={
-          isProcessing 
-            ? "Processing..." 
-            : hasMandate 
-              ? "Pay Now" 
-              : "Link Bank Account"
-        }
+        title={isProcessing ? "Processing..." : hasMandate ? "Pay Now" : "Link Bank Account"}
         onPress={hasMandate ? handlePayNow : handleLinkBank}
         disabled={isProcessing || (hasMandate && !amount)}
       />
+    </>
+  );
+}
+
+export default function DepositScreen() {
+  const { colors } = useTheme();
+  const { session } = useAuth();
+  
+  // DEBUG: Check which key is actually loaded
+  console.log("[MONO DEBUG] Public Key:", process.env.EXPO_PUBLIC_MONO_PUBLIC_KEY);
+  
+  const [hasMandate, setHasMandate] = useState(false);
+  const [monoCustomerId, setMonoCustomerId] = useState<string | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLinking, setIsLinking] = useState(false);
+
+  const initializeUser = useCallback(async () => {
+    if (!session?.user?.id) return;
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('mandate_id, mono_customer_id')
+        .eq('id', session.user.id)
+        .single();
+        
+      if (data?.mandate_id) setHasMandate(true);
       
-      <SafeFooter />
-    </SafeAreaView>
+      const prep = await PaymentService.prepareMonoUser(
+          session.user.id,
+          session.user.email || "",
+          `${session.user.user_metadata.first_name} ${session.user.user_metadata.last_name}`
+      );
+      
+      if (prep.customer_id) setMonoCustomerId(prep.customer_id);
+
+    } catch (e) {
+      console.error("Init Error:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    initializeUser();
+  }, [initializeUser]);
+
+  const handleMonoSuccess = async (data: any) => {
+    const code = data.code; 
+    if (code && session?.user?.id) {
+      try {
+        setIsLinking(true);
+        await PaymentService.exchangeMandate(code, session.user.id);
+        setHasMandate(true);
+        Alert.alert('Success', 'Bank linked successfully!');
+      } catch (error: any) {
+        Alert.alert('Linking Failed', error.message);
+      } finally {
+        setIsLinking(false);
+      }
+    }
+  };
+
+  const monoConfig = {
+    publicKey: "live_pk_k5pombyvwunpk5kj5q4r",
+    scope: "auth", 
+    data: {
+      type: 'recurring-debit', 
+      period: 'variable',      
+      amount: 0,
+      ...(monoCustomerId ? { customer: { id: monoCustomerId } } : {})
+    },
+    onSuccess: handleMonoSuccess
+  };
+
+  const styles = createStyles(colors);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <MonoProvider {...monoConfig}>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Direct Deposit</Text>
+        </View>
+
+        <DepositContent 
+          hasMandate={hasMandate} 
+          onLinkSuccess={() => setHasMandate(true)}
+          isLinking={isLinking}
+          monoCustomerId={monoCustomerId}
+        />
+        <SafeFooter />
+      </SafeAreaView>
+    </MonoProvider>
   );
 }
 
 const createStyles = (colors: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundSecondary,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  content: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.backgroundTertiary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    marginBottom: 24,
-    width: '100%',
-  },
-  currencySymbol: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: colors.text,
-    marginRight: 8,
-  },
-  input: {
-    flex: 1,
-    fontSize: 24,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.backgroundTertiary,
-    padding: 16,
-    borderRadius: 12,
-    width: '100%',
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  benefitList: {
-    width: '100%',
-    gap: 16,
-    marginBottom: 32,
-  },
-  benefitItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.card,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  benefitText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.text,
-  }
+  container: { flex: 1, backgroundColor: colors.backgroundSecondary },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  backButton: { padding: 8, marginRight: 8 },
+  headerTitle: { fontSize: 18, fontWeight: '600', color: colors.text },
+  content: { padding: 24, alignItems: 'center' },
+  iconContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.backgroundTertiary, justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
+  title: { fontSize: 24, fontWeight: '700', color: colors.text, textAlign: 'center', marginBottom: 8 },
+  subtitle: { fontSize: 16, color: colors.textSecondary, textAlign: 'center', marginBottom: 32 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 20, paddingVertical: 16, marginBottom: 24, width: '100%' },
+  currencySymbol: { fontSize: 24, fontWeight: '600', color: colors.text, marginRight: 8 },
+  input: { flex: 1, fontSize: 24, fontWeight: '600', color: colors.text },
+  infoBox: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.backgroundTertiary, padding: 16, borderRadius: 12, width: '100%' },
+  infoText: { flex: 1, fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
+  text: { color: colors.text, fontSize: 16 },
+  benefitList: { width: '100%', gap: 16, marginBottom: 32 },
+  benefitItem: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+  benefitText: { fontSize: 16, fontWeight: '500', color: colors.text }
 });

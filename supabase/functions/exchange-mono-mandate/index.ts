@@ -11,49 +11,48 @@ serve(async (req) => {
 
   try {
     const { code, userId } = await req.json()
-    
-    // 1. THE CRITICAL FIX: Use 'payments/initiate'
-    const response = await fetch('https://api.withmono.com/v1/payments/initiate', {
+    const MONO_SECRET_KEY = Deno.env.get('MONO_SECRET_KEY')
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    if (!code || !userId) throw new Error("Missing code or userId")
+
+    console.log(`[DEBUG] Exchanging V2 Code for user ${userId}...`)
+
+    // Strictly V2 Account Auth
+    const v2Res = await fetch('https://api.withmono.com/v2/accounts/auth', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'mono-sec-key': Deno.env.get('MONO_SECRET_KEY')!,
+        'mono-sec-key': MONO_SECRET_KEY!,
       },
-      body: JSON.stringify({ 
-        code, // The code from the SDK
-        type: 'recurring-debit' 
-      }),
+      body: JSON.stringify({ code }),
     })
 
-    const data = await response.json()
+    const data = await v2Res.json()
 
-    if (!response.ok) {
-       console.error("Mono API Error:", data)
+    if (!v2Res.ok) {
+       console.error("[ERROR] V2 Auth Failed:", data)
        return new Response(
-         JSON.stringify({ error: `Mono Auth Failed: ${data.message || 'Unknown'}`, details: data }),
+         JSON.stringify({ error: `V2 Mono Auth Failed: ${data.message || 'Not Found'}`, details: data }),
          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
        );
     }
 
-    // 2. Save Mandate ID
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+    const accountId = data.id || data.data?.id;
 
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ mandate_id: data.id })
-      .eq('id', userId)
+    if (!accountId) throw new Error("No Account ID returned from Mono V2");
 
-    if (updateError) throw updateError;
+    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
+    await supabase.from('profiles').update({ mandate_id: accountId }).eq('id', userId)
 
     return new Response(
-      JSON.stringify({ success: true, mandate_id: data.id }),
+      JSON.stringify({ success: true, mandate_id: accountId }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error: any) {
+    console.error("[ERROR] V2 Exchange Exception:", error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

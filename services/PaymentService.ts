@@ -74,5 +74,15 @@ export const PaymentService = {
     if (error) throw new Error(error.message || "Failed to initiate mandate");
     if (data.error) throw new Error(data.error);
     return data;
+  },
+
+  async prepareMonoUser(userId: string, email: string, name: string) {
+    const { data, error } = await supabase.functions.invoke('prepare-mono-user', {
+      body: { userId, email, name },
+    });
+
+    if (error) throw new Error(error.message || "Failed to prepare user");
+    if (data.error) throw new Error(data.error);
+    return data; // returns { customer_id: "..." }
   }
 };
