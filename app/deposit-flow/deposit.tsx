@@ -86,17 +86,38 @@ function DepositContent({ hasMandate, onLinkSuccess, isLinking, monoCustomerId }
           </Text>
 
           {hasMandate ? (
-            <View style={styles.inputContainer}>
-              <Text style={styles.currencySymbol}>₦</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="0.00"
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="numeric"
-                value={amount}
-                onChangeText={setAmount}
-                editable={!isProcessing}
-              />
+            <View style={{ width: '100%' }}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.currencySymbol}>₦</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="0.00"
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="numeric"
+                  value={amount}
+                  onChangeText={setAmount}
+                  editable={!isProcessing}
+                />
+              </View>
+              
+              <Pressable 
+                onPress={handleLinkBank}
+                style={({ pressed }) => ({
+                  marginTop: 16,
+                  alignItems: 'center',
+                  padding: 8,
+                  opacity: pressed ? 0.7 : 1
+                })}
+                disabled={isProcessing}
+              >
+                <Text style={{ 
+                  color: colors.primary, 
+                  fontWeight: '600',
+                  fontSize: 14 
+                }}>
+                  Link a different bank
+                </Text>
+              </Pressable>
             </View>
           ) : (
             <View style={styles.benefitList}>
