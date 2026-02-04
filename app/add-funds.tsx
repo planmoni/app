@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, ArrowRight, Building2 } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Building2, Banknote } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -102,7 +102,7 @@ export default function AddFundsScreen() {
               <ArrowRight size={20} color={colors.textSecondary} />
             </Pressable>
 
-            {/* Mono Option */}
+            {/* Mono Option (Saved Bank) */}
             <Pressable
               style={styles.optionCard}
               onPress={handleMono}
@@ -114,6 +114,23 @@ export default function AddFundsScreen() {
                 <Text style={styles.optionTitle}>Direct Bank Pay (Mono)</Text>
                 <Text style={styles.optionDescription}>
                   Pay directly from your bank account with no fees. Secure and instant.
+                </Text>
+              </View>
+              <ArrowRight size={20} color={colors.textSecondary} />
+            </Pressable>
+
+            {/* Quick Deposit Option (One-Time) */}
+            <Pressable
+              style={styles.optionCard}
+              onPress={() => router.push('/deposit-flow/quick-deposit')}
+            >
+              <View style={[styles.optionIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                <Banknote size={24} color="#D97706" />
+              </View>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionTitle}>Quick Deposit</Text>
+                <Text style={styles.optionDescription}>
+                  Make a one-off secure deposit without linking your bank account.
                 </Text>
               </View>
               <ArrowRight size={20} color={colors.textSecondary} />

@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
-import { ArrowLeft, Building2, ShieldCheck, Zap } from 'lucide-react-native';
+import { ArrowLeft, Building2, ShieldCheck, Link, Banknote } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { PaymentService } from '@/services/PaymentService';
@@ -122,7 +122,7 @@ function DepositContent({ hasMandate, onLinkSuccess, isLinking, monoCustomerId }
           ) : (
             <View style={styles.benefitList}>
               <View style={styles.benefitItem}>
-                <Zap size={20} color={colors.primary} />
+                <Banknote size={20} color={colors.primary} />
                 <Text style={styles.benefitText}>Instant funding anytime</Text>
               </View>
               <View style={styles.benefitItem}>

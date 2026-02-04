@@ -84,5 +84,25 @@ export const PaymentService = {
     if (error) throw new Error(error.message || "Failed to prepare user");
     if (data.error) throw new Error(data.error);
     return data; // returns { customer_id: "..." }
+  },
+
+  async initiateInstantDeposit(amount: number, email: string, name: string, description?: string) {
+    const { data, error } = await supabase.functions.invoke('initiate-direct-pay', {
+      body: { amount, email, name, description },
+    });
+
+    if (error) throw new Error(error.message || "Failed to initiate deposit");
+    if (data.error) throw new Error(data.error);
+    return data; // { payment_link: "...", reference: "..." }
+  },
+
+  async verifyTransaction(reference: string) {
+    const { data, error } = await supabase.functions.invoke('verify-transaction', {
+      body: { reference },
+    });
+
+    if (error) throw new Error(error.message || "Verification failed");
+    if (data.error) throw new Error(data.error);
+    return data;
   }
 };
