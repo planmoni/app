@@ -106,6 +106,7 @@
     "eslint-config-expo": "~9.2.0",
     "metro": "^0.82.5",
     "react-native-svg-transformer": "^1.5.1",
+    "supabase": "^2.75.2",
     "typescript": "~5.8.3"
   },
   "private": true

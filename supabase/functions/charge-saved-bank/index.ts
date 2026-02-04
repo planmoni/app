@@ -7,9 +7,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
     const { amount, userId, description } = await req.json()
@@ -25,11 +23,11 @@ serve(async (req) => {
       throw new Error("Server configuration missing")
     }
 
-    // 1. Get Mandate ID from Profile
+    // 1. Get Mandate/Account ID AND Customer ID from Profile
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('mandate_id')
+      .select('mandate_id, mono_customer_id')
       .eq('id', userId)
       .single()
 
@@ -38,15 +36,15 @@ serve(async (req) => {
       throw new Error("No saved bank found. Please link your bank again.")
     }
 
-    const mandateId = profile.mandate_id
+    const savedId = profile.mandate_id
+    const customerId = profile.mono_customer_id
     const amountInKobo = Math.round(Number(amount) * 100)
-    // CRITICAL: Reference must be alphanumeric for Mono V2
-    const reference = `charge${userId.replace(/[^a-zA-Z0-9]/g, '')}${Date.now()}`
+    const shortRef = `tx${Date.now().toString().slice(-8)}${Math.random().toString(36).substring(2, 6)}`;
 
-    console.log(`Charging mandate ${mandateId} for ${amountInKobo} kobo...`)
+    console.log(`Charging Saved ID ${savedId} for ${amountInKobo} kobo...`)
 
-    // 2. Charge the Mandate
-    const response = await fetch(`https://api.withmono.com/v3/payments/mandates/${mandateId}/debit`, {
+    // 2. Charge using /v2/payments/initiate
+    const response = await fetch('https://api.withmono.com/v2/payments/initiate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -54,8 +52,11 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         amount: amountInKobo,
-        description: description || "Planmoni Saved Bank Charge",
-        reference: reference
+        type: "onetime-debit", 
+        description: description || "Planmoni Charge",
+        reference: shortRef,
+        account: savedId,
+        customer: { id: customerId } // Added as required
       }),
     })
 
@@ -64,25 +65,30 @@ serve(async (req) => {
     if (!response.ok) {
        console.error("Mono Charge Error:", data)
        
-       // Handle specific errors
-       const errorMessage = data.message?.toLowerCase() || "";
-       if (errorMessage.includes("insufficient") || data.code === "INSUFFICIENT_FUNDS") {
-          throw new Error("Insufficient funds in the linked account")
+       const errorMessage = data.message || "Failed to charge saved bank";
+       if (errorMessage.toLowerCase().includes("insufficient") || data.code === "INSUFFICIENT_FUNDS") {
+          return new Response(
+            JSON.stringify({ error: "Insufficient funds in the linked account", code: "INSUFFICIENT_FUNDS" }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
        }
        
-       throw new Error(data.message || "Failed to charge saved bank")
+       return new Response(
+         JSON.stringify({ error: `Charge Failed: ${errorMessage}`, details: data }),
+         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+       )
     }
 
     return new Response(
-      JSON.stringify({ success: true, transaction: data }),
+      JSON.stringify({ success: true, transaction: data, message: "Charge Initiated Successfully" }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Function Error:", error)
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
