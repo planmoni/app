@@ -1085,6 +1085,7 @@ export default function HomeScreen() {
             onSuggestionPress={handleAISuggestionPress}
           />
         )}
+        
         {/* <IntercomButton /> */}
 
         {/* KYC Tiers Test Buttons */}
@@ -1116,7 +1117,12 @@ export default function HomeScreen() {
         {/* Quick Topup Card */}
         
 
+        <ImageCarousel 
+          images={carouselImages} 
+          onImagePress={!isAuthenticated ? () => setShowWelcomeModalForUnauth(true) : undefined}
+        />
         <PendingActionsCard />
+
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
 
@@ -1135,10 +1141,7 @@ export default function HomeScreen() {
           isUserAuthenticated={isAuthenticated}
         />
 
-<ImageCarousel 
-          images={carouselImages} 
-          onImagePress={!isAuthenticated ? () => setShowWelcomeModalForUnauth(true) : undefined}
-        />
+        
 
 
               <View style={styles.bottomPadding} />
@@ -1170,6 +1173,7 @@ export default function HomeScreen() {
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
+          <CalendarCheck size={20} color={isDark ? '#fff' : '#fff'} />
           <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#fff' }]}>New Plan</Text>
         </Pressable>
         
