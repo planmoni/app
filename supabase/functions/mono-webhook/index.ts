@@ -32,7 +32,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-mono-signature, mono-signature',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, mono-webhook-secret',
 };
 
 // Initialize Supabase client with service role key (bypasses RLS for webhook processing)
@@ -51,68 +51,27 @@ const MONO_SECRET_KEY = Deno.env.get('MONO_SECRET_KEY');
 const MONO_API_BASE = 'https://api.withmono.com';
 
 /**
- * SECURITY: Verify Mono webhook signature
- * Mono uses HMAC SHA256 for webhook signatures
+ * SECURITY: Verify Mono webhook
+ * Mono sends the secret in header "mono-webhook-secret" (must match MONO_WEBHOOK_SECRET).
+ * See https://docs.mono.co/docs/webhooks
  */
-async function verifyMonoWebhookSignature(payload: string, signature: string): Promise<boolean> {
+function verifyMonoWebhookSecret(headerSecret: string | null): boolean {
   if (!MONO_WEBHOOK_SECRET) {
     console.error('❌ MONO_WEBHOOK_SECRET not configured');
     return false;
   }
-
-  if (!signature) {
-    console.error('❌ No signature provided in webhook');
+  if (!headerSecret || headerSecret.trim() === '') {
+    console.error('❌ No mono-webhook-secret in headers');
     return false;
   }
-
-  try {
-    // Mono uses HMAC SHA256
-    // Use Web Crypto API (available globally in Deno)
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(MONO_WEBHOOK_SECRET);
-    const messageData = encoder.encode(payload);
-    
-    const key = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-
-    const signatureBuffer = await crypto.subtle.sign('HMAC', key, messageData);
-    const hash = Array.from(new Uint8Array(signatureBuffer))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-
-    // Use constant-time comparison to prevent timing attacks
-    const receivedHex = signature.toLowerCase();
-    const expectedHex = hash.toLowerCase();
-
-    if (expectedHex.length !== receivedHex.length) {
-      console.error('❌ Signature length mismatch');
-      return false;
-    }
-
-    // Constant-time comparison
-    let isValid = true;
-    for (let i = 0; i < expectedHex.length; i++) {
-      if (expectedHex.charCodeAt(i) !== receivedHex.charCodeAt(i)) {
-        isValid = false;
-      }
-    }
-
-    if (!isValid) {
-      console.error('❌ Invalid webhook signature');
-      console.log('Expected:', hash);
-      console.log('Received:', signature);
-    }
-
-    return isValid;
-  } catch (error) {
-    console.error('❌ Error verifying webhook signature:', error);
-    return false;
+  // Constant-time comparison
+  const expected = MONO_WEBHOOK_SECRET;
+  if (headerSecret.length !== expected.length) return false;
+  let match = true;
+  for (let i = 0; i < expected.length; i++) {
+    if (headerSecret.charCodeAt(i) !== expected.charCodeAt(i)) match = false;
   }
+  return match;
 }
 
 /**
@@ -480,6 +439,152 @@ async function handleMandateCancelled(data: any) {
 }
 
 /**
+ * Verify one-time payment with Mono API before crediting
+ */
+async function verifyDirectPayWithMono(reference: string): Promise<{
+  success: boolean;
+  status?: string;
+  amount?: number;
+  error?: string;
+}> {
+  try {
+    if (!MONO_SECRET_KEY) {
+      return { success: false, error: 'MONO_SECRET_KEY not configured' };
+    }
+    const res = await fetch(`${MONO_API_BASE}/v2/payments/verify/${reference}`, {
+      method: 'GET',
+      headers: {
+        'mono-sec-key': MONO_SECRET_KEY,
+        'accept': 'application/json',
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { success: false, error: err.message || 'Verify failed' };
+    }
+    const data = await res.json();
+    const obj = data.data?.object || data.data;
+    return {
+      success: true,
+      status: obj?.status,
+      amount: obj?.amount,
+    };
+  } catch (e) {
+    console.error('❌ Error verifying Direct Pay:', e);
+    return { success: false, error: e instanceof Error ? e.message : 'Verify error' };
+  }
+}
+
+/**
+ * Handle Direct Pay (one-time) success: lookup by reference, credit via process_mono_deposit, update payment row
+ */
+async function handleDirectPaySuccess(data: any) {
+  try {
+    const reference = data.reference || data.object?.reference;
+    if (!reference) {
+      console.error('❌ Direct Pay success: no reference in payload');
+      return;
+    }
+    const { data: row, error: lookupError } = await supabase
+      .from('mono_directpay_payments')
+      .select('user_id, amount, fee, total_charged, status')
+      .eq('reference', reference)
+      .single();
+
+    if (lookupError || !row) {
+      console.log('⏭️ Direct Pay: no mono_directpay_payments row for reference', reference, '- skip (avoid retries)');
+      return;
+    }
+    if (row.status === 'successful') {
+      console.log('✅ Direct Pay: already processed (idempotency)', reference);
+      return;
+    }
+
+    const userId = row.user_id;
+    const amountNaira = Number(row.amount);
+    // Mono returns the total charged (deposit + fee); may be in kobo or naira depending on env
+    const totalCharged = row.total_charged != null ? Number(row.total_charged) : null;
+    const monoPaymentId = data.object?.id || data.id;
+
+    const verification = await verifyDirectPayWithMono(reference);
+    if (!verification.success) {
+      console.error('❌ Direct Pay verify failed:', verification.error);
+      return;
+    }
+    if (verification.amount != null && totalCharged != null) {
+      // Normalize Mono amount to kobo: large values (e.g. >= 10000) are kobo, else naira
+      const monoKobo =
+        verification.amount >= 10000
+          ? Math.round(verification.amount)
+          : Math.round(verification.amount * 100);
+      const expectedKobo = Math.round(totalCharged * 100);
+      if (monoKobo !== expectedKobo) {
+        console.error('❌ Direct Pay amount mismatch. Expected kobo:', expectedKobo, 'Got monoKobo:', monoKobo);
+        return;
+      }
+    }
+    // When total_charged is null (legacy row), skip amount check and still credit row.amount
+
+    const { data: result, error } = await supabase.rpc('process_mono_deposit', {
+      arg_user_id: userId,
+      arg_amount: amountNaira,
+      arg_reference: reference,
+      arg_mono_data: {
+        source: 'mono_directpay',
+        mono_payment_id: monoPaymentId,
+        mono_reference: reference,
+        processed_by: 'mono_webhook',
+        processed_at: new Date().toISOString(),
+        mono_webhook_data: data,
+      },
+    });
+
+    if (error) {
+      console.error('❌ process_mono_deposit error:', error);
+      return;
+    }
+    if (result && !result.success && !result.already_processed) {
+      console.error('❌ process_mono_deposit failed:', result);
+      return;
+    }
+
+    await supabase
+      .from('mono_directpay_payments')
+      .update({ status: 'successful', updated_at: new Date().toISOString() })
+      .eq('reference', reference);
+
+    console.log('✅ Direct Pay processed: ₦' + amountNaira + ' for user', userId);
+  } catch (err) {
+    console.error('❌ handleDirectPaySuccess:', err);
+    throw err;
+  }
+}
+
+/**
+ * Update Direct Pay payment status (failed / abandoned / cancelled)
+ */
+async function handleDirectPayStatusUpdate(data: any, status: 'failed' | 'abandoned' | 'cancelled') {
+  try {
+    const reference = data.reference || data.object?.reference;
+    if (!reference) {
+      console.log('⏭️ Direct Pay status update: no reference');
+      return;
+    }
+    const { error } = await supabase
+      .from('mono_directpay_payments')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('reference', reference);
+    if (error) {
+      console.error('❌ Failed to update mono_directpay_payments:', error);
+    } else {
+      console.log('✅ Direct Pay status updated to', status, 'for', reference);
+    }
+  } catch (err) {
+    console.error('❌ handleDirectPayStatusUpdate:', err);
+  }
+}
+
+/**
  * Handle successful DirectDebit (debit successful AND settled)
  * CRITICAL: Only credit wallet when debit is settled
  */
@@ -538,7 +643,7 @@ async function handleDebitSuccessful(data: any) {
 
     // Process the deposit (will verify with Mono API before crediting)
     // Include event ID in metadata for idempotency
-    const eventId = data.webhook_event_id || webhookData.id || webhookData.event_id;
+    const eventId = data.webhook_event_id || data.id || data.event_id;
     const debitDataWithEventId = {
       ...data,
       webhook_event_id: eventId,
@@ -693,31 +798,21 @@ serve(async (req: Request) => {
       );
     }
     
-    // SECURITY: Get raw body for signature verification
+    // SECURITY: Mono sends secret in header "mono-webhook-secret" (docs.mono.co/docs/webhooks)
     const rawBody = await req.text();
-    const signature = req.headers.get('x-mono-signature') || req.headers.get('mono-signature');
-    
-    console.log('🔐 Signature received:', signature ? 'Yes' : 'No');
+    const webhookSecret = req.headers.get('mono-webhook-secret');
+    console.log('🔐 mono-webhook-secret present:', !!webhookSecret);
     console.log('📦 Raw body length:', rawBody.length);
 
-    // SECURITY: Verify webhook signature
-    if (!signature) {
-      console.error('❌ No Mono signature found in headers');
+    if (!verifyMonoWebhookSecret(webhookSecret)) {
+      console.error('❌ Invalid or missing mono-webhook-secret');
       return new Response(
-        JSON.stringify({ error: 'Unauthorized - Missing signature' }),
+        JSON.stringify({ error: 'Unauthorized - Invalid webhook secret' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (!await verifyMonoWebhookSignature(rawBody, signature)) {
-      console.error('❌ Invalid webhook signature');
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized - Invalid signature' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('✅ Webhook signature verified successfully');
+    console.log('✅ Webhook secret verified successfully');
 
     // Parse webhook payload
     let webhookData: any;
@@ -734,18 +829,27 @@ serve(async (req: Request) => {
     console.log('📋 Webhook event type:', webhookData.type || webhookData.event);
     console.log('📋 Webhook data keys:', Object.keys(webhookData.data || webhookData));
 
-    // SECURITY: Enforce idempotency using event ID
-    const eventId = webhookData.id || webhookData.event_id || webhookData.data?.id;
+    // SECURITY: Idempotency using mono_webhook_events (event_id) - skip if already processed
+    const eventId = webhookData.event_id || webhookData.id || webhookData.data?.id;
     if (eventId) {
-      // Check if this event was already processed
+      const { error: eventInsertError } = await supabase
+        .from('mono_webhook_events')
+        .insert({ event_id: eventId });
+      if (eventInsertError?.code === '23505') {
+        console.log(`✅ Webhook event ${eventId} already processed (mono_webhook_events)`);
+        return new Response(
+          JSON.stringify({ status: 'success', message: 'Event already processed' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      // Also check transactions for legacy idempotency (DirectDebit)
       const { data: existingEvent } = await supabase
         .from('transactions')
         .select('id')
         .eq('metadata->>webhook_event_id', eventId)
         .single();
-
       if (existingEvent) {
-        console.log(`✅ Webhook event ${eventId} already processed (idempotency check)`);
+        console.log(`✅ Webhook event ${eventId} already processed (transactions idempotency)`);
         return new Response(
           JSON.stringify({ status: 'success', message: 'Event already processed' }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -753,8 +857,9 @@ serve(async (req: Request) => {
       }
     }
 
-    // Handle different webhook events
-    const eventType = webhookData.type || webhookData.event;
+    // Handle different webhook events (Mono may send event with "mono.events." prefix)
+    const rawEventType = webhookData.type || webhookData.event || '';
+    const eventType = rawEventType.replace(/^mono\.events\./, '');
     const eventData = webhookData.data || webhookData;
     
     // Add event ID to event data for tracking
@@ -763,6 +868,25 @@ serve(async (req: Request) => {
     }
     
     switch (eventType) {
+      // Direct Pay (one-time) events - resolve user from mono_directpay_payments by reference
+      case 'direct_debit.payment_successful':
+        if (eventData.type === 'onetime-debit') {
+          await handleDirectPaySuccess(eventData);
+        } else {
+          // Recurring debit success may use debit.successful; ignore here if not onetime
+          console.log('📝 direct_debit.payment_successful (non-onetime) - not Direct Pay');
+        }
+        break;
+      case 'direct_debit.payment_failed':
+        await handleDirectPayStatusUpdate(eventData, 'failed');
+        break;
+      case 'direct_debit.payment_abandoned':
+        await handleDirectPayStatusUpdate(eventData, 'abandoned');
+        break;
+      case 'direct_debit.payment_cancelled':
+        await handleDirectPayStatusUpdate(eventData, 'cancelled');
+        break;
+
       // Mandate events
       case 'mandate.activated':
       case 'mandate.active':
@@ -783,7 +907,7 @@ serve(async (req: Request) => {
         await handleMandateExpired(eventData);
         break;
       
-      // Debit events
+      // Debit events (recurring DirectDebit)
       case 'debit.successful':
       case 'debit.success':
         await handleDebitSuccessful(eventData);

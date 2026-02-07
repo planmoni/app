@@ -9,6 +9,7 @@
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
 import axiosInstance from '@/lib/axios';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -39,13 +40,18 @@ export function useFundWallet() {
         throw new Error('User must be logged in');
       }
 
-      const response = await axiosInstance.post('/mono-debit-execute', params);
-      
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to fund wallet');
+      try {
+        const response = await axiosInstance.post('/mono-debit-execute', params);
+        if (!response.data.success) {
+          throw new Error(response.data.error || 'Failed to fund wallet');
+        }
+        return response.data.data;
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.data?.error) {
+          throw new Error(err.response.data.error);
+        }
+        throw err;
       }
-
-      return response.data.data;
     },
     onSuccess: () => {
       // Invalidate relevant queries

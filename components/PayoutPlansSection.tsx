@@ -248,17 +248,17 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   sectionTitle: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
-    fontWeight: '600',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
+    fontWeight: '500',
     color: colors.text,
   },
   viewAllButton: {
     paddingVertical: 4,
   },
   viewAllText: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.text,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   payoutPlansContainer: {
     paddingRight: 1,
@@ -296,8 +296,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontWeight: '600',
   },
   planAmount: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 22 : 20, textSizeMultiplier),
-    fontWeight: '700',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    fontWeight: '600',
     color: colors.text,
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
@@ -360,14 +360,14 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     justifyContent: 'center',
   },
   addPayoutText: {
-    fontSize: getScaledFontSize(14, textSizeMultiplier),
-    fontWeight: '600',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
+    fontWeight: '500',
     color: colors.primary,
     marginTop: 12,
     marginBottom: 4,
   },
   addPayoutDescription: {
-    fontSize: getScaledFontSize(16, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
     color: colors.textSecondary,
     textAlign: 'center',
   },
@@ -380,7 +380,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderColor: colors.border,
   },
   emptyPayoutsText: {
-    fontSize: getScaledFontSize(14, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
     color: colors.textSecondary,
     marginBottom: 10,
   },
@@ -396,7 +396,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   createFirstPayoutText: {
     color: colors.text,
-    fontSize: getScaledFontSize(14, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
     fontWeight: '600',
   },
   howItWorksButton: {
@@ -407,7 +407,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderRadius: 13,
   },
   howItWorksButtonText: {
-    fontSize: getScaledFontSize(15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
     fontWeight: '400',
   },
   customAmountsContainer: {
