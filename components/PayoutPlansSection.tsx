@@ -61,7 +61,7 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
   }, [activePlans]);
 
   const formatBalance = useCallback((amount: number) => {
-    return showBalances ? `₦${amount.toLocaleString()}` : '*********';
+    return showBalances ? `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '*********';
   }, [showBalances]);
 
   const handleViewPayout = useCallback((id: string) => {

@@ -60,6 +60,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { updateNextPayoutWidget } from '@/lib/widgetStorage';
 // import { intercomInstant } from '@/lib/IntercomInstant';
 import NotificationIcon from '@/components/NotificationIcon';
 import { supabase } from '@/lib/supabase';
@@ -608,7 +609,15 @@ export default function HomeScreen() {
   });
 
   const formatBalance = (amount: number) => {
-    return showBalances ? `₦${amount.toLocaleString()}` : '******';
+    return showBalances ? `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '******';
+  };
+
+  const getBalanceParts = (amount: number) => {
+    if (!showBalances) return { main: '******', decimal: '' };
+    const formatted = amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const dotIndex = formatted.lastIndexOf('.');
+    if (dotIndex === -1) return { main: `₦${formatted}`, decimal: '' };
+    return { main: `₦${formatted.slice(0, dotIndex)}`, decimal: formatted.slice(dotIndex) };
   };
 
   // Toggle balance card expansion
@@ -865,6 +874,22 @@ export default function HomeScreen() {
       return dateA.getTime() - dateB.getTime();
     })[0], [payoutPlans]); // Get the first one (earliest date)
 
+  // Sync "Up Next" to iOS home screen widget (App Group storage)
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    if (nextPayout?.id && nextPayout?.next_payout_date) {
+      updateNextPayoutWidget({
+        planId: nextPayout.id,
+        planName: nextPayout.name,
+        nextPayoutDate: nextPayout.next_payout_date,
+        payoutAmount: nextPayout.payout_amount,
+        planStatus: nextPayout.status,
+      });
+    } else {
+      updateNextPayoutWidget(null);
+    }
+  }, [session?.user?.id, nextPayout?.id, nextPayout?.name, nextPayout?.next_payout_date, nextPayout?.payout_amount, nextPayout?.status]);
+
   const recentTransactions = useMemo(() => transactions.slice(0, 5), [transactions]);
 
   const handleViewHistory = useCallback(() => {
@@ -1038,7 +1063,17 @@ export default function HomeScreen() {
                   </Pressable>
                 </View>
               </Pressable>
-              <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
+              <Text style={styles.balanceAmount}>
+                {(() => {
+                  const parts = getBalanceParts(availableBalance);
+                  return (
+                    <>
+                      {parts.main}
+                      {parts.decimal ? <Text style={{ color: colors.textTertiary }}>{parts.decimal}</Text> : null}
+                    </>
+                  );
+                })()}
+              </Text>
               <Animated.View 
                 style={[
                   styles.lockedSection,
@@ -1051,7 +1086,18 @@ export default function HomeScreen() {
               >
                 <View style={styles.lockedLabelContainer}>
                   <Clock size={16} color={colors.textSecondary} />
-                  <Text style={styles.lockedLabel}>{formatBalance(lockedBalance)} locked in active payout plans</Text>
+                  <Text style={styles.lockedLabel}>
+                  {(() => {
+                    const parts = getBalanceParts(lockedBalance);
+                    return (
+                      <>
+                        {parts.main}
+                        {parts.decimal ? <Text style={{ color: colors.textTertiary }}>{parts.decimal}</Text> : null}
+                        {' locked in active payout plans'}
+                      </>
+                    );
+                  })()}
+                </Text>
                 </View>
               </Animated.View>
               <View style={styles.buttonGroup}>
