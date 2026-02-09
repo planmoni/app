@@ -304,7 +304,7 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
         <Text style={styles.message}>
         🎯 You're on track to receive{' '}
           <Text style={styles.bold}>{formatAmount(calculation.totalPayout)}</Text>
-          {' '}to your bank account over the next{' '}
+          {' '}over the next{' '}
           <Text style={styles.bold}>{calculation.timeValue}</Text>
           {' '}{calculation.timeUnit}{calculation.timeValue !== 1 ? 's' : ''}.
         </Text>

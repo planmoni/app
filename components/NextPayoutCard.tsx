@@ -23,7 +23,7 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
   const [nextPayoutAmount, setNextPayoutAmount] = useState<number | null>(null);
 
   const formatBalance = (amount: number) => {
-    return showBalances ? `₦${amount.toLocaleString()}` : '*********';
+    return showBalances ? `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '*********';
   };
 
   // Fetch custom payout amount for the next payout date if it's a custom plan
@@ -172,8 +172,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number )
   },
   sectionTitle: {
     marginTop: 15,
-    fontSize: getScaledFontSize(16, textSizeMultiplier),
-    fontWeight: '700',
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
+    fontWeight: '500',
     color: colors.text,
   },
   payoutCard: {

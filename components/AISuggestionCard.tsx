@@ -289,7 +289,7 @@ function AISuggestionCard({
   }, [availableBalance, impact, onSuggestionPress]);
 
   const formatAmount = useCallback((amount: number) => {
-    return `₦${amount.toLocaleString()}`;
+    return `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }, []);
 
   const getFrequencyText = useCallback((frequency: string) => {

@@ -49,10 +49,6 @@
     <string>1</string>
     <key>IntercomRegion</key>
     <string>US</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>12.0</string>
-    <key>LSRequiresIPhoneOS</key>
-    <true/>
     <key>LSApplicationQueriesSchemes</key>
     <array>
       <string>paystack</string>
@@ -60,6 +56,10 @@
       <string>https</string>
       <string>http</string>
     </array>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
     <key>NSAppTransportSecurity</key>
     <dict>
       <key>NSAllowsArbitraryLoads</key>
@@ -69,8 +69,6 @@
     </dict>
     <key>NSCameraUsageDescription</key>
     <string>Planmoni needs access to your camera to take document photos.</string>
-    <key>NSFaceIDUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to use Face ID</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>This app uses the microphone to provide a better experience.</string>
     <key>NSPhotoLibraryUsageDescription</key>

@@ -365,7 +365,7 @@ export default function ViewPayoutScreen() {
   };
 
   const formatCurrency = (amount: number) => {
-    return showBalances ? `₦${amount.toLocaleString()}` : '••••••••';
+    return showBalances ? `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '••••••••';
   };
 
   const getStatusColor = (status: string) => {
