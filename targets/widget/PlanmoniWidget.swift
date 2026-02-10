@@ -184,18 +184,18 @@ struct PlanmoniWidgetEntryView: View {
             if entry.isEmpty {
                 Text(entry.countdownText)
                     .font(.subheadline)
-                    .fontWeight(.500)
+                    .fontWeight(.medium)
                     .foregroundColor(.primary)
                     .lineLimit(2)
             } else {
                 Text(entry.planName)
                     .font(.subheadline)
-                    .fontWeight(.600)
+                    .fontWeight(.semibold)
                     .foregroundColor(.primary)
                     .lineLimit(1)
                 Text(formatAmount(entry.amount))
                     .font(.subheadline)
-                    .fontWeight(.500)
+                    .fontWeight(.medium)
                     .foregroundColor(.blue)
                 Text(entry.countdownText)
                     .font(.caption)
@@ -216,11 +216,11 @@ struct PlanmoniWidgetEntryView: View {
                 if !entry.isEmpty {
                     Text(entry.planName)
                         .font(.headline)
-                        .fontWeight(.600)
+                        .fontWeight(.semibold)
                         .foregroundColor(.primary)
                     Text(formatAmount(entry.amount))
                         .font(.title3)
-                        .fontWeight(.500)
+                        .fontWeight(.medium)
                         .foregroundColor(.blue)
                 }
             }
@@ -228,7 +228,7 @@ struct PlanmoniWidgetEntryView: View {
             if !entry.isEmpty {
                 Text(entry.countdownText)
                     .font(.subheadline)
-                    .fontWeight(.500)
+                    .fontWeight(.medium)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.trailing)
             } else {

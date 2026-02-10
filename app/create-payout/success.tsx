@@ -5,8 +5,9 @@ import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { formatDisplayDate, formatPayoutFrequency } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { Building2, X } from 'lucide-react-native';
@@ -16,6 +17,8 @@ export default function SuccessScreen() {
   const params = useLocalSearchParams();
   const haptics = useHaptics();
   const { navigateToHome } = useSafeNavigation();
+  const { showFeedback } = useFeedback();
+  const mountedRef = useRef(true);
   
   // Get screen dimensions for responsive design
   const { width: screenWidth } = Dimensions.get('window');
@@ -40,13 +43,23 @@ export default function SuccessScreen() {
 
   // Trigger success haptic feedback when the screen loads
   useEffect(() => {
-    // Use a small delay to ensure the screen is fully rendered
+    mountedRef.current = true;
     const timer = setTimeout(() => {
       haptics.success();
     }, 300);
-    
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      mountedRef.current = false;
+    };
   }, []);
+
+  // Show feedback modal after a short delay (only if still on this screen)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (mountedRef.current) showFeedback('plan_creation');
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [showFeedback]);
 
   const handleViewPayouts = () => {
     haptics.mediumImpact();
