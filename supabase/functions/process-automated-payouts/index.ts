@@ -501,27 +501,114 @@ serve(async (req) => {
             case "weekly":
               nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
               break
+            case "weekly_specific":
+              // Get day_of_week from plan.day_of_week or metadata
+              // day_of_week: 0=Sunday, 1=Monday, ..., 6=Saturday
+              const dayOfWeek = plan.day_of_week ?? (plan.metadata as any)?.dayOfWeek
+              
+              if (dayOfWeek !== null && dayOfWeek !== undefined && dayOfWeek >= 0 && dayOfWeek <= 6) {
+                // Calculate the next payout date for weekly_specific
+                // Strategy: Find the next occurrence of the target day of week
+                // starting from start_date + (completed_payouts * 7 days)
+                
+                // Start from the week where the next payout should occur
+                // newCompletedPayouts is the count AFTER this payout is processed
+                const baseDate = new Date(startDate)
+                baseDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
+                
+                // Get the day of week for the base date
+                const baseDayOfWeek = baseDate.getDay()
+                
+                // Calculate days to add to reach the target day of week
+                // Formula: (target - current + 7) % 7 gives us days until next occurrence
+                let daysToAdd = (dayOfWeek - baseDayOfWeek + 7) % 7
+                
+                // If baseDate is already on the target day (daysToAdd === 0),
+                // we need to move to the NEXT week's occurrence
+                // This happens when start_date was on the target day and we're calculating
+                // the next payout after the first one
+                if (daysToAdd === 0) {
+                  daysToAdd = 7
+                }
+                
+                nextDate.setDate(baseDate.getDate() + daysToAdd)
+                
+                console.log(`Weekly_specific plan ${plan.id}: day_of_week=${dayOfWeek}, start_date=${startDate.toISOString()}, completed_payouts=${newCompletedPayouts}, baseDate=${baseDate.toISOString()}, baseDayOfWeek=${baseDayOfWeek}, daysToAdd=${daysToAdd}, nextDate=${nextDate.toISOString()}`)
+              } else {
+                // Fallback to regular weekly if day_of_week is missing or invalid
+                console.warn(`Plan ${plan.id} has weekly_specific frequency but invalid day_of_week (${dayOfWeek}). Falling back to weekly calculation.`)
+                nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
+              }
+              break
+            case "weekly_specific":
+              // Get day_of_week from plan.day_of_week or metadata
+              // day_of_week: 0=Sunday, 1=Monday, ..., 6=Saturday
+              const dayOfWeek = plan.day_of_week ?? (plan.metadata as any)?.dayOfWeek
+              
+              if (dayOfWeek !== null && dayOfWeek !== undefined && dayOfWeek >= 0 && dayOfWeek <= 6) {
+                // Calculate the next payout date for weekly_specific
+                // Strategy: Find the next occurrence of the target day of week
+                // starting from start_date + (completed_payouts * 7 days)
+                
+                // Start from the week where the next payout should occur
+                // newCompletedPayouts is the count AFTER this payout is processed
+                const baseDate = new Date(startDate)
+                baseDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
+                
+                // Get the day of week for the base date
+                const baseDayOfWeek = baseDate.getDay()
+                
+                // Calculate days to add to reach the target day of week (0 = already on target day)
+                const daysToAdd = (dayOfWeek - baseDayOfWeek + 7) % 7
+                // When 0, baseDate is already the next occurrence (e.g. next Monday). Do NOT add 7.
+                nextDate.setDate(baseDate.getDate() + daysToAdd)
+                
+                console.log(`Weekly_specific plan ${plan.id}: day_of_week=${dayOfWeek}, start_date=${startDate.toISOString()}, completed_payouts=${newCompletedPayouts}, baseDate=${baseDate.toISOString()}, baseDayOfWeek=${baseDayOfWeek}, daysToAdd=${daysToAdd}, nextDate=${nextDate.toISOString()}`)
+              } else {
+                // Fallback to regular weekly if day_of_week is missing or invalid
+                console.warn(`Plan ${plan.id} has weekly_specific frequency but invalid day_of_week (${dayOfWeek}). Falling back to weekly calculation.`)
+                nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
+              }
+              break
             case "biweekly":
               nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 14))
               break
             case "monthly":
               nextDate.setMonth(startDate.getMonth() + newCompletedPayouts)
               break
-            case "custom":
-              // For custom frequency, get the next date from custom_payout_dates
+            case "end_of_month": {
+              // Last day of (start_month + completed_payouts)
+              nextDate.setMonth(startDate.getMonth() + newCompletedPayouts + 1)
+              nextDate.setDate(0) // 0 = last day of previous month
+              break
+            }
+            case "quarterly":
+              nextDate.setMonth(startDate.getMonth() + (newCompletedPayouts * 3))
+              break
+            case "biannual":
+              nextDate.setMonth(startDate.getMonth() + (newCompletedPayouts * 6))
+              break
+            case "annually":
+              nextDate.setFullYear(startDate.getFullYear() + newCompletedPayouts)
+              break
+            case "custom": {
+              // Next date = first custom date after the one we just paid (not "today", to avoid skipping dates)
+              const paidDateStr = plan.next_payout_date
+                ? new Date(plan.next_payout_date).toISOString().slice(0, 10)
+                : todayString
               const { data: customDates } = await supabase
                 .from("custom_payout_dates")
                 .select("payout_date")
                 .eq("payout_plan_id", plan.id)
-                .gt("payout_date", todayString)
+                .gt("payout_date", paidDateStr)
                 .order("payout_date", { ascending: true })
                 .limit(1)
                 .single()
-              
               if (customDates) {
                 nextPayoutDate = customDates.payout_date
               }
               break
+            }
           }
 
           if (plan.frequency !== "custom") {

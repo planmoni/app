@@ -5,6 +5,7 @@
   "scripts": {
     "start": "expo start --dev-client",
     "dev": "npx expo start",
+    "start:staging": "export $(cat .env.staging | grep -v '^#' | xargs) && expo start --dev-client",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "npx expo start --android",
     "run:android": "react-native run-android",
@@ -14,6 +15,10 @@
     "prebuild": "node scripts/preserve-native-assets.js backup && npx expo prebuild --clean && node scripts/preserve-native-assets.js restore",
     "prebuild:ios": "node scripts/preserve-native-assets.js backup && npx expo prebuild --platform ios --clean && node scripts/preserve-native-assets.js restore && cd ios && pod install",
     "version:increment": "node scripts/increment-version.js",
+    "deploy:staging": "node scripts/deploy-staging.js",
+    "deploy:staging:db": "export $(cat .env.staging | grep -v '^#' | xargs) && supabase db push --project-ref $SUPABASE_STAGING_PROJECT_REF",
+    "deploy:staging:functions": "export $(cat .env.staging | grep -v '^#' | xargs) && node scripts/deploy-staging.js",
+    "deploy:staging:all": "export $(cat .env.staging | grep -v '^#' | xargs) && node scripts/deploy-staging.js",
     "update:preview": "node scripts/publish-update.js preview",
     "update:production": "node scripts/publish-update.js production",
     "update:check": "eas update:list"

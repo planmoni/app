@@ -105,12 +105,10 @@ export function useCreatePayout() {
       } else if (frequency === 'weekly') {
         nextPayoutDate.setDate(startDateObj.getDate() + 7);
       } else if (frequency === "weekly_specific" && dayOfWeek !== undefined) {
-        // Calculate the next occurrence of the specified day of week
+        // First payout: next occurrence of the selected day on or after start date (0 = start is that day)
         const currentDayOfWeek = startDateObj.getDay();
         const daysToAdd = (7 + dayOfWeek - currentDayOfWeek) % 7;
-        nextPayoutDate.setDate(
-          startDateObj.getDate() + (daysToAdd === 0 ? 7 : daysToAdd)
-        );
+        nextPayoutDate.setDate(startDateObj.getDate() + daysToAdd);
       } else if (frequency === "biweekly") {
         nextPayoutDate.setDate(startDateObj.getDate() + 14);
       } else if (frequency === "monthly") {
