@@ -5,6 +5,7 @@ import AccountInformationModal from '@/components/AccountInformationModal';
 import PlanCreationModal from '@/components/PlanCreationModal';
 import AppLockModal from '@/components/AppLockModal';
 import IdentityVerificationSuccessModal from '@/components/IdentityVerificationSuccessModal';
+import OnboardingQuestionnaireModal from '@/components/OnboardingQuestionnaireModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
@@ -22,7 +23,6 @@ import {
   Plus,
   CalendarCheck,
   Clock,
-  MoreHorizontal,
   Building2,
   ChevronRight,
   ChevronDown,
@@ -130,6 +130,7 @@ export default function HomeScreen() {
   const [showIdentityVerificationModal, setShowIdentityVerificationModal] = useState(false);
   const [showKYCVerificationModal, setShowKYCVerificationModal] = useState(false);
   const [hasShownKYCModalThisSession, setHasShownKYCModalThisSession] = useState(false);
+  const [showOnboardingQuestionnaire, setShowOnboardingQuestionnaire] = useState(false);
   const { hasAppLockPin } = usePin();
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
@@ -308,6 +309,28 @@ export default function HomeScreen() {
     if (session?.user?.id) {
       checkIdentityVerificationSuccess();
     }
+  }, [session?.user?.id]);
+
+  // Show onboarding questionnaire modal once after new signup (flag set in creating-account.tsx)
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const checkOnboardingQuestionnaire = async () => {
+      try {
+        const shouldShow = await AsyncStorage.getItem('show_onboarding_questionnaire');
+        if (shouldShow === 'true') {
+          timer = setTimeout(() => {
+            setShowOnboardingQuestionnaire(true);
+            AsyncStorage.removeItem('show_onboarding_questionnaire');
+          }, 500);
+        }
+      } catch (error) {
+        console.error('Error checking onboarding questionnaire flag:', error);
+      }
+    };
+    if (session?.user?.id) {
+      checkOnboardingQuestionnaire();
+    }
+    return () => { if (timer) clearTimeout(timer); };
   }, [session?.user?.id]);
 
   // Show KYC Verification Modal ONLY after onboarding completes (signup)
@@ -976,7 +999,11 @@ export default function HomeScreen() {
                 ) : (
                   <Pressable style={styles.avatarButton}>
                     <View style={[styles.avatarPlaceholder, { backgroundColor: '#fff' }]}>
-                      <MoreHorizontal size={24} color={'#1E3A8A'} />
+                      <Image
+                        source={require('@/assets/images/AppIcon.png')}
+                        style={styles.avatarAppIcon}
+                        resizeMode="contain"
+                      />
                     </View>
                   </Pressable>
                 )}
@@ -1322,6 +1349,15 @@ export default function HomeScreen() {
             }}
           />
 
+          <OnboardingQuestionnaireModal
+            visible={showOnboardingQuestionnaire}
+            onClose={() => setShowOnboardingQuestionnaire(false)}
+            onAddFunds={() => {
+              router.push('/add-funds');
+            }}
+            onDoLater={() => {}}
+          />
+
           <PlanCreationModal
             isVisible={showPlanCreationModal}
             onClose={async () => {
@@ -1440,6 +1476,11 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarAppIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   loginButton: {
     paddingHorizontal: 20,
@@ -1562,39 +1603,38 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flex: 1,
     flexDirection: 'row',
     backgroundColor: isDark ? colors.card : colors.primary,
-    padding: Platform.OS === 'ios' ? 14 : 10,
-    borderWidth: 1, 
+    paddingHorizontal: Platform.OS === 'ios' ? 15 : 12,
+    paddingVertical: Platform.OS === 'ios' ? 13 : 10,
+    borderWidth: 1,
     borderColor: colors.primary,
     borderRadius: 50,
-    height: Platform.OS === 'ios' ? 45 : 40,
+    minHeight: Platform.OS === 'ios' ? 44 : 40,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
   },
   createButtonText: {
     color: isDark ? '#fff' : '#C3F57E',
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 14, textSizeMultiplier),
     fontWeight: '500',
+    marginLeft: 6,
   },
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
     backgroundColor: isDark ? colors.card : '#F7F7F7',
-    padding: Platform.OS === 'ios' ? 14 : 10,
-    borderWidth: 1, 
+    paddingHorizontal: Platform.OS === 'ios' ? 15 : 12,
+    paddingVertical: Platform.OS === 'ios' ? 13 : 10,
+    borderWidth: 1,
     borderColor: '#CFCFCF',
     borderRadius: 50,
-    height: Platform.OS === 'ios' ? 45 : 40,
+    minHeight: Platform.OS === 'ios' ? 44 : 40,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
   },
   addFundsText: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 14, textSizeMultiplier),
     fontWeight: '500',
-    textAlign: 'center',
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginLeft: 6,
   },
   summaryCard: {
     marginBottom: 20,
