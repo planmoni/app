@@ -87,13 +87,13 @@ export default function CreatingAccountScreen() {
           console.log('Account creation successful:', data);
           setCreationProgress('Account created successfully!');
           
-          // Set flag to show KYC verification modal after signup
-          // DISABLED: Modal no longer shows after onboarding completion
-          // try {
-          //   await AsyncStorage.setItem('show_kyc_modal_after_signup', 'true');
-          // } catch (error) {
-          //   console.error('Error setting KYC modal flag:', error);
-          // }
+          // Set flag so home screen shows onboarding questionnaire modal once
+          try {
+            const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+            await AsyncStorage.setItem('show_onboarding_questionnaire', 'true');
+          } catch (_) {
+            // Skip if AsyncStorage unavailable (e.g. native module not found)
+          }
           
           // Navigate directly to dashboard after account creation
           setTimeout(() => {

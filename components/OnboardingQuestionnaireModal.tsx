@@ -9,7 +9,8 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChevronLeft } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -20,18 +21,18 @@ import Button from '@/components/Button';
 
 const OCCUPATIONS = ['Student', 'Employed', 'Business Owner', 'Freelancer', 'Others'] as const;
 const INCOME_RANGES = [
-  '10,000 – 50,000',
-  '50,001 – 250,000',
-  '250,001 – 500,000',
-  '500,001 and above',
+  '₦10,000 - ₦50,000',
+  '₦50,001 - ₦250,000',
+  '₦250,001 - ₦500,000',
+  '₦500,001 and above',
 ] as const;
 const GOALS = [
-  'Plan for my daily or weekly expenses',
-  'Help me save better',
-  'Control my spending',
-  'Delay access to my money',
-  'Build better money habits',
-  'Automate funds to family & friends',
+  'To plan for my daily or weekly expenses',
+  'To help me save better',
+  'To control my spending',
+  'To delay access to my money',
+  'To build better money habits',
+  'To automate funds to family & friends',
 ] as const;
 
 interface OnboardingQuestionnaireModalProps {
@@ -51,8 +52,14 @@ export default function OnboardingQuestionnaireModal({
   const { textSizeMultiplier } = useTextSize();
   const { session } = useAuth();
   const haptics = useHaptics();
+  const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const isSmallScreen = width < 380 || height < 700;
+
+  // Responsive breakpoints (portrait: width < height; use shortEdge for consistency)
+  const shortEdge = Math.min(width, height);
+  const longEdge = Math.max(width, height);
+  const isSmallScreen = shortEdge < 380 || longEdge < 700;
+  const isVerySmallScreen = shortEdge < 340;
 
   const [step, setStep] = useState(0);
   const [occupation, setOccupation] = useState<string | null>(null);
@@ -110,7 +117,18 @@ export default function OnboardingQuestionnaireModal({
     onClose();
   };
 
-  const styles = createStyles(colors, isDark, isSmallScreen, textSizeMultiplier);
+  // Modal uses 90% of screen height, with a min height so it stays usable on short/landscape screens
+  const modalHeight = Math.max(height * 0.7, 400);
+  const styles = createStyles(
+    colors,
+    isDark,
+    isSmallScreen,
+    isVerySmallScreen,
+    textSizeMultiplier,
+    modalHeight,
+    width,
+    insets.bottom
+  );
 
   if (!visible) return null;
 
@@ -150,16 +168,9 @@ export default function OnboardingQuestionnaireModal({
             keyboardShouldPersistTaps="handled"
           >
             {step === 0 && (
-              <>
-                <Text style={styles.title}>Welcome, Let&apos;s get to know you better.</Text>
-                <View style={styles.spacer} />
-                <Button
-                  title="Continue"
-                  onPress={handleNext}
-                  style={styles.primaryButton}
-                  hapticType="medium"
-                />
-              </>
+              <View style={styles.step0Center}>
+                <Text style={styles.title}>Welcome, Let&apos;s personalize your Planmoni experience.</Text>
+              </View>
             )}
 
             {step === 1 && (
@@ -180,13 +191,6 @@ export default function OnboardingQuestionnaireModal({
                     </Text>
                   </Pressable>
                 ))}
-                <View style={styles.spacer} />
-                <Button
-                  title="Next"
-                  onPress={handleNext}
-                  style={styles.primaryButton}
-                  hapticType="medium"
-                />
               </>
             )}
 
@@ -208,19 +212,12 @@ export default function OnboardingQuestionnaireModal({
                     </Text>
                   </Pressable>
                 ))}
-                <View style={styles.spacer} />
-                <Button
-                  title="Next"
-                  onPress={handleNext}
-                  style={styles.primaryButton}
-                  hapticType="medium"
-                />
               </>
             )}
 
             {step === 3 && (
               <>
-                <Text style={styles.question}>How can Planmoni help you?</Text>
+                <Text style={styles.question}>How would you use Planmoni?</Text>
                 <Text style={styles.hint}>Select all that apply</Text>
                 {GOALS.map((opt) => (
                   <Pressable
@@ -233,70 +230,92 @@ export default function OnboardingQuestionnaireModal({
                     </Text>
                   </Pressable>
                 ))}
-                <View style={styles.spacer} />
-                <Button
-                  title="Next"
-                  onPress={handleNext}
-                  style={styles.primaryButton}
-                  hapticType="medium"
-                />
               </>
             )}
 
             {step === 4 && (
-              <>
-                <Text style={styles.title}>Welcome to Planmoni</Text>
+              <View style={styles.step0Center}>
+                <Text style={styles.title}>Get started with Planmoni</Text>
                 <Text style={styles.body}>
-                  Based on your response you can set aside funds for your daily, weekly or monthly
-                  expenses and Planmoni will release payments based on your schedules and ensure you
-                  don&apos;t over spend.
+                  Welcome to Planmoni. Set aside funds for your daily, weekly or monthly expenses and Planmoni will release payments based on your schedules.
                 </Text>
-                <View style={styles.finalButtons}>
-                  <Button
-                    title="Add funds now"
-                    onPress={handleAddFunds}
-                    style={styles.addFundsButton}
-                    hapticType="medium"
-                    disabled={isSubmitting}
-                  />
-                  <Button
-                    title="Do this later"
-                    onPress={handleDoLater}
-                    variant="outline"
-                    style={styles.doLaterButton}
-                    hapticType="light"
-                    disabled={isSubmitting}
-                  />
-                </View>
-              </>
+              </View>
             )}
           </ScrollView>
+
+          <View style={styles.footer}>
+            {step < 4 ? (
+              <Button
+                title={step === 0 ? 'Continue' : 'Next'}
+                onPress={handleNext}
+                style={styles.primaryButton}
+                hapticType="medium"
+                disabled={
+                  step === 1 ? !occupation :
+                  step === 2 ? !incomeRange :
+                  step === 3 ? goals.length === 0 : false
+                }
+              />
+            ) : (
+              <View style={styles.finalButtons}>
+                <Button
+                  title="Add funds now"
+                  onPress={handleAddFunds}
+                  style={styles.addFundsButton}
+                  hapticType="medium"
+                  disabled={isSubmitting}
+                />
+                <Button
+                  title="Do this later"
+                  onPress={handleDoLater}
+                  variant="outline"
+                  style={styles.doLaterButton}
+                  hapticType="light"
+                  disabled={isSubmitting}
+                />
+              </View>
+            )}
+          </View>
         </View>
       </View>
     </Modal>
   );
 }
 
-const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, textSizeMultiplier: number) =>
-  StyleSheet.create({
+const createStyles = (
+  colors: any,
+  isDark: boolean,
+  isSmallScreen: boolean,
+  isVerySmallScreen: boolean,
+  textSizeMultiplier: number,
+  modalHeight: number,
+  width: number,
+  safeBottom: number
+) => {
+  const horizontalPadding = Math.min(24, Math.max(16, width * 0.06));
+  const cardPadding = isVerySmallScreen ? 12 : Math.min(20, width * 0.05);
+  const spacing = isVerySmallScreen ? 12 : isSmallScreen ? 16 : 20;
+  const bottomPadding = Math.max(24, safeBottom || (Platform.OS === 'ios' ? 34 : 24));
+
+  return StyleSheet.create({
     overlay: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.5)',
       justifyContent: 'flex-end',
     },
     container: {
+      height: modalHeight,
       backgroundColor: colors.surface,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
-      maxHeight: '90%',
-      paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+      paddingBottom: bottomPadding,
     },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingTop: 16,
+      paddingHorizontal: horizontalPadding,
+      paddingTop: spacing,
       paddingBottom: 8,
     },
     backButton: {
@@ -323,46 +342,57 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, text
       backgroundColor: colors.primary,
     },
     scroll: {
-      maxHeight: 480,
+      flex: 1,
     },
     scrollContent: {
-      paddingHorizontal: 24,
+      paddingHorizontal: horizontalPadding,
       paddingTop: 8,
-      paddingBottom: 24,
+      paddingBottom: spacing * 1.5,
+      flexGrow: 1,
+    },
+    step0Center: {
+      flex: 1,
+      justifyContent: 'center',
+    },
+    footer: {
+      paddingHorizontal: horizontalPadding,
+      paddingTop: 16,
+      paddingBottom: 0,
+      borderTopWidth: 0,
     },
     title: {
-      fontSize: getScaledFontSize(isSmallScreen ? 20 : 24, textSizeMultiplier),
-      fontWeight: '700',
+      fontSize: getScaledFontSize(isVerySmallScreen ? 18 : isSmallScreen ? 24 : 26, textSizeMultiplier),
+      fontWeight: '600',
       color: colors.text,
       textAlign: 'center',
-      marginBottom: 16,
+      marginBottom: spacing,
     },
     question: {
-      fontSize: getScaledFontSize(isSmallScreen ? 18 : 20, textSizeMultiplier),
+      fontSize: getScaledFontSize(isVerySmallScreen ? 16 : isSmallScreen ? 18 : 20, textSizeMultiplier),
       fontWeight: '600',
       color: colors.text,
       marginBottom: 4,
     },
     hint: {
-      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      fontSize: getScaledFontSize(isVerySmallScreen ? 12 : 14, textSizeMultiplier),
       color: colors.textSecondary,
-      marginBottom: 20,
+      marginBottom: spacing,
     },
     optionCard: {
       backgroundColor: colors.card,
       borderWidth: 1.5,
       borderColor: colors.border,
       borderRadius: 12,
-      paddingVertical: 16,
-      paddingHorizontal: 20,
-      marginBottom: 12,
+      paddingVertical: isVerySmallScreen ? 12 : 16,
+      paddingHorizontal: cardPadding,
+      marginBottom: isVerySmallScreen ? 8 : 12,
     },
     optionCardSelected: {
       borderColor: colors.primary,
       backgroundColor: isDark ? `${colors.primary}20` : `${colors.primary}12`,
     },
     optionText: {
-      fontSize: getScaledFontSize(15, textSizeMultiplier),
+      fontSize: getScaledFontSize(isVerySmallScreen ? 14 : 15, textSizeMultiplier),
       color: colors.text,
       fontWeight: '500',
     },
@@ -371,17 +401,17 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, text
       fontWeight: '600',
     },
     spacer: {
-      height: 24,
+      height: isVerySmallScreen ? 16 : 24,
     },
     primaryButton: {
       marginTop: 8,
     },
     body: {
-      fontSize: getScaledFontSize(isSmallScreen ? 15 : 16, textSizeMultiplier),
+      fontSize: getScaledFontSize(isVerySmallScreen ? 14 : isSmallScreen ? 15 : 16, textSizeMultiplier),
       color: colors.textSecondary,
       textAlign: 'center',
       lineHeight: 24,
-      marginBottom: 28,
+      marginBottom: spacing * 2,
     },
     finalButtons: {
       gap: 12,
@@ -391,3 +421,4 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, text
       borderColor: colors.border,
     },
   });
+};
