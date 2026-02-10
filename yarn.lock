@@ -4475,7 +4475,7 @@ base64-arraybuffer@^1.0.2:
   resolved "https://registry.npmjs.org/base64-arraybuffer/-/base64-arraybuffer-1.0.2.tgz"
   integrity sha512-I3yl4r9QB5ZRY3XuJVEPfc2XhZO6YweFPI+UovAzn+8/hb3oJ6lnysaFcjVpkCPfVWFUDvoZ8kmVDP7WyRtYtQ==
 
-base64-js@^1.2.3, base64-js@^1.3.1, base64-js@^1.5.1:
+base64-js@^1.2.3, base64-js@^1.3.0, base64-js@^1.3.1, base64-js@^1.5.1:
   version "1.5.1"
   resolved "https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz"
   integrity sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==
@@ -6007,6 +6007,13 @@ expo-constants@*, expo-constants@~17.1.6, expo-constants@~17.1.7:
     "@expo/config" "~11.0.12"
     "@expo/env" "~1.0.7"
 
+expo-crypto@^15.0.8, expo-crypto@~15.0.8:
+  version "15.0.8"
+  resolved "https://registry.npmjs.org/expo-crypto/-/expo-crypto-15.0.8.tgz"
+  integrity sha512-aF7A914TB66WIlTJvl5J6/itejfY78O7dq3ibvFltL9vnTALJ/7LYHvLT4fwmx9yUNS6ekLBtDGWivFWnj2Fcw==
+  dependencies:
+    base64-js "^1.3.0"
+
 expo-dev-client@~5.2.4:
   version "5.2.4"
   resolved "https://registry.npmjs.org/expo-dev-client/-/expo-dev-client-5.2.4.tgz"
@@ -6213,6 +6220,11 @@ expo-splash-screen@~0.30.8:
   integrity sha512-Tt9va/sLENQDQYeOQ6cdLdGvTZ644KR3YG9aRlnpcs2/beYjOX1LHT510EGzVN9ljUTg+1ebEo5GGt2arYtPjw==
   dependencies:
     "@expo/prebuild-config" "^9.0.10"
+
+expo-standard-web-crypto@~3.0.8:
+  version "3.0.8"
+  resolved "https://registry.npmjs.org/expo-standard-web-crypto/-/expo-standard-web-crypto-3.0.8.tgz"
+  integrity sha512-nmJnl/EgHRLj/Xm1zAgvmazmaJK/Zm3HrIlHHQSsFrcWnYnjxvOu8fzr5mqLNONSabn42xZBhZfB5Plz34ZPAA==
 
 expo-status-bar@~2.2.3:
   version "2.2.3"

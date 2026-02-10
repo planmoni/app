@@ -2,6 +2,36 @@ import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import { secureStoreAdapter } from './SecureStoreAdapter';
 
+// Polyfill crypto.getRandomValues for PKCE when native module is missing (e.g. simulator).
+// Supabase auth with flowType: 'pkce' needs getRandomValues; react-native-get-random-values
+// can throw "Native module not found" when ExpoRandom isn't available.
+function getRandomValuesFallback(buffer: ArrayBufferView): ArrayBufferView {
+  const view = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  for (let i = 0; i < view.length; i++) {
+    view[i] = Math.floor(Math.random() * 256);
+  }
+  return buffer;
+}
+try {
+  const g = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : (typeof global !== 'undefined' ? global : ({} as any));
+  if (!g.crypto?.getRandomValues || typeof g.crypto.getRandomValues !== 'function') {
+    g.crypto = g.crypto || {};
+    (g.crypto as any).getRandomValues = getRandomValuesFallback;
+  } else {
+    const original = g.crypto.getRandomValues.bind(g.crypto);
+    (g.crypto as any).getRandomValues = function (buffer: ArrayBufferView) {
+      try {
+        return original(buffer);
+      } catch (e: any) {
+        if (e?.message?.includes('Native module') || e?.message?.includes('not found')) {
+          return getRandomValuesFallback(buffer);
+        }
+        throw e;
+      }
+    };
+  }
+} catch (_) {}
+
 // Get Supabase configuration from environment
 const supabaseUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
