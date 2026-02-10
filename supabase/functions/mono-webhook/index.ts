@@ -1,29 +1,23 @@
 /**
  * Mono Webhook Handler - Supabase Edge Function
- * 
- * CRITICAL: Handles Mono DirectDebit webhooks (NOT DirectPay)
- * 
- * DirectDebit Webhook Events:
- * - mandate.created - Mandate created (pending authorization)
- * - mandate.activated - Mandate authorized and activated
- * - mandate.cancelled - Mandate cancelled by user
- * - debit.initiated - Debit initiated (pending)
- * - debit.successful - Debit successful and settled
- * - debit.failed - Debit failed
- * - debit.reversed - Debit reversed
- * 
- * SECURITY FEATURES:
- * - HMAC SHA256 signature verification
- * - Constant-time comparison (prevents timing attacks)
- * - Debit verification with Mono API before crediting
- * - Amount verification (prevents tampering)
- * - Idempotency (prevents double crediting)
- * - Only credit wallet after confirmed settlement
- * 
- * CRITICAL DIFFERENCE FROM DIRECTPAY:
- * - DirectDebit debits may take 1-3 business days to settle
- * - Only credit wallet when debit is 'successful' AND 'settled'
- * - Mandates must be active before debits can be initiated
+ *
+ * Handles both:
+ * 1. Direct Pay (one-time) – https://docs.mono.co/docs/payments/onetime/webhook-events
+ * 2. DirectDebit (recurring) – mandate/debit lifecycle
+ *
+ * Direct Pay webhook events (onetime-debit):
+ * - direct_debit.payment_successful → credit wallet via process_mono_deposit, update mono_directpay_payments, transaction + notification (events)
+ * - direct_debit.payment_failed → update mono_directpay_payments status to 'failed'
+ * - direct_debit.payment_abandoned → update mono_directpay_payments status to 'abandoned'
+ * - direct_debit.payment_cancelled → update mono_directpay_payments status to 'cancelled'
+ * - mono.events.account_connected → log (optional: fetch customer via Information API)
+ *
+ * DirectDebit webhook events:
+ * - mandate.created / mandate.activated / mandate.cancelled / mandate.expired
+ * - debit.successful / debit.failed / debit.reversed
+ *
+ * Idempotency: event_id checked in mono_webhook_events before processing; recorded after successful process so retries can reprocess on failure.
+ * process_mono_deposit is idempotent by reference (wallet + transaction + event/notification).
  */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -476,11 +470,13 @@ async function verifyDirectPayWithMono(reference: string): Promise<{
 }
 
 /**
- * Handle Direct Pay (one-time) success: lookup by reference, credit via process_mono_deposit, update payment row
+ * Handle Direct Pay (one-time) success: lookup by reference, credit via process_mono_deposit, update payment row.
+ * Payload shape (Mono docs): data.object.reference, data.object.id; process_mono_deposit does wallet + transaction + events (notification).
  */
 async function handleDirectPaySuccess(data: any) {
   try {
-    const reference = data.reference || data.object?.reference;
+    const obj = data.object || data;
+    const reference = data.reference || obj.reference;
     if (!reference) {
       console.error('❌ Direct Pay success: no reference in payload');
       return;
@@ -504,11 +500,16 @@ async function handleDirectPaySuccess(data: any) {
     const amountNaira = Number(row.amount);
     // Mono returns the total charged (deposit + fee); may be in kobo or naira depending on env
     const totalCharged = row.total_charged != null ? Number(row.total_charged) : null;
-    const monoPaymentId = data.object?.id || data.id;
+    const monoPaymentId = obj.id || data.id;
 
     const verification = await verifyDirectPayWithMono(reference);
     if (!verification.success) {
       console.error('❌ Direct Pay verify failed:', verification.error);
+      return;
+    }
+    const verifiedStatus = (verification.status || '').toLowerCase();
+    if (verifiedStatus !== 'successful' && verifiedStatus !== 'success') {
+      console.error('❌ Direct Pay verify status not successful:', verification.status);
       return;
     }
     if (verification.amount != null && totalCharged != null) {
@@ -548,12 +549,16 @@ async function handleDirectPaySuccess(data: any) {
       return;
     }
 
-    await supabase
+    // Mark payment successful for UI/realtime (do this even when already_processed so state is consistent)
+    const { error: updateErr } = await supabase
       .from('mono_directpay_payments')
       .update({ status: 'successful', updated_at: new Date().toISOString() })
       .eq('reference', reference);
+    if (updateErr) {
+      console.error('❌ Failed to update mono_directpay_payments:', updateErr);
+    }
 
-    console.log('✅ Direct Pay processed: ₦' + amountNaira + ' for user', userId);
+    console.log('✅ Direct Pay processed: ₦' + amountNaira + ' for user', userId, result?.already_processed ? '(already_processed)' : '');
   } catch (err) {
     console.error('❌ handleDirectPaySuccess:', err);
     throw err;
@@ -561,23 +566,30 @@ async function handleDirectPaySuccess(data: any) {
 }
 
 /**
- * Update Direct Pay payment status (failed / abandoned / cancelled)
+ * Update Direct Pay payment status (failed / abandoned / cancelled).
+ * Only updates when current status is pending so we never overwrite 'successful' with a terminal failure (e.g. out-of-order webhooks).
  */
 async function handleDirectPayStatusUpdate(data: any, status: 'failed' | 'abandoned' | 'cancelled') {
   try {
-    const reference = data.reference || data.object?.reference;
+    const obj = data.object || data;
+    const reference = data.reference || obj.reference;
     if (!reference) {
       console.log('⏭️ Direct Pay status update: no reference');
       return;
     }
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('mono_directpay_payments')
       .update({ status, updated_at: new Date().toISOString() })
-      .eq('reference', reference);
+      .eq('reference', reference)
+      .in('status', ['pending'])
+      .select('id')
+      .maybeSingle();
     if (error) {
       console.error('❌ Failed to update mono_directpay_payments:', error);
-    } else {
+    } else if (updated) {
       console.log('✅ Direct Pay status updated to', status, 'for', reference);
+    } else {
+      console.log('⏭️ Direct Pay status not updated (already terminal) for', reference);
     }
   } catch (err) {
     console.error('❌ handleDirectPayStatusUpdate:', err);
@@ -829,25 +841,28 @@ serve(async (req: Request) => {
     console.log('📋 Webhook event type:', webhookData.type || webhookData.event);
     console.log('📋 Webhook data keys:', Object.keys(webhookData.data || webhookData));
 
-    // SECURITY: Idempotency using mono_webhook_events (event_id) - skip if already processed
+    // Idempotency per https://docs.mono.co/docs/payments/onetime/webhook-events
+    // Check event_id first so retries can reprocess if previous attempt failed before recording
     const eventId = webhookData.event_id || webhookData.id || webhookData.data?.id;
     if (eventId) {
-      const { error: eventInsertError } = await supabase
+      const { data: existingRow } = await supabase
         .from('mono_webhook_events')
-        .insert({ event_id: eventId });
-      if (eventInsertError?.code === '23505') {
+        .select('event_id')
+        .eq('event_id', eventId)
+        .maybeSingle();
+      if (existingRow) {
         console.log(`✅ Webhook event ${eventId} already processed (mono_webhook_events)`);
         return new Response(
           JSON.stringify({ status: 'success', message: 'Event already processed' }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      // Also check transactions for legacy idempotency (DirectDebit)
+      // Legacy: check transactions for DirectDebit webhook_event_id
       const { data: existingEvent } = await supabase
         .from('transactions')
         .select('id')
         .eq('metadata->>webhook_event_id', eventId)
-        .single();
+        .maybeSingle();
       if (existingEvent) {
         console.log(`✅ Webhook event ${eventId} already processed (transactions idempotency)`);
         return new Response(
@@ -878,13 +893,24 @@ serve(async (req: Request) => {
         }
         break;
       case 'direct_debit.payment_failed':
-        await handleDirectPayStatusUpdate(eventData, 'failed');
+        if (eventData.type === 'onetime-debit') {
+          await handleDirectPayStatusUpdate(eventData, 'failed');
+        }
         break;
       case 'direct_debit.payment_abandoned':
-        await handleDirectPayStatusUpdate(eventData, 'abandoned');
+        if (eventData.type === 'onetime-debit') {
+          await handleDirectPayStatusUpdate(eventData, 'abandoned');
+        }
         break;
       case 'direct_debit.payment_cancelled':
-        await handleDirectPayStatusUpdate(eventData, 'cancelled');
+        if (eventData.type === 'onetime-debit') {
+          await handleDirectPayStatusUpdate(eventData, 'cancelled');
+        }
+        break;
+
+      // Direct Pay: account connected (optional; can fetch customer details via Information API)
+      case 'account_connected':
+        console.log('📝 mono.events.account_connected:', eventData.id || eventData);
         break;
 
       // Mandate events
@@ -930,6 +956,12 @@ serve(async (req: Request) => {
       
       default:
         console.log(`⚠️  Unhandled webhook event: ${eventType}`);
+    }
+
+    // Record event_id after successful processing (idempotency for retries)
+    if (eventId) {
+      await supabase.from('mono_webhook_events').insert({ event_id: eventId });
+      // Ignore 23505 (unique) - e.g. concurrent delivery already recorded
     }
 
     console.log('✅ Webhook processed successfully');

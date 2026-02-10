@@ -2,22 +2,16 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Constants from 'expo-constants';
 import { useTheme } from '@/contexts/ThemeContext';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
-import { useBalance } from '@/contexts/BalanceContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 
 export default function DepositCallbackScreen() {
   const { colors } = useTheme();
-  const { session } = useAuth();
   const params = useLocalSearchParams();
   const reference = (params.reference as string) ?? '';
   const status = (params.status as string) ?? '';
   const reason = (params.reason as string) ?? '';
-  const { refreshWallet } = useBalance();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,113 +28,26 @@ export default function DepositCallbackScreen() {
       }
 
       const isSuccess = status === 'successful' || status === 'success';
-      const apiUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_URL;
-      const supabaseUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL;
-      const verifyEndpoint = apiUrl
-        ? `${apiUrl.replace(/\/$/, '')}/api/mono-verify-and-credit`
-        : supabaseUrl
-          ? `${supabaseUrl.replace(/\/$/, '')}/functions/v1/mono-directpay-verify-and-credit`
-          : null;
 
-      const tryVerifyAndCredit = async (): Promise<boolean> => {
-        if (!verifyEndpoint || !session?.access_token) return false;
-        try {
-          const res = await fetch(verifyEndpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({ reference }),
-          });
-          return res.ok;
-        } catch (_) {
-          return false;
-        }
-      };
-
-      const goToSuccess = async () => {
-        try {
-          await refreshWallet?.();
-        } catch (_) {}
-        let amount = '0', fee = '0', totalCharged = '0';
-        try {
-          const { data: row } = await supabase
-            .from('mono_directpay_payments')
-            .select('amount, fee, total_charged')
-            .eq('reference', reference)
-            .single();
-          amount = row?.amount != null ? String(Number(row.amount).toLocaleString()) : '0';
-          fee = row?.fee != null ? String(Number(row.fee)) : '0';
-          totalCharged = row?.total_charged != null ? String(Number(row.total_charged)) : '0';
-        } catch (_) {}
+      // Rely on webhook to credit the wallet. Show processing screen; realtime will
+      // navigate to success when the webhook updates the payment row.
+      if (isSuccess) {
         if (!cancelled) {
           router.replace({
-            pathname: '/deposit-flow/mono-success',
-            params: { amount, reference, fee, totalCharged },
+            pathname: '/deposit-flow/mono-processing',
+            params: { reference },
           });
         }
-      };
-
-      if (isSuccess) {
-        const ok = await tryVerifyAndCredit();
-        if (ok) {
-          await new Promise((r) => setTimeout(r, 600));
-          await goToSuccess();
-        } else {
-          // Verify-and-credit failed (network or 4xx/5xx). Only show success if payment row is already successful (e.g. webhook credited).
-          try {
-            const { data: row } = await supabase
-              .from('mono_directpay_payments')
-              .select('status')
-              .eq('reference', reference)
-              .single();
-            if (row?.status === 'successful') {
-              await goToSuccess();
-            } else if (!cancelled) {
-              router.replace({
-                pathname: '/deposit-flow/mono-failure',
-                params: {
-                  reason: 'Payment verified but we couldn’t add funds. Tap "Refresh balance" to retry.',
-                  reference,
-                  errorType: 'payment',
-                },
-              });
-            }
-          } catch (_) {
-            if (!cancelled) {
-              router.replace({
-                pathname: '/deposit-flow/mono-failure',
-                params: {
-                  reason: 'Payment verified but we couldn’t add funds. Tap "Refresh balance" to retry.',
-                  reference,
-                  errorType: 'payment',
-                },
-              });
-            }
-          }
-        }
         setLoading(false);
         return;
       }
 
-      // Status was failed/other (e.g. "Network request failed" when redirect URL failed to load).
-      // Still try verify-and-credit once: if payment actually succeeded on Mono, we can show success.
-      const credited = await tryVerifyAndCredit();
-      if (credited) {
-        await goToSuccess();
-        setLoading(false);
-        return;
-      }
-
+      // Status was failed/other — show processing/wait message instead of hard failure
+      // (payment may still be settling; webhook can credit shortly)
       if (!cancelled) {
         router.replace({
-          pathname: '/deposit-flow/mono-failure',
-          params: {
-            reason: reason || 'Payment was not successful.',
-            reference,
-            errorType: 'payment',
-          },
+          pathname: '/deposit-flow/mono-processing',
+          params: { reference, waitMessage: 'true' },
         });
         setLoading(false);
       }
@@ -150,7 +57,7 @@ export default function DepositCallbackScreen() {
     return () => {
       cancelled = true;
     };
-  }, [reference, status, reason, refreshWallet, session?.access_token]);
+  }, [reference, status, reason]);
 
   const styles = createStyles(colors);
 
