@@ -118,15 +118,11 @@ BEGIN
         v_current_day_of_week := EXTRACT(DOW FROM v_base_date)::integer;
         
         -- Calculate days to add to reach the target day of week
-        -- Formula: (target - current + 7) % 7 gives us days until next occurrence
+        -- Formula: (target - current + 7) % 7 gives us days until next occurrence (0 = already on target day)
         v_days_to_add := (v_day_of_week - v_current_day_of_week + 7) % 7;
         
-        -- If base date is already on the target day (daysToAdd === 0),
-        -- we need to move to the NEXT week's occurrence
-        IF v_days_to_add = 0 THEN
-          v_days_to_add := 7;
-        END IF;
-        
+        -- When days_to_add = 0, base_date is already the next occurrence (e.g. next Monday).
+        -- Do NOT add 7 days or we skip a week and land 2 weeks later.
         v_next_date := v_base_date + (v_days_to_add || ' days')::interval;
       ELSE
         -- Fallback to regular weekly if day_of_week is missing or invalid
