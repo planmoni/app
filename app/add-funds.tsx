@@ -111,7 +111,7 @@ export default function AddFundsScreen() {
                 <Building2 size={24} color={colors.primary} />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>Fund with Bank</Text>
+                <Text style={styles.optionTitle}>Add funds from Bank</Text>
                 <Text style={styles.optionDescription}>
                   One-time payment via your bank. 
                 </Text>
