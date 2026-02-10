@@ -358,8 +358,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginRight: 8,
   },
   actionTitle: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 13, textSizeMultiplier),
-    fontWeight: '600',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
+    fontWeight: '500',
     color: colors.text,
     marginTop: 10,
   },
@@ -391,8 +391,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     alignItems: 'center',
   },
   sectionTitle: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
-    fontWeight: '700',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 13, textSizeMultiplier),
+    fontWeight: '500',
     color: colors.text,
     marginBottom: -20,
     marginTop: 10,

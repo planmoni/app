@@ -348,8 +348,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
-    fontWeight: '700',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
+    fontWeight: '500',
     color: colors.text,
   },
   viewAllButton: {
@@ -362,7 +362,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   viewAllText: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
     color: colors.text,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   cardContainer: {
     position: 'relative',
@@ -397,7 +397,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   amount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 25 : 20, textSizeMultiplier),
-    fontWeight: '700',
+    fontWeight: '600',
     textAlign: 'left',
     flex: 0,
   },

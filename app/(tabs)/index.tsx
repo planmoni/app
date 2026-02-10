@@ -931,7 +931,7 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <LinearGradient
-          colors={isDark ? ['#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F'] : ['#1E3A8A', '#1E3A8A', '#1E3A8A', '#1E3A8A', '#F7F7F7', '#F8FAFC']}
+          colors={isDark ? ['#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F'] : ['#F8FAFC']}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           locations={[0, 0.3, 0.5, 0.6, 0.85, 1]}
@@ -958,10 +958,10 @@ export default function HomeScreen() {
                 <View style={styles.headerActions}>
                   {!isAuthenticated ? (
                     <Pressable onPress={() => setShowWelcomeModalForUnauth(true)}>
-                      <NotificationIcon color="#fff" />
+                      <NotificationIcon color={isDark ? '#fff' : '#000'} />
                     </Pressable>
                   ) : (
-                    <NotificationIcon color="#fff" />
+                    <NotificationIcon color={isDark ? '#fff' : '#000'} />
                   )}
                   <Pressable 
                     onPress={handleHelpPress} 
@@ -971,7 +971,7 @@ export default function HomeScreen() {
                     {isLoading ? (
                       <PlanmoniLoader size="small" />
                     ) : (
-                      <HelpCircleIcon size={24} color={'#fff'} />
+                      <HelpCircleIcon size={24} color={isDark ? '#fff' : '#000'} />
                     )}
                   </Pressable>
                 </View>
@@ -984,9 +984,9 @@ export default function HomeScreen() {
                   {!isAuthenticated && (
                     <Pressable 
                       onPress={() => router.push('/(auth)/login')} 
-                      style={[styles.loginButton, { borderColor: '#fff' }]}
+                      style={[styles.loginButton, { borderColor: isDark ? '#fff' : '#000' }]}
                     >
-                      <Text style={[styles.loginButtonText, {color: '#fff' }]}>Login</Text>
+                      <Text style={[styles.loginButtonText, {color: isDark ? '#fff' : '#000' }]}>Login</Text>
                     </Pressable>
                   )}
                 </View>
@@ -1059,15 +1059,15 @@ export default function HomeScreen() {
                   style={styles.addFundsButton} 
                   onPress={handleAddFunds}
                 >
-                  <Plus size={25} color={isDark ? '#fff' : '#000'}/>
-                  <Text style={[styles.addFundsText, { color: isDark ? '#fff' : '#000' }]}>Add funds</Text>
+                  <Plus size={18} color={isDark ? '#fff' : colors.primary}/>
+                  <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
                 </Pressable>
                 <Pressable 
                   style={styles.createButton} 
                   onPress={handleCreatePayout}
                 >
-                  <CalendarCheck size={22} color={isDark ? '#fff' : '#fff'} />
-                  <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#fff' }]}>New Payout</Text>
+                  <CalendarCheck size={18} color={isDark ? '#fff' : '#C3F57E'} />
+                  <Text style={[styles.createButtonText]}>New Plan</Text>
                 </Pressable>
               </View>
             </View>
@@ -1085,6 +1085,7 @@ export default function HomeScreen() {
             onSuggestionPress={handleAISuggestionPress}
           />
         )}
+        
         {/* <IntercomButton /> */}
 
         {/* KYC Tiers Test Buttons */}
@@ -1116,7 +1117,12 @@ export default function HomeScreen() {
         {/* Quick Topup Card */}
         
 
+        <ImageCarousel 
+          images={carouselImages} 
+          onImagePress={!isAuthenticated ? () => setShowWelcomeModalForUnauth(true) : undefined}
+        />
         <PendingActionsCard />
+
         <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
 
@@ -1135,10 +1141,7 @@ export default function HomeScreen() {
           isUserAuthenticated={isAuthenticated}
         />
 
-<ImageCarousel 
-          images={carouselImages} 
-          onImagePress={!isAuthenticated ? () => setShowWelcomeModalForUnauth(true) : undefined}
-        />
+        
 
 
               <View style={styles.bottomPadding} />
@@ -1163,14 +1166,15 @@ export default function HomeScreen() {
           style={styles.addFundsButton} 
           onPress={handleAddFunds}
         >
-          <Plus size={20} color={isDark ? '#fff' : '#000'} />
-          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : '#000' }]}>Add funds</Text>
+          <Plus size={18} color={isDark ? '#fff' : colors.primary} />
+          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
         </Pressable>
         <Pressable 
           style={styles.createButton} 
           onPress={handleCreatePayout}
         >
-          <Text style={[styles.createButtonText, { color: isDark ? '#fff' : '#fff' }]}>New Payout</Text>
+          <CalendarCheck size={18} color={isDark ? '#fff' : '#C3F57E'} />
+          <Text style={[styles.createButtonText]}>New Plan</Text>
         </Pressable>
         
       </Animated.View>
@@ -1375,14 +1379,14 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#fff',
+    backgroundColor: '#153875',
     justifyContent: 'center',
     alignItems: 'center',
   },
   whiteAvatarText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1E3A8A',
+    color: '#C3F57E',
   },
   avatarPlaceholder: {
     width: 48,
@@ -1420,9 +1424,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginBottom: 4,
   },
   greeting: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 19, textSizeMultiplier),
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 17, textSizeMultiplier),
+    fontWeight: '500',
+    color: isDark ? '#fff' : '#000',
     flex: 1,
   },
   subGreeting: {
@@ -1464,8 +1468,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     gap: 8,
   },
   balanceLabel: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
-    fontWeight: '600',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
+    fontWeight: '500',
     color: colors.textSecondary,
   },
   historyButton: {
@@ -1475,12 +1479,11 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     padding: 4,
   },
   balanceAmount: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 40 : 35, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 45 : 40, textSizeMultiplier),
     fontWeight: '700',
     color: isDark ? '#fff' : colors.primary,
     marginBottom: -15,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    marginTop: 10,
   },
   lockedSection: {
     flexDirection: 'row',
@@ -1514,35 +1517,35 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flexDirection: 'row',
     backgroundColor: isDark ? colors.card : colors.primary,
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderWidth: 1.5, 
+    borderWidth: 1, 
     borderColor: colors.primary,
     borderRadius: 50,
-    height: Platform.OS === 'ios' ? 50 : 45,
+    height: Platform.OS === 'ios' ? 45 : 40,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
   createButtonText: {
-    color: '#000',
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 17, textSizeMultiplier),
-    fontWeight: '600',
+    color: isDark ? '#fff' : '#C3F57E',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontWeight: '500',
   },
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
     backgroundColor: isDark ? colors.card : '#F7F7F7',
     padding: Platform.OS === 'ios' ? 14 : 10,
-    borderWidth: 1.5, 
+    borderWidth: 1, 
     borderColor: '#CFCFCF',
     borderRadius: 50,
-    height: Platform.OS === 'ios' ? 50 : 45,
+    height: Platform.OS === 'ios' ? 45 : 40,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
   addFundsText: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 17, textSizeMultiplier),
-    fontWeight: '600',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontWeight: '500',
     textAlign: 'center',
     justifyContent: 'center',
     alignItems: 'center',

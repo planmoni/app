@@ -52,7 +52,7 @@ export default function ImageCarousel({
   autoPlay = true,
   autoPlayInterval = 7000,
   showPagination = true,
-  height = Platform.OS === 'android' ? 140 : 150,
+  height = Platform.OS === 'android' ? 130 : 130,
   images: propImages,
   showDimensions = false, // Default to false for production
   onImagePress: overrideOnImagePress,

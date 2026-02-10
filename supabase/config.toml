@@ -1,3 +1,10 @@
+# Mono webhook: called by Mono servers without a JWT; auth is via MONO_WEBHOOK_SECRET signature
+[functions.mono-webhook]
+verify_jwt = false
+
+# Verify-and-credit: called from the app with the user's session JWT
+[functions.mono-directpay-verify-and-credit]
+verify_jwt = true
 
 [functions.send-push-notification]
 enabled = true

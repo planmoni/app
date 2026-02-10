@@ -257,54 +257,46 @@ export default function LinkedAccountsScreen() {
     try {
       haptics.success();
       const code = data.getAuthCode();
-      console.log("Access code", code);
-      
+
       if (!session?.user?.id) {
         Alert.alert('Error', 'Please log in to link your account');
         return;
       }
 
-      // Check if user already has 2 accounts
-      if (bankAccounts.length >= 2) {
-        haptics.error();
-        Alert.alert(
-          'Maximum Accounts Reached',
-          'You can only link a maximum of 2 bank accounts. Please remove an existing account before adding a new one.',
-          [{ text: 'OK' }]
-        );
+      // Edge Function saves the account and creates mandate; returns mandate URL for one-flow auth
+      const result = await linkAccount(code);
+
+      // Refresh list (account already saved by Edge Function)
+      await fetchBankAccounts?.();
+
+      if (result.mandate?.mono_url) {
+        // One more step: authorize withdrawals so user can add funds anytime
+        router.push({
+          pathname: '/deposit-flow/mono-mandate-auth',
+          params: {
+            monoUrl: result.mandate.mono_url,
+            bankName: result.bankName,
+          },
+        });
         return;
       }
 
-      // Use the hook to link the account
-      const accountData = await linkAccount(code);
-
-      // Save account in your app
-      await addBankAccount({
-        bank_name: accountData.bankName,
-        bank_code: accountData.bankCode,
-        account_number: accountData.accountNumber,
-        account_name: accountData.accountName,
-        mono_account_id: accountData.accountId,
-        is_default: bankAccounts.length === 0,
-      });
-
-      // Refresh list
-      fetchBankAccounts?.();
-
       Alert.alert(
-        'Success',
-        `Successfully linked ${accountData.bankName} account`,
-        [{ text: 'OK', onPress: () => {
-          if (fromDepositFlow && amount) {
-            router.replace({
-              pathname: '/deposit-flow/authorization',
-              params: {
-                amount,
-                methodTitle: 'Bank Account'
+        'Account linked',
+        `Successfully linked ${result.bankName} account. You can authorize it for withdrawals when you add funds.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              if (fromDepositFlow && amount) {
+                router.replace({
+                  pathname: '/deposit-flow/authorization',
+                  params: { amount, methodTitle: 'Bank Account' },
+                });
               }
-            });
-          }
-        }}]
+            },
+          },
+        ]
       );
     } catch (err) {
       haptics.error();
@@ -521,9 +513,9 @@ export default function LinkedAccountsScreen() {
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           <Text style={styles.subtitle}>
-            {fromDepositFlow 
+            {fromDepositFlow
               ? `Add a bank account to deposit ₦${amount}`
-              : 'Manage your linked bank accounts for adding payments'
+              : 'Link once, then add funds anytime from Add funds → Pay from linked account'
             }
           </Text>
 
@@ -573,7 +565,7 @@ export default function LinkedAccountsScreen() {
                   {fromDepositFlow && selectForPayment ? (
                     <View style={styles.disabledPaymentNote}>
                       <Text style={styles.disabledPaymentText}>
-                        Direct payment from linked accounts is currently unavailable
+                        Use Add funds → Pay from linked account to add money from this account
                       </Text>
                     </View>
                   ) : (
