@@ -312,26 +312,27 @@ export default function HomeScreen() {
   }, [session?.user?.id]);
 
   // Show onboarding questionnaire modal once after new signup (flag set in creating-account.tsx)
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const checkOnboardingQuestionnaire = async () => {
-      try {
-        const shouldShow = await AsyncStorage.getItem('show_onboarding_questionnaire');
-        if (shouldShow === 'true') {
-          timer = setTimeout(() => {
-            setShowOnboardingQuestionnaire(true);
-            AsyncStorage.removeItem('show_onboarding_questionnaire');
-          }, 500);
+  useFocusEffect(
+    useCallback(() => {
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const checkOnboardingQuestionnaire = async () => {
+        if (!session?.user?.id) return;
+        try {
+          const shouldShow = await AsyncStorage.getItem('show_onboarding_questionnaire');
+          if (shouldShow === 'true') {
+            timer = setTimeout(() => {
+              setShowOnboardingQuestionnaire(true);
+              AsyncStorage.removeItem('show_onboarding_questionnaire');
+            }, 500);
+          }
+        } catch (error) {
+          console.error('Error checking onboarding questionnaire flag:', error);
         }
-      } catch (error) {
-        console.error('Error checking onboarding questionnaire flag:', error);
-      }
-    };
-    if (session?.user?.id) {
+      };
       checkOnboardingQuestionnaire();
-    }
-    return () => { if (timer) clearTimeout(timer); };
-  }, [session?.user?.id]);
+      return () => { if (timer) clearTimeout(timer); };
+    }, [session?.user?.id])
+  );
 
   // Show KYC Verification Modal ONLY after onboarding completes (signup)
   // DISABLED: Modal no longer shows after onboarding completion
