@@ -519,18 +519,9 @@ serve(async (req) => {
                 // Get the day of week for the base date
                 const baseDayOfWeek = baseDate.getDay()
                 
-                // Calculate days to add to reach the target day of week
-                // Formula: (target - current + 7) % 7 gives us days until next occurrence
-                let daysToAdd = (dayOfWeek - baseDayOfWeek + 7) % 7
-                
-                // If baseDate is already on the target day (daysToAdd === 0),
-                // we need to move to the NEXT week's occurrence
-                // This happens when start_date was on the target day and we're calculating
-                // the next payout after the first one
-                if (daysToAdd === 0) {
-                  daysToAdd = 7
-                }
-                
+                // Calculate days to add to reach the target day of week (0 = already on target day)
+                const daysToAdd = (dayOfWeek - baseDayOfWeek + 7) % 7
+                // When 0, baseDate is already the next occurrence (e.g. next Monday). Do NOT add 7.
                 nextDate.setDate(baseDate.getDate() + daysToAdd)
                 
                 console.log(`Weekly_specific plan ${plan.id}: day_of_week=${dayOfWeek}, start_date=${startDate.toISOString()}, completed_payouts=${newCompletedPayouts}, baseDate=${baseDate.toISOString()}, baseDayOfWeek=${baseDayOfWeek}, daysToAdd=${daysToAdd}, nextDate=${nextDate.toISOString()}`)
@@ -546,21 +537,39 @@ serve(async (req) => {
             case "monthly":
               nextDate.setMonth(startDate.getMonth() + newCompletedPayouts)
               break
-            case "custom":
-              // For custom frequency, get the next date from custom_payout_dates
+            case "end_of_month": {
+              // Last day of (start_month + completed_payouts)
+              nextDate.setMonth(startDate.getMonth() + newCompletedPayouts + 1)
+              nextDate.setDate(0) // 0 = last day of previous month
+              break
+            }
+            case "quarterly":
+              nextDate.setMonth(startDate.getMonth() + (newCompletedPayouts * 3))
+              break
+            case "biannual":
+              nextDate.setMonth(startDate.getMonth() + (newCompletedPayouts * 6))
+              break
+            case "annually":
+              nextDate.setFullYear(startDate.getFullYear() + newCompletedPayouts)
+              break
+            case "custom": {
+              // Next date = first custom date after the one we just paid (not "today", to avoid skipping dates)
+              const paidDateStr = plan.next_payout_date
+                ? new Date(plan.next_payout_date).toISOString().slice(0, 10)
+                : todayString
               const { data: customDates } = await supabase
                 .from("custom_payout_dates")
                 .select("payout_date")
                 .eq("payout_plan_id", plan.id)
-                .gt("payout_date", todayString)
+                .gt("payout_date", paidDateStr)
                 .order("payout_date", { ascending: true })
                 .limit(1)
                 .single()
-              
               if (customDates) {
                 nextPayoutDate = customDates.payout_date
               }
               break
+            }
           }
 
           if (plan.frequency !== "custom") {
