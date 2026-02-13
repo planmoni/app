@@ -980,10 +980,10 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <LinearGradient
-          colors={isDark ? ['#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F'] : ['#F8FAFC']}
+          colors={isDark ? ['#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F'] : ['#F8FAFC', '#F8FAFC']}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
-          locations={[0, 0.3, 0.5, 0.6, 0.85, 1]}
+          locations={isDark ? [0, 0.3, 0.5, 0.6, 0.85, 1] : [0, 1]}
           style={[styles.gradientContainer, { paddingTop: insets.top + 200, marginTop: -200 }]}
         >
           <View style={styles.gradientContent}>
