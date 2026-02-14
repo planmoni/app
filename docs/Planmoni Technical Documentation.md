@@ -110,6 +110,20 @@ Planmoni is a React Native Expo application designed for financial planning, pay
 
 ---
 
+## Deep linking (plan share)
+
+Links like `https://planmoni.com/plan/CODE` open the app when installed (Universal Links on iOS, App Links on Android).
+
+- **App config:** [`app.config.js`](../app.config.js) sets `ios.associatedDomains: ["applinks:planmoni.com"]` and `android.intentFilters` for `https://planmoni.com` with `pathPrefix: "/plan"` and `autoVerify: true`.
+- **URL handling:** [`app/_layout.tsx`](../app/_layout.tsx) parses the URL and navigates to `/plan/[code]`; [`app/plan/[code].tsx`](../app/plan/[code].tsx) is the accept-share screen.
+- **Website verification:** planmoni.com must serve:
+  - `/.well-known/apple-app-site-association` (iOS)
+  - `/.well-known/assetlinks.json` (Android)
+  with placeholders replaced (Apple Team ID, Android SHA-256 fingerprint). See [planmoni-dashboard/public/.well-known/README.md](../planmoni-dashboard/public/.well-known/README.md).
+- **Build:** After deploying the .well-known files, rebuild the native app (e.g. `eas build --platform all`) and install on device; then test `https://planmoni.com/plan/019DC92E`.
+
+---
+
 ## References
 
 - PAYSTACK_INTEGRATION.md

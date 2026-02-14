@@ -25,6 +25,8 @@ export type PayoutPlan = {
   metadata?: any;
   created_at: string;
   updated_at: string;
+  /** True if the current user is following this plan (shared with them), not the owner */
+  is_paired?: boolean;
   bank_accounts?: {
     bank_name: string;
     account_number: string;
@@ -44,28 +46,63 @@ export function useRealtimePayoutPlans() {
   const { session } = useAuth();
 
   const fetchPayoutPlans = useCallback(async () => {
+    if (!session?.user?.id) return;
     try {
       setError(null);
-      const { data, error: fetchError } = await supabase
+      const select = `
+        *,
+        bank_accounts (
+          bank_name,
+          account_number,
+          account_name
+        ),
+        payout_accounts (
+          bank_name,
+          account_number,
+          account_name
+        )
+      `;
+      const { data: ownedData, error: ownedError } = await supabase
         .from('payout_plans')
-        .select(`
-          *,
-          bank_accounts (
-            bank_name,
-            account_number,
-            account_name
-          ),
-          payout_accounts (
-            bank_name,
-            account_number,
-            account_name
-          )
-        `)
-        .eq('user_id', session?.user?.id)
+        .select(select)
+        .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
-      if (fetchError) throw fetchError;
-      setPayoutPlans(data || []);
+      if (ownedError) throw ownedError;
+      const owned: PayoutPlan[] = (ownedData || []).map((p: any) => ({ ...p, is_paired: false }));
+
+      const { data: pairingRows, error: pairingError } = await supabase
+        .from('payout_plan_pairings')
+        .select('payout_plan_id')
+        .eq('paired_user_id', session.user.id);
+
+      if (pairingError) {
+        setPayoutPlans(owned);
+        return;
+      }
+      const pairedIds = (pairingRows || []).map((r: { payout_plan_id: string }) => r.payout_plan_id).filter(Boolean);
+      if (pairedIds.length === 0) {
+        setPayoutPlans(owned);
+        return;
+      }
+
+      const { data: pairedData, error: pairedError } = await supabase
+        .from('payout_plans')
+        .select(select)
+        .in('id', pairedIds)
+        .order('created_at', { ascending: false });
+
+      if (pairedError) {
+        setPayoutPlans(owned);
+        return;
+      }
+      const paired: PayoutPlan[] = (pairedData || []).map((p: any) => ({ ...p, is_paired: true }));
+      const merged = [...owned];
+      for (const p of paired) {
+        if (!merged.some((m) => m.id === p.id)) merged.push(p);
+      }
+      merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setPayoutPlans(merged);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch payout plans');
     } finally {
@@ -126,12 +163,12 @@ export function useRealtimePayoutPlans() {
               
               if (payload.event === 'INSERT' && payload.new) {
                 console.log('➕ INSERT event - adding new plan:', payload.new.name);
-                setPayoutPlans(prev => [payload.new as PayoutPlan, ...prev]);
+                setPayoutPlans(prev => [{ ...payload.new, is_paired: false } as PayoutPlan, ...prev]);
               } else if (payload.event === 'UPDATE' && payload.new) {
                 console.log('✏️ UPDATE event - updating plan:', payload.new.name);
                 setPayoutPlans(prev => {
                   const updated = prev.map(plan => 
-                    plan.id === payload.new.id ? payload.new as PayoutPlan : plan
+                    plan.id === payload.new.id ? { ...payload.new, is_paired: plan.is_paired } as PayoutPlan : plan
                   );
                   console.log('🔄 Updated plans count:', updated.length);
                   return updated;
@@ -144,6 +181,19 @@ export function useRealtimePayoutPlans() {
               } else {
                 console.log('❓ Unknown event type or missing data:', payload);
               }
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'payout_plan_pairings',
+              filter: `paired_user_id=eq.${session.user.id}`,
+            },
+            () => {
+              if (!isMounted) return;
+              fetchPayoutPlans();
             }
           );
         

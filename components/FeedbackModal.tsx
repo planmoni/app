@@ -30,6 +30,13 @@ export default function FeedbackModal({ visible, onClose, source }: FeedbackModa
     }
   }, [visible, source]);
 
+  const handleClose = React.useCallback(() => {
+    // Defer state update so the touch completes and Modal can run close animation without hanging
+    requestAnimationFrame(() => {
+      onClose();
+    });
+  }, [onClose]);
+
   const handleRate = () => {
     haptics.mediumImpact();
     const url = Platform.OS === 'ios' ? iOSStoreURL : Platform.OS === 'android' ? androidStoreURL : null;
@@ -37,24 +44,22 @@ export default function FeedbackModal({ visible, onClose, source }: FeedbackModa
       Linking.openURL(url).catch((err) => console.error('Failed to open store URL:', err));
       if (source) logAnalyticsEvent('feedback_modal_rated', { source });
     }
-    onClose();
+    handleClose();
   };
 
   const handleMaybeLater = () => {
     haptics.lightImpact();
-    onClose();
+    handleClose();
   };
-
-  if (!visible) return null;
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
+      <Pressable style={styles.overlay} onPress={handleClose}>
         <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
           <Pressable style={styles.closeButton} onPress={handleMaybeLater} hitSlop={12}>
             <X size={22} color={colors.textSecondary} />

@@ -40,6 +40,10 @@ import { getBankIconLogo } from '@/lib/bankIcons';
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 import CustomAmountsBreakdownModal from '@/components/CustomAmountsBreakdownModal';
 import { supabase } from '@/lib/supabase';
+import { usePayoutPlanShare } from '@/hooks/usePayoutPlanShare';
+import { useToast } from '@/contexts/ToastContext';
+import { Modal } from 'react-native';
+import Button from '@/components/Button';
 
 type TabType = 'all' | 'active' | 'cancelled' | 'completed';
 
@@ -58,6 +62,12 @@ export default function AllPayoutsScreen() {
   const [customDateAmounts, setCustomDateAmounts] = useState<Record<string, Record<string, number>>>({});
   const [showBreakdownModal, setShowBreakdownModal] = useState(false);
   const [selectedPlanForBreakdown, setSelectedPlanForBreakdown] = useState<string | null>(null);
+  const [showAddByCodeModal, setShowAddByCodeModal] = useState(false);
+  const [planCodeInput, setPlanCodeInput] = useState('');
+  const [addByCodeError, setAddByCodeError] = useState<string | null>(null);
+
+  const { getPlanByShareCode, pairToPlan, isLoading: isAddingByCode } = usePayoutPlanShare();
+  const { showToast } = useToast();
 
   // Fetch custom payout dates with amounts
   useEffect(() => {
@@ -97,15 +107,54 @@ export default function AllPayoutsScreen() {
     fetchCustomAmounts();
   }, [payoutPlans]);
 
+  const handlePlusPress = () => {
+    haptics.mediumImpact();
+    setShowAddByCodeModal(true);
+    setPlanCodeInput('');
+    setAddByCodeError(null);
+  };
+
+  const handleAddByCode = async () => {
+    const code = planCodeInput.trim();
+    if (!code) {
+      setAddByCodeError('Enter a plan code');
+      return;
+    }
+    setAddByCodeError(null);
+    const plan = await getPlanByShareCode(code);
+    if (!plan.found) {
+      setAddByCodeError(plan.error || 'Invalid or expired code');
+      return;
+    }
+    if (plan.is_owner) {
+      setAddByCodeError('You already own this plan');
+      return;
+    }
+    if (plan.is_paired) {
+      setAddByCodeError("You're already following this plan");
+      return;
+    }
+    if (!plan.id) {
+      setAddByCodeError('Could not add plan');
+      return;
+    }
+    const success = await pairToPlan(plan.id);
+    if (success) {
+      setShowAddByCodeModal(false);
+      setPlanCodeInput('');
+      showToast('Plan added. You can now track it with your other plans.');
+      fetchPayoutPlans();
+    } else {
+      setAddByCodeError('Failed to add plan. Try again.');
+    }
+  };
+
   const handleCreatePayout = () => {
     haptics.mediumImpact();
-    
-    // Only show modal if user has never created a payout plan before
+    setShowAddByCodeModal(false);
     if (hasCreatedPayoutPlan) {
-      // User has created a payout plan before - navigate directly to create payout
       router.push('/create-payout/amount');
     } else {
-      // User has never created a payout plan - show info modal
       setShowNewPlanInfoModal(true);
     }
   };
@@ -252,11 +301,55 @@ export default function AllPayoutsScreen() {
         </View>
         <Pressable 
           style={styles.createButton} 
-          onPress={handleCreatePayout}
+          onPress={handlePlusPress}
         >
           <Plus size={20} color="#FFFFFF" />
         </Pressable>
       </View>
+
+      {/* Add payout plan by code modal */}
+      <Modal
+        visible={showAddByCodeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAddByCodeModal(false)}
+      >
+        <Pressable 
+          style={styles.addByCodeModalOverlay} 
+          onPress={() => setShowAddByCodeModal(false)}
+        >
+          <Pressable style={[styles.addByCodeModalContent, { backgroundColor: colors.card }]} onPress={e => e.stopPropagation()}>
+            <View style={styles.addByCodeModalHeader}>
+              <Text style={[styles.addByCodeModalTitle, { color: colors.text }]}>Add payout plan</Text>
+              <Pressable onPress={() => { haptics.lightImpact(); setShowAddByCodeModal(false); }} hitSlop={12}>
+                <X size={24} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <Text style={[styles.addByCodeModalLabel, { color: colors.textSecondary }]}>Enter plan code</Text>
+            <TextInput
+              style={[styles.addByCodeInput, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, color: colors.text }]}
+              placeholder="e.g. ABC12XYZ"
+              placeholderTextColor={colors.textTertiary}
+              value={planCodeInput}
+              onChangeText={(t) => { setPlanCodeInput(t.toUpperCase()); setAddByCodeError(null); }}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            {addByCodeError ? (
+              <Text style={[styles.addByCodeError, { color: colors.error }]}>{addByCodeError}</Text>
+            ) : null}
+            <Button
+              title="Add"
+              onPress={handleAddByCode}
+              isLoading={isAddingByCode}
+              style={styles.addByCodeButton}
+            />
+            <Pressable onPress={handleCreatePayout} style={styles.createNewLink}>
+              <Text style={[styles.createNewLinkText, { color: colors.primary }]}>Create new payout plan</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Statistics Cards */}
       {/* {payoutPlans.length > 0 && (
@@ -432,7 +525,14 @@ export default function AllPayoutsScreen() {
                   {/* Header with status and actions */}
                   <View style={styles.payoutHeader}>
                     <View style={styles.planInfo}>
-                      <Text style={styles.planName}>{plan.name}</Text>
+                      <View style={styles.planNameRow}>
+                        <Text style={styles.planName}>{plan.name}</Text>
+                        {plan.is_paired && (
+                          <View style={[styles.sharedBadge, { backgroundColor: colors.backgroundTertiary }]}>
+                            <Text style={[styles.sharedBadgeText, { color: colors.primary }]}>Shared with you</Text>
+                          </View>
+                        )}
+                      </View>
                       {plan.description && (
                         <Text style={styles.planDescription}>{plan.description}</Text>
                       )}
@@ -646,6 +746,56 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
+  addByCodeModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  addByCodeModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 20,
+    padding: 24,
+  },
+  addByCodeModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  addByCodeModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  addByCodeModalLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  addByCodeInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  addByCodeError: {
+    fontSize: 13,
+    marginBottom: 12,
+  },
+  addByCodeButton: {
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  createNewLink: {
+    alignSelf: 'center',
+  },
+  createNewLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   // statsContainer: {
   //   marginBottom: 4,
   // },
@@ -844,11 +994,26 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
+  planNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 4,
+  },
   planName: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
+  },
+  sharedBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  sharedBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   planDescription: {
     fontSize: 14,

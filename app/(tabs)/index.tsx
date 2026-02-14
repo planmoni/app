@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 // import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal'; // Disabled - success modal removed after onboarding
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
+import AddPayoutPlanByCodeModal from '@/components/AddPayoutPlanByCodeModal';
 import AccountInformationModal from '@/components/AccountInformationModal';
 import PlanCreationModal from '@/components/PlanCreationModal';
 import AppLockModal from '@/components/AppLockModal';
@@ -116,6 +117,7 @@ export default function HomeScreen() {
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
   const [hasShownTier1ClaimModal, setHasShownTier1ClaimModal] = useState(false);
   const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
+  const [showAddByCodeModal, setShowAddByCodeModal] = useState(false);
   const [showAccountInfoModal, setShowAccountInfoModal] = useState(false);
   const [hasShownAccountInfoModal, setHasShownAccountInfoModal] = useState(false);
   const accountInfoModalShownRef = useRef(false);
@@ -1209,6 +1211,7 @@ export default function HomeScreen() {
         {/* Payout Plans Section */}
         <PayoutPlansSection 
           activePlans={activePlans} 
+          onShowAddByCodeModal={() => isAuthenticated ? setShowAddByCodeModal(true) : setShowWelcomeModalForUnauth(true)}
           onShowNewPlanInfo={() => isAuthenticated ? setShowNewPlanInfoModal(true) : setShowWelcomeModalForUnauth(true)}
           onShowHowItWorks={() => setShowHowItWorksModal(true)}
           onShowWelcomeModal={() => setShowWelcomeModalForUnauth(true)}
@@ -1220,7 +1223,7 @@ export default function HomeScreen() {
 
               <View style={styles.bottomPadding} />
 
-              <RatingCard />
+              {/* <RatingCard /> */}
             </View>
       </ScrollView>
 
@@ -1262,6 +1265,20 @@ export default function HomeScreen() {
         />
       )}
       
+      {/* Add payout plan by code modal (paste plan code) */}
+      <AddPayoutPlanByCodeModal
+        isVisible={showAddByCodeModal}
+        onClose={() => setShowAddByCodeModal(false)}
+        onSuccess={fetchPayoutPlans}
+        onCreateNewPlan={() => {
+          if (hasCreatedPayoutPlan) {
+            router.push('/create-payout/amount');
+          } else {
+            setShowNewPlanInfoModal(true);
+          }
+        }}
+      />
+
       {/* NewPlanInfoModal - available for both authenticated and unauthenticated users */}
       <NewPlanInfoModal
         isVisible={showNewPlanInfoModal}

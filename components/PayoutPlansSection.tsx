@@ -13,13 +13,14 @@ import { supabase } from '@/lib/supabase';
 
 interface PayoutPlansSectionProps {
   activePlans: any[];
+  onShowAddByCodeModal?: () => void;
   onShowNewPlanInfo?: () => void;
   onShowHowItWorks?: () => void;
   onShowWelcomeModal?: () => void;
   isUserAuthenticated?: boolean;
 }
 
-function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, onShowWelcomeModal, isUserAuthenticated = true }: PayoutPlansSectionProps) {
+function PayoutPlansSection({ activePlans, onShowAddByCodeModal, onShowNewPlanInfo, onShowHowItWorks, onShowWelcomeModal, isUserAuthenticated = true }: PayoutPlansSectionProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { requireAuth, isAuthenticated } = useRequireAuth();
@@ -87,12 +88,14 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
       logAnalyticsEvent('create_payout_click_modal');
       return;
     }
-    // Always show the new plan info modal for these buttons
-    if (onShowNewPlanInfo) {
+    if (onShowAddByCodeModal) {
+      onShowAddByCodeModal();
+      logAnalyticsEvent('create_payout_click_modal');
+    } else if (onShowNewPlanInfo) {
       onShowNewPlanInfo();
       logAnalyticsEvent('create_payout_click_modal');
     }
-  }, [onShowNewPlanInfo, onShowWelcomeModal, isUserAuthenticated]);
+  }, [onShowAddByCodeModal, onShowNewPlanInfo, onShowWelcomeModal, isUserAuthenticated]);
 
   const memoizedPlans = useMemo(() => {
     return activePlans.map((plan) => {
@@ -146,11 +149,18 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
                 onPress={() => handleViewPayout(plan.id)}
               >
                 <View style={styles.planHeader}>
-                  <Text style={styles.planType}>{plan.name}</Text>
-                  <View style={styles.activeTag}>
-                    <Text style={styles.activeTagText}>
-                      {plan.status.charAt(0).toUpperCase() + plan.status.slice(1)}
-                    </Text>
+                  <Text style={styles.planType} numberOfLines={1}>{plan.name}</Text>
+                  <View style={styles.planHeaderTags}>
+                    {plan.is_paired && (
+                      <View style={[styles.sharedTag, { backgroundColor: isDark ? colors.accent : colors.backgroundTertiary }]}>
+                        <Text style={[styles.sharedTagText, { color: colors.primary }]}>Shared</Text>
+                      </View>
+                    )}
+                    <View style={styles.activeTag}>
+                      <Text style={styles.activeTagText}>
+                        {plan.status.charAt(0).toUpperCase() + plan.status.slice(1)}
+                      </Text>
+                    </View>
                   </View>
                 </View>
                 <Text style={styles.planAmount}>{formatBalance(plan.total_amount)}</Text>
@@ -210,7 +220,7 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
             onPress={handleCreatePayout}
           >
             <Plus size={24} color={colors.text} />
-            <Text style={styles.addPayoutText}>Create New Payout</Text>
+            <Text style={styles.addPayoutText}>Add Payout</Text>
             <Text style={styles.addPayoutDescription}>
               Set up a new automated payout plan
             </Text>
@@ -280,9 +290,24 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   planType: {
+    flex: 1,
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
     color: colors.textSecondary,
     maxWidth: '75%',
+  },
+  planHeaderTags: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sharedTag: {
+    paddingHorizontal: Platform.OS === 'ios' ? 8 : 6,
+    paddingVertical: Platform.OS === 'ios' ? 4 : 3,
+    borderRadius: Platform.OS === 'ios' ? 14 : 12,
+  },
+  sharedTagText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 10 : 9, textSizeMultiplier),
+    fontWeight: '600',
   },
   activeTag: {
     backgroundColor: isDark ? colors.accent : colors.accent,

@@ -8,7 +8,8 @@ import {
   Alert, 
   Image, 
   Animated,
-  RefreshControl
+  RefreshControl,
+  Modal
 } from 'react-native';
 import React, { useState, useEffect, useRef } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -38,11 +39,15 @@ import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
 import { useEmergencyWithdrawal } from '@/hooks/useEmergencyWithdrawal';
+import { useAuth } from '@/contexts/AuthContext';
+import { usePayoutPlanShare } from '@/hooks/usePayoutPlanShare';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 import { formatPayoutFrequency, formatDisplayDate } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import CustomAmountsBreakdownModal from '@/components/CustomAmountsBreakdownModal';
 import { supabase } from '@/lib/supabase';
+import { Users, Link, Hash, Copy } from 'lucide-react-native';
 
 
 export default function ViewPayoutScreen() {
@@ -65,14 +70,110 @@ export default function ViewPayoutScreen() {
   const [customDatesCount, setCustomDatesCount] = useState<number>(0);
   const [nextPayoutAmount, setNextPayoutAmount] = useState<number | null>(null);
   const [showBreakdownModal, setShowBreakdownModal] = useState(false);
-  
+  const [pairedUsers, setPairedUsers] = useState<{ id: string; first_name: string; last_name: string; email?: string }[]>([]);
+  const [creatorName, setCreatorName] = useState<string | null>(null);
+  const [sharedPlanBankDisplay, setSharedPlanBankDisplay] = useState<{ bank_name: string; account_number_last4: string; account_name: string } | null>(null);
+
+  const { session } = useAuth();
+  const { getShareUrl, ensureShareCode, isLoading: isShareLoading } = usePayoutPlanShare();
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [shareCode, setShareCode] = useState<string | null>(null);
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
 
   const plan = payoutPlans.find(p => p.id === id);
+  const isOwner = plan && session?.user?.id && plan.user_id === session.user.id;
   const styles = createStyles(colors, isDark);
+
+  // When share modal opens, fetch link and code
+  useEffect(() => {
+    if (!showShareModal || !plan?.id) {
+      if (!showShareModal) {
+        setShareLink(null);
+        setShareCode(null);
+      }
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [url, code] = await Promise.all([
+        getShareUrl(plan.id),
+        ensureShareCode(plan.id),
+      ]);
+      if (!cancelled) {
+        setShareLink(url ?? null);
+        setShareCode(code ?? null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showShareModal, plan?.id]);
+
+  // Fetch creator name when viewing as paired user
+  useEffect(() => {
+    if (!plan?.user_id || !plan?.is_paired) {
+      setCreatorName(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from('profiles').select('first_name, last_name').eq('id', plan.user_id).single();
+      if (!cancelled && data) {
+        const name = [data.first_name, data.last_name].filter(Boolean).join(' ');
+        setCreatorName(name || 'Creator');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [plan?.user_id, plan?.is_paired]);
+
+  // Fetch bank display when inline join is missing (e.g. shared plan: recipient can't see creator's payout_accounts via RLS)
+  useEffect(() => {
+    const hasInlineBank = plan?.payout_accounts?.bank_name || plan?.bank_accounts?.bank_name;
+    if (!plan?.id || hasInlineBank) {
+      setSharedPlanBankDisplay(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.rpc('get_payout_plan_bank_display', { p_plan_id: plan.id });
+      if (cancelled) return;
+      if (data && typeof data === 'object' && 'bank_name' in data) {
+        setSharedPlanBankDisplay({
+          bank_name: String((data as any).bank_name ?? ''),
+          account_number_last4: String((data as any).account_number_last4 ?? ''),
+          account_name: String((data as any).account_name ?? ''),
+        });
+      } else {
+        setSharedPlanBankDisplay(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [plan?.id, plan?.payout_accounts?.bank_name, plan?.bank_accounts?.bank_name]);
+
+  // Fetch paired users when owner (via RPC: profiles RLS blocks reading other users' profiles in a join)
+  useEffect(() => {
+    if (!plan?.id || !isOwner) {
+      setPairedUsers([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.rpc('get_payout_plan_paired_users', { p_plan_id: plan.id });
+      if (cancelled) return;
+      const arr = Array.isArray(data) ? data : [];
+      const list = arr.map((row: any) => ({
+        id: row?.id ?? '',
+        first_name: row?.first_name ?? '',
+        last_name: row?.last_name ?? '',
+        email: row?.email,
+      })).filter((u) => u.id);
+      setPairedUsers(list);
+    })();
+    return () => { cancelled = true; };
+  }, [plan?.id, isOwner]);
 
   // Check for existing emergency withdrawals when plan is loaded
   useEffect(() => {
@@ -438,25 +539,17 @@ export default function ViewPayoutScreen() {
           </View>
         </View>
         <View style={styles.headerActions}>
-          <Pressable 
-            style={styles.headerActionButton}
-            onPress={() => {
-              haptics.selection();
-              toggleBalances();
-            }}
-          >
-            {showBalances ? (
-              <EyeOff size={20} color={colors.textSecondary} />
-            ) : (
-              <Eye size={20} color={colors.textSecondary} />
-            )}
-          </Pressable>
-          {/* <Pressable style={styles.headerActionButton}>
-            <Share2 size={20} color={colors.textSecondary} />
-          </Pressable>
-          <Pressable style={styles.headerActionButton}>
-            <MoreHorizontal size={20} color={colors.textSecondary} />
-          </Pressable> */}
+          {isOwner && (
+            <Pressable
+              style={styles.headerActionButton}
+              onPress={() => {
+                haptics.selection();
+                setShowShareModal(true);
+              }}
+            >
+              <Share2 size={20} color={colors.textSecondary} />
+            </Pressable>
+          )}
         </View>
       </Animated.View>
 
@@ -566,7 +659,7 @@ export default function ViewPayoutScreen() {
                 <>
                   <View style={styles.nameContainer}>
                     <Text style={styles.heroTitle}>{plan.name}</Text>
-                    {plan.status === 'active' && (
+                    {plan.status === 'active' && isOwner && (
                       <Pressable 
                         style={styles.editButton} 
                         onPress={() => {
@@ -578,6 +671,11 @@ export default function ViewPayoutScreen() {
                       </Pressable>
                     )}
                   </View>
+                  {plan.is_paired && creatorName && (
+                    <Text style={[styles.sharedByText, { color: colors.textSecondary }]}>
+                      Shared by {creatorName}
+                    </Text>
+                  )}
                   {plan.description && (
                     <Text style={styles.heroDescription}>{plan.description}</Text>
                   )}
@@ -764,9 +862,8 @@ export default function ViewPayoutScreen() {
             <View style={styles.scheduleItem}>
               <View style={[styles.scheduleIcon, { backgroundColor: colors.backgroundTertiary }]}>
                 {(() => {
-                  const bankName = plan.payout_accounts?.bank_name || plan.bank_accounts?.bank_name || '';
+                  const bankName = plan.payout_accounts?.bank_name || plan.bank_accounts?.bank_name || sharedPlanBankDisplay?.bank_name || '';
                   const bankIcon = getBankIconLogo(bankName);
-                  
                   if (bankIcon.logoSvg) {
                     return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
                       width: 20,
@@ -788,16 +885,51 @@ export default function ViewPayoutScreen() {
               <View style={styles.scheduleInfo}>
                 <Text style={styles.scheduleLabel}>Bank Account</Text>
                 <Text style={styles.scheduleValue}>
-                  {(plan.payout_accounts?.bank_name || plan.bank_accounts?.bank_name || 'Unknown Bank')} •••• {(plan.payout_accounts?.account_number || plan.bank_accounts?.account_number || '').slice(-4)}
+                  {(plan.payout_accounts?.bank_name || plan.bank_accounts?.bank_name || sharedPlanBankDisplay?.bank_name || 'Unknown Bank')} •••• {(plan.payout_accounts?.account_number || plan.bank_accounts?.account_number) != null ? (plan.payout_accounts?.account_number || plan.bank_accounts?.account_number || '').slice(-4) : (sharedPlanBankDisplay?.account_number_last4 || '')}
                 </Text>
                 <Text style={styles.scheduleSubtext}>
-                  {(plan.payout_accounts?.account_name || plan.bank_accounts?.account_name || 'Unknown Account')}
+                  {(plan.payout_accounts?.account_name || plan.bank_accounts?.account_name || sharedPlanBankDisplay?.account_name || 'Unknown Account')}
                 </Text>
               </View>
             </View>
           </View>
         </Animated.View>
 
+        {isOwner && (
+          <Animated.View 
+            style={[
+              styles.scheduleCard,
+              { backgroundColor: colors.card },
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
+            <View style={styles.pairedSectionHeader}>
+              <Users size={20} color={colors.textSecondary} />
+              <Text style={styles.sectionTitle}>People watching this plan</Text>
+            </View>
+            {pairedUsers.length === 0 ? (
+              <Text style={[styles.pairedEmpty, { color: colors.textSecondary }]}>
+                No one has joined yet. Tap the share icon above to copy a link and invite others.
+              </Text>
+            ) : (
+              <>
+                <Text style={[styles.pairedCount, { color: colors.textSecondary }]}>
+                  {pairedUsers.length} {pairedUsers.length === 1 ? 'person' : 'people'} following
+                </Text>
+                {pairedUsers.map((u) => (
+                  <View key={u.id} style={[styles.pairedRow, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.pairedName, { color: colors.text }]} numberOfLines={1}>
+                      {[u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || 'Unknown'}
+                    </Text>
+                  </View>
+                ))}
+              </>
+            )}
+          </Animated.View>
+        )}
 
         {/* {plan.status !== 'cancelled' && plan.status !== 'completed' && (
           <Animated.View 
@@ -874,6 +1006,91 @@ export default function ViewPayoutScreen() {
       
       <SafeFooter />
 
+      {/* Share plan modal: link and code preview with copy buttons */}
+      <Modal
+        visible={showShareModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowShareModal(false)}
+      >
+        <Pressable
+          style={[styles.shareModalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
+          onPress={() => setShowShareModal(false)}
+        >
+          <Pressable style={[styles.shareModalCard, { backgroundColor: colors.card }]} onPress={(e) => e.stopPropagation()}>
+            <Text style={[styles.shareModalTitle, { color: colors.text }]}>Share plan</Text>
+            <Text style={[styles.shareModalSubtitle, { color: colors.textSecondary }]}>
+              Others can follow this plan using the link or code.
+            </Text>
+
+            {/* Link row */}
+            <View style={[styles.shareModalRow, { borderBottomColor: colors.border }]}>
+              <View style={styles.shareModalRowLabel}>
+                <Link size={18} color={colors.textSecondary} />
+                <Text style={[styles.shareModalRowLabelText, { color: colors.textSecondary }]}>Link</Text>
+              </View>
+              {isShareLoading && !shareLink ? (
+                <Text style={[styles.shareModalPreview, { color: colors.textSecondary }]}>Loading…</Text>
+              ) : shareLink ? (
+                <>
+                  <Text style={[styles.shareModalPreview, { color: colors.text }]} numberOfLines={2} ellipsizeMode="middle">
+                    {shareLink}
+                  </Text>
+                  <Pressable
+                    style={[styles.shareModalCopyBtn, { backgroundColor: colors.backgroundTertiary }]}
+                    onPress={async () => {
+                      haptics.selection();
+                      await Clipboard.setStringAsync(shareLink);
+                      showToast('Link copied.');
+                    }}
+                  >
+                    <Copy size={18} color={colors.primary} />
+                  </Pressable>
+                </>
+              ) : (
+                <Text style={[styles.shareModalPreview, { color: colors.textSecondary }]}>Could not load link</Text>
+              )}
+            </View>
+
+            {/* Code row */}
+            <View style={[styles.shareModalRow, { borderBottomColor: colors.border }]}>
+              <View style={styles.shareModalRowLabel}>
+                <Hash size={18} color={colors.textSecondary} />
+                <Text style={[styles.shareModalRowLabelText, { color: colors.textSecondary }]}>Code</Text>
+              </View>
+              {isShareLoading && !shareCode ? (
+                <Text style={[styles.shareModalPreview, { color: colors.textSecondary }]}>Loading…</Text>
+              ) : shareCode ? (
+                <>
+                  <Text style={[styles.shareModalCodePreview, { color: colors.text }]} selectable>
+                    {shareCode}
+                  </Text>
+                  <Pressable
+                    style={[styles.shareModalCopyBtn, { backgroundColor: colors.backgroundTertiary }]}
+                    onPress={async () => {
+                      haptics.selection();
+                      await Clipboard.setStringAsync(shareCode);
+                      showToast('Code copied.');
+                    }}
+                  >
+                    <Copy size={18} color={colors.primary} />
+                  </Pressable>
+                </>
+              ) : (
+                <Text style={[styles.shareModalPreview, { color: colors.textSecondary }]}>Could not load code</Text>
+              )}
+            </View>
+
+            <Pressable
+              style={[styles.shareModalCancel, { borderTopColor: colors.border }]}
+              onPress={() => setShowShareModal(false)}
+            >
+              <Text style={[styles.shareModalCancelText, { color: colors.textSecondary }]}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {plan && plan.frequency === 'custom' && customDatesCount > 0 && Object.keys(customDateAmounts).length > 0 && (
         <CustomAmountsBreakdownModal
           isVisible={showBreakdownModal}
@@ -940,6 +1157,76 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  shareModalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  shareModalCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  shareModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 20,
+    marginHorizontal: 20,
+  },
+  shareModalSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  shareModalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  shareModalRowLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 44,
+  },
+  shareModalRowLabelText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  shareModalPreview: {
+    flex: 1,
+    fontSize: 13,
+  },
+  shareModalCodePreview: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+  shareModalCopyBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareModalCancel: {
+    borderTopWidth: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  shareModalCancelText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
   tabContainer: {
     backgroundColor: colors.surface,
@@ -1023,6 +1310,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
+  },
+  sharedByText: {
+    fontSize: 13,
+    marginTop: 4,
+    marginBottom: 2,
   },
   heroDescription: {
     fontSize: 16,
@@ -1152,8 +1444,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderColor: colors.border,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '500',
     color: colors.text,
     marginBottom: 20,
   },
@@ -1202,6 +1494,28 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  pairedSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  pairedEmpty: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  pairedCount: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  pairedRow: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  pairedName: {
+    fontSize: 15,
+    fontWeight: '500',
   },
   nameContainer: {
     flexDirection: 'row',

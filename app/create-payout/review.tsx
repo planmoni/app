@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -211,7 +211,7 @@ export default function ReviewScreen() {
     setShowPinVerification(false);
   }, []);
 
-  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   // Helper function to get bank code from bank name
   const getBankCode = useCallback((bankName: string): string | null => {

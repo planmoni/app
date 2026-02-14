@@ -6,15 +6,29 @@ module.exports = {
     name: "Planmoni",
     owner: "planmoni", // 👈 Add this line
     slug: "planmoni",
-    version: "1.3.2",
+    version: "1.3.3",
     scheme: "myapp",
     userInterfaceStyle: "automatic", // Allow system to control theme
     updates: {
       url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83"
     },
-    runtimeVersion: "1.3.2",
+    runtimeVersion: "1.3.3",
     android: {
       package: "com.planmoni.app", // ← choose your unique package name
+      intentFilters: [
+        {
+          action: "VIEW",
+          autoVerify: true,
+          data: [
+            {
+              scheme: "https",
+              host: "planmoni.com",
+              pathPrefix: "/plan",
+            },
+          ],
+          category: ["BROWSABLE", "DEFAULT"],
+        },
+      ],
       blockedPermissions: [
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VIDEO",
@@ -34,6 +48,7 @@ module.exports = {
     ios: {
       googleServicesFile: "./GoogleService-Info.plist",
       bundleIdentifier: "app.planmoni",
+      associatedDomains: ["applinks:planmoni.com"],
       infoPlist: {
         UIBackgroundModes: ["remote-notification"],
         LSApplicationQueriesSchemes: ["paystack", "opay", "https", "http"],

@@ -380,6 +380,7 @@ export function useCreatePayout() {
       router.replace({
         pathname: "/create-payout/success",
         params: {
+          planId: payoutPlan.id,
           totalAmount: totalAmount.toString(),
           frequency,
           payoutAmount: payoutAmount.toString(),
