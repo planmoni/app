@@ -1153,7 +1153,6 @@ export default function HomeScreen() {
         
         <View style={styles.contentContainer}>
               {/* On Track Card */}
-              <OnTrackCard payoutPlans={payoutPlans} />
         {/* AI Suggestion Section - Only show for authenticated users */}
         {isAuthenticated && (
           <AISuggestionCard 
@@ -1161,6 +1160,7 @@ export default function HomeScreen() {
             onSuggestionPress={handleAISuggestionPress}
           />
         )}
+        <OnTrackCard payoutPlans={payoutPlans} />
         
         {/* <IntercomButton /> */}
 

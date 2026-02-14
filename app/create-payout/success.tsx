@@ -74,7 +74,7 @@ export default function SuccessScreen() {
 
   const handleSharePlan = () => {
     haptics.mediumImpact();
-    if (planId) router.push({ pathname: '/view-payout', params: { id: planId } });
+    if (planId) router.push({ pathname: '/view-payout', params: { id: planId, openShare: '1' } });
   };
 
   const styles = createStyles(colors, isSmallScreen, isMediumScreen);

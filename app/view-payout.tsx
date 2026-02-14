@@ -52,7 +52,7 @@ import { Users, Link, Hash, Copy } from 'lucide-react-native';
 
 export default function ViewPayoutScreen() {
   const { colors, isDark } = useTheme();
-  const { id } = useLocalSearchParams();
+  const { id, openShare } = useLocalSearchParams<{ id: string; openShare?: string }>();
   const { payoutPlans, isLoading, updatePlan, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { showBalances, toggleBalances } = useBalance();
   const haptics = useHaptics();
@@ -88,6 +88,11 @@ export default function ViewPayoutScreen() {
   const plan = payoutPlans.find(p => p.id === id);
   const isOwner = plan && session?.user?.id && plan.user_id === session.user.id;
   const styles = createStyles(colors, isDark);
+
+  // Open share modal when navigated with openShare=1 (e.g. from create-payout success "Share plan")
+  useEffect(() => {
+    if (plan?.id && openShare === '1') setShowShareModal(true);
+  }, [plan?.id, openShare]);
 
   // When share modal opens, fetch link and code
   useEffect(() => {
@@ -908,7 +913,6 @@ export default function ViewPayoutScreen() {
           >
             <View style={styles.pairedSectionHeader}>
               <Users size={20} color={colors.textSecondary} />
-              <Text style={styles.sectionTitle}>People watching this plan</Text>
             </View>
             {pairedUsers.length === 0 ? (
               <Text style={[styles.pairedEmpty, { color: colors.textSecondary }]}>
@@ -917,7 +921,7 @@ export default function ViewPayoutScreen() {
             ) : (
               <>
                 <Text style={[styles.pairedCount, { color: colors.textSecondary }]}>
-                  {pairedUsers.length} {pairedUsers.length === 1 ? 'person' : 'people'} following
+                  {pairedUsers.length} {pairedUsers.length === 1 ? 'person' : 'people'} joined
                 </Text>
                 {pairedUsers.map((u) => (
                   <View key={u.id} style={[styles.pairedRow, { borderBottomColor: colors.border }]}>

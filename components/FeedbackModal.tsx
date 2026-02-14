@@ -15,10 +15,12 @@ export type FeedbackSource = 'plan_creation' | 'second_open';
 interface FeedbackModalProps {
   visible: boolean;
   onClose: () => void;
+  /** Called when user taps "Rate" (caller should persist "don't show again" then close) */
+  onRate?: () => void;
   source?: FeedbackSource;
 }
 
-export default function FeedbackModal({ visible, onClose, source }: FeedbackModalProps) {
+export default function FeedbackModal({ visible, onClose, onRate, source }: FeedbackModalProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
@@ -44,6 +46,7 @@ export default function FeedbackModal({ visible, onClose, source }: FeedbackModa
       Linking.openURL(url).catch((err) => console.error('Failed to open store URL:', err));
       if (source) logAnalyticsEvent('feedback_modal_rated', { source });
     }
+    onRate?.();
     handleClose();
   };
 
