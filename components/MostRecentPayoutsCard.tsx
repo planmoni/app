@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, Dimensions, Image, Platform } from 'react-native';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable, Animated, Image, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { formatCurrency } from '@/lib/formatters';
-import TransactionModal from '@/components/TransactionModal';
 import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
@@ -28,7 +27,7 @@ interface MostRecentPayoutsCardProps {
   onTransactionPress?: (transaction: any) => void;
 }
 
-export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecentPayoutsCardProps) {
+const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProps) => {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { isAuthenticated } = useRequireAuth();
@@ -38,6 +37,8 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
   const slideAnimation = useRef(new Animated.Value(0)).current;
   const autoSlideTimer = useRef<number | null>(null);
+
+  const styles = useMemo(() => createStyles(colors, isDark, textSizeMultiplier), [colors, isDark, textSizeMultiplier]);
 
   // Process transactions to get recent payouts, deposits, and withdrawals
   useEffect(() => {
@@ -102,29 +103,23 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
         if (!bankName || bankName === 'Unknown Bank') {
           if (tx.destination && tx.destination !== 'bank_account') {
             // Try to extract bank name and account number from destination
-            // Format is typically "BankName AccountNumber"
             const destParts = tx.destination.split(' ');
             if (destParts.length >= 2) {
-              // Bank name is everything except the last part (account number)
               bankName = destParts.slice(0, -1).join(' ');
               const fullAccountNumber = destParts[destParts.length - 1];
-              // Mask the account number showing only last 4 digits
               accountNumber = fullAccountNumber.length >= 4 
                 ? `*** ${fullAccountNumber.slice(-4)}`
                 : '****';
             } else if (destParts.length === 1) {
-              // Fallback if only one part
               bankName = destParts[0];
               accountNumber = '****';
             }
           } else {
-            // Final fallback for generic destination
             bankName = 'Bank Account';
             accountNumber = '****';
           }
         }
         
-        // Update description to include the masked account info
         description = `Emergency withdrawal processed to ${bankName} ${accountNumber}`;
       }
       
@@ -150,7 +145,6 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
       } else if (diffDays <= 7) {
         dateStr = `${diffDays} days ago at`;
       } else {
-        // For older dates, show the actual date
         dateStr = date.toLocaleDateString('en-US', { 
           month: 'short', 
           day: 'numeric' 
@@ -180,7 +174,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
     const startAutoSlide = () => {
       autoSlideTimer.current = setInterval(() => {
         setCurrentIndex(prev => (prev + 1) % recentTransactions.length);
-      }, 6000); // Change slide every 4 seconds
+      }, 6000);
     };
 
     startAutoSlide();
@@ -192,12 +186,9 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
     };
   }, [recentTransactions.length]);
 
-  // Animate slide changes with up slide effect
+  // Animate slide changes
   useEffect(() => {
-    // Reset animation to start from bottom
     slideAnimation.setValue(100);
-    
-    // Animate to center position
     Animated.timing(slideAnimation, {
       toValue: 0,
       duration: 200,
@@ -205,38 +196,25 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
     }).start();
   }, [currentIndex, slideAnimation]);
 
-  // Handle card press to open transaction modal
   const handleCardPress = () => {
     const currentTransaction = recentTransactions[currentIndex];
     if (currentTransaction && onTransactionPress) {
-      // Find the original transaction data
-      const originalTransaction = transactions.find(tx => 
-        tx.id === currentTransaction.id
-      );
-      
+      const originalTransaction = transactions.find(tx => tx.id === currentTransaction.id);
       if (originalTransaction) {
         onTransactionPress(originalTransaction);
       }
     }
   };
 
-  // Handle view all transactions
   const handleViewAllTransactions = () => {
     router.push('/transactions');
     logAnalyticsEvent('view_all_transactions', { source: 'most_recent_card' });
   };
 
-  // Don't render if user is not authenticated
-  if (!isAuthenticated) {
+  if (!isAuthenticated || recentTransactions.length === 0) {
     return null;
   }
 
-  // Don't render if no recent payouts
-  if (recentTransactions.length === 0) {
-    return null;
-  }
-
-  const styles = createStyles(colors, isDark, textSizeMultiplier);
   const currentTransaction = recentTransactions[currentIndex];
 
   return (
@@ -253,14 +231,10 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
             style={[
               styles.cardContent,
               {
-                transform: [
-                  {
-                    translateY: slideAnimation,
-                  },
-                ],
+                transform: [{ translateY: slideAnimation }],
                 opacity: slideAnimation.interpolate({
                   inputRange: [0, 50],
-                  outputRange: [1, 20],
+                  outputRange: [1, 0],
                   extrapolate: 'clamp',
                 }),
               },
@@ -272,10 +246,10 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
                   styles.amount,
                   { 
                     color: currentTransaction.type === 'deposit' 
-                      ? colors.text // Green for deposits
+                      ? colors.text 
                       : currentTransaction.type === 'withdrawal'
-                      ? '#F97316' // Orange for withdrawals  
-                      : colors.text // Default for payouts
+                      ? '#F97316'
+                      : colors.text
                   }
                 ]}>
                   {currentTransaction.type === 'deposit' ? '+' : currentTransaction.type === 'withdrawal' ? '-' : ''}
@@ -295,15 +269,12 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
                     <View style={styles.bankLogo}>
                       {(() => {
                         const bankIcon = getBankIconLogo(currentTransaction.bankName);
-                        
                         if (bankIcon.logoSvg) {
-                          // Handle SVG components
                           return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
                             width: 16,
                             height: 16,
                           });
                         } else if (bankIcon.logo) {
-                          // Handle PNG/JPG images
                           return (
                             <Image
                               source={bankIcon.logo}
@@ -312,7 +283,6 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
                             />
                           );
                         } else {
-                          // Fallback to bank name initials
                           return (
                             <Text style={styles.bankInitials}>
                               {currentTransaction.bankName.substring(0, 2).toUpperCase()}
@@ -334,7 +304,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
       </View>
     </View>
   );
-}
+};
 
 const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
@@ -374,26 +344,14 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     paddingVertical:15,
     borderWidth: 0.5,
     borderColor: colors.border,
-  
-  
-    overflow: 'hidden', // Hide content that slides outside the card
+    overflow: 'hidden',
   },
-  cardContent: {
-    // Container for the animated content
-  },
+  cardContent: {},
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 5,
-  },
-  planName: {
-    fontSize: getScaledFontSize(14, textSizeMultiplier),
-    fontWeight: '500',
-    color: colors.text,
-    flex: 1,
-    marginRight: 12,
-    maxWidth: '60%',
   },
   amount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 25 : 20, textSizeMultiplier),
@@ -425,7 +383,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   bankInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap', // Prevent wrapping
+    flexWrap: 'wrap',
     maxWidth: '90%',
   },
   bankLogo: {
@@ -434,68 +392,34 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginRight: Platform.OS === 'ios' ? 3 : 2,
     justifyContent: 'center',
     alignItems: 'center',
-    flexShrink: 0, // Prevent logo from shrinking
+    flexShrink: 0,
   },
   bankName: {
     fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
-    marginRight: 1, // Add small margin between name and account number
-    flexShrink: 1, // Allow name to shrink if needed
+    marginRight: 1,
+    flexShrink: 1,
   },
   accountNumber: {
     fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
-    flexShrink: 0, // Prevent account number from shrinking
+    flexShrink: 0,
   },
   bankInitials: {
     fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
   },
-  cardFooter: {
-    alignItems: 'center', // Center the date/time
-  },
-  dateContainer: {
-    alignItems: 'flex-start',
-  },
   dateTime: {
     fontSize: getScaledFontSize(13, textSizeMultiplier),
     marginTop: 5,
     color: colors.textSecondary,
     fontWeight: '400',
-    textAlign: 'right', // Change from 'center' to 'right'
+    textAlign: 'right',
     flex: 0,
   },
-  // Remove pagination-related styles
-  // pagination: {
-  //   flexDirection: 'row',
-  //   justifyContent: 'center',
-  //   alignItems: 'center',
-  //   marginTop: 12,
-  //   gap: 6,
-  // },
-  // paginationDot: {
-  //   width: 6,
-  //   height: 6,
-  //   borderRadius: 3,
-  //   backgroundColor: colors.border,
-  // },
-  // paginationDotActive: {
-  //   backgroundColor: colors.primary,
-  //   width: 20,
-  //   height: 6,
-  //   borderRadius: 3,
-  // },
-  bankIconImage: {
-    width: 20,
-    height: 20,
-  },
-  bankIconFallback: {
-    width: 20,
-    height: 20,
-    backgroundColor: colors.border,
-    borderRadius: 4,
-  },
-}); 
+});
+
+export default React.memo(MostRecentPayoutsCard);

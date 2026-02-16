@@ -290,7 +290,7 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     return null;
   }
 
-  const styles = createStyles(colors, isDark, textSizeMultiplier);
+  const styles = useMemo(() => createStyles(colors, isDark, textSizeMultiplier), [colors, isDark, textSizeMultiplier]);
 
   return (
     <View style={styles.container}>

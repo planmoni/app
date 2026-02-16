@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -15,12 +15,14 @@ interface NextPayoutCardProps {
   nextPayout: any;
 }
 
-export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
+const NextPayoutCard = ({ nextPayout }: NextPayoutCardProps) => {
   const { colors, isDark } = useTheme();
   const { showBalances } = useBalance();
   const { textSizeMultiplier } = useTextSize();
   const { isAuthenticated } = useRequireAuth();
   const [nextPayoutAmount, setNextPayoutAmount] = useState<number | null>(null);
+
+  const styles = useMemo(() => createStyles(colors, isDark, textSizeMultiplier), [colors, isDark, textSizeMultiplier]);
 
   const formatBalance = (amount: number) => {
     return showBalances ? `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '*********';
@@ -80,8 +82,6 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
 
   // Don't render if user is not authenticated or no next payout
   if (!isAuthenticated || !nextPayout) return null;
-
-  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
     <View style={styles.section}>
@@ -158,7 +158,7 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
       </Pressable>
     </View>
   );
-}
+};
 
 const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number ) => StyleSheet.create({
   section: {
@@ -269,4 +269,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number )
     borderRadius: 8,
     alignSelf: 'flex-start',
   },
-}); 
+});
+
+export default React.memo(NextPayoutCard);

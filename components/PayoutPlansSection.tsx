@@ -1,14 +1,14 @@
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { Plus } from 'lucide-react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
-import { formatPayoutFrequency, formatPayoutDateTime, formatDisplayDate } from '@/lib/formatters';
+import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
 import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
-import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { supabase } from '@/lib/supabase';
 
 interface PayoutPlansSectionProps {
@@ -22,8 +22,7 @@ interface PayoutPlansSectionProps {
 function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, onShowWelcomeModal, isUserAuthenticated = true }: PayoutPlansSectionProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
-  const { requireAuth, isAuthenticated } = useRequireAuth();
-  const { showBalances, balance, availableBalance } = useBalance();
+  const { showBalances } = useBalance();
   const [customDateAmounts, setCustomDateAmounts] = useState<Record<string, Record<string, number>>>({});
 
   // Fetch custom payout dates with amounts
@@ -42,7 +41,6 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
 
         if (error) throw error;
 
-        // Group by plan_id: { planId: { date: amount } }
         const amountsByPlan: Record<string, Record<string, number>> = {};
         data?.forEach(item => {
           if (!amountsByPlan[item.payout_plan_id]) {
@@ -87,7 +85,6 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
       logAnalyticsEvent('create_payout_click_modal');
       return;
     }
-    // Always show the new plan info modal for these buttons
     if (onShowNewPlanInfo) {
       onShowNewPlanInfo();
       logAnalyticsEvent('create_payout_click_modal');
@@ -95,19 +92,9 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
   }, [onShowNewPlanInfo, onShowWelcomeModal, isUserAuthenticated]);
 
   const memoizedPlans = useMemo(() => {
-    return activePlans.map((plan) => {
+    const plans = activePlans.map((plan) => {
       const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
-      
-      // For custom plans, calculate completed amount from custom dates
-      let completedAmount = 0;
-      if (plan.frequency === 'custom' && customDateAmounts[plan.id]) {
-        // Sum amounts from completed payouts (we'd need to track which dates were completed)
-        // For now, use the plan's payout_amount as fallback
-        completedAmount = plan.completed_payouts * plan.payout_amount;
-      } else {
-        completedAmount = plan.completed_payouts * plan.payout_amount;
-      }
-      
+      const completedAmount = plan.completed_payouts * plan.payout_amount;
       const dayOfWeek = (plan as any).metadata?.dayOfWeek;
       const originalFrequency = (plan as any).metadata?.originalFrequency || plan.frequency;
       
@@ -118,11 +105,82 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
         dayOfWeek,
         originalFrequency,
         customAmounts: customDateAmounts[plan.id] || {},
+        isPlan: true,
       };
     });
+
+    // Add a placeholder for the "Add Payout" card
+    return [...plans, { id: 'add-payout-placeholder', isAddCard: true }];
   }, [activePlans, customDateAmounts]);
 
-  const styles = createStyles(colors, isDark, textSizeMultiplier);
+  const styles = useMemo(() => createStyles(colors, isDark, textSizeMultiplier), [colors, isDark, textSizeMultiplier]);
+
+  const renderItem = useCallback(({ item }: { item: any }) => {
+    if (item.isAddCard) {
+      return (
+        <Pressable 
+          style={styles.addPayoutCard}
+          onPress={handleCreatePayout}
+        >
+          <Plus size={24} color={colors.text} />
+          <Text style={styles.addPayoutText}>Create New Payout</Text>
+          <Text style={styles.addPayoutDescription}>
+            Set up a new automated payout plan
+          </Text>
+        </Pressable>
+      );
+    }
+
+    return (
+      <Pressable
+        style={styles.payoutPlanCard}
+        onPress={() => handleViewPayout(item.id)}
+      >
+        <View style={styles.planHeader}>
+          <Text style={styles.planType}>{item.name}</Text>
+          <View style={styles.activeTag}>
+            <Text style={styles.activeTagText}>
+              {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.planAmount}>{formatBalance(item.total_amount)}</Text>
+        <View style={styles.planDetails}>
+          <Text style={styles.planFrequency}>
+            {formatPayoutFrequency(item.originalFrequency, item.dayOfWeek)}
+          </Text>
+          {item.frequency === 'custom' && Object.keys(item.customAmounts || {}).length > 0 ? (
+            <View style={styles.customAmountsContainer}>
+              <Text style={styles.planDot}>•</Text>
+              <Text style={styles.planValue}>Custom amounts</Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.planDot}>•</Text>
+              <Text style={styles.planValue}>{formatBalance(item.payout_amount)}</Text>
+            </>
+          )}
+        </View>
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${item.progress}%` }]} />
+        </View>
+        <View style={styles.planProgress}>
+          <Text style={styles.progressText}>
+            {formatBalance(item.completedAmount)}/{formatBalance(item.total_amount)}
+          </Text>
+          <Text style={styles.progressCount}>
+            {item.completed_payouts}/{item.duration}
+          </Text>
+        </View>
+        
+        {item.next_payout_date && (
+          <Text style={styles.nextPayoutDate}>
+            Next Payday: {formatPayoutDateTime(item.next_payout_date)}
+          </Text>
+        )}
+      </Pressable>
+    );
+  }, [styles, handleCreatePayout, handleViewPayout, colors.text, formatBalance]);
 
   return (
     <View style={styles.section}>
@@ -134,88 +192,17 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
       </View>
       
       {activePlans.length > 0 ? (
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.payoutPlansContainer}
-        >
-          {memoizedPlans.map((plan) => (
-              <Pressable
-                key={plan.id}
-                style={styles.payoutPlanCard}
-                onPress={() => handleViewPayout(plan.id)}
-              >
-                <View style={styles.planHeader}>
-                  <Text style={styles.planType}>{plan.name}</Text>
-                  <View style={styles.activeTag}>
-                    <Text style={styles.activeTagText}>
-                      {plan.status.charAt(0).toUpperCase() + plan.status.slice(1)}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.planAmount}>{formatBalance(plan.total_amount)}</Text>
-                <View style={styles.planDetails}>
-                  <Text style={styles.planFrequency}>
-                    {formatPayoutFrequency(plan.originalFrequency, plan.dayOfWeek)}
-                  </Text>
-                  {plan.frequency === 'custom' && Object.keys(plan.customAmounts || {}).length > 0 ? (
-                    <View style={styles.customAmountsContainer}>
-                      <Text style={styles.planDot}>•</Text>
-                      <Text style={styles.planValue}>Custom amounts</Text>
-                    </View>
-                  ) : (
-                    <>
-                      <Text style={styles.planDot}>•</Text>
-                      <Text style={styles.planValue}>{formatBalance(plan.payout_amount)}</Text>
-                    </>
-                  )}
-                </View>
-                {plan.frequency === 'custom' && Object.keys(plan.customAmounts || {}).length > 0 && (
-                  <View style={styles.customAmountsList}>
-                    {/* {Object.entries(plan.customAmounts)
-                      .slice(0, 3)
-                      .map(([date, amount]) => (
-                        <Text key={date} style={styles.customAmountItem}>
-                          {formatDisplayDate(date)}: {formatBalance(amount)}
-                        </Text>
-                      ))} */}
-                    {Object.keys(plan.customAmounts).length > 3 && (
-                      <Text style={styles.customAmountMore}>
-                        +{Object.keys(plan.customAmounts).length - 3} more
-                      </Text>
-                    )}
-                  </View>
-                )}
-                <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: `${plan.progress}%` }]} />
-                </View>
-                <View style={styles.planProgress}>
-                  <Text style={styles.progressText}>
-                    {formatBalance(plan.completedAmount)}/{formatBalance(plan.total_amount)}
-                  </Text>
-                  <Text style={styles.progressCount}>
-                    {plan.completed_payouts}/{plan.duration}
-                  </Text>
-                </View>
-                
-                {plan.next_payout_date && (
-                  <Text style={styles.nextPayoutDate}>
-                    Next Payday: {formatPayoutDateTime(plan.next_payout_date)}
-                  </Text>
-                )}
-              </Pressable>
-            ))}
-          <Pressable 
-            style={styles.addPayoutCard}
-            onPress={handleCreatePayout}
-          >
-            <Plus size={24} color={colors.text} />
-            <Text style={styles.addPayoutText}>Create New Payout</Text>
-            <Text style={styles.addPayoutDescription}>
-              Set up a new automated payout plan
-            </Text>
-          </Pressable>
-        </ScrollView>
+        <View style={{ height: Platform.OS === 'ios' ? 240 : 200, width: '100%' }}>
+          <FlashList
+            data={memoizedPlans}
+            renderItem={renderItem}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            estimatedItemSize={316}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.payoutPlansList}
+          />
+        </View>
       ) : (
         <View style={styles.emptyPayoutsContainer}>
           <Text style={styles.emptyPayoutsText}>No scheduled payout plans</Text>
@@ -223,14 +210,6 @@ function PayoutPlansSection({ activePlans, onShowNewPlanInfo, onShowHowItWorks, 
             <Plus size={20} color={colors.text} />
             <Text style={styles.createFirstPayoutText}>Create Your Payout</Text>
           </Pressable>
-          {/* {!isAuthenticated && onShowHowItWorks && (
-            <Pressable 
-              style={[styles.howItWorksButton, { borderColor: colors.primary }]} 
-              onPress={onShowHowItWorks}
-            >
-              <Text style={[styles.howItWorksButtonText, { color: colors.text }]}>How it works?</Text>
-            </Pressable>
-          )} */}
         </View>
       )}
     </View>
@@ -260,8 +239,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: colors.text,
     fontWeight: '500',
   },
-  payoutPlansContainer: {
-    paddingRight: 1,
+  payoutPlansList: {
+    paddingRight: 16,
   },
   payoutPlanCard: {
     width: Platform.OS === 'ios' ? 300 : 280,
@@ -349,7 +328,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
   },
   addPayoutCard: {
-    width: 300,
+    width: Platform.OS === 'ios' ? 300 : 280,
     backgroundColor: colors.backgroundSecondary,
     borderWidth: 2,
     borderColor: colors.border,
@@ -358,6 +337,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
+    height: Platform.OS === 'ios' ? 220 : 180,
   },
   addPayoutText: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
@@ -399,35 +379,11 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
     fontWeight: '600',
   },
-  howItWorksButton: {
-    marginTop: 5,
-    paddingHorizontal: 60,
-    paddingVertical: 3,
-    backgroundColor: 'transparent',
-    borderRadius: 13,
-  },
-  howItWorksButtonText: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
-    fontWeight: '400',
-  },
   customAmountsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  customAmountsList: {
-    marginTop: 8,
-    gap: 4,
-  },
-  customAmountItem: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
-    color: colors.textSecondary,
-  },
-  customAmountMore: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
-    color: colors.textSecondary,
-    fontStyle: 'italic',
-  },
 });
 
-export default React.memo(PayoutPlansSection); 
+export default React.memo(PayoutPlansSection);
