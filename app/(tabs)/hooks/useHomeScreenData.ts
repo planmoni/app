@@ -220,5 +220,6 @@ export function useHomeScreenData() {
     userId: session?.user?.id,
     hasCreatedPayoutPlan,
     isRecentAccount,
+    fetchPayoutPlans,
   };
 }
