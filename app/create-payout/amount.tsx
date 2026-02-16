@@ -52,7 +52,7 @@ export default function AmountScreen() {
       return;
     }
 
-    if (numericAmount < 5000) {
+    if (numericAmount < 1000) {
       setError('Minimum amount is ₦5,000');
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       return;
@@ -66,7 +66,7 @@ export default function AmountScreen() {
 
     haptics.mediumImpact();
     router.push({
-      pathname: '/create-payout/frequency-selection',
+      pathname: '/create-payout/purpose',
       params: {
         totalAmount: amount,
         frequency: params.frequency || '',
@@ -83,6 +83,8 @@ export default function AmountScreen() {
         dayOfWeek: params.dayOfWeek || '',
         payoutHour: params.payoutHour || '',
         payoutMinute: params.payoutMinute || '',
+        purpose: params.purpose || '',
+        purposeOther: params.purposeOther || '',
       }
     });
   };

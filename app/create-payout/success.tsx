@@ -26,6 +26,7 @@ export default function SuccessScreen() {
   const isMediumScreen = screenWidth >= 375 && screenWidth < 768;
   
   // Get values from route params with safe defaults
+  const planId = params.planId as string | undefined;
   const totalAmount = params.totalAmount as string || '0';
   const frequency = params.frequency as string || 'monthly';
   const payoutAmount = params.payoutAmount as string || '0';
@@ -69,6 +70,11 @@ export default function SuccessScreen() {
   const handleBackToDashboard = () => {
     haptics.lightImpact();
     router.replace('/(tabs)');
+  };
+
+  const handleSharePlan = () => {
+    haptics.mediumImpact();
+    if (planId) router.push({ pathname: '/view-payout', params: { id: planId, openShare: '1' } });
   };
 
   const styles = createStyles(colors, isSmallScreen, isMediumScreen);
@@ -158,6 +164,15 @@ export default function SuccessScreen() {
           style={styles.viewPayoutsButton}
           hapticType="medium"
         />
+        {planId ? (
+          <Button 
+            title="Share plan"
+            onPress={handleSharePlan}
+            variant="outline"
+            style={styles.dashboardButton}
+            hapticType="medium"
+          />
+        ) : null}
         <Button 
           title="Back to Dashboard"
           onPress={handleBackToDashboard}

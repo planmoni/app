@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { Lightbulb, Target, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,6 +19,7 @@ const ON_TRACK_CARD_DISMISSED_KEY = 'on_track_card_dismissed';
 
 function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
   const { colors, isDark } = useTheme();
+  const { session } = useAuth();
   const { lightImpact } = useHaptics();
   const { textSizeMultiplier } = useTextSize();
   const [isDismissed, setIsDismissed] = useState(false);
@@ -31,10 +33,21 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     calculationHash: string;
   } | null>(null);
 
+  // Plans where the current user is the "recipient": owner (their account receives) or watcher (shared plan — they "own" the on-track for that plan)
+  const recipientPlans = useMemo(() => {
+    const myId = session?.user?.id;
+    if (!myId) return [];
+    return payoutPlans.filter(
+      (plan) =>
+        plan.status === 'active' &&
+        (plan.user_id === myId || Boolean(plan.is_paired))
+    );
+  }, [payoutPlans, session?.user?.id]);
+
   // Fetch custom payout dates and amounts for custom plans
   useEffect(() => {
     const fetchCustomData = async () => {
-      const customPlans = payoutPlans.filter(plan => plan.status === 'active' && plan.frequency === 'custom');
+      const customPlans = recipientPlans.filter(plan => plan.frequency === 'custom');
       if (customPlans.length === 0) {
         setCustomAmountsByPlan({});
         setCustomDatesByPlan({});
@@ -77,11 +90,11 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     };
 
     fetchCustomData();
-  }, [payoutPlans]);
+  }, [recipientPlans]);
 
-  // Calculate total payout and longest duration
+  // Calculate total payout and longest duration (only for plans where current user is the recipient)
   useEffect(() => {
-    const activePlans = payoutPlans.filter(plan => plan.status === 'active');
+    const activePlans = recipientPlans;
     
     if (activePlans.length === 0) {
       setCalculation(null);
@@ -99,22 +112,24 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
       if (remainingPayouts <= 0) return; // Skip completed plans
 
       if (plan.frequency === 'custom') {
-        // For custom plans, use actual custom amounts and dates
+        // For custom plans, use actual custom amounts and dates when available (plan owner can read custom_payout_dates; paired users cannot due to RLS)
         const customDates = customDatesByPlan[plan.id] || [];
         const customAmounts = customAmountsByPlan[plan.id] || {};
-        
-        // Filter to only future dates
         const futureDates = customDates.filter(date => {
           const dateObj = new Date(date);
           dateObj.setHours(0, 0, 0, 0);
           return dateObj >= now;
         });
 
-        // Sum the amounts for future dates
-        futureDates.forEach(date => {
-          const amount = customAmounts[date] || plan.payout_amount;
-          totalPayout += amount;
-        });
+        if (futureDates.length > 0) {
+          futureDates.forEach(date => {
+            const amount = customAmounts[date] || plan.payout_amount;
+            totalPayout += amount;
+          });
+        } else {
+          // No custom dates (e.g. paired user): fall back to remaining payouts * payout_amount so the card still shows
+          totalPayout += remainingPayouts * plan.payout_amount;
+        }
       } else {
         // For regular plans, use payout_amount * remaining payouts
         totalPayout += remainingPayouts * plan.payout_amount;
@@ -134,20 +149,26 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
       if (remainingPayouts <= 0) return; // Skip completed plans
       
       if (plan.frequency === 'custom') {
-        // For custom plans, use the actual last date from custom dates
+        // For custom plans, use the actual last date from custom dates when available
         const customDates = customDatesByPlan[plan.id] || [];
-        if (customDates.length > 0) {
-          // Filter to only future dates and get the last one
-          const futureDates = customDates
-            .filter(date => {
-              const dateObj = new Date(date);
-              dateObj.setHours(0, 0, 0, 0);
-              return dateObj >= now;
-            })
-            .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-          
-          if (futureDates.length > 0) {
-            planLastDate = new Date(futureDates[futureDates.length - 1]);
+        const futureDates = customDates
+          .filter(date => {
+            const dateObj = new Date(date);
+            dateObj.setHours(0, 0, 0, 0);
+            return dateObj >= now;
+          })
+          .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+        if (futureDates.length > 0) {
+          planLastDate = new Date(futureDates[futureDates.length - 1]);
+        } else {
+          // No custom dates (e.g. paired user): approximate last date from next_payout_date or start_date + remaining
+          if (plan.next_payout_date) {
+            const nextDate = new Date(plan.next_payout_date);
+            planLastDate = new Date(nextDate);
+            planLastDate.setDate(nextDate.getDate() + (remainingPayouts - 1));
+          } else {
+            planLastDate = new Date(startDate);
+            planLastDate.setDate(startDate.getDate() + plan.completed_payouts + (remainingPayouts - 1));
           }
         }
       } else {
@@ -223,7 +244,7 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
       timeUnit,
       calculationHash: `${totalPayout}-${lastPayoutTime}`,
     });
-  }, [payoutPlans, customAmountsByPlan, customDatesByPlan]);
+  }, [recipientPlans, customAmountsByPlan, customDatesByPlan]);
 
   // Check if we should show the card (new calculation)
   useEffect(() => {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
+import AddPayoutPlanByCodeModal from '@/components/AddPayoutPlanByCodeModal';
 import AccountInformationModal from '@/components/AccountInformationModal';
 import PlanCreationModal from '@/components/PlanCreationModal';
 import AppLockModal from '@/components/AppLockModal';
@@ -40,7 +41,6 @@ import { usePin } from '@/contexts/PinContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import NotificationIcon from '@/components/NotificationIcon';
-import { supabase } from '@/lib/supabase';
 import NextPayoutCard from '@/components/NextPayoutCard';
 import PayoutPlansSection from '@/components/PayoutPlansSection';
 import RatingCard from '@/components/RatingCard';
@@ -65,7 +65,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { requireAuth } = useRequireAuth();
-  const { impact, notification } = useHaptics();
+  const { impact } = useHaptics();
   const { hasAppLockPin } = usePin();
   const params = useLocalSearchParams();
   const route = useRoute();
@@ -86,7 +86,6 @@ export default function HomeScreen() {
     handleRefresh,
     carouselImages,
     imagesReady,
-    hasAccount,
     isBalanceCardExpanded,
     balanceCardAnimation,
     toggleBalanceCardExpansion,
@@ -99,6 +98,7 @@ export default function HomeScreen() {
     isAuthenticated,
     userId,
     hasCreatedPayoutPlan,
+    fetchPayoutPlans,
   } = data;
 
   // Modals hook
@@ -114,8 +114,6 @@ export default function HomeScreen() {
     isTransactionModalVisible,
     setIsTransactionModalVisible,
     selectedTransaction,
-    showWelcomeModal,
-    setShowWelcomeModal,
     showHowItWorksModal,
     setShowHowItWorksModal,
     showWelcomeModalForUnauth,
@@ -124,6 +122,8 @@ export default function HomeScreen() {
     setShowClaimAccountModal,
     showNewPlanInfoModal,
     setShowNewPlanInfoModal,
+    showAddByCodeModal,
+    setShowAddByCodeModal,
     showAccountInfoModal,
     setShowAccountInfoModal,
     showPlanCreationModal,
@@ -361,7 +361,7 @@ export default function HomeScreen() {
                 ) : (
                   <Pressable style={styles.avatarButton}>
                     <View style={[styles.avatarPlaceholder, { backgroundColor: '#fff' }]}>
-                      <Image source={require('@/assets/images/AppIcon.png')} style={styles.avatarAppIcon} resizeMode="contain" />
+                      <Image source={require('@/assets/images/homeicon.png')} style={styles.avatarAppIcon} resizeMode="contain" />
                     </View>
                   </Pressable>
                 )}
@@ -444,6 +444,7 @@ export default function HomeScreen() {
           <NextPayoutCard nextPayout={nextPayout} />
           <PayoutPlansSection 
             activePlans={activePlans} 
+            onShowAddByCodeModal={() => isAuthenticated ? setShowAddByCodeModal(true) : setShowWelcomeModalForUnauth(true)}
             onShowNewPlanInfo={handleShowNewPlanInfo}
             onShowHowItWorks={handleShowHowItWorks}
             onShowWelcomeModal={handleShowWelcomeModal}
@@ -469,6 +470,19 @@ export default function HomeScreen() {
         <TransactionModalComponent isVisible={isTransactionModalVisible} onClose={() => setIsTransactionModalVisible(false)} transaction={selectedTransaction} />
       )}
       
+      <AddPayoutPlanByCodeModal
+        isVisible={showAddByCodeModal}
+        onClose={() => setShowAddByCodeModal(false)}
+        onSuccess={fetchPayoutPlans}
+        onCreateNewPlan={() => {
+          if (hasCreatedPayoutPlan) {
+            router.push('/create-payout/amount');
+          } else {
+            setShowNewPlanInfoModal(true);
+          }
+        }}
+      />
+
       <NewPlanInfoModal isVisible={showNewPlanInfoModal} onClose={() => setShowNewPlanInfoModal(false)} onAddFundsAfterClose={handleAddFunds} />
       
       {showClaimAccountModal && ClaimAccountModalComponent && (

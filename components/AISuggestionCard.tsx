@@ -24,6 +24,7 @@ import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { router } from 'expo-router';
+import { getPurposeLabel } from '@/lib/payout-purposes';
 
 const { width: screenWidth } = Dimensions.get('window');
 const CARD_WIDTH = 200; // Smaller cards
@@ -40,6 +41,8 @@ interface Suggestion {
   color: string;
   benefits: string[];
   recommended: boolean;
+  /** Purpose value from payout-purposes; used for display label and create flow */
+  purpose?: string;
 }
 
 interface AISuggestionCardProps {
@@ -139,7 +142,7 @@ function AISuggestionCard({
     const userPatterns = analyzeUserPatterns();
     const suggestions: Suggestion[] = [];
 
-    // Default suggestion structure with fixed payout counts
+    // Default suggestion structure with fixed payout counts and purpose labels
     const defaultSuggestions = [
       {
         id: 'daily-30-suggestion',
@@ -148,6 +151,7 @@ function AISuggestionCard({
         frequency: 'daily' as const,
         color: '#8B5CF6',
         icon: <TrendingUp size={20} color="#8B5CF6" />,
+        purpose: 'transportation',
       },
       {
         id: 'daily-7-suggestion',
@@ -156,6 +160,7 @@ function AISuggestionCard({
         frequency: 'daily' as const,
         color: '#7C3AED',
         icon: <TrendingUp size={20} color="#7C3AED" />,
+        purpose: 'personal_salary_allowance',
       },
       {
         id: 'weekly-suggestion',
@@ -164,6 +169,7 @@ function AISuggestionCard({
         frequency: 'weekly' as const,
         color: '#10B981',
         icon: <PiggyBank size={20} color="#10B981" />,
+        purpose: 'groceries_food',
       },
       {
         id: 'weekly-4-suggestion',
@@ -172,6 +178,7 @@ function AISuggestionCard({
         frequency: 'weekly' as const,
         color: '#059669',
         icon: <PiggyBank size={20} color="#059669" />,
+        purpose: 'groceries_food',
       },
       {
         id: 'biweekly-suggestion',
@@ -180,6 +187,7 @@ function AISuggestionCard({
         frequency: 'biweekly' as const,
         color: '#3B82F6',
         icon: <Calendar size={20} color="#3B82F6" />,
+        purpose: 'family_support',
       },
       {
         id: 'month-end-suggestion',
@@ -188,6 +196,7 @@ function AISuggestionCard({
         frequency: 'end_of_month' as const,
         color: '#F59E0B',
         icon: <Target size={20} color="#F59E0B" />,
+        purpose: 'rent_service_charge',
       }
     ];
 
@@ -237,6 +246,7 @@ function AISuggestionCard({
         color: suggestion.color,
         benefits: ['Smart savings', 'Automated', 'Flexible'],
         recommended: suggestion.frequency === userPatterns.mostCommonFrequency && userPatterns.totalPlans > 0,
+        purpose: suggestion.purpose,
       });
     });
 
@@ -343,9 +353,8 @@ function AISuggestionCard({
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.titleContainer}>
-          <Sparkles size={14} color={colors.primary} />
           <Text style={[styles.title, { color: colors.text }]}>
-            Suggested plans for you
+            Suggested based on your balance
           </Text>
           {/* <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Based on your balance</Text> */}
         </View>
@@ -376,6 +385,11 @@ function AISuggestionCard({
           >
             <View style={styles.cardContent}>
               <View style={styles.amountSection}>
+                {suggestion.purpose ? (
+                  <Text style={[styles.purposeTitle, { color: colors.text }]} numberOfLines={2}>
+                    {getPurposeLabel(suggestion.purpose)}
+                  </Text>
+                ) : null}
                 <Text style={[styles.amount, { color: colors.text }]}>
                   {formatAmount(suggestion.amount)}
                 </Text>
@@ -422,8 +436,8 @@ const createStyles = (textSizeMultiplier: number) => StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
-    fontWeight: '600',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
+    fontWeight: '500',
   },
   subtitle: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 12, textSizeMultiplier),
@@ -452,6 +466,12 @@ const createStyles = (textSizeMultiplier: number) => StyleSheet.create({
   },
   amountSection: {
     alignItems: 'flex-start',
+  },
+  purposeTitle: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 11 : 10, textSizeMultiplier),
+    fontWeight: '500',
+    marginBottom: 6,
+    textAlign: 'left',
   },
   amount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),

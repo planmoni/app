@@ -104,7 +104,7 @@ export default function UpdateAppModal() {
           </Text>
 
           <Text style={styles.versionText}>
-            Version {newVersion} ({newBuild})
+            Version {newVersion}
           </Text>
 
           <Text style={styles.message}>
@@ -115,14 +115,14 @@ export default function UpdateAppModal() {
             <View style={styles.versionInfo}>
               <Text style={styles.versionLabel}>Current Version</Text>
               <Text style={styles.versionValue}>
-                {currentVersion} ({currentBuild})
+                {currentVersion}
               </Text>
             </View>
             <View style={styles.versionDivider} />
             <View style={styles.versionInfo}>
               <Text style={styles.versionLabel}>New Version</Text>
               <Text style={[styles.versionValue, { color: colors.primary }]}>
-                {newVersion} ({newBuild})
+                {newVersion}
               </Text>
             </View>
           </View>

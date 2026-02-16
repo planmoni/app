@@ -27,6 +27,7 @@ export function useHomeScreenModals({
   const [showWelcomeModalForUnauth, setShowWelcomeModalForUnauth] = useState(false);
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
   const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
+  const [showAddByCodeModal, setShowAddByCodeModal] = useState(false);
   const [showAccountInfoModal, setShowAccountInfoModal] = useState(false);
   const [hasShownAccountInfoModal, setHasShownAccountInfoModal] = useState(false);
   const accountInfoModalShownRef = useRef(false);
@@ -203,6 +204,8 @@ export function useHomeScreenModals({
     setShowClaimAccountModal,
     showNewPlanInfoModal,
     setShowNewPlanInfoModal,
+    showAddByCodeModal,
+    setShowAddByCodeModal,
     showAccountInfoModal,
     setShowAccountInfoModal,
     showPlanCreationModal,

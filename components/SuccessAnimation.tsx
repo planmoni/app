@@ -28,7 +28,7 @@ export default function SuccessAnimation() {
             ref={confettiAnimation}
             src={require('@/assets/animations/Animation - 1749106445724.json')}
             autoplay
-            loop
+            loop={false}
             style={styles.confetti}
           />
         </View>
@@ -37,7 +37,7 @@ export default function SuccessAnimation() {
             ref={checkAnimation}
             src={require('@/assets/animations/Animation - 1749106589475.json')}
             autoplay
-            loop
+            loop={false}
             style={styles.check}
           />
         </View>
@@ -52,7 +52,7 @@ export default function SuccessAnimation() {
           ref={confettiAnimation}
           source={require('@/assets/animations/Animation - 1749106445724.json')}
           autoPlay
-          loop
+          loop={false}
           style={styles.confetti}
         />
       </View>
@@ -61,7 +61,7 @@ export default function SuccessAnimation() {
           ref={checkAnimation}
           source={require('@/assets/animations/Animation - 1749106589475.json')}
           autoPlay
-          loop
+          loop={false}
           style={styles.check}
         />
       </View>

@@ -28,9 +28,9 @@ const INCOME_RANGES = [
 ] as const;
 const GOALS = [
   'To plan for my daily or weekly expenses',
-  'To help me save better',
+  'To place myself on salary plan',
   'To control my spending',
-  'To delay access to my money',
+  'To gain structured access to my money',
   'To build better money habits',
   'To automate funds to family & friends',
 ] as const;
@@ -237,7 +237,7 @@ export default function OnboardingQuestionnaireModal({
               <View style={styles.step0Center}>
                 <Text style={styles.title}>Get started with Planmoni</Text>
                 <Text style={styles.body}>
-                  Welcome to Planmoni. Set aside funds for your daily, weekly or monthly expenses and Planmoni will release payments based on your schedules.
+                  Set aside funds and select a daily, weekly,  monthly or custom schedules, and Planmoni will handle automation and release of payouts.
                 </Text>
               </View>
             )}

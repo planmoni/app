@@ -26,7 +26,8 @@ import { useFonts } from 'expo-font';
 import { usePayoutNotifications } from '@/hooks/usePayoutNotifications';
 import { useTransactionNotifications } from '@/hooks/useTransactionNotifications';
 import { supabase } from '@/lib/supabase';
-import { SplashScreen, Stack , usePathname } from 'expo-router';
+import { SplashScreen, Stack, usePathname, router } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
 import { Text, View, StyleSheet, Platform, AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -288,6 +289,28 @@ function RootLayoutNav() {
     };
     run();
   }, [session?.user?.id, showFeedback]);
+
+  // Handle plan share deep link (myapp://plan/CODE or https://planmoni.com/plan/CODE)
+  useEffect(() => {
+    function getPlanCodeFromUrl(url: string | null): string | null {
+      if (!url || !url.trim()) return null;
+      const match = url.match(/plan\/([A-Za-z0-9_-]+)/);
+      return match ? match[1] : null;
+    }
+    function navigateToPlanShare(code: string) {
+      if (!code) return;
+      router.replace(`/plan/${encodeURIComponent(code)}` as any);
+    }
+    Linking.getInitialURL().then((url) => {
+      const code = getPlanCodeFromUrl(url);
+      if (code) navigateToPlanShare(code);
+    });
+    const sub = Linking.addEventListener('url', (event: { url: string }) => {
+      const code = getPlanCodeFromUrl(event.url);
+      if (code) navigateToPlanShare(code);
+    });
+    return () => sub.remove();
+  }, []);
 
   // Handle notifications when app is opened from background/closed state
   useEffect(() => {
@@ -710,6 +733,10 @@ function RootLayoutNav() {
         />
         <Stack.Screen 
           name="view-payout" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="plan/[code]" 
           options={{ headerShown: false, gestureEnabled: false }} 
         />
         <Stack.Screen 

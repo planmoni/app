@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X } from 'lucide-react-native';
+import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X, Target } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCreatePayout } from '@/hooks/useCreatePayout';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -11,6 +11,7 @@ import FloatingButton from '@/components/FloatingButton';
 import ErrorMessage from '@/components/ErrorMessage';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatDisplayDate, formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
+import { getPurposeLabel } from '@/lib/payout-purposes';
 import { useBanks } from '@/hooks/useBanks';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { usePin } from '@/contexts/PinContext';
@@ -48,6 +49,8 @@ export default function ReviewScreen() {
   const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
   const payoutHour = params.payoutHour ? parseInt(params.payoutHour as string) : undefined;
   const payoutMinute = params.payoutMinute ? parseInt(params.payoutMinute as string) : undefined;
+  const purpose = params.purpose as string | undefined;
+  const purposeOther = params.purposeOther as string | undefined;
 
   // Calculate available balance
   const availableBalance = balance - lockedBalance;
@@ -145,7 +148,7 @@ export default function ReviewScreen() {
       }
       
       await createPayout({
-        name: `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`,
+        name: purpose ? getPurposeLabel(purpose, purposeOther) : `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`,
         description: `${formatPayoutFrequency(frequency, dayOfWeek)} payout of ${payoutAmount}`,
         totalAmount: parseFloat(totalAmount.replace(/[^0-9.]/g, '')),
         payoutAmount: parseFloat(payoutAmount.replace(/[^0-9.]/g, '')),
@@ -160,6 +163,8 @@ export default function ReviewScreen() {
         emergencyWithdrawalEnabled: emergencyWithdrawal,
         payoutHour: payoutHour,
         payoutMinute: payoutMinute,
+        purpose: purpose || undefined,
+        purposeOther: purposeOther || undefined,
       });
     } catch (err) {
       console.error('Error in handleConfirmPayout:', err);
@@ -167,7 +172,7 @@ export default function ReviewScreen() {
         haptics.error();
       }
     }
-  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, customDateAmounts, emergencyWithdrawal, haptics, createPayout, isLoading]);
+  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, customDateAmounts, emergencyWithdrawal, haptics, createPayout, isLoading, purpose, purposeOther]);
 
   const handleStartPlan = useCallback(async () => {
     if (hasInsufficientBalance) {
@@ -211,7 +216,7 @@ export default function ReviewScreen() {
     setShowPinVerification(false);
   }, []);
 
-  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   // Helper function to get bank code from bank name
   const getBankCode = useCallback((bankName: string): string | null => {
@@ -347,7 +352,7 @@ export default function ReviewScreen() {
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: '100%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 4 of 4</Text>
+        <Text style={styles.stepText}>Step 5 of 5</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
@@ -370,6 +375,49 @@ export default function ReviewScreen() {
             )}
 
             <View style={styles.detailsList}>
+              {purpose ? (
+                <View style={styles.detailItem}>
+                  <View style={[styles.detailIcon, { backgroundColor:colors.backgroundTertiary}]}>
+                    <Target size={20} color={colors.text} />
+                  </View>
+                  <View style={styles.detailContent}>
+                    <Text style={styles.detailLabel}>Purpose</Text>
+                    <Text style={styles.detailValue}>{getPurposeLabel(purpose, purposeOther)}</Text>
+                  </View>
+                  <Pressable
+                    style={styles.editButton}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') haptics.selection();
+                      router.push({
+                        pathname: '/create-payout/purpose',
+                        params: {
+                          totalAmount: totalAmount,
+                          frequency: frequency,
+                          payoutAmount: payoutAmount,
+                          duration: duration,
+                          startDate: startDate,
+                          bankName: bankName,
+                          accountNumber: accountNumber,
+                          accountName: accountName,
+                          bankAccountId: bankAccountId,
+                          payoutAccountId: payoutAccountId,
+                          emergencyWithdrawal: emergencyWithdrawal.toString(),
+                          customDates: customDates ? JSON.stringify(customDates) : '',
+                          customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
+                          dayOfWeek: dayOfWeek?.toString() || '',
+                          payoutHour: payoutHour?.toString() || '',
+                          payoutMinute: payoutMinute?.toString() || '',
+                          purpose: purpose || '',
+                          purposeOther: purposeOther || '',
+                        },
+                      });
+                    }}
+                  >
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
               <View style={styles.detailItem}>
                 <View style={[styles.detailIcon, { backgroundColor:colors.backgroundTertiary}]}>
                   <Wallet size={20} color={colors.text} />
@@ -403,6 +451,8 @@ export default function ReviewScreen() {
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
+                        purpose: purpose || '',
+                        purposeOther: purposeOther || '',
                       }
                     });
                   }}
@@ -458,6 +508,8 @@ export default function ReviewScreen() {
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
+                        purpose: purpose || '',
+                        purposeOther: purposeOther || '',
                       }
                     });
                   }}
@@ -500,6 +552,8 @@ export default function ReviewScreen() {
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
+                        purpose: purpose || '',
+                        purposeOther: purposeOther || '',
                       }
                     });
                   }}
@@ -561,6 +615,8 @@ export default function ReviewScreen() {
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
+                        purpose: purpose || '',
+                        purposeOther: purposeOther || '',
                       }
                     });
                   }}
