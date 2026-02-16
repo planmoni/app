@@ -99,6 +99,7 @@ export default function HomeScreen() {
     userId,
     hasCreatedPayoutPlan,
     fetchPayoutPlans,
+    isCompositeReady,
   } = data;
 
   // Modals hook
@@ -438,8 +439,14 @@ export default function HomeScreen() {
         <View style={styles.contentContainer}>
           <OnTrackCard payoutPlans={payoutPlans} />
           {isAuthenticated && <AISuggestionCard availableBalance={availableBalance} onSuggestionPress={handleAISuggestionPress} />}
-          <ImageCarousel images={carouselImages} onImagePress={!isAuthenticated ? () => setShowWelcomeModalForUnauth(true) : undefined} />
-          <PendingActionsCard />
+          
+          {isCompositeReady && (
+            <>
+              <ImageCarousel images={carouselImages} onImagePress={!isAuthenticated ? () => setShowWelcomeModalForUnauth(true) : undefined} />
+              <PendingActionsCard {...data.pendingActionsData} />
+            </>
+          )}
+          
           <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
           <NextPayoutCard nextPayout={nextPayout} />
           <PayoutPlansSection 

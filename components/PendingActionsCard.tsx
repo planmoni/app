@@ -2,14 +2,11 @@ import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-n
 import { ChevronRight, Mail, Lock, CircleAlert as AlertCircle, Clock } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePin } from '@/contexts/PinContext';
 import { useOnlineStatus } from './OnlineStatusProvider';
 import OfflineNotice from './OfflineNotice';
-import { useKYCProgress } from '@/hooks/useKYCProgress';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import React from 'react';
 import { useTextSize } from '@/contexts/TextSizeContext';
@@ -28,58 +25,31 @@ type PendingAction = {
   disabledReason?: string;
 };
 
-const PendingActionsCard = () => {
+interface PendingActionsCardProps {
+  profileData: any;
+  isLoading: boolean;
+  pinLoading: boolean;
+  hasAppLockPin: boolean;
+  progress: any;
+  currentTier: number;
+}
+
+const PendingActionsCard = ({
+  profileData,
+  isLoading,
+  pinLoading,
+  hasAppLockPin,
+  progress,
+  currentTier,
+}: PendingActionsCardProps) => {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
-  const [profileData, setProfileData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const { session } = useAuth();
   const { isAuthenticated } = useRequireAuth();
-  const { hasAppLockPin, isLoading: pinLoading } = usePin();
   const haptics = useHaptics();
   const { isOnline } = useOnlineStatus();
-  const { progress, currentTier = 0, getTierInfo } = useKYCProgress();
 
   const styles = useMemo(() => createStyles(colors, isDark, textSizeMultiplier), [colors, isDark, textSizeMultiplier]);
-
-  const loadTierInfo = useCallback(async () => {
-    if (!isOnline) return;
-    try {
-      await getTierInfo();
-    } catch (error) {
-      console.error('Error loading tier info:', error);
-    }
-  }, [isOnline, getTierInfo]);
-
-  const fetchProfileData = useCallback(async () => {
-    if (!isOnline) {
-      setIsLoading(false);
-      return;
-    }
-    
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
-        .eq('id', session?.user?.id)
-        .single();
-
-      if (error) throw error;
-      setProfileData(data);
-    } catch (error) {
-      console.error('Error loading profile data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isOnline, session?.user?.id]);
-
-  useEffect(() => {
-    if (session?.user?.id) {
-      fetchProfileData();
-      loadTierInfo();
-    }
-  }, [session?.user?.id, progress, fetchProfileData, loadTierInfo]);
 
   const getStandardPendingActions = useCallback((): PendingAction[] => {
     const actions: PendingAction[] = [];
@@ -153,9 +123,9 @@ const PendingActionsCard = () => {
 
   if (!isAuthenticated) return null;
 
-  if (!isLoading && !pinLoading && filteredActions.length === 0) return null;
+  if (!isLoading && filteredActions.length === 0) return null;
 
-  if (isLoading || pinLoading) {
+  if (isLoading) {
     return (
       <View>
         <Text style={styles.sectionTitle}>Pending Actions</Text>

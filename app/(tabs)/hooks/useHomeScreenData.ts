@@ -12,6 +12,7 @@ import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
 import { updateNextPayoutWidget } from '@/lib/widgetStorage';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { usePin } from '@/contexts/PinContext';
 
 interface Banner {
   id: string;
@@ -29,9 +30,10 @@ export function useHomeScreenData() {
   const { session } = useAuth();
   const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
-  const { loadProgress, isLoading: kycProgressLoading } = useKYCProgress();
+  const { progress, currentTier, getTierInfo, loadProgress, isLoading: kycProgressLoading } = useKYCProgress();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { hasCreatedPayoutPlan, isLoading: hasCreatedPayoutPlanLoading } = useHasCreatedPayoutPlan();
+  const { hasAppLockPin, isLoading: pinLoading } = usePin();
   const { impact, notification } = useHaptics();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -41,6 +43,10 @@ export function useHomeScreenData() {
   const [hasAccount, setHasAccount] = useState(false);
   const [isBalanceCardExpanded, setIsBalanceCardExpanded] = useState(false);
   const balanceCardAnimation = useRef(new Animated.Value(0)).current;
+  
+  // Pending actions data
+  const [profileData, setProfileData] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   // Check if user has an account
   useEffect(() => {
@@ -69,6 +75,29 @@ export function useHomeScreenData() {
     checkAccount();
   }, [session?.user?.id]);
 
+  // Fetch profile data for pending actions
+  const fetchProfileData = useCallback(async () => {
+    if (!session?.user?.id) {
+      setProfileLoading(false);
+      return;
+    }
+    
+    try {
+      setProfileLoading(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
+        .eq('id', session.user.id)
+        .single();
+
+      if (!error) setProfileData(data);
+    } catch (error) {
+      console.error('Error loading profile data:', error);
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [session?.user?.id]);
+
   // Fetch carousel images
   const fetchCarouselImages = useCallback(async () => {
     try {
@@ -95,15 +124,22 @@ export function useHomeScreenData() {
         );
         setCarouselImages(preloadedImages);
         setImagesReady(true);
+      } else {
+        setImagesReady(true);
       }
     } catch (error) {
       console.error('Error fetching carousel images:', error);
+      setImagesReady(true);
     }
   }, []);
 
   useEffect(() => {
     fetchCarouselImages();
-  }, [fetchCarouselImages]);
+    if (session?.user?.id) {
+      fetchProfileData();
+      loadProgress();
+    }
+  }, [fetchCarouselImages, fetchProfileData, loadProgress, session?.user?.id]);
 
   // Update current date every minute for greeting
   useEffect(() => {
@@ -129,6 +165,7 @@ export function useHomeScreenData() {
         fetchTransactions(),
         loadProgress(),
         fetchCarouselImages(),
+        fetchProfileData(),
       ]);
       impact();
     } catch (error) {
@@ -136,7 +173,7 @@ export function useHomeScreenData() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [refreshWallet, fetchPayoutPlans, fetchTransactions, loadProgress, impact, fetchCarouselImages]);
+  }, [refreshWallet, fetchPayoutPlans, fetchTransactions, loadProgress, impact, fetchCarouselImages, fetchProfileData]);
 
   const toggleBalanceCardExpansion = useCallback(() => {
     const toValue = isBalanceCardExpanded ? 0 : 1;
@@ -193,6 +230,18 @@ export function useHomeScreenData() {
   const firstName = session?.user?.user_metadata?.first_name || 'User';
   const lastName = session?.user?.user_metadata?.last_name || '';
 
+  // Determine if composite UI (Carousel + Pending Actions) is ready
+  // Initial load: wait for everything. Subsequent refreshes: stay visible.
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  
+  const isCompositeReady = useMemo(() => {
+    const isReady = imagesReady && (!session?.user || (!profileLoading && !pinLoading && !kycProgressLoading));
+    if (isReady && !hasLoadedOnce) {
+      setHasLoadedOnce(true);
+    }
+    return hasLoadedOnce || isReady;
+  }, [imagesReady, session?.user, profileLoading, pinLoading, kycProgressLoading, hasLoadedOnce]);
+
   return {
     showBalances,
     toggleBalances,
@@ -206,6 +255,7 @@ export function useHomeScreenData() {
     handleRefresh,
     carouselImages,
     imagesReady,
+    isCompositeReady,
     hasAccount,
     isBalanceCardExpanded,
     balanceCardAnimation,
@@ -221,5 +271,14 @@ export function useHomeScreenData() {
     hasCreatedPayoutPlan,
     isRecentAccount,
     fetchPayoutPlans,
+    // Data for PendingActions
+    pendingActionsData: {
+      profileData,
+      isLoading: profileLoading || pinLoading || kycProgressLoading,
+      pinLoading,
+      hasAppLockPin,
+      progress,
+      currentTier,
+    }
   };
 }
