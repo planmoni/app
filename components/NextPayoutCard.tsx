@@ -4,6 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import CountdownTimer from '@/components/CountdownTimer';
 import { getBankIconLogo } from '@/lib/bankIcons';
+import { getPurposeLabel } from '@/lib/payout-purposes';
 import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
@@ -111,6 +112,15 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
   // Don't render if user is not authenticated or no next payout
   if (!isAuthenticated || !nextPayout) return null;
 
+  // Title: purpose when plan has purpose and name is still default, else plan name
+  const purposeLabel = nextPayout.purpose
+    ? getPurposeLabel(nextPayout.purpose, nextPayout.purpose_other_text)
+    : null;
+  const nameIsDefault =
+    purposeLabel &&
+    (nextPayout.name === purposeLabel || / Payout Plan$/.test(nextPayout.name));
+  const displayTitle = nameIsDefault ? purposeLabel : nextPayout.name;
+
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
@@ -124,14 +134,13 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
       >
         <View style={styles.payoutCardContent}>
           <View style={styles.payoutHeader}>
-            <Text style={styles.payoutName}>{nextPayout.name}</Text>
+            <Text style={styles.payoutName}>{displayTitle}</Text>
             <View style={styles.activeTag}>
               <Text style={styles.activeTagText}>
                 {nextPayout.status === 'active' ? 'Next Payout' : 'Paused'}
               </Text>
             </View>
           </View>
-          
           <View style={styles.payoutDetails}>
             <View style={styles.payoutInfo}>
               <Text style={styles.payoutAmount}>

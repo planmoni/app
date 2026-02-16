@@ -37,6 +37,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
 import { formatPayoutFrequency, formatPayoutDateTime, formatDisplayDate } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
+import { getPurposeLabel } from '@/lib/payout-purposes';
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 import CustomAmountsBreakdownModal from '@/components/CustomAmountsBreakdownModal';
 import { supabase } from '@/lib/supabase';
@@ -536,6 +537,11 @@ export default function AllPayoutsScreen() {
                       {plan.description && (
                         <Text style={styles.planDescription}>{plan.description}</Text>
                       )}
+                      {(plan as any).purpose && (
+                        <Text style={styles.planPurpose} numberOfLines={1}>
+                          {getPurposeLabel((plan as any).purpose, (plan as any).purpose_other_text)}
+                        </Text>
+                      )}
                     </View>
                     <View style={styles.headerActions}>
                       <View style={[styles.statusTag, { backgroundColor: statusColors.bg }]}>
@@ -1019,6 +1025,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  planPurpose: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   headerActions: {
     flexDirection: 'row',

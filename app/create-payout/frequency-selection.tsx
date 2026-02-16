@@ -376,7 +376,7 @@ export default function FrequencySelectionScreen() {
     return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
-  const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
+  const [selectedFrequency, setSelectedFrequency] = useState<string | null>('daily');
   const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState<'frequency' | 'custom'>('frequency');
   
@@ -976,6 +976,8 @@ export default function FrequencySelectionScreen() {
           dayOfWeek: '',
           payoutHour: selectedHour.toString(),
           payoutMinute: selectedMinute.toString(),
+          purpose: params.purpose || '',
+          purposeOther: params.purposeOther || '',
         }
       });
       return;
@@ -1040,6 +1042,8 @@ export default function FrequencySelectionScreen() {
         dayOfWeek: selectedDayOfWeek !== null ? selectedDayOfWeek.toString() : '',
         payoutHour: selectedHour.toString(),
         payoutMinute: selectedMinute.toString(),
+        purpose: params.purpose || '',
+        purposeOther: params.purposeOther || '',
       }
     });
   };
@@ -1099,7 +1103,7 @@ export default function FrequencySelectionScreen() {
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: '50%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 2 of 4</Text>
+        <Text style={styles.stepText}>Step 3 of 5</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
@@ -1504,6 +1508,8 @@ export default function FrequencySelectionScreen() {
                                   dayOfWeek: params.dayOfWeek || '',
                                   payoutHour: params.payoutHour || '',
                                   payoutMinute: params.payoutMinute || '',
+                                  purpose: params.purpose || '',
+                                  purposeOther: params.purposeOther || '',
                                 }
                               });
                             }}

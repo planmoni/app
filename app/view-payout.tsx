@@ -45,6 +45,7 @@ import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 import { formatPayoutFrequency, formatDisplayDate } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
+import { getPurposeLabel } from '@/lib/payout-purposes';
 import CustomAmountsBreakdownModal from '@/components/CustomAmountsBreakdownModal';
 import { supabase } from '@/lib/supabase';
 import { Users, Link, Hash, Copy } from 'lucide-react-native';
@@ -88,6 +89,17 @@ export default function ViewPayoutScreen() {
   const plan = payoutPlans.find(p => p.id === id);
   const isOwner = plan && session?.user?.id && plan.user_id === session.user.id;
   const styles = createStyles(colors, isDark);
+
+  // Default title to purpose when plan has purpose and name is still generic (unchanged or "X Payout Plan")
+  const displayTitle = (() => {
+    if (!plan) return '';
+    const purpose = (plan as any).purpose;
+    const purposeOther = (plan as any).purpose_other_text;
+    if (!purpose) return plan.name;
+    const purposeLabel = getPurposeLabel(purpose, purposeOther);
+    const nameIsDefault = plan.name === purposeLabel || / Payout Plan$/.test(plan.name);
+    return nameIsDefault ? purposeLabel : plan.name;
+  })();
 
   // Open share modal when navigated with openShare=1 (e.g. from create-payout success "Share plan")
   useEffect(() => {
@@ -283,7 +295,14 @@ export default function ViewPayoutScreen() {
 
   useEffect(() => {
     if (plan) {
-      setPayoutName(plan.name);
+      const purpose = (plan as any).purpose;
+      const purposeOther = (plan as any).purpose_other_text;
+      const title = purpose
+        ? (plan.name === getPurposeLabel(purpose, purposeOther) || / Payout Plan$/.test(plan.name)
+            ? getPurposeLabel(purpose, purposeOther)
+            : plan.name)
+        : plan.name;
+      setPayoutName(title);
       setPayoutDescription(plan.description || '');
       
       // Animate progress bar
@@ -392,8 +411,8 @@ export default function ViewPayoutScreen() {
         return;
       }
       
-      // Check if there are any changes
-      if (payoutName.trim() === plan.name && payoutDescription.trim() === (plan.description || '')) {
+      // Check if there are any changes (compare to displayed title, not necessarily plan.name)
+      if (payoutName.trim() === displayTitle && payoutDescription.trim() === (plan.description || '')) {
         console.log('ℹ️ No changes detected, exiting edit mode');
         setIsEditing(false);
         return;
@@ -648,7 +667,7 @@ export default function ViewPayoutScreen() {
                       style={styles.cancelButton} 
                       onPress={() => {
                         haptics.lightImpact();
-                        setPayoutName(plan.name);
+                        setPayoutName(displayTitle);
                         setPayoutDescription(plan.description || '');
                         setIsEditing(false);
                       }}
@@ -663,7 +682,7 @@ export default function ViewPayoutScreen() {
               ) : (
                 <>
                   <View style={styles.nameContainer}>
-                    <Text style={styles.heroTitle}>{plan.name}</Text>
+                    <Text style={styles.heroTitle}>{displayTitle}</Text>
                     {plan.status === 'active' && isOwner && (
                       <Pressable 
                         style={styles.editButton} 
@@ -684,6 +703,7 @@ export default function ViewPayoutScreen() {
                   {plan.description && (
                     <Text style={styles.heroDescription}>{plan.description}</Text>
                   )}
+                  
                 </>
               )}
             </View>

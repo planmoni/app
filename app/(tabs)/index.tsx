@@ -1003,7 +1003,7 @@ export default function HomeScreen() {
                   <Pressable style={styles.avatarButton}>
                     <View style={[styles.avatarPlaceholder, { backgroundColor: '#fff' }]}>
                       <Image
-                        source={require('@/assets/images/AppIcon.png')}
+                        source={require('@/assets/images/homeicon.png')}
                         style={styles.avatarAppIcon}
                         resizeMode="contain"
                       />

@@ -29,7 +29,9 @@ export function useCreatePayout() {
     emergencyWithdrawalEnabled = true, // Default to enabled
     dayOfWeek,
     payoutHour,
-    payoutMinute
+    payoutMinute,
+    purpose,
+    purposeOther,
   }: {
     name: string;
     description?: string;
@@ -46,6 +48,8 @@ export function useCreatePayout() {
     dayOfWeek?: number;
     payoutHour?: number;
     payoutMinute?: number;
+    purpose?: string;
+    purposeOther?: string;
   }) => {
     try {
       setIsLoading(true);
@@ -229,6 +233,8 @@ export function useCreatePayout() {
             fee_percentage: feePercentage,
             fee_amount: feeAmount,
             net_payout_amount: netPayoutAmount,
+            purpose: purpose || null,
+            purpose_other_text: purposeOther || null,
           })
           .select()
           .single();

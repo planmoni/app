@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { formatPayoutFrequency, formatPayoutDateTime, formatDisplayDate } from '@/lib/formatters';
+import { getPurposeLabel } from '@/lib/payout-purposes';
 import { router } from 'expo-router';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
@@ -142,14 +143,22 @@ function PayoutPlansSection({ activePlans, onShowAddByCodeModal, onShowNewPlanIn
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.payoutPlansContainer}
         >
-          {memoizedPlans.map((plan) => (
+          {memoizedPlans.map((plan) => {
+              const purposeLabel = plan.purpose
+                ? getPurposeLabel(plan.purpose, plan.purpose_other_text)
+                : null;
+              const nameIsDefault =
+                purposeLabel &&
+                (plan.name === purposeLabel || / Payout Plan$/.test(plan.name));
+              const displayTitle = nameIsDefault ? purposeLabel : plan.name;
+              return (
               <Pressable
                 key={plan.id}
                 style={styles.payoutPlanCard}
                 onPress={() => handleViewPayout(plan.id)}
               >
                 <View style={styles.planHeader}>
-                  <Text style={styles.planType} numberOfLines={1}>{plan.name}</Text>
+                  <Text style={styles.planType} numberOfLines={1}>{displayTitle}</Text>
                   <View style={styles.planHeaderTags}>
                     {plan.is_paired && (
                       <View style={[styles.sharedTag, { backgroundColor: isDark ? colors.accent : colors.backgroundTertiary }]}>
@@ -214,7 +223,8 @@ function PayoutPlansSection({ activePlans, onShowAddByCodeModal, onShowNewPlanIn
                   </Text>
                 )}
               </Pressable>
-            ))}
+            );
+            })}
           <Pressable 
             style={styles.addPayoutCard}
             onPress={handleCreatePayout}

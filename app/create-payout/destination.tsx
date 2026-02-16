@@ -172,6 +172,8 @@ export default function DestinationScreen() {
             payoutHour: params.payoutHour || '',
             payoutMinute: params.payoutMinute || '',
             emergencyWithdrawal: 'true', // Always enabled by default
+            purpose: params.purpose || '',
+            purposeOther: params.purposeOther || '',
           }
         });
       }
@@ -213,7 +215,7 @@ export default function DestinationScreen() {
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: '75%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 3 of 4</Text>
+        <Text style={styles.stepText}>Step 4 of 5</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
@@ -426,6 +428,8 @@ export default function DestinationScreen() {
                   payoutHour: params.payoutHour || '',
                   payoutMinute: params.payoutMinute || '',
                   emergencyWithdrawal: 'true', // Always enabled by default
+                  purpose: params.purpose || '',
+                  purposeOther: params.purposeOther || '',
                 }
               });
             }
