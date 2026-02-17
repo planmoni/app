@@ -1,19 +1,13 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
-import { ChevronRight, X, Mail, Lock, Fingerprint, CircleAlert as AlertCircle, Clock, ShieldCheck } from 'lucide-react-native';
+import { ChevronRight, Mail, Lock, CircleAlert as AlertCircle, Clock } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useState, useEffect } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePin } from '@/contexts/PinContext';
 import { useOnlineStatus } from './OnlineStatusProvider';
 import OfflineNotice from './OfflineNotice';
-import { useKYCProgress } from '@/hooks/useKYCProgress';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import Tier1Icon from '@/assets/kyc/1.svg';
-import Tier2Icon from '@/assets/kyc/2.svg';
-import Tier3Icon from '@/assets/kyc/3.svg';
 import React from 'react';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -31,84 +25,34 @@ type PendingAction = {
   disabledReason?: string;
 };
 
-export default function PendingActionsCard() {
+interface PendingActionsCardProps {
+  profileData: any;
+  isLoading: boolean;
+  pinLoading: boolean;
+  hasAppLockPin: boolean;
+  progress: any;
+  currentTier: number;
+}
+
+const PendingActionsCard = ({
+  profileData,
+  isLoading,
+  pinLoading,
+  hasAppLockPin,
+  progress,
+  currentTier,
+}: PendingActionsCardProps) => {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
-  const [profileData, setProfileData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const { session } = useAuth();
   const { isAuthenticated } = useRequireAuth();
-  const { hasAppLockPin, isLoading: pinLoading } = usePin();
   const haptics = useHaptics();
   const { isOnline } = useOnlineStatus();
-  const { progress, currentTier = 0, getTierInfo } = useKYCProgress();
-  const [tierInfo, setTierInfo] = useState<any>(null);
 
-  // Load profile data and tier info from database on mount
-  useEffect(() => {
-    if (session?.user?.id) {
-      fetchProfileData();
-      loadTierInfo();
-    }
-  }, [session?.user?.id, progress]);
+  const styles = useMemo(() => createStyles(colors, isDark, textSizeMultiplier), [colors, isDark, textSizeMultiplier]);
 
-  const loadTierInfo = async () => {
-    if (!isOnline) return;
-    try {
-      const info = await getTierInfo();
-      setTierInfo(info);
-    } catch (error) {
-      console.error('Error loading tier info:', error);
-    }
-  };
-
-  // Get tier-specific pending actions - permanently hidden
-  const getTierPendingActions = (): PendingAction[] => {
-    // KYC Tiers are permanently hidden from PendingActionsCard
-    return [];
-  };
-
-  const fetchProfileData = async () => {
-    if (!isOnline) {
-      setIsLoading(false);
-      return;
-    }
-    
-    try {
-      setIsLoading(true);
-      // Modify the query to exclude kyc_tier which doesn't exist yet
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
-        .eq('id', session?.user?.id)
-        .single();
-
-      if (error) throw error;
-      setProfileData(data);
-    } catch (error) {
-      console.error('Error loading profile data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Get standard pending actions (non-KYC)
-  const getStandardPendingActions = (): PendingAction[] => {
+  const getStandardPendingActions = useCallback((): PendingAction[] => {
     const actions: PendingAction[] = [];
-
-    // Verify Identity - show if KYC is not completed
-    // if (progress && !Boolean(progress.id_face_verified)) {
-    //   actions.push({
-    //     id: 'verify-identity',
-    //     title: 'Verify your Identity',
-    //     description: 'Complete KYC verification with just your BVN and a selfie',
-    //     icon: ShieldCheck,
-    //     iconBg: colors.primary + '20',
-    //     iconColor: isDark ? '#fff' : colors.primary,
-    //     route: '/kyc/simplified',
-    //     priority: 'high',
-    //   });
-    // }
 
     if (!profileData?.email_verified && !session?.user?.email_confirmed_at) {
       actions.push({
@@ -123,7 +67,6 @@ export default function PendingActionsCard() {
       });
     }
 
-    // Only check PIN status if PIN loading is complete
     if (!pinLoading && !hasAppLockPin) {
       actions.push({
         id: 'setup-app-lock',
@@ -137,31 +80,10 @@ export default function PendingActionsCard() {
       });
     }
 
-    // Setup 2FA is permanently hidden from PendingActionsCard
-    // if (!profileData?.two_factor_enabled) {
-    //   actions.push({
-    //     id: 'setup-2fa',
-    //     title: 'Setup 2FA',
-    //     description: 'Enable two-factor authentication',
-    //     icon: Fingerprint,
-    //     iconBg: colors.backgroundTertiary,
-    //     iconColor: colors.text,
-    //     route: '/two-factor-auth',
-    //     priority: 'medium',
-    //   });
-    // }
-
     return actions;
-  };
+  }, [profileData, session?.user?.email_confirmed_at, pinLoading, hasAppLockPin, colors]);
 
-  // Combine tier actions with standard actions
-  const pendingActions: PendingAction[] = [
-    ...getTierPendingActions(),
-    ...getStandardPendingActions(),
-  ];
-
-  // Check if an action is completed
-  const isActionCompleted = (actionId: string): boolean => {
+  const isActionCompleted = useCallback((actionId: string): boolean => {
     if (!profileData && !progress) return false;
     
     switch (actionId) {
@@ -170,7 +92,6 @@ export default function PendingActionsCard() {
       case 'verify-email':
         return !!profileData?.email_verified || !!session?.user?.email_confirmed_at;
       case 'setup-app-lock':
-        // Only consider PIN setup completed if PIN loading is done and PIN exists
         return !pinLoading && hasAppLockPin;
       case 'account-verification':
         return !!profileData?.account_verified;
@@ -185,41 +106,26 @@ export default function PendingActionsCard() {
       default:
         return false;
     }
-  };
+  }, [profileData, progress, pinLoading, hasAppLockPin, session?.user?.email_confirmed_at, currentTier]);
 
-  // Handle navigation to action route
-  const handleActionPress = (action: PendingAction) => {
+  const handleActionPress = useCallback((action: PendingAction) => {
     haptics.mediumImpact();
-    
-    // Simplified flow: Go directly to kyc-upgrade page for Tier 1 verification
-    // The page will automatically show the camera permission modal when on liveness step
     if (action.id === 'tier-1-verification') {
       router.push('/kyc-upgrade');
       return;
     }
-    
     router.push(action.route);
-  };
+  }, [haptics]);
 
+  const filteredActions = useMemo(() => {
+    return getStandardPendingActions().filter(action => !isActionCompleted(action.id));
+  }, [getStandardPendingActions, isActionCompleted]);
 
-  // Filter out completed actions
-  const filteredActions = pendingActions.filter(action => !isActionCompleted(action.id));
+  if (!isAuthenticated) return null;
 
-  // Create styles before any conditional returns
-  const styles = createStyles(colors, isDark, textSizeMultiplier);
+  if (!isLoading && filteredActions.length === 0) return null;
 
-  // Don't render if user is not authenticated
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  // Don't render if there are no pending actions and data is loaded (including PIN state)
-  if (!isLoading && !pinLoading && filteredActions.length === 0) {
-    return null;
-  }
-
-  // Show loading state
-  if (isLoading || pinLoading) {
+  if (isLoading) {
     return (
       <View>
         <Text style={styles.sectionTitle}>Pending Actions</Text>
@@ -247,7 +153,6 @@ export default function PendingActionsCard() {
     <View>
       <View style={styles.titleContainer}>
         <Text style={styles.sectionTitle}>Pending Actions</Text>
-       
       </View>
       <View style={styles.container}>
         <ScrollView 
@@ -270,11 +175,7 @@ export default function PendingActionsCard() {
                 { backgroundColor: action.iconBg },
                 action.disabled && styles.iconContainerDisabled
               ]}>
-                {action.id.startsWith('tier-') ? (
-                  <action.icon width={24} height={24} />
-                ) : (
-                  <action.icon size={24} color={action.iconColor} />
-                )}
+                <action.icon size={24} color={action.iconColor} />
               </View>
               <View style={styles.actionContent}>
                 <Text style={[
@@ -316,7 +217,7 @@ export default function PendingActionsCard() {
       </View>
     </View>
   );
-}
+};
 
 const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
@@ -338,8 +239,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     padding: 16,
     borderWidth: 0.5,
     borderColor: colors.border,
-   
-  
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -403,30 +302,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     alignItems: 'center',
     marginBottom: 12,
   },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: -20,
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: colors.backgroundTertiary,
-    borderRadius: 3,
-    width: 60,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
-    backgroundColor: colors.primary,
-  },
-  progressText: {
-    fontSize: getScaledFontSize(12, textSizeMultiplier),
-    fontWeight: '600',
-    color: colors.textSecondary,
-    minWidth: 25,
-  },
   loadingContainer: {
     padding: 20,
     alignItems: 'center',
@@ -463,3 +338,5 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderColor: '#E5E7EB',
   },
 });
+
+export default React.memo(PendingActionsCard);

@@ -3,22 +3,31 @@ import SafeFooter from '@/components/SafeFooter';
 import TransactionModal from '@/components/TransactionModal';
 import DateRangeModal from '@/components/DateRangeModal';
 import { router } from 'expo-router';
-import { ArrowDownRight, ArrowLeft, ArrowUpRight, Calendar, Search, X, XCircle, CheckCircle2, Clock } from 'lucide-react-native';
-import { useState, useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ArrowDownRight, ArrowLeft, ArrowUpRight, Calendar, Search, X, XCircle } from 'lucide-react-native';
+import { useState, useCallback, useMemo } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FlashList } from '@shopify/flash-list';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeTransactions, Transaction } from '@/hooks/useRealtimeTransactions';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+
 type TransactionType = 'all' | 'deposits' | 'payouts' | 'withdrawals';
 
+interface ListItem {
+  type: 'header' | 'transaction';
+  date?: string;
+  transaction?: Transaction;
+}
+
 export default function TransactionsScreen() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const { transactions, isLoading } = useRealtimeTransactions();
-  const { payoutPlans } = useRealtimePayoutPlans();  const [activeType, setActiveType] = useState<TransactionType>('all');
+  const { payoutPlans } = useRealtimePayoutPlans();
+  const [activeType, setActiveType] = useState<TransactionType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isDateRangeModalVisible, setIsDateRangeModalVisible] = useState(false);
@@ -27,15 +36,14 @@ export default function TransactionsScreen() {
     end: null,
   });
 
-  const handleTransactionPress = (transaction: Transaction) => {
-    // Map "scheduled" status to "DISBURSED" for payout transactions
+  const handleTransactionPress = useCallback((transaction: Transaction) => {
     let displayStatus = transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1);
     if (transaction.type === 'payout' && transaction.status.toLowerCase() === 'scheduled') {
       displayStatus = 'DISBURSED';
     }
     
-    setSelectedTransaction((prevState: any) => ({
-      ...prevState,
+    setSelectedTransaction({
+      ...transaction,
       amount: `₦${transaction.amount.toLocaleString()}`,
       status: displayStatus,
       date: new Date(transaction.created_at).toLocaleDateString(),
@@ -48,128 +56,176 @@ export default function TransactionsScreen() {
       paymentMethod: 'Bank Transfer',
       initiatedBy: 'You',
       processingTime: transaction.status === 'completed' ? 'Instant' : '2-3 business days',
-    }));
+    });
     setIsTransactionModalVisible(true);
-  };
+  }, []);
 
-  const handleLoadMore = () => {
+  const handleLoadMore = useCallback(() => {
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
     }, 1000);
-  };
+  }, []);
 
-  const handleDateRangeSelect = (startDate: Date | null, endDate: Date | null) => {
+  const handleDateRangeSelect = useCallback((startDate: Date | null, endDate: Date | null) => {
     setDateRange({ start: startDate, end: endDate });
-  };
+  }, []);
 
-  const handleClearDateRange = () => {
+  const handleClearDateRange = useCallback(() => {
     setDateRange({ start: null, end: null });
-  };
+  }, []);
 
-  const formatDateRange = () => {
+  const formatDateRange = useCallback(() => {
     if (!dateRange.start || !dateRange.end) return 'Select Date Range';
-    
-    const formatDate = (date: Date) => {
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      });
-    };
-
+    const formatDate = (date: Date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     return `${formatDate(dateRange.start)} - ${formatDate(dateRange.end)}`;
-  };
+  }, [dateRange]);
 
-  const typeMap = {
+  const typeMap = useMemo(() => ({
     deposits: 'deposit',
     payouts: 'payout',
     withdrawals: 'withdrawal',
-  };
+  }), []);
 
-  const filteredTransactions = transactions.filter(transaction => {
-    // Filter by transaction type
-    if (activeType !== 'all' && transaction.type !== typeMap[activeType]) {
-      return false;
-    }
-
-    // Filter by search query
-    if (searchQuery) {
-      const matchesSearch = transaction.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             transaction.source?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             transaction.destination?.toLowerCase().includes(searchQuery.toLowerCase());
-      if (!matchesSearch) {
-        return false;
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(transaction => {
+      if (activeType !== 'all' && transaction.type !== typeMap[activeType as keyof typeof typeMap]) return false;
+      if (searchQuery) {
+        const matchesSearch = transaction.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+               transaction.source?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+               transaction.destination?.toLowerCase().includes(searchQuery.toLowerCase());
+        if (!matchesSearch) return false;
       }
-    }
-
-    // Filter by date range
-    if (dateRange.start && dateRange.end) {
-      const transactionDate = new Date(transaction.created_at);
-      
-      // Normalize dates to start and end of day for accurate comparison
-      const startDate = new Date(dateRange.start);
-      startDate.setHours(0, 0, 0, 0);
-      
-      const endDate = new Date(dateRange.end);
-      endDate.setHours(23, 59, 59, 999);
-      
-      // Check if transaction date falls within the range (inclusive)
-      if (transactionDate < startDate || transactionDate > endDate) {
-        return false;
+      if (dateRange.start && dateRange.end) {
+        const transactionDate = new Date(transaction.created_at);
+        const startDate = new Date(dateRange.start);
+        startDate.setHours(0, 0, 0, 0);
+        const endDate = new Date(dateRange.end);
+        endDate.setHours(23, 59, 59, 999);
+        if (transactionDate < startDate || transactionDate > endDate) return false;
       }
-    }
-
-    return true;
-  });
-
-  // Calculate stats based on filtered transactions
-  const stats = {
-    inflows: `₦${filteredTransactions
-      .filter(t => t.type === 'deposit')
-      .reduce((sum, t) => sum + t.amount, 0)
-      .toLocaleString()}`,
-    outflows: `-₦${filteredTransactions
-      .filter(t => t.type === 'payout' || t.type === 'withdrawal')
-      .reduce((sum, t) => sum + t.amount, 0)
-      .toLocaleString()}`,
-    netMovement: `₦${(
-      filteredTransactions.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0) -
-      filteredTransactions.filter(t => t.type === 'payout' || t.type === 'withdrawal').reduce((sum, t) => sum + t.amount, 0)
-    ).toLocaleString()}`
-  };
-
-  // Group transactions by date
-  type GroupedTransactions = { [date: string]: typeof filteredTransactions };
-  const groupedTransactions = filteredTransactions.reduce((groups: GroupedTransactions, transaction) => {
-    const date = new Date(transaction.created_at).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
+      return true;
     });
-    if (!groups[date]) {
-      groups[date] = [];
+  }, [transactions, activeType, typeMap, searchQuery, dateRange]);
+
+  const stats = useMemo(() => {
+    const inflows = filteredTransactions
+      .filter(t => t.type === 'deposit')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const outflows = filteredTransactions
+      .filter(t => t.type === 'payout' || t.type === 'withdrawal')
+      .reduce((sum, t) => sum + t.amount, 0);
+    return {
+      inflows: `₦${inflows.toLocaleString()}`,
+      outflows: `-₦${outflows.toLocaleString()}`,
+      netMovement: `₦${(inflows - outflows).toLocaleString()}`
+    };
+  }, [filteredTransactions]);
+
+  const listData = useMemo(() => {
+    const groups: { [date: string]: Transaction[] } = {};
+    filteredTransactions.forEach(transaction => {
+      const date = new Date(transaction.created_at).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      if (!groups[date]) groups[date] = [];
+      groups[date].push(transaction);
+    });
+
+    const items: ListItem[] = [];
+    Object.entries(groups).forEach(([date, groupTransactions]) => {
+      items.push({ type: 'header', date });
+      groupTransactions.forEach(tx => {
+        items.push({ type: 'transaction', transaction: tx });
+      });
+    });
+    return items;
+  }, [filteredTransactions]);
+
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const renderItem = useCallback(({ item }: { item: ListItem }) => {
+    if (item.type === 'header') {
+      const dateStr = item.date;
+      const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      
+      return (
+        <View style={styles.dateGroup}>
+          <Text style={styles.dateHeader}>
+            {dateStr === today ? 'Today' : dateStr === yesterday ? 'Yesterday' : dateStr}
+          </Text>
+        </View>
+      );
     }
-    groups[date].push(transaction);
-    return groups;
-  }, {} as GroupedTransactions);
-  const styles = createStyles(colors);
+
+    const transaction = item.transaction!;
+    let Icon = ArrowDownRight;
+    let iconBg = colors.accent;
+    let iconColor = colors.primary;
+    
+    if (transaction.status === 'failed') {
+      Icon = XCircle;
+      iconBg = colors.errorLight;
+      iconColor = colors.error;
+    } else {
+      switch (transaction.type) {
+        case 'deposit':
+          Icon = ArrowDownRight;
+          iconBg = colors.accent;
+          iconColor = colors.primary;
+          break;
+        case 'payout':
+          Icon = ArrowUpRight;
+          iconBg = colors.successLight;
+          iconColor = colors.success;
+          break;
+        case 'withdrawal':
+          Icon = ArrowUpRight;
+          iconBg = '#F97316';
+          iconColor = '#fff';
+          break;
+      }
+    }
+    
+    const isPositive = transaction.type === 'deposit';
+    const txDate = new Date(transaction.created_at);
+    const formattedTime = txDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    
+    return (
+      <View style={{ paddingHorizontal: 16 }}>
+        <Pressable style={styles.transaction} onPress={() => handleTransactionPress(transaction)}>
+          <View style={[styles.transactionIcon, { backgroundColor: iconBg }]}>
+            <Icon size={24} color={iconColor} strokeWidth={2} />
+          </View>
+          <View style={styles.transactionInfo}>
+            <View style={styles.transactionHeader}>
+              <Text style={styles.transactionTitle}>
+                {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
+              </Text>
+              <Text style={[styles.transactionAmount, isPositive ? styles.positiveAmount : styles.negativeAmount]}>
+                {`${isPositive ? '' : '-'}₦${transaction.amount.toLocaleString()}`}
+              </Text>
+            </View>
+            <View style={styles.transactionDetails}>
+              <Text style={styles.transactionDate}>{formattedTime}</Text>
+              <Text style={styles.transactionStatus}>
+                {transaction.type === 'payout' && transaction.status.toLowerCase() === 'scheduled' 
+                  ? 'DISBURSED' 
+                  : transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
+              </Text>
+            </View>
+          </View>
+        </Pressable>
+      </View>
+    );
+  }, [styles, handleTransactionPress, colors]);
 
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <Pressable onPress={() => router.back()} style={styles.backButton}>
-              <ArrowLeft size={24} color={colors.text} />
-            </Pressable>
-            <Text style={styles.headerTitle}>All Transactions</Text>
-            <View style={styles.headerActions}>
-              <Pressable style={styles.iconButton}>
-                <Search size={20} color={colors.text} />
-              </Pressable>
-            </View>
-          </View>
-        </View>
         <View style={styles.loadingContainer}>
           <PlanmoniLoader size="medium" description="Loading transactions..." />
         </View>
@@ -187,15 +243,8 @@ export default function TransactionsScreen() {
           </Pressable>
           <Text style={styles.headerTitle}>All Transactions</Text>
           <View style={styles.headerActions}>
-            <Pressable 
-              style={styles.iconButton}
-              onPress={() => setIsSearchVisible(!isSearchVisible)}
-            >
-              {isSearchVisible ? (
-                <X size={20} color={colors.text} />
-              ) : (
-                <Search size={20} color={colors.text} />
-              )}
+            <Pressable style={styles.iconButton} onPress={() => setIsSearchVisible(!isSearchVisible)}>
+              {isSearchVisible ? <X size={20} color={colors.text} /> : <Search size={20} color={colors.text} />}
             </Pressable>
           </View>
         </View>
@@ -214,62 +263,33 @@ export default function TransactionsScreen() {
           </View>
         )}
 
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterTabs}
-        >
-          <Pressable
-            style={[styles.filterTab, activeType === 'all' && styles.activeFilterTab]}
-            onPress={() => setActiveType('all')}
-          >
-            <Text style={[
-              styles.filterTabText,
-              activeType === 'all' && styles.activeFilterTabText
-            ]}>All</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.filterTab, activeType === 'deposits' && styles.activeFilterTab]}
-            onPress={() => setActiveType('deposits')}
-          >
-            <Text style={[
-              styles.filterTabText,
-              activeType === 'deposits' && styles.activeFilterTabText
-            ]}>Deposits</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.filterTab, activeType === 'payouts' && styles.activeFilterTab]}
-            onPress={() => setActiveType('payouts')}
-          >
-            <Text style={[
-              styles.filterTabText,
-              activeType === 'payouts' && styles.activeFilterTabText
-            ]}>Payouts</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.filterTab, activeType === 'withdrawals' && styles.activeFilterTab]}
-            onPress={() => setActiveType('withdrawals')}
-          >
-            <Text style={[
-              styles.filterTabText,
-              activeType === 'withdrawals' && styles.activeFilterTabText
-            ]}>Withdrawals</Text>
-          </Pressable>
-        </ScrollView>
+        <View style={{ height: 50 }}>
+          <FlashList
+            data={['all', 'deposits', 'payouts', 'withdrawals']}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            estimatedItemSize={100}
+            renderItem={({ item }) => (
+              <Pressable
+                style={[styles.filterTab, activeType === item && styles.activeFilterTab]}
+                onPress={() => setActiveType(item as TransactionType)}
+              >
+                <Text style={[styles.filterTabText, activeType === item && styles.activeFilterTabText]}>
+                  {item.charAt(0).toUpperCase() + item.slice(1)}
+                </Text>
+              </Pressable>
+            )}
+            contentContainerStyle={styles.filterTabs}
+          />
+        </View>
 
         <View style={styles.dateRangeButton}>
-          <Pressable 
-            style={styles.dateRangeButtonContent}
-            onPress={() => setIsDateRangeModalVisible(true)}
-          >
+          <Pressable style={styles.dateRangeButtonContent} onPress={() => setIsDateRangeModalVisible(true)}>
             <Calendar size={20} color={colors.text} />
             <Text style={styles.dateRangeText}>{formatDateRange()}</Text>
           </Pressable>
           {dateRange.start && dateRange.end && (
-            <Pressable 
-              style={styles.clearDateRangeButton}
-              onPress={handleClearDateRange}
-            >
+            <Pressable style={styles.clearDateRangeButton} onPress={handleClearDateRange}>
               <X size={16} color={colors.textSecondary} />
             </Pressable>
           )}
@@ -286,128 +306,34 @@ export default function TransactionsScreen() {
           </View>
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>Net Movement</Text>
-            <Text style={[
-              styles.statValue,
-              parseFloat(stats.netMovement.replace(/[₦,]/g, '')) >= 0 ? styles.positiveValue : styles.negativeValue
-            ]}>{stats.netMovement}</Text>
+            <Text style={[styles.statValue, parseFloat(stats.netMovement.replace(/[₦,]/g, '')) >= 0 ? styles.positiveValue : styles.negativeValue]}>
+              {stats.netMovement}
+            </Text>
           </View>
         </View>
       </View>
 
-      <ScrollView style={styles.content}>
-        {Object.entries(groupedTransactions).length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No transactions found</Text>
-            <Text style={styles.emptyStateSubtext}>Try adjusting your filters</Text>
-          </View>
-        ) : (
-          Object.entries(groupedTransactions).map(([date, transactions]) => (
-            <View key={date} style={styles.dateGroup}>
-              <Text style={styles.dateHeader}>
-                {date === new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                  ? 'Today'
-                  : date === new Date(Date.now() - 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                    ? 'Yesterday'
-                    : date}
-              </Text>
-              {transactions.map((transaction) => {
-                // Map transaction types to icons and colors matching notifications page
-                let Icon = ArrowDownRight;
-                let iconBg = colors.accent;
-                let iconColor = colors.primary;
-                
-                if (transaction.status === 'failed') {
-                  // Failed transactions use error styling
-                  Icon = XCircle;
-                  iconBg = colors.errorLight;
-                  iconColor = colors.error;
-                } else {
-                  switch (transaction.type) {
-                    case 'deposit':
-                      // Deposit: ArrowDownRight with accent/primary colors (matching deposit_successful)
-                      Icon = ArrowDownRight;
-                      iconBg = colors.accent;
-                      iconColor = colors.primary;
-                      break;
-                    case 'payout':
-                      // Payout: ArrowUpRight with success colors (matching payout_completed)
-                      Icon = ArrowUpRight;
-                      iconBg = colors.successLight;
-                      iconColor = colors.success;
-                      break;
-                    case 'withdrawal':
-                      // Withdrawal: ArrowUpRight with orange colors (matching emergency withdrawal)
-                      Icon = ArrowUpRight;
-                      iconBg = '#F97316';
-                      iconColor = '#fff';
-                      break;
-                    default:
-                      Icon = ArrowDownRight;
-                      iconBg = colors.accent;
-                      iconColor = colors.primary;
-                  }
-                }
-                
-                const isPositive = transaction.type === 'deposit';
-                
-                // Format date and time
-                const txDate = new Date(transaction.created_at);
-                const formattedTime = txDate.toLocaleTimeString('en-US', {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  hour12: true
-                });
-                
-                return (
-                  <Pressable
-                    key={transaction.id}
-                    style={styles.transaction}
-                    onPress={() => handleTransactionPress(transaction)}
-                  >
-                    <View style={[styles.transactionIcon, { backgroundColor: iconBg }]}>
-                      <Icon size={24} color={iconColor} strokeWidth={2} />
-                    </View>
-                    <View style={styles.transactionInfo}>
-                      <View style={styles.transactionHeader}>
-                        <Text style={styles.transactionTitle}>
-                          {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
-                        </Text>
-                        <Text style={[
-                          styles.transactionAmount,
-                          isPositive ? styles.positiveAmount : styles.negativeAmount
-                        ]}>{`${isPositive ? '' : '-'}₦${transaction.amount.toLocaleString()}`}</Text>
-                      </View>
-                      <View style={styles.transactionDetails}>
-                        <Text style={styles.transactionDate}>
-                          {formattedTime}
-                        </Text>
-                        <Text style={styles.transactionStatus}>
-                          {transaction.type === 'payout' && transaction.status.toLowerCase() === 'scheduled' 
-                            ? 'DISBURSED' 
-                            : transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
-                        </Text>
-                      </View>
-                    </View>
-                  </Pressable>
-                );
-              })}
+      <View style={{ flex: 1 }}>
+        <FlashList
+          data={listData}
+          renderItem={renderItem}
+          estimatedItemSize={100}
+          keyExtractor={(item, index) => item.type === 'header' ? `header-${item.date}` : `tx-${item.transaction?.id}-${index}`}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No transactions found</Text>
+              <Text style={styles.emptyStateSubtext}>Try adjusting your filters</Text>
             </View>
-          ))
-        )}
-
-        {filteredTransactions.length > 0 && (
-          <Pressable style={styles.loadMoreButton} onPress={handleLoadMore}>
-            {loading ? (
-              <View style={styles.loadingMoreContainer}>
-                <PlanmoniLoader size="small" />
-                <Text style={styles.loadMoreText}>Loading...</Text>
-              </View>
-            ) : (
-              <Text style={styles.loadMoreText}>Load More Transactions</Text>
-            )}
-          </Pressable>
-        )}
-      </ScrollView>
+          }
+          ListFooterComponent={
+            listData.length > 0 ? (
+              <Pressable style={styles.loadMoreButton} onPress={handleLoadMore}>
+                {loading ? <PlanmoniLoader size="small" /> : <Text style={styles.loadMoreText}>Load More Transactions</Text>}
+              </Pressable>
+            ) : null
+          }
+        />
+      </View>
 
       {selectedTransaction && (
         <TransactionModal
@@ -487,7 +413,6 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   filterTabs: {
     paddingHorizontal: 16,
-    gap: 8,
     marginBottom: 16,
   },
   filterTab: {
@@ -496,6 +421,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderRadius: 20,
     backgroundColor: colors.backgroundTertiary,
     marginRight: 8,
+    height: 36,
   },
   activeFilterTab: {
     backgroundColor: colors.primary,
@@ -565,14 +491,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   negativeValue: {
     color: colors.text,
   },
-  content: {
-    flex: 1,
-  },
   emptyState: {
-    flex: 1,
+    padding: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
   },
   emptyStateText: {
     fontSize: 18,
@@ -586,13 +508,13 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   dateGroup: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   dateHeader: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.textSecondary,
-    marginBottom: 12,
   },
   transaction: {
     flexDirection: 'row',
@@ -652,11 +574,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
   },
-  loadingMoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   loadMoreText: {
     fontSize: 14,
     color: '#1E3A8A',
@@ -667,9 +584,5 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 16,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: colors.textSecondary,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -16,7 +16,7 @@ interface NextPayoutCardProps {
   nextPayout: any;
 }
 
-export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
+const NextPayoutCard = ({ nextPayout }: NextPayoutCardProps) => {
   const { colors, isDark } = useTheme();
   const { showBalances } = useBalance();
   const { textSizeMultiplier } = useTextSize();
@@ -27,6 +27,8 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
     account_number_last4: string;
     account_name: string;
   } | null>(null);
+
+  const styles = useMemo(() => createStyles(colors, isDark, textSizeMultiplier), [colors, isDark, textSizeMultiplier]);
 
   const formatBalance = (amount: number) => {
     return showBalances ? `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '*********';
@@ -47,14 +49,12 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
           .select('amount')
           .eq('payout_plan_id', nextPayout.id)
           .eq('payout_date', nextDateString)
-          .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 rows gracefully
+          .maybeSingle();
 
         if (error) {
-          // Only log non-PGRST116 errors (PGRST116 is expected when no rows found)
           if (error.code !== 'PGRST116') {
             console.error('Error fetching next payout amount:', error);
           }
-          // Fallback to plan's payout_amount
           setNextPayoutAmount(nextPayout.payout_amount);
           return;
         }
@@ -63,11 +63,9 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
           const amount = parseFloat(data.amount.toString());
           setNextPayoutAmount(amount > 0 ? amount : nextPayout.payout_amount);
         } else {
-          // If no custom amount found, use plan's payout_amount
           setNextPayoutAmount(nextPayout.payout_amount);
         }
       } catch (error) {
-        // Only log unexpected errors
         console.error('Unexpected error fetching next payout amount:', error);
         setNextPayoutAmount(nextPayout.payout_amount);
       }
@@ -121,8 +119,6 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
     (nextPayout.name === purposeLabel || / Payout Plan$/.test(nextPayout.name));
   const displayTitle = nameIsDefault ? purposeLabel : nextPayout.name;
 
-  const styles = createStyles(colors, isDark, textSizeMultiplier);
-
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
@@ -141,13 +137,14 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
               </Text>
             </View>
           </View>
+          
           <View style={styles.payoutDetails}>
             <View style={styles.payoutInfo}>
               <Text style={styles.payoutAmount}>
                 {formatBalance(nextPayoutAmount !== null ? nextPayoutAmount : nextPayout.payout_amount)}
               </Text>
               
-              {/* Payout Account Information (inline from plan or from RPC for recipient/paired view) */}
+              {/* Payout Account Information */}
               {(() => {
                 const hasInline = nextPayout.payout_accounts || nextPayout.bank_accounts;
                 const bankName = nextPayout.payout_accounts?.bank_name || nextPayout.bank_accounts?.bank_name || sharedPlanBankDisplay?.bank_name || '';
@@ -199,7 +196,7 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
       </Pressable>
     </View>
   );
-}
+};
 
 const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number ) => StyleSheet.create({
   section: {
@@ -310,4 +307,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number )
     borderRadius: 8,
     alignSelf: 'flex-start',
   },
-}); 
+});
+
+export default React.memo(NextPayoutCard);

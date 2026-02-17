@@ -307,11 +307,11 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     return `₦${amount.toLocaleString()}`;
   }, []);
 
+  const styles = useMemo(() => createStyles(colors, isDark, textSizeMultiplier), [colors, isDark, textSizeMultiplier]);
+
   if (!calculation || !shouldShow) {
     return null;
   }
-
-  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
     <View style={styles.container}>

@@ -6,15 +6,15 @@ import Card from '@/components/Card';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 
-export default function RatingCard() {
+const RatingCard = () => {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
 
-  const styles = createStyles(colors, isDark, textSizeMultiplier);
+  const styles = React.useMemo(() => createStyles(colors, isDark, textSizeMultiplier), [colors, isDark, textSizeMultiplier]);
 
   // Store URLs
   const iOSStoreURL = 'https://apps.apple.com/app/id6753706776?action=write-review';
-  const androidStoreURL = 'https://play.google.com/store/apps/details?id=com.planmoni.app'; // Update with actual Play Store URL when available
+  const androidStoreURL = 'https://play.google.com/store/apps/details?id=com.planmoni.app';
 
   return (
     <Card style={styles.feedbackCard}>
@@ -28,38 +28,38 @@ export default function RatingCard() {
         </View>
         <View style={styles.buttonsRow}>
           {Platform.OS === 'ios' && (
-          <Pressable
+            <Pressable
               style={[styles.feedbackButton, styles.feedbackButtonActive]}
-            onPress={() => {
-              Linking.openURL(iOSStoreURL).catch((err) => {
-                console.error('Failed to open iOS store URL:', err);
-              });
-            }}
-          >
+              onPress={() => {
+                Linking.openURL(iOSStoreURL).catch((err) => {
+                  console.error('Failed to open iOS store URL:', err);
+                });
+              }}
+            >
               <Text style={[styles.feedbackButtonText, styles.feedbackButtonTextActive]}>
-              Rate on App Store
-            </Text>
-          </Pressable>
+                Rate on App Store
+              </Text>
+            </Pressable>
           )}
           {Platform.OS === 'android' && (
-          <Pressable
+            <Pressable
               style={[styles.feedbackButton, styles.feedbackButtonActive]}
-            onPress={() => {
-              Linking.openURL(androidStoreURL).catch((err) => {
-                console.error('Failed to open Android store URL:', err);
-              });
-            }}
-          >
+              onPress={() => {
+                Linking.openURL(androidStoreURL).catch((err) => {
+                  console.error('Failed to open Android store URL:', err);
+                });
+              }}
+            >
               <Text style={[styles.feedbackButtonText, styles.feedbackButtonTextActive]}>
-              Rate on Play Store
-            </Text>
-          </Pressable>
+                Rate on Play Store
+              </Text>
+            </Pressable>
           )}
         </View>
       </View>
     </Card>
   );
-}
+};
 
 const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   feedbackCard: {
@@ -129,4 +129,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   starIcon: {
     marginHorizontal: 2,
   },
-}); 
+});
+
+export default React.memo(RatingCard);

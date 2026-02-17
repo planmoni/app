@@ -318,7 +318,7 @@ function AISuggestionCard({
     return duration;
   }, []);
 
-  const styles = createStyles(textSizeMultiplier);
+  const styles = useMemo(() => createStyles(textSizeMultiplier), [textSizeMultiplier]);
 
   // Show login prompt if not authenticated
   if (!isAuthenticated) {
