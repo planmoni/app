@@ -36,6 +36,11 @@ export default function AmountScreen() {
     () => (isMonoDirectPay && numericAmount > 0 ? calculateMonoDirectPayFee(numericAmount) : null),
     [isMonoDirectPay, numericAmount]
   );
+  const balanceFormatted = useMemo(
+    () => availableBalance.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    [availableBalance]
+  );
+  const [balanceWhole, balanceDec] = balanceFormatted.split('.');
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -225,7 +230,10 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Current Wallet Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
+              <Text style={styles.balanceAmount}>
+                ₦{balanceWhole}
+                <Text style={{ color: colors.textTertiary }}>.{balanceDec ?? '00'}</Text>
+              </Text>
             </View>
           </View>
 
@@ -257,19 +265,6 @@ export default function AmountScreen() {
             </View>
           )}
 
-          <View style={styles.infoSection}>
-            <View style={styles.infoCard}>
-              <View style={styles.infoHeader}>
-                <View style={styles.infoIconContainer}>
-                  <Info size={20} color={colors.primary} />
-                </View>
-                <Text style={styles.infoTitle}>Security Notice</Text>
-              </View>
-              <Text style={styles.infoText}>
-                Funds will be added to your secure wallet and can be used for transactions or investments.
-              </Text>
-            </View>
-          </View>
         </View>
       </KeyboardAvoidingWrapper>
 

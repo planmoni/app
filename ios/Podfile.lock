@@ -356,6 +356,8 @@ PODS:
   - ExpoWebBrowser (14.2.0):
     - ExpoModulesCore
   - EXStructuredHeaders (4.1.0)
+  - ExtensionStorage (1.0.0):
+    - ExpoModulesCore
   - EXUpdates (0.28.17):
     - DoubleConversion
     - EASClient
@@ -422,6 +424,17 @@ PODS:
   - GoogleDataTransport (10.1.0):
     - nanopb (~> 3.30910.0)
     - PromisesObjC (~> 2.4)
+  - GoogleUtilities (8.1.0):
+    - GoogleUtilities/AppDelegateSwizzler (= 8.1.0)
+    - GoogleUtilities/Environment (= 8.1.0)
+    - GoogleUtilities/Logger (= 8.1.0)
+    - GoogleUtilities/MethodSwizzler (= 8.1.0)
+    - GoogleUtilities/Network (= 8.1.0)
+    - "GoogleUtilities/NSData+zlib (= 8.1.0)"
+    - GoogleUtilities/Privacy (= 8.1.0)
+    - GoogleUtilities/Reachability (= 8.1.0)
+    - GoogleUtilities/SwizzlerTestHelpers (= 8.1.0)
+    - GoogleUtilities/UserDefaults (= 8.1.0)
   - GoogleUtilities/AppDelegateSwizzler (8.1.0):
     - GoogleUtilities/Environment
     - GoogleUtilities/Logger
@@ -431,6 +444,9 @@ PODS:
     - GoogleUtilities/Privacy
   - GoogleUtilities/Logger (8.1.0):
     - GoogleUtilities/Environment
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/MethodSwizzler (8.1.0):
+    - GoogleUtilities/Logger
     - GoogleUtilities/Privacy
   - GoogleUtilities/Network (8.1.0):
     - GoogleUtilities/Logger
@@ -443,6 +459,8 @@ PODS:
   - GoogleUtilities/Reachability (8.1.0):
     - GoogleUtilities/Logger
     - GoogleUtilities/Privacy
+  - GoogleUtilities/SwizzlerTestHelpers (8.1.0):
+    - GoogleUtilities/MethodSwizzler
   - GoogleUtilities/UserDefaults (8.1.0):
     - GoogleUtilities/Logger
     - GoogleUtilities/Privacy
@@ -453,8 +471,8 @@ PODS:
   - intercom-react-native (8.8.0):
     - Intercom (~> 18.7.3)
     - React-Core
-  - libavif/core (0.11.1)
-  - libavif/libdav1d (0.11.1):
+  - libavif/core (1.0.0)
+  - libavif/libdav1d (1.0.0):
     - libavif/core
     - libdav1d (>= 0.6.0)
   - libdav1d (1.2.0)
@@ -496,6 +514,12 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - Mixpanel-swift (5.1.3):
+    - Mixpanel-swift/Complete (= 5.1.3)
+  - Mixpanel-swift/Complete (5.1.3)
+  - MixpanelReactNative (3.2.1):
+    - Mixpanel-swift (= 5.1.3)
+    - React-Core
   - nanopb (3.30910.0):
     - nanopb/decode (= 3.30910.0)
     - nanopb/encode (= 3.30910.0)
@@ -2705,9 +2729,9 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - SDWebImage (5.21.5):
-    - SDWebImage/Core (= 5.21.5)
-  - SDWebImage/Core (5.21.5)
+  - SDWebImage (5.21.6):
+    - SDWebImage/Core (= 5.21.6)
+  - SDWebImage/Core (5.21.6)
   - SDWebImageAVIFCoder (0.11.1):
     - libavif/core (>= 0.11.0)
     - SDWebImage (~> 5.10)
@@ -2765,16 +2789,20 @@ DEPENDENCIES:
   - ExpoSystemUI (from `../node_modules/expo-system-ui/ios`)
   - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - EXStructuredHeaders (from `../node_modules/expo-structured-headers/ios`)
+  - "ExtensionStorage (from `../node_modules/@bacons/apple-targets/ios`)"
   - EXUpdates (from `../node_modules/expo-updates/ios`)
   - EXUpdatesInterface (from `../node_modules/expo-updates-interface/ios`)
   - fast_float (from `../node_modules/react-native/third-party-podspecs/fast_float.podspec`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
+  - FirebaseCore
   - fmt (from `../node_modules/react-native/third-party-podspecs/fmt.podspec`)
   - glog (from `../node_modules/react-native/third-party-podspecs/glog.podspec`)
+  - GoogleUtilities
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - "intercom-react-native (from `../node_modules/@intercom/intercom-react-native`)"
   - lottie-ios (from `../node_modules/lottie-ios`)
   - lottie-react-native (from `../node_modules/lottie-react-native`)
+  - MixpanelReactNative (from `../node_modules/mixpanel-react-native`)
   - RCT-Folly (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCT-Folly/Fabric (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -2872,6 +2900,7 @@ SPEC REPOS:
     - libavif
     - libdav1d
     - libwebp
+    - Mixpanel-swift
     - nanopb
     - PromisesObjC
     - ReachabilitySwift
@@ -2962,6 +2991,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-web-browser/ios"
   EXStructuredHeaders:
     :path: "../node_modules/expo-structured-headers/ios"
+  ExtensionStorage:
+    :path: "../node_modules/@bacons/apple-targets/ios"
   EXUpdates:
     :path: "../node_modules/expo-updates/ios"
   EXUpdatesInterface:
@@ -2983,6 +3014,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/lottie-ios"
   lottie-react-native:
     :path: "../node_modules/lottie-react-native"
+  MixpanelReactNative:
+    :path: "../node_modules/mixpanel-react-native"
   RCT-Folly:
     :podspec: "../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec"
   RCTDeprecation:
@@ -3184,6 +3217,7 @@ SPEC CHECKSUMS:
   ExpoSystemUI: c2724f9d5af6b1bb74e013efadf9c6a8fae547a2
   ExpoWebBrowser: dc39a88485f007e61a3dff05d6a75f22ab4a2e92
   EXStructuredHeaders: 32bec6771c2db18c4cd47cecae530d1d06cdf972
+  ExtensionStorage: 5796de20bf181317c376d693fedb64c6781a33ba
   EXUpdates: 004cca5223d04b5a0702b5712fbd5d9318024d47
   EXUpdatesInterface: 7ff005b7af94ee63fa452ea7bb95d7a8ff40277a
   fast_float: 06eeec4fe712a76acc9376682e4808b05ce978b6
@@ -3201,11 +3235,13 @@ SPEC CHECKSUMS:
   hermes-engine: 44bb6fe76a6eb400d3a992e2d0b21946ae999fa9
   Intercom: 93c6f5d9815b34bf2a7e5f03bcf7b6e08c1a4788
   intercom-react-native: d496047d19b9f2e45c97feb5897d82b53036fc1b
-  libavif: 84bbb62fb232c3018d6f1bab79beea87e35de7b7
+  libavif: 5f8e715bea24debec477006f21ef9e95432e254d
   libdav1d: 23581a4d8ec811ff171ed5e2e05cd27bad64c39f
   libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
   lottie-ios: a881093fab623c467d3bce374367755c272bdd59
   lottie-react-native: 8bc11e10576d1a3f77f4e0ae5b70503c5c890a09
+  Mixpanel-swift: 630484a1b61cb90820aa34492798d542d9f1d0f1
+  MixpanelReactNative: 2a57c42a7475e61b8d45cd862737195fbf0eac0d
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   RCT-Folly: e78785aa9ba2ed998ea4151e314036f6c49e6d82
@@ -3288,7 +3324,7 @@ SPEC CHECKSUMS:
   RNScreens: 482e9707f9826230810c92e765751af53826d509
   RNSentry: 3bc708566b3390947b6ecd785645398cd1a0049e
   RNSVG: 794f269526df9ddc1f79b3d1a202b619df0368e3
-  SDWebImage: e9c98383c7572d713c1a0d7dd2783b10599b9838
+  SDWebImage: 1bb6a1b84b6fe87b972a102bdc77dd589df33477
   SDWebImageAVIFCoder: afe194a084e851f70228e4be35ef651df0fc5c57
   SDWebImageSVGCoder: 15a300a97ec1c8ac958f009c02220ac0402e936c
   SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380
@@ -3297,6 +3333,6 @@ SPEC CHECKSUMS:
   Yoga: dc7c21200195acacb62fa920c588e7c2106de45e
   ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5
 
-PODFILE CHECKSUM: d610d18e5e2606a97b4ae0a11a4f764b21db5d97
+PODFILE CHECKSUM: 3626df391ec8c21173033f63b7ecc5a6433bd279
 
 COCOAPODS: 1.16.2

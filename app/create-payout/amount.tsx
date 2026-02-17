@@ -20,6 +20,8 @@ export default function AmountScreen() {
   const haptics = useHaptics();
   const availableBalance = balance - lockedBalance;
   const amountInputRef = useRef<TextInput>(null);
+  const balanceFormatted = availableBalance.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const [balanceWhole, balanceDec] = balanceFormatted.split('.');
 
   // Initialize amount from params if editing
   useEffect(() => {
@@ -202,7 +204,10 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
+              <Text style={styles.balanceAmount}>
+                ₦{balanceWhole}
+                <Text style={{ color: colors.textTertiary }}>.{balanceDec ?? '00'}</Text>
+              </Text>
               <Pressable style={styles.maxButton} onPress={handleMaxPress}>
                 <Text style={styles.maxButtonText}>Max</Text>
               </Pressable>

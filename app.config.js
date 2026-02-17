@@ -54,7 +54,8 @@ module.exports = {
       },
       entitlements: {
         "aps-environment": "development", // ✅ Required for push notification, change to "production" for Testflight and App Store builds
-        "keychain-access-groups": ["$(AppIdentifierPrefix)app.planmoni"]
+        "keychain-access-groups": ["$(AppIdentifierPrefix)app.planmoni"],
+        "com.apple.security.application-groups": ["group.app.planmoni.widget"]
       },
       userInterfaceStyle: "automatic",
     },
@@ -85,14 +86,16 @@ module.exports = {
             "buildToolsVersion": "35.0.0"
           },
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "15.1",
+            "useFrameworks": "static"
           }
         }
        
       ],
       "@react-native-firebase/app",
       "expo-navigation-bar",
-      "expo-document-picker"
+      "expo-document-picker",
+      "@bacons/apple-targets"
     ],
     extra: {
       eas: {
