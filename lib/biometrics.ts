@@ -134,8 +134,8 @@ export class BiometricService {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage,
         cancelLabel: "Cancel",
-        fallbackLabel: "Use Password",
-        disableDeviceFallback: false,
+        fallbackLabel: "Use PIN",
+        disableDeviceFallback: true,
       })
 
       if (result.success) {
