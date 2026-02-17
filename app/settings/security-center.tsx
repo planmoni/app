@@ -244,8 +244,8 @@ export default function SecurityCenter() {
                     <Ionicons name="card-outline" size={20} color={colors.text} />
                   </View>
                   <View style={styles.settingText}>
-                    <Text style={styles.settingTitle}>Use Biometric for Payout Confirmation</Text>
-                    <Text style={styles.settingSubtitle}>Require PIN/biometric for payout confirmations</Text>
+                    <Text style={styles.settingTitle}>Use Biometric for Payout Creation</Text>
+                    <Text style={styles.settingSubtitle}>Require PIN/biometric before successfully creating a payout plan</Text>
                   </View>
                 </View>
                 <Switch
@@ -256,7 +256,7 @@ export default function SecurityCenter() {
                 />
               </View>
 
-              <View style={styles.settingItem}>
+              {/* <View style={styles.settingItem}>
                 <View style={styles.settingLeft}>
                   <View style={styles.iconContainer}>
                     <Ionicons name="warning-outline" size={20} color={colors.text} />
@@ -272,7 +272,7 @@ export default function SecurityCenter() {
                   trackColor={{ false: colors.border, true: '#D1EAAE' }}
                   thumbColor={emergencyBiometricEnabled ? colors.primary : colors.backgroundSecondary }
                 />
-              </View>
+              </View> */}
             </>
           )}
         </>

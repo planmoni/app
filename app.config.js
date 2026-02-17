@@ -107,6 +107,12 @@ module.exports = {
         }
        
       ],
+      [
+        "expo-local-authentication",
+        {
+          faceIDPermission: "Planmoni uses Face ID to unlock the app and confirm payouts and withdrawals."
+        }
+      ],
       "@react-native-firebase/app",
       "expo-navigation-bar",
       "expo-document-picker",

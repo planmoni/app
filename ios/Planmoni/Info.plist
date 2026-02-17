@@ -69,6 +69,8 @@
     </dict>
     <key>NSCameraUsageDescription</key>
     <string>Planmoni needs access to your camera to take document photos.</string>
+    <key>NSFaceIDUsageDescription</key>
+    <string>Planmoni uses Face ID to unlock the app and confirm payouts and withdrawals.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>This app uses the microphone to provide a better experience.</string>
     <key>NSPhotoLibraryUsageDescription</key>
