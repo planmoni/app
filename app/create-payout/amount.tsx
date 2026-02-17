@@ -80,6 +80,8 @@ export default function AmountScreen() {
         payoutAccountId: params.payoutAccountId || '',
         emergencyWithdrawal: params.emergencyWithdrawal || 'false',
         customDates: params.customDates || '',
+        customDateAmounts: params.customDateAmounts || '',
+        customDateTimes: params.customDateTimes || '',
         dayOfWeek: params.dayOfWeek || '',
         payoutHour: params.payoutHour || '',
         payoutMinute: params.payoutMinute || '',

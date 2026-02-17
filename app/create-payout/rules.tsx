@@ -43,6 +43,8 @@ export default function RulesScreen() {
         duration: params.duration || '',
         startDate: params.startDate || '',
         customDates: params.customDates || '',
+        customDateAmounts: params.customDateAmounts || '',
+        customDateTimes: params.customDateTimes || '',
         dayOfWeek: params.dayOfWeek || '',
       }
     });
