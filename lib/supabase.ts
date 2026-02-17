@@ -67,6 +67,7 @@ if (supabaseUrl && supabaseAnonKey) {
 }
 
 export { supabase };
+export { supabaseUrl };
 
 // Development helper (no-op in production) — some components reference this for debugging
 export const debugSessionStorage = () => {

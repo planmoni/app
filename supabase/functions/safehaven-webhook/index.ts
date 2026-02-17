@@ -943,6 +943,65 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
       newStatus = 'failed';
     }
 
+    // Idempotent success check: if already completed and webhook reports success, only notify and exit
+    if (newStatus === 'completed' && automatedPayout.status === 'completed') {
+      console.log(`Idempotent success: automated payout ${automatedPayout.id} already completed. Skipping DB status update.`);
+
+      // Send notifications/emails only (no DB mutations)
+      try {
+        const { data: payoutPlan } = await supabase
+          .from('payout_plans')
+          .select('id, name, payout_amount, payout_account_id, bank_account_id')
+          .eq('id', automatedPayout.payout_plan_id)
+          .single();
+
+        if (payoutPlan) {
+          await supabase
+            .from('events')
+            .insert({
+              user_id: userId,
+              type: 'payout_completed',
+              title: 'Payout Completed',
+              description: `Your payout of ₦${payoutPlan.payout_amount.toLocaleString()} from "${payoutPlan.name}" has been processed successfully.`,
+              status: 'unread',
+              payout_plan_id: payoutPlan.id
+            });
+
+          let payoutAccount: { account_name?: string; bank_name?: string; account_number?: string } | null = null;
+          if (payoutPlan.payout_account_id) {
+            const { data } = await supabase
+              .from('payout_accounts')
+              .select('account_name, bank_name, account_number')
+              .eq('id', payoutPlan.payout_account_id)
+              .single();
+            payoutAccount = data;
+          } else if (payoutPlan.bank_account_id) {
+            const { data } = await supabase
+              .from('bank_accounts')
+              .select('account_name, bank_name, account_number')
+              .eq('id', payoutPlan.bank_account_id)
+              .single();
+            payoutAccount = data;
+          }
+
+          const paymentRef = transferData.paymentReference || (transferData as any).reference || '';
+          await sendPayoutSuccessEmailNotification(
+            userId,
+            automatedPayout.amount,
+            paymentRef,
+            automatedPayout.id,
+            payoutPlan.name,
+            payoutAccount?.account_name || transferData.creditAccountName || 'Your Account',
+            payoutAccount?.bank_name || 'Your Bank',
+            payoutAccount?.account_number || transferData.creditAccountNumber || '****'
+          );
+        }
+      } catch (notifyErr) {
+        console.error('Idempotent success notify error:', notifyErr);
+      }
+      return;
+    }
+
     // Only update if status changed
     if (newStatus !== automatedPayout.status) {
       const updateData: any = {
@@ -1399,21 +1458,37 @@ async function processAccountDebitWebhook(debitData: SafeHavenAccountDebitData):
   console.log('Processing account debit webhook:', debitData.reference);
 
   try {
-    // Get user ID from client ID
-    const { data: userData, error: userError } = await supabase
+    // Resolve user: first by SafeHaven client ID (ibs_client_id), then by debited account number
+    let userId: string | null = null;
+    const { data: tokenRow, error: tokenError } = await supabase
       .from('safehaven_tokens')
       .select('user_id')
       .eq('ibs_client_id', debitData.client)
-      .single();
-
-    if (userError || !userData) {
-      console.error('Could not find user for client ID:', debitData.client);
+      .maybeSingle();
+    if (!tokenError && tokenRow?.user_id) {
+      userId = tokenRow.user_id;
+    }
+    if (!userId) {
+      const { data: accountRow, error: accountError } = await supabase
+        .from('safehaven_accounts')
+        .select('user_id')
+        .eq('account_number', debitData.debitAccountNumber)
+        .eq('is_deleted', false)
+        .maybeSingle();
+      if (!accountError && accountRow?.user_id) {
+        userId = accountRow.user_id;
+        console.log('Resolved user from safehaven_accounts by debitAccountNumber:', debitData.debitAccountNumber);
+      }
+    }
+    if (!userId) {
+      console.error('Could not find user for client ID or account number:', debitData.client, debitData.debitAccountNumber);
       return { 
         error: 'User not found',
-        note: 'Webhook received but user not found',
+        note: 'Webhook received but user not found (no safehaven_tokens.ibs_client_id or safehaven_accounts match)',
         reference: debitData.reference
       };
     }
+    const userData = { user_id: userId };
 
     // Find account by account number
     const { data: accountData, error: accountError } = await supabase

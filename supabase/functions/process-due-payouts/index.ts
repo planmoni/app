@@ -11,8 +11,6 @@ const supabase = createClient(Deno.env.get("SUPABASE_URL"), Deno.env.get("SUPABA
 const safeHavenClientId = Deno.env.get("EXPO_PUBLIC_SAFEHAVEN_CLIENT_ID") || Deno.env.get("SAFEHAVEN_CLIENT_ID");
 const safeHavenClientAssertion = Deno.env.get("EXPO_PUBLIC_SAFEHAVEN_CLIENT_ASSERTION") || Deno.env.get("SAFEHAVEN_CLIENT_ASSERTION");
 const safeHavenApiUrl = "https://api.safehavenmfb.com";
-const paystackSecretKey = Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY");
-const paystackApiUrl = "https://api.paystack.co";
 /**
  * Main function to process due payouts and scheduled emergency withdrawals
  */ async function processDuePayouts() {
@@ -161,20 +159,13 @@ const paystackApiUrl = "https://api.paystack.co";
   if (!payoutAccount.account_name || !payoutAccount.account_number || !payoutAccount.bank_name) {
     throw new Error("Incomplete bank account information");
   }
-  const { safehavenCode, paystackCode } = await resolveBankCodes(payoutAccount);
-  const canUseSafeHaven = !!safehavenCode;
-  const paystackBankCode = payoutAccount.bank_code || paystackCode;
-  const canUsePaystack = !!paystackSecretKey && (!!payoutAccount.paystack_recipient_code || !!paystackBankCode);
-
-  if (!canUseSafeHaven && !canUsePaystack) {
+  const { safehavenCode } = await resolveBankCodes(payoutAccount);
+  if (!safehavenCode) {
     throw new Error(
-      `No SafeHaven bank code or Paystack configuration available for ${payoutAccount.bank_name} (${payoutAccount.account_number}). Please update bank_comparison mappings.`
+      `No SafeHaven bank code for ${payoutAccount.bank_name} (${payoutAccount.account_number}). Please add a payout account with SafeHaven bank code.`
     );
   }
-
-  if (canUseSafeHaven) {
-    payoutAccount.safehaven_bank_code = safehavenCode;
-  }
+  payoutAccount.safehaven_bank_code = safehavenCode;
   
   // 4. Check wallet balance and handle insufficient balance for final payout
   const { data: wallet, error: walletError } = await supabase
@@ -211,9 +202,9 @@ const paystackApiUrl = "https://api.paystack.co";
     throw new Error(`Insufficient locked balance for payout. Locked: ₦${lockedBalance}, Required: ₦${requiredAmount}`);
   }
   
-  // 5 & 6. Get SafeHaven token only if required
+  // 5 & 6. Get SafeHaven token
   let safeHavenToken: any = null;
-  if (canUseSafeHaven) {
+  {
     const { data: tokenRecord, error: tokenError } = await supabase
       .from("safehaven_tokens")
       .select("access_token, expires_at, refresh_token")
@@ -365,33 +356,21 @@ const paystackApiUrl = "https://api.paystack.co";
 
   console.log(`✅ Wallet balance debited for payout: ₦${actualPayoutAmount}${usingPartialBalance ? ' (partial - final payout)' : ''}`);
 
-  // 9. Initiate transfer via SafeHaven or fallback to Paystack
-  // Create a modified plan object with the actual payout amount
+  // 9. Initiate transfer via SafeHaven only
   const planWithActualAmount = {
     ...plan,
     payout_amount: actualPayoutAmount
   };
-  
-  let transferResult;
-  if (canUseSafeHaven) {
-    if (!safeHavenToken?.access_token) {
-      throw new Error("SafeHaven token not available for this user.");
-    }
-    transferResult = await initiateSafeHavenTransfer(
-      planWithActualAmount,
-      payoutAccount,
-      safeHavenToken.access_token,
-      payoutId,
-      safehavenCode!
-    );
-  } else {
-    transferResult = await initiatePaystackTransfer(
-      planWithActualAmount,
-      payoutAccount,
-      paystackBankCode!,
-      payoutId
-    );
+  if (!safeHavenToken?.access_token) {
+    throw new Error("SafeHaven token not available for this user.");
   }
+  const transferResult = await initiateSafeHavenTransfer(
+    planWithActualAmount,
+    payoutAccount,
+    safeHavenToken.access_token,
+    payoutId,
+    safehavenCode!
+  );
   
   // 10. Create transaction record with pending status
   await createTransactionRecord(planWithActualAmount, transferResult);
@@ -531,160 +510,35 @@ const paystackApiUrl = "https://api.paystack.co";
 
 type BankCodeResolution = {
   safehavenCode: string | null;
-  paystackCode: string | null;
 };
 
 async function resolveBankCodes(payoutAccount: any): Promise<BankCodeResolution> {
   let safehavenCode = payoutAccount.safehaven_bank_code || null;
-  let paystackCode = payoutAccount.bank_code || null;
 
-  if ((!safehavenCode || !paystackCode) && payoutAccount.bank_name) {
+  if (!safehavenCode && payoutAccount.bank_name) {
     const { data: mapping } = await supabase
       .from("bank_comparison")
-      .select("safehaven_code, paystack_code")
+      .select("safehaven_code")
       .ilike("bank_name", payoutAccount.bank_name)
       .limit(1)
       .maybeSingle();
 
-    if (mapping) {
-      const updates: Record<string, any> = {};
-
-      if (!safehavenCode && mapping.safehaven_code) {
-        safehavenCode = mapping.safehaven_code;
-        updates.safehaven_bank_code = safehavenCode;
-      }
-
-      if (!paystackCode && mapping.paystack_code) {
-        paystackCode = mapping.paystack_code;
-        if (!updates.bank_code) {
-          updates.bank_code = mapping.paystack_code;
-        }
-      }
-
-      if (Object.keys(updates).length > 0) {
-        updates.updated_at = new Date().toISOString();
-        await supabase
-          .from("payout_accounts")
-          .update(updates)
-          .eq("id", payoutAccount.id)
-          .catch(() => null);
-      }
+    if (mapping?.safehaven_code) {
+      safehavenCode = mapping.safehaven_code;
+      await supabase
+        .from("payout_accounts")
+        .update({
+          safehaven_bank_code: safehavenCode,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", payoutAccount.id)
+        .catch(() => null);
     }
   }
 
-  return { safehavenCode, paystackCode };
+  return { safehavenCode };
 }
 
-async function ensurePaystackRecipient(payoutAccount: any, paystackBankCode: string): Promise<string> {
-  if (!paystackSecretKey) {
-    throw new Error("Paystack secret key not configured. Cannot create transfer recipient.");
-  }
-
-  if (payoutAccount.paystack_recipient_code) {
-    return payoutAccount.paystack_recipient_code;
-  }
-
-  if (!paystackBankCode) {
-    throw new Error(`Missing Paystack bank code for ${payoutAccount.bank_name}.`);
-  }
-
-  const recipientResponse = await fetch(`${paystackApiUrl}/transferrecipient`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${paystackSecretKey}`,
-      "Content-Type": "application/json",
-      accept: "application/json"
-    },
-    body: JSON.stringify({
-      type: "nuban",
-      name: payoutAccount.account_name,
-      account_number: payoutAccount.account_number,
-      bank_code: paystackBankCode,
-      currency: "NGN"
-    })
-  });
-
-  const recipientPayload = await recipientResponse.json();
-
-  if (!recipientResponse.ok || !recipientPayload?.status) {
-    throw new Error(`Failed to create Paystack transfer recipient: ${recipientPayload?.message || "Unknown error"}`);
-  }
-
-  const recipientCode = recipientPayload?.data?.recipient_code;
-  if (!recipientCode) {
-    throw new Error("Paystack did not return a recipient_code.");
-  }
-
-  await supabase
-    .from("payout_accounts")
-    .update({
-      paystack_recipient_code: recipientCode,
-      bank_code: payoutAccount.bank_code || paystackBankCode,
-      updated_at: new Date().toISOString()
-    })
-    .eq("id", payoutAccount.id)
-    .catch(() => null);
-
-  payoutAccount.paystack_recipient_code = recipientCode;
-  return recipientCode;
-}
-
-function normalizePaystackStatus(status?: string): string {
-  const normalized = status?.toLowerCase();
-  if (normalized === "success") return "Completed";
-  if (normalized === "failed") return "Failed";
-  return "processing";
-}
-
-async function initiatePaystackTransfer(
-  plan,
-  payoutAccount,
-  paystackBankCode: string,
-  payoutId: string
-) {
-  if (!paystackSecretKey) {
-    throw new Error("Paystack secret key not configured. Cannot process payout.");
-  }
-
-  console.log(`Using Paystack transfer for plan ${plan.plan_id}.`);
-
-  const recipientCode = await ensurePaystackRecipient(payoutAccount, paystackBankCode);
-  const amountInKobo = Math.round(Number(plan.payout_amount) * 100);
-
-  const transferResponse = await fetch(`${paystackApiUrl}/transfer`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${paystackSecretKey}`,
-      "Content-Type": "application/json",
-      accept: "application/json"
-    },
-    body: JSON.stringify({
-      source: "balance",
-      amount: amountInKobo,
-      recipient: recipientCode,
-      reason: `Automated payout: ${plan.name}`
-    })
-  });
-
-  const transferPayload = await transferResponse.json();
-
-  if (!transferResponse.ok || !transferPayload?.status) {
-    throw new Error(`Paystack transfer failed: ${transferPayload?.message || "Unknown error"}`);
-  }
-
-  const transferData = transferPayload.data;
-
-  return {
-    provider: "paystack",
-    id: transferData.id,
-    reference: transferData.reference,
-    transfer_code: transferData.transfer_code,
-    sessionId: null,
-    status: normalizePaystackStatus(transferData.status),
-    paymentReference: transferData.reference,
-    rawResponse: transferData
-  };
-}
 /**
  * Update automated payout record with transfer details
  */ async function updateAutomatedPayout(payoutId, transferResult) {
@@ -746,15 +600,10 @@ async function initiatePaystackTransfer(
     automated_payout_id: plan.plan_id
   };
 
-  if (transferResult.provider === "safehaven") {
-    metadata.safehaven_transfer_id = transferResult.id || transferResult._id;
-    metadata.safehaven_transfer_code = transferResult.reference || transferResult.paymentReference;
-    metadata.safehaven_transfer_status = transferResult.status || "Pending";
-    metadata.safehaven_transfer_session_id = transferResult.sessionId;
-  } else if (transferResult.provider === "paystack") {
-    metadata.paystack_transfer_id = transferResult.id;
-    metadata.paystack_reference = transferResult.reference;
-  }
+  metadata.safehaven_transfer_id = transferResult.id || transferResult._id;
+  metadata.safehaven_transfer_code = transferResult.reference || transferResult.paymentReference;
+  metadata.safehaven_transfer_status = transferResult.status || "Pending";
+  metadata.safehaven_transfer_session_id = transferResult.sessionId;
 
   // Use the database function with proper type casting
   const { data: transactionId, error } = await supabase.rpc("create_transaction_record", {
@@ -909,72 +758,41 @@ async function initiatePaystackTransfer(
     throw new Error("Incomplete bank account information. Please update your account details.");
   }
 
-  // Resolve bank codes (SafeHaven and Paystack) from payout_accounts or bank_comparison table
-  const { safehavenCode, paystackCode } = await resolveBankCodes(payoutAccount);
-
-  // Determine which provider to use
-  const canUseSafeHaven = !!safehavenCode;
-  const canUsePaystack = !!paystackCode;
-
-  if (!canUseSafeHaven && !canUsePaystack) {
-    throw new Error(`No bank code found for ${payoutAccount.bank_name}. Please update the payout account or bank_comparison table.`);
+  // Resolve SafeHaven bank code (transfers are SafeHaven-only)
+  const { safehavenCode } = await resolveBankCodes(payoutAccount);
+  if (!safehavenCode) {
+    throw new Error(`No SafeHaven bank code for ${payoutAccount.bank_name}. Please update the payout account with SafeHaven bank code.`);
   }
 
-  // Get SafeHaven token only if we're using SafeHaven
-  let safeHavenToken: any = null;
-  let accessToken: string | null = null;
-  
-  if (canUseSafeHaven) {
-    const { data: tokenData, error: tokenError } = await supabase
-      .from("safehaven_tokens")
-      .select("access_token, expires_at, refresh_token")
-      .eq("user_id", withdrawal.user_id)
-      .single();
+  const { data: tokenData, error: tokenError } = await supabase
+    .from("safehaven_tokens")
+    .select("access_token, expires_at, refresh_token")
+    .eq("user_id", withdrawal.user_id)
+    .single();
 
-    if (tokenError || !tokenData) {
-      console.log("⚠️ SafeHaven token not found, will use Paystack fallback");
-      // Continue to Paystack fallback
-    } else {
-      safeHavenToken = tokenData;
-      
-      // Check if token needs refresh
-      const expiresAt = new Date(safeHavenToken.expires_at);
-      const now = new Date();
-      const bufferTime = 5 * 60 * 1000; // 5 minutes
-      
-      const needsRefresh = isNaN(expiresAt.getTime()) || (expiresAt.getTime() - now.getTime() < bufferTime);
-      
-      accessToken = safeHavenToken.access_token;
-      
-      if (needsRefresh) {
-        console.log("SafeHaven token expired or expiring soon, attempting refresh...");
-        accessToken = await refreshOrCreateSafeHavenToken(withdrawal.user_id, safeHavenToken);
-      }
-    }
+  if (tokenError || !tokenData) {
+    throw new Error("SafeHaven token not found. User must authenticate with SafeHaven for emergency withdrawals.");
   }
 
-  // Process the transfer via SafeHaven or Paystack
-  let transferResult;
-  if (canUseSafeHaven && accessToken) {
-    transferResult = await initiateSafeHavenEmergencyTransfer(
-      withdrawal,
-      payoutAccount,
-      accessToken,
-      netAmount,
-      plan.name,
-      safehavenCode!
-    );
-  } else if (canUsePaystack) {
-    transferResult = await initiatePaystackEmergencyTransfer(
-      withdrawal,
-      payoutAccount,
-      paystackCode!,
-      netAmount,
-      plan.name
-    );
-  } else {
-    throw new Error("Unable to process transfer: No valid provider available");
+  let safeHavenToken = tokenData;
+  const expiresAt = new Date(safeHavenToken.expires_at);
+  const now = new Date();
+  const bufferTime = 5 * 60 * 1000; // 5 minutes
+  const needsRefresh = isNaN(expiresAt.getTime()) || (expiresAt.getTime() - now.getTime() < bufferTime);
+  let accessToken: string = safeHavenToken.access_token;
+  if (needsRefresh) {
+    console.log("SafeHaven token expired or expiring soon, attempting refresh...");
+    accessToken = await refreshOrCreateSafeHavenToken(withdrawal.user_id, safeHavenToken);
   }
+
+  const transferResult = await initiateSafeHavenEmergencyTransfer(
+    withdrawal,
+    payoutAccount,
+    accessToken,
+    netAmount,
+    plan.name,
+    safehavenCode
+  );
 
   // Update withdrawal status to completed
   const withdrawalMetadata: Record<string, any> = {
@@ -985,14 +803,9 @@ async function initiatePaystackTransfer(
     processed_via: "scheduled_cron"
   };
 
-  if (transferResult.provider === "safehaven") {
-    withdrawalMetadata.safehaven_transfer_id = transferResult.id || transferResult._id;
-    withdrawalMetadata.safehaven_reference = transferResult.reference || transferResult.paymentReference;
-    withdrawalMetadata.session_id = transferResult.sessionId;
-  } else if (transferResult.provider === "paystack") {
-    withdrawalMetadata.paystack_transfer_id = transferResult.id;
-    withdrawalMetadata.paystack_reference = transferResult.reference;
-  }
+  withdrawalMetadata.safehaven_transfer_id = transferResult.id || transferResult._id;
+  withdrawalMetadata.safehaven_reference = transferResult.reference || transferResult.paymentReference;
+  withdrawalMetadata.session_id = transferResult.sessionId;
 
   const { error: completeError } = await supabase
     .from("emergency_withdrawals")
@@ -1031,15 +844,10 @@ async function initiatePaystackTransfer(
     fee_amount: feeAmount
   };
 
-  if (transferResult.provider === "safehaven") {
-    txMetadata.safehaven_transfer_id = transferResult.id || transferResult._id;
-    txMetadata.safehaven_transfer_code = transferResult.reference || transferResult.paymentReference;
-    txMetadata.safehaven_transfer_status = transferResult.status || "Pending";
-    txMetadata.safehaven_transfer_session_id = transferResult.sessionId;
-  } else if (transferResult.provider === "paystack") {
-    txMetadata.paystack_transfer_id = transferResult.id;
-    txMetadata.paystack_reference = transferResult.reference;
-  }
+  txMetadata.safehaven_transfer_id = transferResult.id || transferResult._id;
+  txMetadata.safehaven_transfer_code = transferResult.reference || transferResult.paymentReference;
+  txMetadata.safehaven_transfer_status = transferResult.status || "Pending";
+  txMetadata.safehaven_transfer_session_id = transferResult.sessionId;
 
   const { error: txCreateError } = await supabase.rpc('create_transaction_record', {
     p_user_id: withdrawal.user_id,
@@ -1319,61 +1127,6 @@ async function initiatePaystackTransfer(
     transfer_code: paymentReference,
     sessionId: sessionId,
     status: transferResult.status || "Pending",
-    rawResponse: transferData
-  };
-}
-
-/**
- * Initiate Paystack transfer for emergency withdrawal
- */ async function initiatePaystackEmergencyTransfer(
-  withdrawal,
-  payoutAccount,
-  paystackBankCode: string,
-  netAmount: number,
-  planName: string
-) {
-  if (!paystackSecretKey) {
-    throw new Error("Paystack secret key not configured. Cannot process emergency withdrawal.");
-  }
-
-  console.log(`Using Paystack transfer for emergency withdrawal ${withdrawal.id}.`);
-
-  const recipientCode = await ensurePaystackRecipient(payoutAccount, paystackBankCode);
-  const amountInKobo = Math.round(Number(netAmount) * 100);
-  const transferReference = withdrawal.reference || `EMERGENCY_${withdrawal.id}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-
-  const transferResponse = await fetch(`${paystackApiUrl}/transfer`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${paystackSecretKey}`,
-      "Content-Type": "application/json",
-      accept: "application/json"
-    },
-    body: JSON.stringify({
-      source: "balance",
-      amount: amountInKobo,
-      recipient: recipientCode,
-      reason: `Emergency withdrawal: ${planName}`,
-      reference: transferReference
-    })
-  });
-
-  const transferPayload = await transferResponse.json();
-
-  if (!transferResponse.ok || !transferPayload?.status) {
-    throw new Error(`Paystack transfer failed: ${transferPayload?.message || "Unknown error"}`);
-  }
-
-  const transferData = transferPayload.data;
-
-  return {
-    provider: "paystack",
-    id: transferData.id,
-    reference: transferData.reference || transferReference,
-    transfer_code: transferData.transfer_code,
-    sessionId: null,
-    status: normalizePaystackStatus(transferData.status),
-    paymentReference: transferData.reference || transferReference,
     rawResponse: transferData
   };
 }
