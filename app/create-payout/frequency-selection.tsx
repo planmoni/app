@@ -1268,7 +1268,7 @@ export default function FrequencySelectionScreen() {
             <View style={styles.tabContent}>
               <View style={styles.section}>
                 <Text style={styles.sectionDescription}>
-                  Select how often you want to get paid
+                  Select how often you want your money to be disbursed
                 </Text>
                 <Pressable
                   style={[
@@ -1464,7 +1464,7 @@ export default function FrequencySelectionScreen() {
             <View style={styles.tabContent}>
               <View style={styles.section}>
                 <Text style={styles.sectionDescription}>
-                  Select up to 7 dates you want to get paid
+                  Select up to 7 dates you want your money to be disbursed
                 </Text>
                 <Pressable
                   style={[styles.selectButton, styles.selectButtonSelected]}
@@ -1634,6 +1634,14 @@ export default function FrequencySelectionScreen() {
                             <Text style={styles.totalSummaryLabel}>Remainder:</Text>
                             <Text style={[styles.totalSummaryValue, remainder > 0 ? styles.remainderPositive : styles.remainderNegative]}>
                               ₦{Math.abs(remainder).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </Text>
+                          </View>
+                        )}
+                        {feeAmount > 0 && (
+                          <View style={styles.totalSummaryRow}>
+                            <Text style={styles.totalSummaryLabel}>Total fees(incl. VAT):</Text>
+                            <Text style={styles.totalSummaryValue}>
+                              ₦{feeAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </Text>
                           </View>
                         )}

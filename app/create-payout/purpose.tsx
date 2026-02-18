@@ -1,13 +1,48 @@
 import { View, Text, StyleSheet, Pressable, Platform, ScrollView, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, X, Check } from 'lucide-react-native';
-import { useState, useEffect } from 'react';
+import {
+  ArrowLeft,
+  X,
+  Check,
+  Wallet,
+  Car,
+  UtensilsCrossed,
+  UsersRound,
+  Briefcase,
+  HeartHandshake,
+  Sparkles,
+  Home,
+  Zap,
+  Wifi,
+  Tv,
+  CreditCard,
+  PiggyBank,
+  MoreHorizontal,
+} from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { PURPOSE_OPTIONS } from '@/lib/payout-purposes';
+
+const PURPOSE_ICONS: Record<string, React.ComponentType<{ size: number; color: string }>> = {
+  personal_salary_allowance: Wallet,
+  transportation: Car,
+  groceries_food: UtensilsCrossed,
+  family_support: UsersRound,
+  mini_salary_payroll: Briefcase,
+  commitments: HeartHandshake,
+  personal_care: Sparkles,
+  rent_service_charge: Home,
+  utility_bills: Zap,
+  internet_data: Wifi,
+  online_subscriptions: Tv,
+  loan_repayments: CreditCard,
+  contributions: PiggyBank,
+  others: MoreHorizontal,
+};
 
 export default function PurposeScreen() {
   const { colors } = useTheme();
@@ -109,6 +144,14 @@ export default function PurposeScreen() {
                       setSelectedPurpose(option.value);
                     }}
                   >
+                    {(() => {
+                      const IconComponent = PURPOSE_ICONS[option.value];
+                      return IconComponent ? (
+                        <View style={[styles.optionIconWrap, { backgroundColor: isSelected ? colors.primary + '20' : colors.backgroundTertiary }]}>
+                          <IconComponent size={22} color={isSelected ? colors.primary : colors.textSecondary} />
+                        </View>
+                      ) : null;
+                    })()}
                     <View style={styles.optionContent}>
                       <Text style={[styles.optionLabel, { color: colors.text }]}>
                         {option.label}
@@ -244,9 +287,17 @@ const createStyles = (colors: any) =>
       borderRadius: 12,
       borderWidth: 1.5,
       marginBottom: 10,
+      gap: 12,
     },
     optionCardSelected: {
       borderWidth: 2,
+    },
+    optionIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     optionContent: {
       flex: 1,
