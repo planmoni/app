@@ -26,6 +26,7 @@ export function useCreatePayout() {
     payoutAccountId,
     customDates,
     customDateAmounts,
+    customDateTimes,
     emergencyWithdrawalEnabled = true, // Default to enabled
     dayOfWeek,
     payoutHour,
@@ -44,6 +45,7 @@ export function useCreatePayout() {
     payoutAccountId?: string | null;
     customDates?: string[];
     customDateAmounts?: Record<string, string>;
+    customDateTimes?: Record<string, string>; // date -> "HH:mm", default 12:00
     emergencyWithdrawalEnabled?: boolean;
     dayOfWeek?: number;
     payoutHour?: number;
@@ -291,15 +293,21 @@ export function useCreatePayout() {
         throw planError;
       }
 
-      // 📆 Insert custom dates if needed
+      // 📆 Insert custom dates if needed (with per-date amount and time)
       if (dbFrequency === "custom" && customDates?.length) {
         const datesToInsert = customDates.map((date) => {
+          const timeStr = customDateTimes?.[date] || '12:00';
+          const [h, m] = timeStr.split(':').map(Number);
+          const hour = (isNaN(h) ? 12 : h % 24).toString().padStart(2, '0');
+          const minute = (isNaN(m) ? 0 : m % 60).toString().padStart(2, '0');
+          const payoutTime = `${hour}:${minute}:00`;
+
           const baseRecord: any = {
             payout_plan_id: payoutPlan.id,
             payout_date: date,
+            payout_time: payoutTime,
           };
-          
-          // Add amount if provided for this date
+
           if (customDateAmounts && customDateAmounts[date]) {
             const amountStr = customDateAmounts[date];
             const numericAmount = parseFloat(amountStr.replace(/,/g, ''));
@@ -307,7 +315,7 @@ export function useCreatePayout() {
               baseRecord.amount = numericAmount;
             }
           }
-          
+
           return baseRecord;
         });
 
@@ -318,6 +326,25 @@ export function useCreatePayout() {
         if (datesError) {
           console.error("Error adding custom dates:", datesError);
           throw datesError;
+        }
+
+        // Set next_payout_date to first date + first time (trigger runs before rows exist, so we set it here)
+        const firstDate = customDates[0];
+        const firstTime = customDateTimes?.[firstDate] || '12:00';
+        const [fh, fm] = firstTime.split(':').map(Number);
+        const firstHour = isNaN(fh) ? 12 : fh % 24;
+        const firstMinute = isNaN(fm) ? 0 : fm % 60;
+        const firstDateTime = new Date(firstDate);
+        firstDateTime.setHours(firstHour, firstMinute, 0, 0);
+        const firstPayoutDateStr = firstDateTime.toISOString();
+
+        const { error: updateError } = await supabase
+          .from("payout_plans")
+          .update({ next_payout_date: firstPayoutDateStr })
+          .eq("id", payoutPlan.id);
+
+        if (updateError) {
+          console.error("Error setting initial next_payout_date for custom plan:", updateError);
         }
       }
 

@@ -166,18 +166,21 @@ export interface Database {
           id: string
           payout_plan_id: string
           payout_date: string
+          payout_time: string | null
           created_at: string
         }
         Insert: {
           id?: string
           payout_plan_id: string
           payout_date: string
+          payout_time?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           payout_plan_id?: string
           payout_date?: string
+          payout_time?: string | null
           created_at?: string
         }
       }

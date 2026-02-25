@@ -46,6 +46,7 @@ export default function ReviewScreen() {
   const emergencyWithdrawal = params.emergencyWithdrawal !== 'false'; // Default to true
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
   const customDateAmounts = params.customDateAmounts ? JSON.parse(params.customDateAmounts as string) : {};
+  const customDateTimes = params.customDateTimes ? JSON.parse(params.customDateTimes as string) : {};
   const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
   const payoutHour = params.payoutHour ? parseInt(params.payoutHour as string) : undefined;
   const payoutMinute = params.payoutMinute ? parseInt(params.payoutMinute as string) : undefined;
@@ -160,6 +161,7 @@ export default function ReviewScreen() {
         payoutAccountId: payoutAccountId || null,
         customDates,
         customDateAmounts: Object.keys(customDateAmounts).length > 0 ? customDateAmounts : undefined,
+        customDateTimes: Object.keys(customDateTimes).length > 0 ? customDateTimes : undefined,
         emergencyWithdrawalEnabled: emergencyWithdrawal,
         payoutHour: payoutHour,
         payoutMinute: payoutMinute,
@@ -172,7 +174,7 @@ export default function ReviewScreen() {
         haptics.error();
       }
     }
-  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, customDateAmounts, emergencyWithdrawal, haptics, createPayout, isLoading, purpose, purposeOther]);
+  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, customDateAmounts, customDateTimes, emergencyWithdrawal, haptics, createPayout, isLoading, purpose, purposeOther]);
 
   const handleStartPlan = useCallback(async () => {
     if (hasInsufficientBalance) {
@@ -404,6 +406,7 @@ export default function ReviewScreen() {
                           emergencyWithdrawal: emergencyWithdrawal.toString(),
                           customDates: customDates ? JSON.stringify(customDates) : '',
                           customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
+                          customDateTimes: Object.keys(customDateTimes).length > 0 ? JSON.stringify(customDateTimes) : '',
                           dayOfWeek: dayOfWeek?.toString() || '',
                           payoutHour: payoutHour?.toString() || '',
                           payoutMinute: payoutMinute?.toString() || '',
@@ -448,6 +451,7 @@ export default function ReviewScreen() {
                         emergencyWithdrawal: emergencyWithdrawal.toString(),
                         customDates: customDates ? JSON.stringify(customDates) : '',
                         customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
+                        customDateTimes: Object.keys(customDateTimes).length > 0 ? JSON.stringify(customDateTimes) : '',
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
@@ -472,9 +476,16 @@ export default function ReviewScreen() {
                     <View style={styles.customAmountsList}>
                       {customDates.map((date: string) => {
                         const amount = customDateAmounts[date] || payoutAmount;
+                        const timeStr = customDateTimes[date] || '12:00';
+                        const [h, m] = (timeStr || '12:00').split(':').map(Number);
+                        const hour = isNaN(h) ? 12 : h % 24;
+                        const minute = isNaN(m) ? 0 : m % 60;
+                        const period = hour >= 12 ? 'PM' : 'AM';
+                        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                        const timeDisplay = `${displayHour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${period}`;
                         return (
                           <Text key={date} style={styles.detailSubtext}>
-                            {formatDisplayDate(date)}: ₦{parseFloat(amount.toString().replace(/,/g, '')).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {formatDisplayDate(date)}: ₦{parseFloat(amount.toString().replace(/,/g, '')).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} at {timeDisplay}
                           </Text>
                         );
                       })}
@@ -505,6 +516,7 @@ export default function ReviewScreen() {
                         emergencyWithdrawal: emergencyWithdrawal.toString(),
                         customDates: customDates ? JSON.stringify(customDates) : '',
                         customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
+                        customDateTimes: Object.keys(customDateTimes).length > 0 ? JSON.stringify(customDateTimes) : '',
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
@@ -549,6 +561,7 @@ export default function ReviewScreen() {
                         emergencyWithdrawal: emergencyWithdrawal.toString(),
                         customDates: customDates ? JSON.stringify(customDates) : '',
                         customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
+                        customDateTimes: Object.keys(customDateTimes).length > 0 ? JSON.stringify(customDateTimes) : '',
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
@@ -612,6 +625,7 @@ export default function ReviewScreen() {
                         emergencyWithdrawal: emergencyWithdrawal.toString(),
                         customDates: customDates ? JSON.stringify(customDates) : '',
                         customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
+                        customDateTimes: Object.keys(customDateTimes).length > 0 ? JSON.stringify(customDateTimes) : '',
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',

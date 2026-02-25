@@ -6,13 +6,13 @@ module.exports = {
     name: "Planmoni",
     owner: "planmoni", // 👈 Add this line
     slug: "planmoni",
-    version: "1.3.3",
+    version: "1.3.4",
     scheme: "myapp",
     userInterfaceStyle: "automatic", // Allow system to control theme
     updates: {
       url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83"
     },
-    runtimeVersion: "1.3.3",
+    runtimeVersion: "1.3.4",
     android: {
       package: "com.planmoni.app", // ← choose your unique package name
       intentFilters: [
@@ -106,6 +106,12 @@ module.exports = {
           }
         }
        
+      ],
+      [
+        "expo-local-authentication",
+        {
+          faceIDPermission: "Planmoni uses Face ID to unlock the app and confirm payouts and withdrawals."
+        }
       ],
       "@react-native-firebase/app",
       "expo-navigation-bar",

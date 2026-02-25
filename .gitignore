@@ -81,5 +81,6 @@ yarn-error.*
 *service-account*.json
 planmoni-*.json
 *-service-account.json
+planmoni-dashboard/
 
 # @end expo-cli
