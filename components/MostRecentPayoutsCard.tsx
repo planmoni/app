@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Image, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
@@ -44,7 +44,7 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
   useEffect(() => {
     // Get all relevant transactions (payouts, deposits, withdrawals)
     const relevantTransactions = transactions
-      .filter(tx => 
+      .filter(tx =>
         (tx.type === 'payout' && tx.status === 'completed') ||
         (tx.type === 'deposit' && tx.status === 'completed') ||
         (tx.type === 'withdrawal' && tx.status === 'completed')
@@ -61,7 +61,7 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
       if (tx.type === 'payout') {
         const plan = payoutPlans.find(p => p.id === tx.payout_plan_id);
         planName = plan?.name || 'Payout Plan';
-        
+
         // Get bank info from the payout plan's linked account
         if (plan?.payout_accounts) {
           bankName = plan.payout_accounts.bank_name;
@@ -79,7 +79,7 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
         accountNumber = '';
       } else if (tx.type === 'withdrawal') {
         planName = 'Emergency Withdrawal';
-        
+
         // For emergency withdrawals, get account info from the plan's linked account
         const plan = payoutPlans.find(p => p.id === tx.payout_plan_id);
         if (plan) {
@@ -87,18 +87,18 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
           if (plan.payout_accounts) {
             bankName = plan.payout_accounts.bank_name;
             const fullAccountNumber = plan.payout_accounts.account_number;
-            accountNumber = fullAccountNumber && fullAccountNumber.length >= 4 
+            accountNumber = fullAccountNumber && fullAccountNumber.length >= 4
               ? `*** ${fullAccountNumber.slice(-4)}`
               : '****';
           } else if (plan.bank_accounts) {
             bankName = plan.bank_accounts.bank_name;
             const fullAccountNumber = plan.bank_accounts.account_number;
-            accountNumber = fullAccountNumber && fullAccountNumber.length >= 4 
+            accountNumber = fullAccountNumber && fullAccountNumber.length >= 4
               ? `*** ${fullAccountNumber.slice(-4)}`
               : '****';
           }
         }
-        
+
         // If we still don't have account info, try to get it from destination
         if (!bankName || bankName === 'Unknown Bank') {
           if (tx.destination && tx.destination !== 'bank_account') {
@@ -107,7 +107,7 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
             if (destParts.length >= 2) {
               bankName = destParts.slice(0, -1).join(' ');
               const fullAccountNumber = destParts[destParts.length - 1];
-              accountNumber = fullAccountNumber.length >= 4 
+              accountNumber = fullAccountNumber.length >= 4
                 ? `*** ${fullAccountNumber.slice(-4)}`
                 : '****';
             } else if (destParts.length === 1) {
@@ -119,15 +119,15 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
             accountNumber = '****';
           }
         }
-        
+
         description = `Emergency withdrawal processed to ${bankName} ${accountNumber}`;
       }
-      
+
       const date = new Date(tx.created_at);
-      const timeStr = date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+      const timeStr = date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: true 
+        hour12: true
       });
 
       // Format relative date
@@ -136,7 +136,7 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
       const transactionDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
       const diffTime = today.getTime() - transactionDate.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      
+
       let dateStr = '';
       if (diffDays === 0) {
         dateStr = 'Today at';
@@ -145,9 +145,9 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
       } else if (diffDays <= 7) {
         dateStr = `${diffDays} days ago at`;
       } else {
-        dateStr = date.toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric' 
+        dateStr = date.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
         });
       }
 
@@ -196,7 +196,7 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
     }).start();
   }, [currentIndex, slideAnimation]);
 
-  const handleCardPress = () => {
+  const handleCardPress = useCallback(() => {
     const currentTransaction = recentTransactions[currentIndex];
     if (currentTransaction && onTransactionPress) {
       const originalTransaction = transactions.find(tx => tx.id === currentTransaction.id);
@@ -204,12 +204,12 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
         onTransactionPress(originalTransaction);
       }
     }
-  };
+  }, [recentTransactions, currentIndex, onTransactionPress, transactions]);
 
-  const handleViewAllTransactions = () => {
+  const handleViewAllTransactions = useCallback(() => {
     router.push('/transactions');
     logAnalyticsEvent('view_all_transactions', { source: 'most_recent_card' });
-  };
+  }, []);
 
   if (!isAuthenticated || recentTransactions.length === 0) {
     return null;
@@ -227,7 +227,7 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
       </View>
       <View style={styles.cardContainer}>
         <Pressable style={styles.card} onPress={handleCardPress}>
-          <Animated.View 
+          <Animated.View
             style={[
               styles.cardContent,
               {
@@ -244,12 +244,12 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
               <View style={styles.amountContainer}>
                 <Text style={[
                   styles.amount,
-                  { 
-                    color: currentTransaction.type === 'deposit' 
-                      ? colors.text 
+                  {
+                    color: currentTransaction.type === 'deposit'
+                      ? colors.text
                       : currentTransaction.type === 'withdrawal'
-                      ? '#F97316'
-                      : colors.text
+                        ? '#F97316'
+                        : colors.text
                   }
                 ]}>
                   {currentTransaction.type === 'deposit' ? '+' : currentTransaction.type === 'withdrawal' ? '-' : ''}
@@ -260,7 +260,7 @@ const MostRecentPayoutsCard = ({ onTransactionPress }: MostRecentPayoutsCardProp
                 </Text>
               </View>
             </View>
-            
+
             <View style={styles.paymentRow}>
               <View style={styles.paymentInfo}>
                 <Text style={styles.paymentLabel}>{currentTransaction.description}</Text>
@@ -341,7 +341,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     backgroundColor: isDark ? colors.card : '#FFFFFF',
     borderRadius: 16,
     paddingHorizontal: 15,
-    paddingVertical:15,
+    paddingVertical: 15,
     borderWidth: 0.5,
     borderColor: colors.border,
     overflow: 'hidden',

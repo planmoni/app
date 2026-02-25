@@ -128,7 +128,7 @@ export class UserScopedStorage {
   private async getSecureStorageOptions(): Promise<any> {
     try {
       const capabilities = await this.getCapabilities();
-      
+
       // Never require auth on simulator
       if (capabilities.isSimulator) {
         return {
@@ -175,11 +175,10 @@ export class UserScopedStorage {
    */
   async setItem(key: string, value: string): Promise<void> {
     const scopedKey = this.getScopedKey(key);
-    
+
     try {
       if (Platform.OS === 'web') {
-        await saveItem(scopedKey, value);
-        return;
+        throw new Error('Secure storage is required but not available on web platform for sensitive keys in Planmoni.');
       }
 
       if (!SecureStore) {
@@ -199,10 +198,10 @@ export class UserScopedStorage {
    */
   async getItem(key: string): Promise<string | null> {
     const scopedKey = this.getScopedKey(key);
-    
+
     try {
       if (Platform.OS === 'web') {
-        return await getItem(scopedKey);
+        throw new Error('Secure storage is required but not available on web platform for sensitive keys in Planmoni.');
       }
 
       if (!SecureStore) {
@@ -221,11 +220,10 @@ export class UserScopedStorage {
    */
   async deleteItem(key: string): Promise<void> {
     const scopedKey = this.getScopedKey(key);
-    
+
     try {
       if (Platform.OS === 'web') {
-        await deleteItem(scopedKey);
-        return;
+        throw new Error('Secure storage is required but not available on web platform for sensitive keys in Planmoni.');
       }
 
       if (!SecureStore) {
