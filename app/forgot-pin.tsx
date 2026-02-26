@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert , Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, Alert, Platform, BackHandler } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, Shield, Info } from 'lucide-react-native';
@@ -20,7 +20,7 @@ export default function ForgotPinScreen() {
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const userEmail = session?.user?.email || '';
   const styles = createStyles(colors, isDark);
 
@@ -31,7 +31,7 @@ export default function ForgotPinScreen() {
     }
 
     setIsLoading(true);
-    
+
     try {
       if (Platform.OS !== 'web') {
         haptics.mediumImpact();
@@ -50,7 +50,7 @@ export default function ForgotPinScreen() {
       }
 
       showToast('Verification code sent to your email', 'success');
-      
+
       if (Platform.OS !== 'web') {
         haptics.success();
       }
@@ -67,7 +67,7 @@ export default function ForgotPinScreen() {
       const errorMessage = error instanceof Error ? error.message : 'Failed to send verification code';
       setError(errorMessage);
       showToast(errorMessage, 'error');
-      
+
       if (Platform.OS !== 'web') {
         haptics.error();
       }
@@ -84,6 +84,18 @@ export default function ForgotPinScreen() {
     setPinResetMode(false);
     router.back();
   };
+
+  useEffect(() => {
+    const onBackPress = () => {
+      handleBackPress();
+      return true; // Prevent default behavior
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => {
+      subscription.remove();
+    };
+  }, [setPinResetMode]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
