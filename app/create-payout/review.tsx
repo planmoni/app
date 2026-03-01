@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform } from 'react-native';
+import { Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X, Target } from 'lucide-react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X, Target, Info } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCreatePayout } from '@/hooks/useCreatePayout';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -17,7 +18,8 @@ import { getBankIconLogo } from '@/lib/bankIcons';
 import { usePin } from '@/contexts/PinContext';
 import PinVerificationModal from '@/components/PinVerificationModal';
 import { supabase } from '@/lib/supabase';
-import { PayoutFeeFrequency } from '@/types/payout-fees';
+import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee-calculator';
+import type { PayoutFeeResult } from '@/lib/payout-fee-calculator';
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -27,8 +29,8 @@ export default function ReviewScreen() {
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPinVerification, setShowPinVerification] = useState(false);
-  const [feeAmount, setFeeAmount] = useState<number>(0);
-  const [feePercentage, setFeePercentage] = useState<number>(0);
+  const [feeBreakdown, setFeeBreakdown] = useState<PayoutFeeResult | null>(null);
+  const [showFeesBreakdownModal, setShowFeesBreakdownModal] = useState(false);
   const { banks } = useBanks();
   const { verifyPayoutPin, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin } = usePin();
   
@@ -56,10 +58,8 @@ export default function ReviewScreen() {
   // Calculate available balance
   const availableBalance = balance - lockedBalance;
   
-  // Parse total amount to number for comparison
+  // Parse total amount to number for comparison. Fee is taken from the amount (not added on top).
   const numericTotalAmount = parseFloat(totalAmount.replace(/,/g, ''));
-  
-  // Check if user has insufficient balance
   const hasInsufficientBalance = numericTotalAmount > availableBalance;
 
   useEffect(() => {
@@ -79,48 +79,44 @@ export default function ReviewScreen() {
     fetchBalance();
   }, []);
 
-  // Fetch and calculate fee
+  // Calculate fee breakdown (processing + stamp duty + transaction).
+  // Single primitive dep key so effect doesn't re-run when params object reference changes.
+  const feeDepsKey = `${totalAmount ?? ''}|${frequency ?? ''}|${duration ?? ''}|${(params as Record<string, unknown>).customDates ?? ''}|${(params as Record<string, unknown>).customDateAmounts ?? ''}`;
   useEffect(() => {
-    const fetchFeeAndCalculate = async () => {
-      if (!totalAmount || !frequency) return;
-
+    if (!totalAmount || !frequency) {
+      setFeeBreakdown(null);
+      return;
+    }
+    const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+    if (isNaN(numericTotal) || numericTotal <= 0) {
+      setFeeBreakdown(null);
+      return;
+    }
+    const numPayouts = parseInt(duration || '0', 10) || 0;
+    if (frequency === 'custom') {
       try {
-        // Map frequency to database frequency type
-        const dbFrequency: PayoutFeeFrequency = frequency === 'weekly_specific' ? 'weekly_specific' : 
-                                                frequency === 'end_of_month' ? 'end_of_month' :
-                                                frequency as PayoutFeeFrequency;
-        
-        // Fetch fee percentage from database
-        const { data, error } = await supabase
-          .from('payout_fees')
-          .select('fee_percentage')
-          .eq('frequency', dbFrequency)
-          .eq('is_active', true)
-          .single();
-        
-        if (error || !data) {
-          console.warn('Error fetching fee percentage, using 0:', error);
-          setFeePercentage(0);
-          setFeeAmount(0);
-          return;
+        const customDatesStr = (params as Record<string, unknown>).customDates as string | undefined;
+        const customDateAmountsStr = (params as Record<string, unknown>).customDateAmounts as string | undefined;
+        const dates = customDatesStr ? JSON.parse(customDatesStr) : [];
+        const amounts = customDateAmountsStr ? JSON.parse(customDateAmountsStr) : {};
+        if (Array.isArray(dates) && dates.length > 0) {
+          const perPayoutAmounts = dates.map((d: string) => {
+            const raw = amounts[d];
+            return typeof raw === 'string' ? parseFloat(raw.replace(/,/g, '')) || 0 : Number(raw) || 0;
+          });
+          setFeeBreakdown(calculatePayoutFeesCustom(numericTotal, perPayoutAmounts));
+        } else {
+          setFeeBreakdown(null);
         }
-        
-        const percentage = data.fee_percentage || 0;
-        setFeePercentage(percentage);
-        
-        // Calculate fee amount
-        const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
-        const calculatedFee = numericTotal * (percentage / 100);
-        setFeeAmount(calculatedFee);
-      } catch (error) {
-        console.error('Error calculating fee:', error);
-        setFeePercentage(0);
-        setFeeAmount(0);
+      } catch {
+        setFeeBreakdown(null);
       }
-    };
-
-    fetchFeeAndCalculate();
-  }, [totalAmount, frequency]);
+    } else if (numPayouts > 0) {
+      setFeeBreakdown(calculatePayoutFees(numericTotal, numPayouts));
+    } else {
+      setFeeBreakdown(null);
+    }
+  }, [feeDepsKey]);
 
   const handleConfirmPayout = useCallback(async () => {
     // SECURITY: Prevent multiple simultaneous submissions
@@ -371,7 +367,7 @@ export default function ReviewScreen() {
               <View style={styles.warningBox}>
                 <AlertTriangle size={20} color={colors.error} />
                 <Text style={styles.warningText}>
-                  Insufficient balance. You need ₦{numericTotalAmount.toLocaleString()} but only have ₦{availableBalance.toLocaleString()} available.
+                  Insufficient balance. You need ₦{numericTotalAmount.toLocaleString()} but only have ₦{availableBalance.toLocaleString()} available. Fees are deducted from this amount.
                 </Text>
               </View>
             )}
@@ -673,9 +669,23 @@ export default function ReviewScreen() {
               )} */}
 
               <View style={[styles.summaryRow, styles.totalRow]}>
-                <Text style={styles.totalLabel}>Total Fees</Text>
+                <View style={styles.totalFeesLabelRow}>
+                  <Text style={styles.totalLabel}>Total Fees</Text>
+                  {feeBreakdown && feeBreakdown.totalFees > 0 && (
+                    <Pressable
+                      hitSlop={8}
+                      onPress={() => {
+                        if (Platform.OS !== 'web') haptics.selection();
+                        setShowFeesBreakdownModal(true);
+                      }}
+                      style={styles.feesInfoIconWrap}
+                    >
+                      <Info size={18} color={colors.primary} />
+                    </Pressable>
+                  )}
+                </View>
                 <Text style={styles.totalValue}>
-                  ₦{feeAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ₦{(feeBreakdown?.totalFees ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Text>
               </View>
             </View>
@@ -693,6 +703,59 @@ export default function ReviewScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingWrapper>
+
+      <Modal
+        visible={showFeesBreakdownModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowFeesBreakdownModal(false)}
+      >
+        <Pressable style={styles.feesModalOverlay} onPress={() => setShowFeesBreakdownModal(false)}>
+          <Pressable style={styles.feesModalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.feesModalHeader}>
+              <Text style={styles.feesModalTitle}>Fee breakdown</Text>
+              <Pressable
+                hitSlop={8}
+                onPress={() => {
+                  if (Platform.OS !== 'web') haptics.selection();
+                  setShowFeesBreakdownModal(false);
+                }}
+                style={styles.feesModalCloseBtn}
+              >
+                <X size={22} color={colors.text} />
+              </Pressable>
+            </View>
+            {feeBreakdown && (
+              <View style={styles.feesBreakdownBody}>
+                <View style={styles.feesBreakdownRow}>
+                  <Text style={styles.feesBreakdownLabel}>Processing fee (1.5% capped at ₦500)</Text>
+                  <Text style={styles.feesBreakdownValue}>
+                    ₦{feeBreakdown.processingFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View style={styles.feesBreakdownRow}>
+                  <Text style={styles.feesBreakdownLabel}>Stamp duty (₦50 per payout above ₦9,999)</Text>
+                  <Text style={styles.feesBreakdownValue}>
+                    ₦{feeBreakdown.stampDuty.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View style={styles.feesBreakdownRow}>
+                  <Text style={styles.feesBreakdownLabel}>Transaction fee (₦10.75 per payout)</Text>
+                  <Text style={styles.feesBreakdownValue}>
+                    ₦{feeBreakdown.transactionFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View style={[styles.feesBreakdownRow, styles.feesBreakdownTotalRow]}>
+                  <Text style={styles.feesBreakdownTotalLabel}>Total fees</Text>
+                  <Text style={styles.feesBreakdownTotalValue}>
+                    ₦{feeBreakdown.totalFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <FloatingButton 
         title={isLoading ? "Processing..." : "Start Payout Plan"}
@@ -871,17 +934,23 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 12,
+    flexWrap: 'wrap',
+    gap: 4,
   },
   summaryLabel: {
     fontSize: 14,
     color: colors.textSecondary,
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
   },
   summaryValue: {
     fontSize: 14,
     fontWeight: '500',
     color: colors.text,
+    flexShrink: 0,
   },
   emergencyBadge: {
     backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : '#DCFCE7',
@@ -899,13 +968,96 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderTopColor: colors.border,
     marginTop: 8,
     paddingTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  totalFeesLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  feesInfoIconWrap: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   totalLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.text,
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
   },
   totalValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    flexShrink: 0,
+  },
+  feesModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  feesModalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+  },
+  feesModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  feesModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  feesModalCloseBtn: {
+    padding: 4,
+  },
+  feesBreakdownBody: {
+    paddingVertical: 20,
+    gap: 14,
+  },
+  feesBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  feesBreakdownLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    flex: 1,
+    marginRight: 12,
+  },
+  feesBreakdownValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  feesBreakdownTotalRow: {
+    marginTop: 8,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  feesBreakdownTotalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  feesBreakdownTotalValue: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,

@@ -70,6 +70,7 @@ import PayoutPlansSection from '@/components/PayoutPlansSection';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
+import LearnWithPlanmoniCarousel from '@/components/LearnWithPlanmoniCarousel';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -1161,6 +1162,10 @@ export default function HomeScreen() {
           />
         )}
         <OnTrackCard payoutPlans={payoutPlans} />
+        
+        {activePlans.length === 0 && (
+          <LearnWithPlanmoniCarousel onUnauthenticatedPress={() => setShowWelcomeModalForUnauth(true)} />
+        )}
         
         {/* <IntercomButton /> */}
 
