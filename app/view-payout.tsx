@@ -55,7 +55,7 @@ export default function ViewPayoutScreen() {
   const { colors, isDark } = useTheme();
   const { id, openShare } = useLocalSearchParams<{ id: string; openShare?: string }>();
   const { payoutPlans, isLoading, updatePlan, fetchPayoutPlans } = useRealtimePayoutPlans();
-  const { showBalances, toggleBalances } = useBalance();
+  const { showBalances, toggleBalances, refreshWallet } = useBalance();
   const haptics = useHaptics();
   const { showToast } = useToast();
   const { checkExistingWithdrawal, isLoading: isWithdrawalLoading } = useEmergencyWithdrawal();
@@ -80,6 +80,8 @@ export default function ViewPayoutScreen() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareCode, setShareCode] = useState<string | null>(null);
+  const [showCancelPlanModal, setShowCancelPlanModal] = useState(false);
+  const [isCancellingPlan, setIsCancellingPlan] = useState(false);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -491,6 +493,29 @@ export default function ViewPayoutScreen() {
 
   const formatCurrency = (amount: number) => {
     return showBalances ? `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '••••••••';
+  };
+
+  const handleCancelPlanConfirm = async () => {
+    if (!plan) return;
+    setIsCancellingPlan(true);
+    try {
+      const { data, error } = await supabase.rpc('cancel_payout_plan', { p_plan_id: plan.id });
+      if (error) throw error;
+      const result = data as { success?: boolean; error?: string };
+      if (!result?.success) {
+        showToast(result?.error ?? 'Failed to cancel plan', 'error');
+        return;
+      }
+      setShowCancelPlanModal(false);
+      showToast('Plan cancelled. Funds have been returned to your available balance.', 'success');
+      await refreshWallet?.();
+      await fetchPayoutPlans();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Failed to cancel plan';
+      showToast(message, 'error');
+    } finally {
+      setIsCancellingPlan(false);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -955,6 +980,26 @@ export default function ViewPayoutScreen() {
           </Animated.View>
         )}
 
+        {isOwner && (plan.status === 'active' || plan.status === 'paused') && (
+          <Animated.View
+            style={[
+              styles.scheduleCard,
+              { backgroundColor: colors.card },
+              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+            ]}
+          >
+            <Pressable
+              style={[styles.cancelPlanButton, { borderColor: colors.border }]}
+              onPress={() => {
+                haptics.selection();
+                setShowCancelPlanModal(true);
+              }}
+            >
+              <Text style={[styles.cancelPlanButtonText, { color: colors.textSecondary }]}>Cancel Plan</Text>
+            </Pressable>
+          </Animated.View>
+        )}
+
         {/* {plan.status !== 'cancelled' && plan.status !== 'completed' && (
           <Animated.View 
             style={[
@@ -1016,13 +1061,35 @@ export default function ViewPayoutScreen() {
             <Text style={styles.sectionTitle}>Cancellation Details</Text>
             <View style={styles.warningHeader}>
               <AlertTriangle size={20} color="#F97316" />
-              <Text style={styles.warningTitle}>Emergency Withdrawal Completed</Text>
+              <Text style={styles.warningTitle}>Plan Cancelled</Text>
             </View>
             <Text style={styles.warningDescription}>
-              This payout plan was cancelled due to an emergency withdrawal. The remaining funds have been withdrawn and the plan is no longer active.
+              This payout plan was cancelled. The remaining funds have been returned to your available balance.
             </Text>
             <Text style={styles.cancellationDate}>
-              Withdrawn on: {new Date(plan.updated_at).toLocaleDateString()}
+              Cancelled on: {new Date(plan.updated_at).toLocaleDateString()}
+            </Text>
+          </Animated.View>
+        )}
+
+        {plan.status === 'cancelled' && !plan.emergency_withdrawal_enabled && (
+          <Animated.View
+            style={[
+              styles.emergencyCard,
+              { backgroundColor: colors.card },
+              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+            ]}
+          >
+            <Text style={styles.sectionTitle}>Cancellation Details</Text>
+            <View style={styles.warningHeader}>
+              <AlertTriangle size={20} color="#64748B" />
+              <Text style={styles.warningTitle}>Plan cancelled</Text>
+            </View>
+            <Text style={styles.warningDescription}>
+              This plan was cancelled. The remaining funds have been returned to your available balance.
+            </Text>
+            <Text style={styles.cancellationDate}>
+              Cancelled on: {new Date(plan.updated_at).toLocaleDateString()}
             </Text>
           </Animated.View>
         )}
@@ -1110,6 +1177,68 @@ export default function ViewPayoutScreen() {
               onPress={() => setShowShareModal(false)}
             >
               <Text style={[styles.shareModalCancelText, { color: colors.textSecondary }]}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Cancel plan confirmation modal (slide-up) */}
+      <Modal
+        visible={showCancelPlanModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !isCancellingPlan && setShowCancelPlanModal(false)}
+      >
+        <Pressable
+          style={[styles.cancelModalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
+          onPress={() => !isCancellingPlan && setShowCancelPlanModal(false)}
+        >
+          <Pressable style={[styles.cancelModalCard, { backgroundColor: colors.card }]} onPress={(e) => e.stopPropagation()}>
+            <Text style={[styles.cancelModalTitle, { color: colors.text }]}>
+              Are you sure you want to cancel your Plan?
+            </Text>
+            <Text style={[styles.cancelModalBody, { color: colors.textSecondary }]}>
+              Upon confirmation, {formatCurrency((() => {
+                const remaining = Math.max(0, (plan.duration ?? 0) - (plan.completed_payouts ?? 0));
+                const locked = Math.max(0,
+                  (plan.net_payout_amount ?? plan.total_amount - (plan.fee_amount ?? 0)) -
+                  ((plan.completed_payouts ?? 0) * (plan.payout_amount ?? 0))
+                );
+                let stampRefund = 0;
+                let transactionRefund = 10.75 * remaining;
+                if (plan.frequency === 'custom' && Object.keys(customDateAmounts).length > 0) {
+                  const sorted = Object.entries(customDateAmounts).sort(([a], [b]) => a.localeCompare(b));
+                  const remainingEntries = sorted.slice(plan.completed_payouts ?? 0, plan.duration ?? 0);
+                  remainingEntries.forEach(([, amt]) => {
+                    if ((amt ?? 0) > 9999) stampRefund += 50;
+                  });
+                } else if ((plan.payout_amount ?? 0) > 9999) {
+                  stampRefund = 50 * remaining;
+                }
+                return locked + stampRefund + transactionRefund;
+              })())} will be returned to your available balance (processing fee not refunded; stamp duty and transaction fees for remaining payouts are refunded).
+            </Text>
+            <Text style={[styles.cancelModalBody, { color: colors.textSecondary }]}>
+              Note: Planmoni does not support direct withdrawals, you will need to create a new plan to get your money out.
+            </Text>
+            <Text style={[styles.cancelModalTip, { color: colors.textSecondary }]}>
+              Tip: You can create a custom plan for tomorrow after cancellation.
+            </Text>
+            <Pressable
+              style={[styles.cancelModalConfirmBtn, { backgroundColor: colors.error }]}
+              onPress={handleCancelPlanConfirm}
+              disabled={isCancellingPlan}
+            >
+              <Text style={styles.cancelModalConfirmBtnText}>
+                {isCancellingPlan ? 'Cancelling…' : 'I Agree, Cancel.'}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.cancelModalDismiss, { borderTopColor: colors.border }]}
+              onPress={() => !isCancellingPlan && setShowCancelPlanModal(false)}
+              disabled={isCancellingPlan}
+            >
+              <Text style={[styles.cancelModalDismissText, { color: colors.textSecondary }]}>Go back</Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -1249,6 +1378,69 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
   shareModalCancelText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  cancelPlanButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelPlanButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 0,
+  },
+  cancelModalCard: {
+    width: '100%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 32,
+  },
+  cancelModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  cancelModalBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  cancelModalTip: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 24,
+    fontStyle: 'italic',
+  },
+  cancelModalConfirmBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cancelModalConfirmBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  cancelModalDismiss: {
+    borderTopWidth: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  cancelModalDismissText: {
     fontSize: 16,
     fontWeight: '500',
   },
