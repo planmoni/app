@@ -138,7 +138,8 @@ export function useCreatePayout() {
         const daysToAdd = (7 + dayOfWeek - currentDayOfWeek) % 7;
         nextPayoutDate.setDate(startDateObj.getDate() + daysToAdd);
       } else if (frequency === "biweekly") {
-        nextPayoutDate.setDate(startDateObj.getDate() + 14);
+        // First payout on start_date; update_payout_plan_progress advances by 2 weeks from last payout
+        // nextPayoutDate is already a copy of startDateObj, no change needed
       } else if (frequency === "monthly") {
         nextPayoutDate.setMonth(startDateObj.getMonth() + 1);
       } else if (frequency === "end_of_month") {

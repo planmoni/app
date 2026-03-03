@@ -531,9 +531,16 @@ serve(async (req) => {
                 nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
               }
               break
-            case "biweekly":
-              nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 14))
+            case "biweekly": {
+              // Advance from the date we just paid + 2 weeks (not from start_date), so the next
+              // payout is always 2 weeks after the last one regardless of initial next_payout_date.
+              const paidDate = plan.next_payout_date
+                ? new Date(plan.next_payout_date)
+                : startDate
+              nextDate = new Date(paidDate)
+              nextDate.setDate(nextDate.getDate() + 14)
               break
+            }
             case "monthly":
               nextDate.setMonth(startDate.getMonth() + newCompletedPayouts)
               break
