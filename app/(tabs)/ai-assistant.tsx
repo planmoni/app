@@ -22,7 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { Send, Sparkles, ArrowRight, Wallet, TrendingUp, Calendar, Clock, X, AlertTriangle } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { getOpenAIChatCompletion, testOpenAIConnection, type OpenAIMessage, type ToolCall, type FunctionDefinition } from '../../lib/openai';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
@@ -38,7 +38,6 @@ import { logAnalyticsEvent } from '@/lib/firebase';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { supabase } from '@/lib/supabase';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
-import { useEmergencyWithdrawal } from '@/hooks/useEmergencyWithdrawal';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 
 // Define message types
@@ -166,7 +165,6 @@ export default function AIAssistantScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const dayOfWeekInputRef = useRef<TextInput>(null);
-  const emergencyInputRef = useRef<TextInput>(null);
   const confirmInputRef = useRef<TextInput>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
@@ -189,20 +187,19 @@ export default function AIAssistantScreen() {
     options: Array<{ frequency: string; amount: number; description: string }>;
   } | null>(null);
   // Plan creation conversational state
-  const [planCreationStep, setPlanCreationStep] = useState<'idle' | 'awaiting_destination' | 'awaiting_frequency' | 'awaiting_day_of_week' | 'awaiting_emergency' | 'showing_emergency_rules' | 'confirming' | 'success'>('idle');
+  const [planCreationStep, setPlanCreationStep] = useState<'idle' | 'awaiting_destination' | 'awaiting_frequency' | 'awaiting_day_of_week' | 'confirming' | 'success'>('idle');
   const [planDraft, setPlanDraft] = useState<any>(null);
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const { payoutAccounts, isLoading: payoutAccountsLoading, fetchPayoutAccounts } = usePayoutAccounts();
-  const [emergencyEnabled, setEmergencyEnabled] = useState<boolean | null>(true); // Default to enabled
   const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<number | null>(null);
   const { createPayout, isLoading: isCreatingPayout, error: createPayoutError } = useCreatePayout();
   const { banks } = useBanks();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const isInitialMount = useRef(true);
   const { payoutPlans, fetchPayoutPlans } = useRealtimePayoutPlans();
-  const { processEmergencyWithdrawal } = useEmergencyWithdrawal();
   const { transactions } = useRealtimeTransactions();
+  const { query: queryParam } = useLocalSearchParams<{ query?: string }>();
   
   // Add frequency options
   const frequencyOptions = [
@@ -243,7 +240,6 @@ Planmoni is a sophisticated financial planning and automated payout scheduling p
 CORE FUNCTIONALITY:
 • Automated Payout Plans: Users create schedules to automatically disburse money to their bank accounts over time
 • Fund Locking: When a plan is created, funds are locked to ensure commitment and discipline
-• Emergency Access: Users can withdraw funds early with a 1.5% fee for instant withdrawals (available after 24 hours)
 • Real-time Balance Tracking: Users see available, locked, and total balances in real-time
 • Multi-Account Management: Users can add multiple payout destination accounts
 
@@ -258,7 +254,6 @@ PAYOUT PLAN SPECIFICATIONS:
   - Bi-annually: Twice per year
   - Annually: Once per year
   - Custom Dates: User-specified dates
-• Emergency Withdrawals: Enabled by default, 1.5% fee for instant withdrawals
 • Funds are automatically deducted from available balance when plan is created
 
 FUNDING OPTIONS:
@@ -357,7 +352,6 @@ When helping users create payout plans, follow these expert practices:
 
 4. USER EDUCATION:
    • Explain how the plan will work (when funds will be locked, when payouts occur)
-   • Clarify emergency withdrawal options and fees (1.5% for instant)
    • Set realistic expectations about the commitment involved
    • Suggest adding funds if current balance is insufficient
 
@@ -396,7 +390,6 @@ When providing financial advice, demonstrate expertise in:
    • Suggest realistic financial goals for Nigerian context
 
 5. RISK MANAGEMENT:
-   • Explain emergency withdrawal options and when to use them
    • Help users balance locked funds with available funds
    • Suggest maintaining emergency reserves outside of payout plans
 
@@ -408,7 +401,6 @@ FUNCTION CALLING REQUIREMENTS:
 • ALWAYS use function calls to get real-time data (get_user_balance, get_user_plans, get_payout_accounts)
 • NEVER assume user's balance, plans, or accounts without checking
 • ALWAYS use create_payout_plan function when user wants to create a plan
-• ALWAYS use process_emergency_withdrawal function for emergency withdrawals
 • Verify all data before making recommendations
 
 PLAN CREATION WORKFLOW (MANDATORY STEPS):
@@ -438,6 +430,7 @@ PROFESSIONAL BOUNDARIES:
 • Always explain actions before executing them
 • Handle errors gracefully with clear explanations
 • Maintain user privacy and data security
+• Do NOT support emergency withdrawal requests via AI - if users ask to withdraw early from a plan, politely direct them to use the app's payout plan or wallet screens for such actions
 
 ═══════════════════════════════════════════════════════════════
 EXAMPLE INTERACTIONS
@@ -527,23 +520,6 @@ Remember: You are Planmoni AI, an expert financial planner. Your role is to prov
               customDates: { type: 'array', items: { type: 'string' }, description: 'Array of custom dates in YYYY-MM-DD format for custom frequency' },
             },
             required: ['name', 'totalAmount', 'payoutAmount', 'frequency', 'duration', 'startDate', 'payoutAccountId'],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'process_emergency_withdrawal',
-          description: 'Process an emergency withdrawal from a payout plan. User can withdraw funds before the scheduled payout date with a 1.5% fee for instant withdrawals.',
-          parameters: {
-            type: 'object',
-            properties: {
-              planId: { type: 'string', description: 'ID of the payout plan' },
-              withdrawalAmount: { type: 'number', description: 'Amount to withdraw' },
-              option: { type: 'string', enum: ['instant'], description: 'Withdrawal option (only instant available)' },
-              payoutAccountId: { type: 'string', description: 'ID of the payout account to receive the withdrawal' },
-            },
-            required: ['planId', 'withdrawalAmount', 'option', 'payoutAccountId'],
           },
         },
       },
@@ -747,7 +723,7 @@ Remember: You are Planmoni AI, an expert financial planner. Your role is to prov
             duration: args.duration,
             startDate: args.startDate,
             payoutAccountId: args.payoutAccountId,
-            emergencyWithdrawalEnabled: true,
+            emergencyWithdrawalEnabled: false,
             dayOfWeek: args.dayOfWeek,
             payoutHour: args.payoutHour || 9,
             payoutMinute: args.payoutMinute || 0,
@@ -755,17 +731,6 @@ Remember: You are Planmoni AI, an expert financial planner. Your role is to prov
           });
           await fetchPayoutPlans();
           return { success: true, message: 'Payout plan created successfully' };
-        
-        case 'process_emergency_withdrawal':
-          const withdrawalResult = await processEmergencyWithdrawal({
-            planId: args.planId,
-            withdrawalAmount: args.withdrawalAmount,
-            option: args.option,
-            payoutAccountId: args.payoutAccountId,
-            planName: payoutPlans.find(p => p.id === args.planId)?.name || 'Plan',
-          });
-          await fetchPayoutPlans();
-          return { success: true, message: 'Emergency withdrawal processed successfully', result: withdrawalResult };
         
         default:
           throw new Error(`Unknown function: ${functionName}`);
@@ -776,9 +741,10 @@ Remember: You are Planmoni AI, an expert financial planner. Your role is to prov
     }
   };
 
-  // Simplified handleSendMessage - all responses go through OpenAI
-  const handleSendMessage = async () => {
-    if (!inputText.trim()) return;
+  // Simplified handleSendMessage - all responses go through OpenAI. Pass optional text to send (e.g. from FAQ deep link).
+  const handleSendMessage = async (overrideText?: string) => {
+    const textToSend = (overrideText ?? inputText).trim();
+    if (!textToSend) return;
 
     // Check authentication first
     if (!isAuthenticated) {
@@ -812,18 +778,18 @@ Remember: You are Planmoni AI, an expert financial planner. Your role is to prov
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: inputText.trim(),
+      content: textToSend,
       sender: 'user',
       type: 'text',
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, userMessage]);
-      setInputText('');
+    if (!overrideText) setInputText('');
     setShowSuggestions(false);
     setIsTyping(true);
     setError(null);
-    setLastUserMessage(inputText.trim());
+    setLastUserMessage(textToSend);
 
     // Update rate limiting counters
     const now = Date.now();
@@ -860,7 +826,7 @@ Remember: You are Planmoni AI, an expert financial planner. Your role is to prov
 
     // Call OpenAI with function calling
     try {
-      await generateAIResponseWithFunctions(userMessage.content);
+      await generateAIResponseWithFunctions(textToSend);
     } catch (error: any) {
       console.error('AI Response Error:', error);
       setError(error.message || 'Failed to get AI response. Please try again.');
@@ -876,6 +842,19 @@ Remember: You are Planmoni AI, an expert financial planner. Your role is to prov
     setIsTyping(false);
     }
   };
+
+  // Consume query param from FAQ deep link: pre-fill and auto-send (once per param)
+  const consumedQueryRef = useRef<string | null>(null);
+  useEffect(() => {
+    const q = typeof queryParam === 'string' ? queryParam : undefined;
+    if (!q?.trim() || consumedQueryRef.current === q) return;
+    consumedQueryRef.current = q;
+    const timer = setTimeout(() => {
+      handleSendMessage(q);
+      router.setParams({ query: undefined });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [queryParam]);
 
   // Generate AI response with function calling
   const generateAIResponseWithFunctions = async (userMessage: string) => {
@@ -1113,15 +1092,36 @@ Remember: You are Planmoni AI, an expert financial planner. Your role is to prov
 
 
 
-  // Render formatted text with support for bold (**text**) and bullet points (-)
+  // Render formatted text with support for headers (###, ##, #), bold (**text**), and bullet points (-)
   const renderFormattedText = (text: string, isUser: boolean) => {
     const lines = text.split('\n');
     const elements: React.ReactNode[] = [];
     
     lines.forEach((line, lineIndex) => {
+      const trimmedLine = line.trim();
+      // Check for markdown headers: ###, ##, #
+      const headerMatch = trimmedLine.match(/^(#{1,3})\s+(.*)$/);
+      if (headerMatch) {
+        const level = headerMatch[1].length as 1 | 2 | 3;
+        const headerText = headerMatch[2];
+        const headerStyle = level === 1 ? styles.header1 : level === 2 ? styles.header2 : styles.header3;
+        elements.push(
+          <Text
+            key={`header-${lineIndex}`}
+            style={[
+              headerStyle,
+              isUser ? styles.userText : [styles.aiText, { color: colors.text }],
+              lineIndex > 0 ? { marginTop: getScaledFontSize(12, textSizeMultiplier) } : {},
+            ]}
+          >
+            {headerText}
+          </Text>
+        );
+        return;
+      }
       // Check if line is a bullet point
-      const isBulletPoint = line.trim().startsWith('-');
-      const bulletText = isBulletPoint ? line.trim().substring(1).trim() : line;
+      const isBulletPoint = trimmedLine.startsWith('-');
+      const bulletText = isBulletPoint ? trimmedLine.substring(1).trim() : trimmedLine;
       
       // Parse bold text (**text**)
       const parts: React.ReactNode[] = [];
@@ -1652,34 +1652,6 @@ Remember: You are Planmoni AI, an expert financial planner. Your role is to prov
           </View>
         )}
         
-        {/* Emergency withdrawal input UI - DISABLED: Emergency withdrawals are now enabled by default */}
-        {/* {planCreationStep === 'awaiting_emergency' && (
-          <View style={{ marginVertical: 12, marginBottom: 24 }}>
-            <Text style={{ fontSize: getScaledFontSize(16, textSizeMultiplier), fontWeight: '600', marginBottom: 8, color: colors.text}}>Reply "yes" or "no" below:</Text>
-            <TextInput
-              ref={emergencyInputRef}
-              style={{ 
-                borderWidth: 1, 
-                borderColor: colors.border, 
-                borderRadius: 8, 
-                padding: 12, 
-                marginBottom: 10, 
-                color: colors.text, 
-                fontSize: getScaledFontSize(16, textSizeMultiplier),
-                backgroundColor: isDark ? colors.backgroundSecondary : colors.card
-              }}
-              placeholder="yes or no"
-              placeholderTextColor={colors.textTertiary}
-              onSubmitEditing={e => {
-                // AI will handle input through function calling
-                setInputText(e.nativeEvent.text);
-                handleSendMessage();
-              }}
-              onFocus={() => scrollToInput(emergencyInputRef)}
-              returnKeyType="done"
-            />
-          </View>
-        )} */}
         {/* Plan confirmation input UI */}
         {planCreationStep === 'confirming' && (
           <View style={{ marginVertical: 12, marginBottom: 24 }}>
@@ -1754,7 +1726,7 @@ Remember: You are Planmoni AI, an expert financial planner. Your role is to prov
                   styles.sendButton,
                   (!inputText.trim() || isCreatingPayout || isRateLimited || isDailyLimitReached) && styles.sendButtonDisabled
                 ]}
-                onPress={handleSendMessage}
+                onPress={() => handleSendMessage()}
                 disabled={!inputText.trim() || isTyping || isCreatingPayout || isRateLimited || isDailyLimitReached}
               >
                 {isCreatingPayout ? (
@@ -1868,6 +1840,21 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   aiText: {
     color: colors.text,
+  },
+  header1: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 22 : 20, textSizeMultiplier),
+    fontWeight: '700',
+    lineHeight: getScaledFontSize(28, textSizeMultiplier),
+  },
+  header2: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 18, textSizeMultiplier),
+    fontWeight: '700',
+    lineHeight: getScaledFontSize(26, textSizeMultiplier),
+  },
+  header3: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    fontWeight: '600',
+    lineHeight: getScaledFontSize(24, textSizeMultiplier),
   },
   typingIndicator: {
     flexDirection: 'row',

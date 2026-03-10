@@ -46,9 +46,8 @@ import PayoutPlansSection from '@/components/PayoutPlansSection';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
-import ImageCarousel from '@/components/ImageCarousel';
-import PendingActionsCard from '@/components/PendingActionsCard';
-import PlanmoniLoader from '@/components/PlanmoniLoader';
+import LearnWithPlanmoniCarousel from '@/components/LearnWithPlanmoniCarousel';
+// import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -457,9 +456,76 @@ export default function HomeScreen() {
             onShowWelcomeModal={handleShowWelcomeModal}
             isUserAuthenticated={isAuthenticated}
           />
-          <View style={styles.bottomPadding} />
-          <RatingCard />
-        </View>
+        )}
+        <OnTrackCard payoutPlans={payoutPlans} />
+        
+        {activePlans.length === 0 && (
+          <LearnWithPlanmoniCarousel onUnauthenticatedPress={() => setShowWelcomeModalForUnauth(true)} />
+        )}
+        
+        {/* <IntercomButton /> */}
+
+        {/* KYC Tiers Test Buttons */}
+        {/* <View style={styles.kycTiersContainer}>
+          <Text style={[styles.kycTiersTitle, { color: colors.text }]}>KYC Tiers Test</Text>
+          <View style={styles.kycTiersButtons}>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-one')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 1</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-two')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 2</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/kyc-tiers/tier-three')}
+            >
+              <Text style={styles.kycTierButtonText}>Tier 3</Text>
+            </Pressable>
+          </View>
+        </View> */}
+        
+
+        {/* Quick Topup Card */}
+        
+
+        <ImageCarousel 
+          images={carouselImages} 
+          onImagePress={!isAuthenticated ? () => setShowWelcomeModalForUnauth(true) : undefined}
+        />
+        <PendingActionsCard />
+
+        <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
+
+
+        {/* Most Recent Payouts Section */}
+
+        {/* Next Payout Section */}
+        <NextPayoutCard nextPayout={nextPayout} />
+
+
+        {/* Payout Plans Section */}
+        <PayoutPlansSection 
+          activePlans={activePlans} 
+          onShowAddByCodeModal={() => isAuthenticated ? setShowAddByCodeModal(true) : setShowWelcomeModalForUnauth(true)}
+          onShowNewPlanInfo={() => isAuthenticated ? setShowNewPlanInfoModal(true) : setShowWelcomeModalForUnauth(true)}
+          onShowHowItWorks={() => setShowHowItWorksModal(true)}
+          onShowWelcomeModal={() => setShowWelcomeModalForUnauth(true)}
+          isUserAuthenticated={isAuthenticated}
+        />
+
+        
+
+
+              <View style={styles.bottomPadding} />
+
+              {/* <RatingCard /> */}
+            </View>
       </ScrollView>
 
       <Animated.View style={[styles.stickyButtons, { opacity: buttonOpacity, transform: [{ translateY: buttonOpacity.interpolate({ inputRange: [0, 1], outputRange: [100, 0] }) }] }]}>
