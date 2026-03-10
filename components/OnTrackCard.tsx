@@ -67,14 +67,14 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
         // Group by plan_id: { planId: { date: amount } }
         const amountsByPlan: Record<string, Record<string, number>> = {};
         const datesByPlan: Record<string, string[]> = {};
-        
+
         data?.forEach((item: any) => {
           if (!amountsByPlan[item.payout_plan_id]) {
             amountsByPlan[item.payout_plan_id] = {};
             datesByPlan[item.payout_plan_id] = [];
           }
-          const amount = item.amount !== null && item.amount !== undefined 
-            ? parseFloat(item.amount.toString()) 
+          const amount = item.amount !== null && item.amount !== undefined
+            ? parseFloat(item.amount.toString())
             : 0;
           amountsByPlan[item.payout_plan_id][item.payout_date] = amount > 0 ? amount : 0;
           datesByPlan[item.payout_plan_id].push(item.payout_date);
@@ -95,7 +95,7 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
   // Calculate total payout and longest duration (only for plans where current user is the recipient)
   useEffect(() => {
     const activePlans = recipientPlans;
-    
+
     if (activePlans.length === 0) {
       setCalculation(null);
       return;
@@ -108,7 +108,7 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
 
     activePlans.forEach(plan => {
       const remainingPayouts = plan.duration - plan.completed_payouts;
-      
+
       if (remainingPayouts <= 0) return; // Skip completed plans
 
       if (plan.frequency === 'custom') {
@@ -138,16 +138,16 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
 
     // Find the plan with the longest duration (last payout date)
     let lastPayoutDate: Date | null = null;
-    
+
     activePlans.forEach(plan => {
       if (!plan.start_date) return;
-      
+
       const startDate = new Date(plan.start_date);
       let planLastDate: Date | null = null;
       const remainingPayouts = plan.duration - plan.completed_payouts;
-      
+
       if (remainingPayouts <= 0) return; // Skip completed plans
-      
+
       if (plan.frequency === 'custom') {
         // For custom plans, use the actual last date from custom dates when available
         const customDates = customDatesByPlan[plan.id] || [];
@@ -172,37 +172,37 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
           }
         }
       } else {
-      // Calculate last payout date based on frequency and remaining payouts
+        // Calculate last payout date based on frequency and remaining payouts
         planLastDate = new Date(startDate);
-        
-      switch (plan.frequency) {
-        case 'daily':
-          // For daily, use next_payout_date if available, otherwise calculate from start date
-          if (plan.next_payout_date) {
-            const nextDate = new Date(plan.next_payout_date);
-            // Last payout date = next date + (remaining payouts - 1) days
-            planLastDate = new Date(nextDate);
-            planLastDate.setDate(nextDate.getDate() + (remainingPayouts - 1));
-          } else {
-            // Calculate from start date: start + completed payouts + (remaining - 1) days
-            planLastDate.setDate(startDate.getDate() + plan.completed_payouts + (remainingPayouts - 1));
-          }
-          break;
-        case 'weekly':
-          // Add remaining payouts * 7 days
-          planLastDate.setDate(startDate.getDate() + (plan.completed_payouts * 7) + ((remainingPayouts - 1) * 7));
-          break;
-        case 'biweekly':
-          // Add remaining payouts * 14 days
-          planLastDate.setDate(startDate.getDate() + (plan.completed_payouts * 14) + ((remainingPayouts - 1) * 14));
-          break;
-        case 'monthly':
-          // Add remaining payouts months
-          planLastDate.setMonth(startDate.getMonth() + plan.completed_payouts + (remainingPayouts - 1));
-          break;
+
+        switch (plan.frequency) {
+          case 'daily':
+            // For daily, use next_payout_date if available, otherwise calculate from start date
+            if (plan.next_payout_date) {
+              const nextDate = new Date(plan.next_payout_date);
+              // Last payout date = next date + (remaining payouts - 1) days
+              planLastDate = new Date(nextDate);
+              planLastDate.setDate(nextDate.getDate() + (remainingPayouts - 1));
+            } else {
+              // Calculate from start date: start + completed payouts + (remaining - 1) days
+              planLastDate.setDate(startDate.getDate() + plan.completed_payouts + (remainingPayouts - 1));
+            }
+            break;
+          case 'weekly':
+            // Add remaining payouts * 7 days
+            planLastDate.setDate(startDate.getDate() + (plan.completed_payouts * 7) + ((remainingPayouts - 1) * 7));
+            break;
+          case 'biweekly':
+            // Add remaining payouts * 14 days
+            planLastDate.setDate(startDate.getDate() + (plan.completed_payouts * 14) + ((remainingPayouts - 1) * 14));
+            break;
+          case 'monthly':
+            // Add remaining payouts months
+            planLastDate.setMonth(startDate.getMonth() + plan.completed_payouts + (remainingPayouts - 1));
+            break;
         }
       }
-      
+
       if (planLastDate && (!lastPayoutDate || planLastDate > lastPayoutDate)) {
         lastPayoutDate = planLastDate;
       }
@@ -223,7 +223,7 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     // Convert to the most appropriate unit (days or years)
     let timeValue: number;
     let timeUnit: 'day' | 'year';
-    
+
     if (daysDiff < 0) {
       // Past date, use minimum
       timeValue = 1;
@@ -288,7 +288,7 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     lightImpact();
     setIsDismissed(true);
     setShouldShow(false);
-    
+
     if (calculation) {
       try {
         await AsyncStorage.setItem(ON_TRACK_CARD_DISMISSED_KEY, calculation.calculationHash);
@@ -307,11 +307,11 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     return `₦${amount.toLocaleString()}`;
   }, []);
 
+  const styles = useMemo(() => createStyles(colors, isDark, textSizeMultiplier), [colors, isDark, textSizeMultiplier]);
+
   if (!calculation || !shouldShow) {
     return null;
   }
-
-  const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
     <View style={styles.container}>
@@ -320,10 +320,10 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
           <View style={styles.iconContainer}>
             {/* <Lightbulb size={16} color={colors.text} /> */}
           </View>
-          
+
         </View>
         <Text style={styles.message}>
-        🎯 You're on track to receive{' '}
+          🎯 You're on track to receive{' '}
           <Text style={styles.bold}>{formatAmount(calculation.totalPayout)}</Text>
           {' '}over the next{' '}
           <Text style={styles.bold}>{calculation.timeValue}</Text>

@@ -9,11 +9,11 @@ import {
   Platform,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { 
-  Lightbulb, 
-  TrendingUp, 
-  Target, 
-  PiggyBank, 
+import {
+  Lightbulb,
+  TrendingUp,
+  Target,
+  PiggyBank,
   Calendar,
   Sparkles
 } from 'lucide-react-native';
@@ -50,9 +50,9 @@ interface AISuggestionCardProps {
   onSuggestionPress: (suggestion: Suggestion) => void;
 }
 
-function AISuggestionCard({ 
-  availableBalance, 
-  onSuggestionPress 
+function AISuggestionCard({
+  availableBalance,
+  onSuggestionPress
 }: AISuggestionCardProps) {
   const { colors, isDark } = useTheme();
   const { impact } = useHaptics();
@@ -79,7 +79,7 @@ function AISuggestionCard({
     }, {} as Record<string, number>);
 
     // Find most common frequency
-    const mostCommonFrequency = Object.keys(frequencyCount).reduce((a, b) => 
+    const mostCommonFrequency = Object.keys(frequencyCount).reduce((a, b) =>
       frequencyCount[a] > frequencyCount[b] ? a : b
     );
 
@@ -202,19 +202,19 @@ function AISuggestionCard({
 
     // Use the full available balance as total amount
     const totalAmount = availableBalance;
-    
+
     defaultSuggestions.forEach((suggestion) => {
       // Filter out daily-30-suggestion if amount is less than 50k
       if (suggestion.id === 'daily-30-suggestion' && availableBalance < 50000) {
         return; // Skip this suggestion
       }
-      
+
       // Get duration options for this frequency
       const durationOptions = getDurationOptions(suggestion.frequency);
-      
+
       // Choose a reasonable duration based on user patterns
       let selectedDuration;
-      
+
       // Special case for weekly-4-suggestion - always use 4 payouts
       if (suggestion.id === 'weekly-4-suggestion') {
         selectedDuration = { value: 4, label: '1 Month', description: '4 weekly payments' };
@@ -234,7 +234,7 @@ function AISuggestionCard({
 
       // Calculate payout amount using the same logic as the schedule page
       const payoutAmount = totalAmount / selectedDuration.value;
-      
+
       suggestions.push({
         id: suggestion.id,
         title: suggestion.title,
@@ -260,18 +260,18 @@ function AISuggestionCard({
         'monthly': 4,
         'end_of_month': 5
       };
-      
+
       const aPriority = frequencyPriority[a.frequency as keyof typeof frequencyPriority] || 6;
       const bPriority = frequencyPriority[b.frequency as keyof typeof frequencyPriority] || 6;
-      
+
       if (aPriority !== bPriority) {
         return aPriority - bPriority;
       }
-      
+
       // If same frequency, sort by recommended first
       if (a.recommended && !b.recommended) return -1;
       if (!a.recommended && b.recommended) return 1;
-      
+
       // Finally sort by amount (highest first)
       return b.amount - a.amount;
     });
@@ -318,7 +318,7 @@ function AISuggestionCard({
     return duration;
   }, []);
 
-  const styles = createStyles(textSizeMultiplier);
+  const styles = useMemo(() => createStyles(textSizeMultiplier), [textSizeMultiplier]);
 
   // Show login prompt if not authenticated
   if (!isAuthenticated) {
@@ -336,7 +336,7 @@ function AISuggestionCard({
           </Text>
           <Pressable
             style={styles.loginPromptButton}
-            onPress={() => requireAuth(() => {}, '/(tabs)/index')}
+            onPress={useCallback(() => requireAuth(() => { }, '/(tabs)/index'), [requireAuth])}
           >
             <Text style={styles.loginPromptButtonText}>Login to Continue</Text>
           </Pressable>
@@ -375,13 +375,13 @@ function AISuggestionCard({
             key={suggestion.id}
             style={[
               styles.suggestionCard,
-              { 
+              {
                 backgroundColor: colors.card,
                 borderColor: colors.border,
                 width: CARD_WIDTH,
               }
             ]}
-            onPress={() => handleSuggestionPress(suggestion)}
+            onPress={useCallback(() => handleSuggestionPress(suggestion), [handleSuggestionPress, suggestion])}
           >
             <View style={styles.cardContent}>
               <View style={styles.amountSection}>
@@ -453,10 +453,10 @@ const createStyles = (textSizeMultiplier: number) => StyleSheet.create({
     borderWidth: 0.5,
     borderColor: '#000',
     shadowColor: '#000000',
-    shadowOffset: { width: 1, height: 1},
+    shadowOffset: { width: 1, height: 1 },
     shadowOpacity: 0.03,
     shadowRadius: 6,
-  
+
     position: 'relative',
   },
   cardContent: {

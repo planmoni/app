@@ -42,6 +42,7 @@
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.6",
     "@sentry/react-native": "~6.14.0",
+    "@shopify/flash-list": "^2.2.2",
     "@supabase/supabase-js": "^2.50.0",
     "@tanstack/react-query": "^5.90.17",
     "axios": "^1.13.2",

@@ -1,6 +1,5 @@
 import { Platform } from 'react-native';
 import { saveItem, getItem, deleteItem } from './secure-storage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 
 // Import SecureStore only on native platforms for advanced options
@@ -129,7 +128,7 @@ export class UserScopedStorage {
   private async getSecureStorageOptions(): Promise<any> {
     try {
       const capabilities = await this.getCapabilities();
-      
+
       // Never require auth on simulator
       if (capabilities.isSimulator) {
         return {
@@ -172,33 +171,22 @@ export class UserScopedStorage {
   }
 
   /**
-   * Save an item to user-scoped secure storage with defensive fallbacks
+   * Save an item to user-scoped secure storage
    */
   async setItem(key: string, value: string): Promise<void> {
     const scopedKey = this.getScopedKey(key);
-    
+
     try {
       if (Platform.OS === 'web') {
-        await saveItem(scopedKey, value);
-        return;
+        throw new Error('Secure storage is required but not available on web platform for sensitive keys in Planmoni.');
       }
 
       if (!SecureStore) {
-        // Fallback to AsyncStorage if SecureStore is not available
-        await AsyncStorage.setItem(scopedKey, value);
-        return;
+        throw new Error('SecureStore is not available on this platform');
       }
 
       const options = await this.getSecureStorageOptions();
-      
-      try {
-        await SecureStore.setItemAsync(scopedKey, value, options);
-      } catch (secureStoreError: any) {
-        console.warn(`SecureStore failed for key ${key}, falling back to AsyncStorage:`, secureStoreError);
-        
-        // If SecureStore fails (e.g., entitlement issues), fall back to AsyncStorage
-        await AsyncStorage.setItem(scopedKey, value);
-      }
+      await SecureStore.setItemAsync(scopedKey, value, options);
     } catch (error) {
       console.error(`Error saving user-scoped item: ${key}`, error);
       throw error;
@@ -206,29 +194,21 @@ export class UserScopedStorage {
   }
 
   /**
-   * Get an item from user-scoped secure storage with defensive fallbacks
+   * Get an item from user-scoped secure storage
    */
   async getItem(key: string): Promise<string | null> {
     const scopedKey = this.getScopedKey(key);
-    
+
     try {
       if (Platform.OS === 'web') {
-        return await getItem(scopedKey);
+        throw new Error('Secure storage is required but not available on web platform for sensitive keys in Planmoni.');
       }
 
       if (!SecureStore) {
-        // Fallback to AsyncStorage if SecureStore is not available
-        return await AsyncStorage.getItem(scopedKey);
+        throw new Error('SecureStore is not available on this platform');
       }
 
-      try {
-        return await SecureStore.getItemAsync(scopedKey, await this.getSecureStorageOptions());
-      } catch (secureStoreError: any) {
-        console.warn(`SecureStore failed for key ${key}, trying AsyncStorage fallback:`, secureStoreError);
-        
-        // If SecureStore fails, try AsyncStorage as fallback
-        return await AsyncStorage.getItem(scopedKey);
-      }
+      return await SecureStore.getItemAsync(scopedKey, await this.getSecureStorageOptions());
     } catch (error) {
       console.error(`Error getting user-scoped item: ${key}`, error);
       return null;
@@ -236,31 +216,21 @@ export class UserScopedStorage {
   }
 
   /**
-   * Delete an item from user-scoped secure storage with defensive fallbacks
+   * Delete an item from user-scoped secure storage
    */
   async deleteItem(key: string): Promise<void> {
     const scopedKey = this.getScopedKey(key);
-    
+
     try {
       if (Platform.OS === 'web') {
-        await deleteItem(scopedKey);
-        return;
+        throw new Error('Secure storage is required but not available on web platform for sensitive keys in Planmoni.');
       }
 
       if (!SecureStore) {
-        // Fallback to AsyncStorage if SecureStore is not available
-        await AsyncStorage.removeItem(scopedKey);
-        return;
+        throw new Error('SecureStore is not available on this platform');
       }
 
-      try {
-        await SecureStore.deleteItemAsync(scopedKey, await this.getSecureStorageOptions());
-      } catch (secureStoreError: any) {
-        console.warn(`SecureStore delete failed for key ${key}, trying AsyncStorage fallback:`, secureStoreError);
-        
-        // If SecureStore fails, try AsyncStorage as fallback
-        await AsyncStorage.removeItem(scopedKey);
-      }
+      await SecureStore.deleteItemAsync(scopedKey, await this.getSecureStorageOptions());
     } catch (error) {
       console.error(`Error deleting user-scoped item: ${key}`, error);
       throw error;

@@ -43,11 +43,11 @@ try {
   console.warn('expo-navigation-bar not available:', e);
 }
 // import { intercomInstant } from '@/lib/IntercomInstant';
-import { 
-  PlusJakartaSans_400Regular, 
-  PlusJakartaSans_500Medium, 
-  PlusJakartaSans_600SemiBold, 
-  PlusJakartaSans_700Bold 
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold
 } from '@expo-google-fonts/plus-jakarta-sans';
 import CustomSplashScreen from '@/components/SplashScreen';
 import AppLockScreen from '@/components/AppLockScreen';
@@ -70,17 +70,17 @@ function RootLayoutNav() {
   const [showSplash, setShowSplash] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const hasInitializedRef = useRef(false);
-  
+
   // Track previous session state to detect transitions
   const previousSessionRef = useRef<typeof session>(null);
   const [isAuthTransitioning, setIsAuthTransitioning] = useState(false);
-  
+
   // Track app state for update checks
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-  
+
   // Track page changes for redirect after unlock
   usePageTracking();
-  
+
   // Initialize notification hooks for payout and transaction notifications
   usePayoutNotifications();
   useTransactionNotifications();
@@ -109,7 +109,7 @@ function RootLayoutNav() {
           console.warn('Failed to update navigation bar:', error);
         }
       };
-      
+
       updateNavigationBar();
     }
   }, [isDark]);
@@ -147,10 +147,10 @@ function RootLayoutNav() {
   useEffect(() => {
     // Skip on initial load when we're still loading
     if (isLoading) return;
-    
+
     const previousSession = previousSessionRef.current;
     const currentSession = session;
-    
+
     console.log('🔍 Auth transition check:', {
       previousSession: previousSession ? 'exists' : 'null',
       currentSession: currentSession ? 'exists' : 'null',
@@ -158,12 +158,12 @@ function RootLayoutNav() {
       showSplash,
       isAuthTransitioning
     });
-    
+
     // Detect authentication state changes (login/logout)
     // Check for valid user, not just session existence
     const wasLoggedIn = !!(previousSession?.user?.id);
     const isLoggedIn = !!(currentSession?.user?.id);
-    
+
     // More robust transition detection
     if (previousSession !== null && wasLoggedIn !== isLoggedIn) {
       console.log('🔄 Authentication state transition detected:', {
@@ -172,24 +172,24 @@ function RootLayoutNav() {
         previousUserId: previousSession?.user?.id,
         currentUserId: currentSession?.user?.id
       });
-      
+
       // Show splash screen during transition immediately (disabled for login transitions)
       // setIsAuthTransitioning(true); // Disabled for login transitions
       // setShowSplash(true); // Disabled for login transitions
-      
+
       // For login transitions, show splash screen a bit longer to ensure smooth transition
       const transitionDuration = isLoggedIn ? 2000 : 1500; // 2 seconds for login, 1.5 for logout
-      
+
       // Hide splash screen after transition duration
       const timer = setTimeout(() => {
         console.log('✅ Auth transition complete, hiding splash screen');
         setIsAuthTransitioning(false);
         setShowSplash(false);
       }, transitionDuration);
-      
+
       return () => clearTimeout(timer);
     }
-    
+
     // Update previous session reference
     previousSessionRef.current = currentSession;
   }, [session, isLoading]);
@@ -206,14 +206,14 @@ function RootLayoutNav() {
   useEffect(() => {
     if (session?.user?.id) {
       let tokenRefreshCleanup: (() => void) | null = null;
-      
+
       const setupNotifications = async () => {
         try {
           const cleanup = await initializeNotifications(session.user.id);
-          
+
           // Set up periodic token refresh (every 60 minutes)
           tokenRefreshCleanup = setupTokenRefresh(session.user.id, 60);
-          
+
           return () => {
             if (cleanup) cleanup();
             if (tokenRefreshCleanup) tokenRefreshCleanup();
@@ -223,11 +223,11 @@ function RootLayoutNav() {
           return null;
         }
       };
-      
+
       setupNotifications().catch(error => {
         console.warn('Failed to setup notifications:', error);
       });
-      
+
       return () => {
         if (tokenRefreshCleanup) tokenRefreshCleanup();
       };
@@ -320,7 +320,7 @@ function RootLayoutNav() {
         const response = await Notifications.getLastNotificationResponseAsync();
         if (response) {
           const data = response.notification.request.content.data;
-          
+
           // Handle Intercom notifications
           if (data?.intercom) {
             console.log('📬 App opened from Intercom notification');
@@ -435,7 +435,7 @@ function RootLayoutNav() {
 
       try {
         isChecking = true;
-        
+
         // Check if updates are enabled
         if (!Updates.isEnabled) {
           console.log('ℹ️ OTA updates are not enabled');
@@ -445,30 +445,30 @@ function RootLayoutNav() {
         // Get current update info for debugging
         const currentlyRunningUpdate = Updates.updateId;
         const runtimeVersion = Updates.runtimeVersion;
-        
+
         console.log('🔄 Checking for OTA updates...', {
           source,
           currentlyRunningUpdate,
           runtimeVersion,
           updateUrl: Updates.url || 'N/A'
         });
-        
+
         // Check for available updates
         const update = await Updates.checkForUpdateAsync();
-        
+
         if (update.isAvailable) {
           console.log('✅ Update available!', {
             manifest: update.manifest?.id || 'N/A',
             createdAt: update.manifest?.createdAt || 'N/A',
             runtimeVersion: update.manifest?.runtimeVersion || 'N/A'
           });
-          
+
           // Download the update in the background
           const fetchResult = await Updates.fetchUpdateAsync();
-          
+
           if (fetchResult.isNew) {
             console.log('✅ New update downloaded successfully, reloading app...');
-            
+
             // Reload the app to apply the update
             // Use a small delay to ensure any pending operations complete
             setTimeout(() => {
@@ -565,7 +565,7 @@ function RootLayoutNav() {
         console.log('🔒 RootLayoutNav - Locking app immediately (PIN is set)');
         lockApp();
       }
-      
+
       // Add a delay to ensure everything is settled before hiding splash
       // This prevents the welcome screen from flashing before auth redirects to dashboard
       const timer = setTimeout(() => {
@@ -611,73 +611,73 @@ function RootLayoutNav() {
           <Text onPress={() => clearError()} style={styles.nonFatalDismiss}>Dismiss</Text>
         </View>
       )}
-      <Stack 
-        screenOptions={{ 
+      <Stack
+        screenOptions={{
           headerShown: false,
           animation: 'default',
         }}
       >
         {/* Tabs are accessible to both authenticated and unauthenticated users */}
-        <Stack.Screen 
-          name="(tabs)" 
-          options={{ 
-            headerShown: false, 
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            headerShown: false,
             gestureEnabled: false,
-          }} 
+          }}
         />
-        
+
         {/* Declare all screens - Expo Router requires all screens to be declared */}
-        <Stack.Screen 
-          name="index" 
-          options={{ 
+        <Stack.Screen
+          name="index"
+          options={{
             headerShown: false,
             gestureEnabled: true,
-          }} 
+          }}
         />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen 
-          name="login-success" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="login-success"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="profile" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="profile"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="kyc-upgrade" 
-          options={{ 
-            headerShown: false, 
+        <Stack.Screen
+          name="kyc-upgrade"
+          options={{
+            headerShown: false,
             gestureEnabled: false,
             animation: 'fade',
-          }} 
+          }}
         />
-        <Stack.Screen 
-          name="kyc/tier1" 
-          options={{ 
-            headerShown: false, 
+        <Stack.Screen
+          name="kyc/tier1"
+          options={{
+            headerShown: false,
             gestureEnabled: false,
             animation: 'fade',
-          }} 
+          }}
         />
-        <Stack.Screen 
-          name="kyc/tier2" 
-          options={{ 
-            headerShown: false, 
+        <Stack.Screen
+          name="kyc/tier2"
+          options={{
+            headerShown: false,
             gestureEnabled: false,
             animation: 'fade',
-          }} 
+          }}
         />
-        <Stack.Screen 
-          name="add-funds" 
-          options={{ 
-            headerShown: false, 
+        <Stack.Screen
+          name="add-funds"
+          options={{
+            headerShown: false,
             gestureEnabled: false,
             animation: 'fade',
-          }} 
+          }}
         />
-        <Stack.Screen 
-          name="all-payouts" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="all-payouts"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen
           name="change-password"
@@ -699,70 +699,90 @@ function RootLayoutNav() {
           name="pause-confirmation"
           options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="referral" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="referral"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="transaction-limits" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="transaction-limits"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="transactions" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="transactions"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="account-statement" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="account-statement"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="two-factor-auth" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="two-factor-auth"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="two-factor-setup" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="two-factor-setup"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="two-factor-settings" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="two-factor-settings"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="view-backup-codes" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="view-backup-codes"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="view-payout" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="view-payout"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="plan/[code]" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="plan/[code]"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="app-lock-setup" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="app-lock-setup"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
-        <Stack.Screen 
-          name="logging-out" 
-          options={{ headerShown: false, gestureEnabled: false }} 
+        <Stack.Screen
+          name="logging-out"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="forgot-pin"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="forgot-pin-otp"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="forgot-pin-new"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="forgot-pin-confirm"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="forgot-pin-success"
+          options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen name="+not-found" options={{ title: "Page Not Found" }} />
       </Stack>
-      
+
       {/* Splash screen overlay during initialization */}
       {showSplashOverlay && (
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           <CustomSplashScreen onFinish={showSplash && !session?.user?.id ? () => setShowSplash(false) : undefined} />
         </View>
       )}
-      
+
       {/* Lock Screen Overlay - Renders at root level */}
       {isAppLocked && session?.user?.id && !isPinResetMode && (
         <AppLockScreen />
       )}
       <UpdateAppModal />
-      
+
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* <SessionDebugger /> */}
     </GestureHandlerRootView>
@@ -782,7 +802,7 @@ export default function RootLayout() {
         console.warn('⚠️ Firebase messaging initialization failed (non-critical):', error);
       }
     };
-    
+
     initFirebase();
   }, []);
 
@@ -793,7 +813,7 @@ export default function RootLayout() {
         try {
           // Set transparent system bars so app colors can extend behind them
           await SystemUI.setBackgroundColorAsync('transparent');
-          
+
           // Set initial navigation bar style (will be updated by theme in RootLayoutNav)
           // Default to light theme initially with darker gray for better visibility
           await NavigationBar.setBackgroundColorAsync('#FFFFFF');
@@ -802,13 +822,13 @@ export default function RootLayout() {
           console.warn('Failed to initialize system UI:', error);
         }
       };
-      
+
       initializeSystemUI();
     }
   }, []);
 
   // Get Paystack public key from environment
-  const paystackPublicKey = 
+  const paystackPublicKey =
     Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
     Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ||
     process.env.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
@@ -821,7 +841,7 @@ export default function RootLayout() {
         <ThemeProvider>
           <TextSizeProvider>
             <ToastProvider>
-              <PaystackProvider 
+              <PaystackProvider
                 publicKey={paystackPublicKey}
                 defaultChannels={['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer']}
               >
