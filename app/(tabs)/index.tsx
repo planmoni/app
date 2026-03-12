@@ -47,6 +47,9 @@ import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
 import LearnWithPlanmoniCarousel from '@/components/LearnWithPlanmoniCarousel';
+import PlanmoniLoader from '@/components/PlanmoniLoader';
+import ImageCarousel from '@/components/ImageCarousel';
+import PendingActionsCard from '@/components/PendingActionsCard';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -456,8 +459,6 @@ export default function HomeScreen() {
             onShowWelcomeModal={handleShowWelcomeModal}
             isUserAuthenticated={isAuthenticated}
           />
-        )}
-        <OnTrackCard payoutPlans={payoutPlans} />
         
         {activePlans.length === 0 && (
           <LearnWithPlanmoniCarousel onUnauthenticatedPress={() => setShowWelcomeModalForUnauth(true)} />
@@ -491,38 +492,7 @@ export default function HomeScreen() {
         </View> */}
         
 
-        {/* Quick Topup Card */}
-        
-
-        <ImageCarousel 
-          images={carouselImages} 
-          onImagePress={!isAuthenticated ? () => setShowWelcomeModalForUnauth(true) : undefined}
-        />
-        <PendingActionsCard />
-
-        <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
-
-
-        {/* Most Recent Payouts Section */}
-
-        {/* Next Payout Section */}
-        <NextPayoutCard nextPayout={nextPayout} />
-
-
-        {/* Payout Plans Section */}
-        <PayoutPlansSection 
-          activePlans={activePlans} 
-          onShowAddByCodeModal={() => isAuthenticated ? setShowAddByCodeModal(true) : setShowWelcomeModalForUnauth(true)}
-          onShowNewPlanInfo={() => isAuthenticated ? setShowNewPlanInfoModal(true) : setShowWelcomeModalForUnauth(true)}
-          onShowHowItWorks={() => setShowHowItWorksModal(true)}
-          onShowWelcomeModal={() => setShowWelcomeModalForUnauth(true)}
-          isUserAuthenticated={isAuthenticated}
-        />
-
-        
-
-
-              <View style={styles.bottomPadding} />
+        <View style={styles.bottomPadding} />
 
               {/* <RatingCard /> */}
             </View>
