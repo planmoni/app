@@ -62,7 +62,7 @@ export default function CreateNewScreen() {
             <CalendarDays size={24} color={colors.primary} />
           </View>
           <View style={styles.cardText}>
-            <Text style={styles.cardTitle}>New Auto Payout Plan</Text>
+            <Text style={styles.cardTitle}>Payout Schedule</Text>
             <Text style={styles.cardSubtitle}>Setup up daily, weekly, monthly or yearly payout schedules or choose specific dates to receive your funds.</Text>
           </View>
         </Pressable>
@@ -71,8 +71,8 @@ export default function CreateNewScreen() {
             <Wallet size={24} color={colors.primary} />
           </View>
           <View style={styles.cardText}>
-            <Text style={styles.cardTitle}>New Spending Plan</Text>
-            <Text style={styles.cardSubtitle}>Set up a spending plan before you start spending to ensure you don't overspend.</Text>
+            <Text style={styles.cardTitle}>Vault</Text>
+            <Text style={styles.cardSubtitle}>Set up a vault to save for a specific goal.</Text>
           </View>
         </Pressable>
       </ScrollView>

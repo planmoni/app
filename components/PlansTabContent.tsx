@@ -186,7 +186,7 @@ export default function PlansTabContent({
             <View style={styles.upNextCardHeader}>
               <View style={styles.upNextHeaderContent}>
                 <View style={styles.upNextLabelRow}>
-                  <Text style={styles.upNextLabel}>Next budget</Text>
+                  <Text style={styles.upNextLabel}>Next vault</Text>
                   {(() => {
                     const totalBudget = nextMaturingBudget.plan.total_budget || 0;
                     const currentBalance = (nextMaturingBudget.plan as any).current_balance || 0;

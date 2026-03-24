@@ -31,7 +31,7 @@ export default function QuickPlans({ onRequireAuth }: QuickPlansProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Quick Plans</Text>
+      <Text style={styles.title}>Budget</Text>
       <View style={styles.card}>
         <View style={styles.grid}>
           {categories.map((category) => {

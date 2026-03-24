@@ -55,7 +55,7 @@ export default function ExpensePlansSection({ onRequireAuth }: ExpensePlansSecti
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Your spending plans</Text>
+        <Text style={styles.sectionTitle}>Your vaults</Text>
         <Pressable onPress={handleViewAll} style={styles.viewAllButton}>
           <Text style={styles.viewAllText}>View All</Text>
         </Pressable>
@@ -63,10 +63,10 @@ export default function ExpensePlansSection({ onRequireAuth }: ExpensePlansSecti
 
       {expensePlans.length === 0 ? (
         <View style={styles.emptyExpensePlansContainer}>
-          <Text style={styles.emptyExpensePlansText}>No spending plans yet</Text>
+          <Text style={styles.emptyExpensePlansText}>No vaults yet</Text>
           <Pressable onPress={handleCreatePlan} style={styles.createFirstExpensePlanButton}>
             <Plus size={20} color={colors.text} />
-            <Text style={styles.createFirstExpensePlanText}>Create your first spending plan</Text>
+            <Text style={styles.createFirstExpensePlanText}>Create your first vault</Text>
           </Pressable>
         </View>
       ) : (
@@ -89,9 +89,9 @@ export default function ExpensePlansSection({ onRequireAuth }: ExpensePlansSecti
           ))}
           <Pressable onPress={handleCreatePlan} style={styles.addExpensePlanCard}>
             <Plus size={24} color={colors.text} />
-            <Text style={styles.addExpensePlanText}>Create spending plan</Text>
+            <Text style={styles.addExpensePlanText}>Create vault</Text>
             <Text style={styles.addExpensePlanDescription}>
-              Set up a funded spending plan for your future expenses
+              Set up a funded vault for your future spending
             </Text>
           </Pressable>
         </ScrollView>

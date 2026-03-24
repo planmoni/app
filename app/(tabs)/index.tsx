@@ -1539,7 +1539,7 @@ export default function HomeScreen() {
             styles.tabText,
             activeBalanceTab === 'plans' && styles.activeTabText
           ]}>
-            Spending
+            Vaults
           </Text>
         </Pressable>
         <Pressable
@@ -1647,7 +1647,7 @@ export default function HomeScreen() {
                     onPress={handleCreatePayout}
                   >
                     <CalendarCheck size={22} color={colors.primary} />
-                    <Text style={styles.createButtonTextBalance}>Start</Text>
+                    <Text style={styles.createButtonTextBalance}>New</Text>
                   </Pressable>
                 </View>
               </View>
@@ -1657,6 +1657,10 @@ export default function HomeScreen() {
             <>
               {/* On Track Card */}
               <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
+              <ImageCarousel images={carouselImages} />
+
+              <QuickPlans onRequireAuth={ensureAuthenticatedOrWelcome} />
+
 
               <OnTrackCard 
                 payoutPlans={payoutPlans}
@@ -1676,24 +1680,22 @@ export default function HomeScreen() {
               ) && <KYCCard />}
 
               {/* AI Suggestion Section - Only show for authenticated users */}
-              {isAuthenticated && (
+              {/* {isAuthenticated && (
                 <AISuggestionCard 
                   availableBalance={availableBalance}
                   onSuggestionPress={handleAISuggestionPress}
                 />
-              )}
+              )} */}
 
               {/* Quick Plans Section */}
-              <QuickPlans onRequireAuth={ensureAuthenticatedOrWelcome} />
               <PendingActionsCard />
 
 
-              <ImageCarousel images={carouselImages} />
               
 
                 <View style={styles.bottomPadding} />
 
-                <RatingCard />
+                {/* <RatingCard /> */}
               </>
             </ScrollView>
           </View>
@@ -1765,7 +1767,7 @@ export default function HomeScreen() {
             onPress={handleCreatePayout}
           >
             <CalendarCheck size={22} color={'#fff'} />
-            <Text style={styles.createButtonText}>Start</Text>
+            <Text style={styles.createButtonText}>New</Text>
           </Pressable>
         </Animated.View>
       )}
@@ -2593,7 +2595,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     backgroundColor: colors.primary,
     padding: Platform.OS === 'ios' ? 14 : 10,
     borderRadius: Platform.OS === 'ios' ? 20 : 15,
-    height: Platform.OS === 'ios' ? 55 : 45,
+    height: Platform.OS === 'ios' ? 45 : 35,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
@@ -2604,19 +2606,19 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     backgroundColor: '#fff',
     padding: Platform.OS === 'ios' ? 14 : 10,
     borderRadius: Platform.OS === 'ios' ? 20 : 15,
-    height: Platform.OS === 'ios' ? 55 : 45,
+    height: Platform.OS === 'ios' ? 45 : 35,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
   },
   createButtonText: {
     color: '#fff',
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
     fontWeight: '600',
   },
   createButtonTextBalance: {
     color: colors.primary,
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
     fontWeight: '600',
   },
   addFundsButton: {
@@ -2627,7 +2629,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderWidth: 2, 
     borderColor: isDark ? '#fff' : colors.primary,
     borderRadius: Platform.OS === 'ios' ? 20 : 15,
-    height: Platform.OS === 'ios' ? 55 : 45,
+    height: Platform.OS === 'ios' ? 45 : 35,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -2640,14 +2642,14 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     // backgroundColor: '#1E3A8A',
     padding: Platform.OS === 'ios' ? 14 : 10,
     borderRadius: Platform.OS === 'ios' ? 20 : 15,
-    height: Platform.OS === 'ios' ? 55 : 45,
+    height: Platform.OS === 'ios' ? 45 : 35,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   addFundsText: {
     color: colors.primary,
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
     fontWeight: '600',
     textAlign: 'center',
     justifyContent: 'center',
@@ -2655,7 +2657,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   addFundsTextBalance: {
     color: '#fff',
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
     fontWeight: '600',
     textAlign: 'center',
     justifyContent: 'center',
