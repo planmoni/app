@@ -6,6 +6,7 @@ import ExpensePlanCard from '@/components/expense-planner/ExpensePlanCard';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useTheme } from '@/contexts/ThemeContext';
 
 type NextMaturingBudget = {
   plan: any;
@@ -61,7 +62,7 @@ export default function PlansTabContent({
 }: PlansTabContentProps) {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
-  
+  const { isDark } = useTheme();
   const totalCreatedBudget = expensePlans?.reduce((sum, plan) => {
     const amount = plan?.total_budget || 0;
     return sum + (typeof amount === 'number' ? amount : 0);
@@ -186,7 +187,7 @@ export default function PlansTabContent({
             <View style={styles.upNextCardHeader}>
               <View style={styles.upNextHeaderContent}>
                 <View style={styles.upNextLabelRow}>
-                  <Text style={styles.upNextLabel}>Next vault</Text>
+                  <Text style={styles.upNextLabel}>Upcoming</Text>
                   {(() => {
                     const totalBudget = nextMaturingBudget.plan.total_budget || 0;
                     const currentBalance = (nextMaturingBudget.plan as any).current_balance || 0;
@@ -239,8 +240,8 @@ export default function PlansTabContent({
                 <Text style={styles.upNextBudgetAmount}>{formatBalance(nextMaturingBudget.plan.total_budget)}</Text>
               </View>
               <View style={styles.upNextDaysBadge}>
-                <Clock size={12} color={colors.primary} />
-                <Text style={styles.upNextDaysText}>
+                <Clock size={12} color= {isDark ? colors.text : colors.primary} />
+                <Text style={[styles.upNextDaysText, { color: isDark ? colors.text : colors.primary }]}>
                   {(() => {
                     if (!nextMaturingBudget.hasStarted && nextMaturingBudget.daysUntilStart !== null) {
                       if (nextMaturingBudget.daysUntilStart === 0) return 'Starts today';

@@ -141,7 +141,7 @@ export default function EditAmountScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Edit Budget Amount</Text>
+        <Text style={styles.headerTitle}>Edit Vault Amount</Text>
         <Pressable
           onPress={() => {
             haptics.lightImpact();
@@ -155,9 +155,9 @@ export default function EditAmountScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
-          <Text style={styles.title}>Budget Amount</Text>
+          <Text style={styles.title}>Vault Amount</Text>
           <Text style={styles.description}>
-            Enter the total amount you want to budget for this plan
+            Enter the total amount you want to save for this vault
           </Text>
 
           {error && (

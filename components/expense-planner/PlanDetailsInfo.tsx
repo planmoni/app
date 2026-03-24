@@ -362,7 +362,7 @@ export default function PlanDetailsInfo({
                 style={styles.actionButton}
                 onPress={onFundPlan}
               >
-                <ArrowDown size={20} color={colors.primary} />
+                <ArrowDown size={20} color={isDark ? colors.text : colors.primary} />
                 <Text style={styles.actionButtonText}>Add Funds</Text>
               </Pressable>
             ) : planFundingMethod === 'manual' && currentBalance >= planTotalBudget ? (
@@ -389,7 +389,7 @@ export default function PlanDetailsInfo({
             >
               <X size={20} color={colors.textTertiary}/>
               <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
-                Terminate Budget
+                Close Vault
               </Text>
             </Pressable>
           </>
@@ -412,9 +412,9 @@ export default function PlanDetailsInfo({
         style={styles.viewDetailsButton}
         onPress={() => router.push(`/expense-planner/${plan.id}/details`)}
       >
-        <Info size={18} color={colors.primary} />
+        <Info size={18} color= {isDark ? colors.text : colors.primary} />
         <Text style={styles.viewDetailsButtonText}>View Plan Details</Text>
-        <ArrowRight size={18} color={colors.primary} />
+        <ArrowRight size={18} color={isDark ? colors.text : colors.primary} />
       </Pressable>
     </>
   );
@@ -535,7 +535,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     progressPercentage: {
       fontSize: getScaledFontSize(18, textSizeMultiplier),
       fontWeight: '700',
-      color: colors.primary,
+      color: isDark ? colors.text : colors.primary,
     },
     progressBar: {
       height: 8,
@@ -629,10 +629,10 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     actionButtonText: {
       fontSize: getScaledFontSize(15, textSizeMultiplier),
       fontWeight: '600',
-      color: colors.primary,
+      color: isDark ? colors.text : colors.primary,
     },
     actionButtonTextSecondary: {
-      color: colors.text,
+      color: isDark ? colors.text : colors.primary,
     },
     actionButtonTextDanger: {
       color: '#EF4444',
@@ -677,7 +677,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     viewDetailsButtonText: {
       fontSize: getScaledFontSize(15, textSizeMultiplier),
       fontWeight: '600',
-      color: colors.primary,
+      color: isDark ? colors.text : colors.primary,
       flex: 1,
       textAlign: 'center',
     },

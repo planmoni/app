@@ -12,7 +12,7 @@ type QuickPlansProps = {
 };
 
 export default function QuickPlans({ onRequireAuth }: QuickPlansProps) {
-  const { colors } = useTheme();
+  const { colors, isDark  } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
 
@@ -31,7 +31,7 @@ export default function QuickPlans({ onRequireAuth }: QuickPlansProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Budget</Text>
+      <Text style={styles.title}>Quick Plan</Text>
       <View style={styles.card}>
         <View style={styles.grid}>
           {categories.map((category) => {
@@ -54,7 +54,7 @@ export default function QuickPlans({ onRequireAuth }: QuickPlansProps) {
               >
                 <View style={styles.iconContainer}>
                   {IconComponent && (
-                    <IconComponent size={24} color={colors.primary} />
+                    <IconComponent size={24} color= {isDark? colors.text : colors.primary} />
                   )}
                 </View>
                 <Text style={styles.label} numberOfLines={1}>

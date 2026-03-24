@@ -1491,7 +1491,7 @@ export default function HomeScreen() {
                   {getGreeting()}, {firstName}.
               </Text>
               <Text style={styles.subGreetingInline} numberOfLines={1} ellipsizeMode="tail">
-                It's time to manage your finances
+                It's time to plan your finances
               </Text>
             </View>
             ) : (
@@ -2131,7 +2131,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: colors.textSecondary,
   },
   activeTabText: {
-    color: '#1E3A8A',
+    color: isDark ? colors.text : colors.primary,
     fontWeight: '600',
   },
   textBalanceContainer: {
@@ -2416,8 +2416,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: '#6F7E93',
   },
   upNextPlanName: {
-    fontSize: getScaledFontSize(20, textSizeMultiplier),
-    fontWeight: '600',
+    fontSize: getScaledFontSize(17, textSizeMultiplier),
+    fontWeight: '500',
     color: colors.text,
     marginBottom: -8,
   },
@@ -2458,7 +2458,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginBottom: 4,
   },
   upNextBudgetAmount: {
-    fontSize: getScaledFontSize(30, textSizeMultiplier),
+    fontSize: getScaledFontSize(25, textSizeMultiplier),
     fontWeight: '700',
     color: colors.text,
   },

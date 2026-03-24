@@ -263,7 +263,7 @@ export default function PlanDetailScreen() {
 
     // For funded or partially funded plans, show options
     Alert.alert(
-      'Close Budget',
+      'Close Vault',
       `What would you like to do with the remaining funds (₦${currentBalance.toLocaleString()})?`,
       [
         {
@@ -285,7 +285,7 @@ export default function PlanDetailScreen() {
                 pathname: '/expense-planner/[id]/transfer-success',
                 params: {
                   planId: id as string,
-                  planName: plan?.name || 'Spending Plan',
+                  planName: plan?.name || 'Vault',
                   amountTransferred: currentBalance.toString(),
                   newWalletBalance: (result as any)?.new_wallet_balance?.toString() || '0',
                 },
@@ -369,7 +369,7 @@ export default function PlanDetailScreen() {
               await deleteExpensePlan(id as string);
               
               Alert.alert(
-                'Budget Closed',
+                'Vault Closed',
                 `₦${currentBalance.toLocaleString()} has been transferred to ${defaultAccount.bank_name} ••••${defaultAccount.account_number.slice(-4)}.`,
                 [
                   {
@@ -487,7 +487,7 @@ export default function PlanDetailScreen() {
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft size={24} color={colors.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>Plan Not Found</Text>
+          <Text style={styles.headerTitle}>Vault Not Found</Text>
           <Pressable
             onPress={() => router.replace('/(tabs)')}
             style={styles.closeButton}
@@ -508,7 +508,7 @@ export default function PlanDetailScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}> Budget
+        <Text style={styles.headerTitle} numberOfLines={1}> Vault
         </Text>
         <Pressable
           onPress={() => router.replace('/(tabs)')}
