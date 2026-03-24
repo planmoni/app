@@ -411,7 +411,7 @@ export default function AIAssistantScreen() {
     let response = "";
     try {
       const systemPrompt = `You are Planmoni, a helpful, friendly, and expert financial assistant for Nigerian users.\nUser: ${getUserName()}\nAvailable balance: ₦${availableBalance.toLocaleString()}\nTotal balance: ₦${balance.toLocaleString()}\nLocked balance: ₦${lockedBalance.toLocaleString()}\nGive advice in a conversational, encouraging, and clear way. If the user asks about their finances, use these numbers for context. If you are unsure, say so. Do not make up numbers or facts.`;
-      response = await getOpenAIChatCompletion({
+      const aiResult = await getOpenAIChatCompletion({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage }
@@ -420,6 +420,7 @@ export default function AIAssistantScreen() {
         temperature: 0.7,
         max_tokens: 256
       });
+      response = aiResult.content || "I'm here to help with your financial planning.";
     } catch (err: any) {
       console.error('AI Text Response Error:', {
         error: err.message,
@@ -507,12 +508,13 @@ export default function AIAssistantScreen() {
         temperature: 0.5,
         max_tokens: 512
       });
-      const jsonStart = openaiResponse.indexOf('{');
-      const jsonEnd = openaiResponse.lastIndexOf('}');
+      const openaiText = openaiResponse.content || '';
+      const jsonStart = openaiText.indexOf('{');
+      const jsonEnd = openaiText.lastIndexOf('}');
       let parsed: any = null;
       if (jsonStart !== -1 && jsonEnd !== -1) {
         try {
-          parsed = JSON.parse(openaiResponse.substring(jsonStart, jsonEnd + 1));
+          parsed = JSON.parse(openaiText.substring(jsonStart, jsonEnd + 1));
         } catch (e) {}
       }
       if (parsed && parsed.type === 'plan' && parsed.metadata && Array.isArray(parsed.metadata.plans)) {
@@ -547,7 +549,7 @@ export default function AIAssistantScreen() {
         // Handle invalid or ambiguous AI response gracefully
         console.warn('AI returned invalid response for plan request:', {
           userMessage: userMessage.substring(0, 100),
-          aiResponse: openaiResponse.substring(0, 200),
+          aiResponse: openaiText.substring(0, 200),
           parsed: parsed,
           platform: Platform.OS
         });
@@ -764,12 +766,13 @@ export default function AIAssistantScreen() {
         temperature: 0.5,
         max_tokens: 512
       });
-      const jsonStart = openaiResponse.indexOf('{');
-      const jsonEnd = openaiResponse.lastIndexOf('}');
+      const openaiText = openaiResponse.content || '';
+      const jsonStart = openaiText.indexOf('{');
+      const jsonEnd = openaiText.lastIndexOf('}');
       let parsed: any = null;
       if (jsonStart !== -1 && jsonEnd !== -1) {
         try {
-          parsed = JSON.parse(openaiResponse.substring(jsonStart, jsonEnd + 1));
+          parsed = JSON.parse(openaiText.substring(jsonStart, jsonEnd + 1));
         } catch (e) {}
       }
       if (parsed && parsed.type === 'insight' && parsed.metadata && Array.isArray(parsed.metadata.insights)) {
@@ -785,7 +788,7 @@ export default function AIAssistantScreen() {
         // Handle invalid or ambiguous AI response gracefully
         console.warn('AI returned invalid response for insight request:', {
           userMessage: userMessage.substring(0, 100),
-          aiResponse: openaiResponse.substring(0, 200),
+          aiResponse: openaiText.substring(0, 200),
           parsed: parsed,
           platform: Platform.OS
         });

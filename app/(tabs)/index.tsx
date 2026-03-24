@@ -355,6 +355,7 @@ export default function HomeScreen() {
   const [hasShownAppLockModal, setHasShownAppLockModal] = useState(false);
   const [showIdentityVerificationModal, setShowIdentityVerificationModal] = useState(false);
   const [showKYCVerificationModal, setShowKYCVerificationModal] = useState(false);
+  const [showOnboardingQuestionnaire, setShowOnboardingQuestionnaire] = useState(false);
   const [hasShownKYCModalThisSession, setHasShownKYCModalThisSession] = useState(false);
   const [showBalanceActionsModal, setShowBalanceActionsModal] = useState(false);
   const { hasAppLockPin } = usePin();
@@ -1658,8 +1659,7 @@ export default function HomeScreen() {
               <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
 
               <OnTrackCard 
-                payoutPlans={payoutPlans} 
-                onPress={() => handleTabChange('payouts')}
+                payoutPlans={payoutPlans}
               />
               {activeSpendableBudgets.count > 0 && (
                 <ActiveSpendingPlansCard 
@@ -1688,7 +1688,7 @@ export default function HomeScreen() {
               <PendingActionsCard />
 
 
-              <ImageCarousel images={carouselImages} onRequireAuth={ensureAuthenticatedOrWelcome} />
+              <ImageCarousel images={carouselImages} />
               
 
                 <View style={styles.bottomPadding} />
@@ -1983,7 +1983,7 @@ export default function HomeScreen() {
           onClose={() => setShowWelcomeModalForUnauth(false)}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
