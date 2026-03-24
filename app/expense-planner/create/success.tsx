@@ -9,6 +9,7 @@ import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import Button from '@/components/Button';
+import { replaceToVaultsHomeTab } from '@/lib/replaceToVaultsHomeTab';
 
 export default function ExpensePlanSuccessScreen() {
   const { colors, isDark } = useTheme();
@@ -57,9 +58,9 @@ export default function ExpensePlanSuccessScreen() {
     router.replace(`/expense-planner/${planId}`);
   };
 
-  const handleBackToDashboard = () => {
+  const handleBackToVaults = () => {
     haptics.lightImpact();
-    router.replace('/(tabs)');
+    replaceToVaultsHomeTab();
   };
 
   const { width: screenWidth } = Dimensions.get('window');
@@ -72,11 +73,11 @@ export default function ExpensePlanSuccessScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
-        <Text style={styles.headerTitle}>Plan Created</Text>
+        <Text style={styles.headerTitle}>Vault Created</Text>
         <Pressable 
           onPress={() => {
             haptics.lightImpact();
-            router.replace('/(tabs)');
+            replaceToVaultsHomeTab();
           }} 
           style={styles.cancelButton}
         >
@@ -91,8 +92,8 @@ export default function ExpensePlanSuccessScreen() {
       >
         <SuccessAnimation />
 
-        <Text style={styles.title}>Spending Plan Created!</Text>
-        <Text style={styles.subtitle}>Your spending plan has been set up successfully</Text>
+        <Text style={styles.title}>Vault Created!</Text>
+        <Text style={styles.subtitle}>Your vault has been set up successfully</Text>
 
         <View style={styles.summaryCard}>
           <Text style={styles.planName}>{planName || 'Untitled Plan'}</Text>
@@ -104,22 +105,22 @@ export default function ExpensePlanSuccessScreen() {
       <View style={styles.footer}>
         {fundingMethod === 'auto' ? (
           <Button 
-            title="View Plan"
+            title="View Vault"
             onPress={handleViewPlan}
             style={styles.viewPlanButton}
             hapticType="medium"
           />
         ) : (
         <Button 
-          title="Fund Plan"
+          title="Fund Vault"
           onPress={handleFundPlan}
           style={styles.viewPlanButton}
           hapticType="medium"
         />
         )}
         <Button 
-          title="Back to Dashboard"
-          onPress={handleBackToDashboard}
+          title="Back to Vaults"
+          onPress={handleBackToVaults}
           variant="outline"
           style={styles.dashboardButton}
           hapticType="light"

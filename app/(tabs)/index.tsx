@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 // import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal'; // Disabled - success modal removed after onboarding
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 import AddPayoutPlanByCodeModal from '@/components/AddPayoutPlanByCodeModal';
@@ -16,7 +16,7 @@ import ImageCarousel from '@/components/ImageCarousel';
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useGlobalSearchParams, useLocalSearchParams } from 'expo-router';
 import {
   HelpCircleIcon,
   Eye,
@@ -288,19 +288,11 @@ export default function HomeScreen() {
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification, selection } = useHaptics();
   
-  // Handle tab change with scroll
+  // Tab labels + state; horizontal pager position is synced in useLayoutEffect / useEffect below
   const handleTabChange = useCallback((tab: 'home' | 'plans' | 'payouts') => {
     impact();
     setActiveBalanceTab(tab);
-    const tabIndex = tab === 'home' ? 0 : tab === 'plans' ? 1 : 2;
-    // Use requestAnimationFrame to ensure ref is ready
-    requestAnimationFrame(() => {
-      tabScrollViewRef.current?.scrollTo({
-        x: tabIndex * screenWidth,
-        animated: true,
-      });
-    });
-  }, [screenWidth, impact]);
+  }, [impact]);
 
   // Handle scroll end to update active tab (swipe between Home / Vaults / Payouts)
   const handleScrollEnd = useCallback((event: any) => {
@@ -316,17 +308,39 @@ export default function HomeScreen() {
     });
   }, [screenWidth, selection]);
 
-  // Sync scroll position on mount or screen width change only
-  useEffect(() => {
-    if (tabScrollViewRef.current) {
-      const tabIndex = activeBalanceTab === 'home' ? 0 : activeBalanceTab === 'plans' ? 1 : 2;
-      tabScrollViewRef.current.scrollTo({
+  // Keep horizontal pager offset aligned with activeBalanceTab (tap, swipe, or deep link).
+  // After stack navigation, a single rAF scroll often runs before layout — labels can show Vaults while offset stays 0.
+  const scrollPagerToActiveTab = useCallback(
+    (animated: boolean) => {
+      if (!screenWidth) return;
+      const tabIndex =
+        activeBalanceTab === 'home' ? 0 : activeBalanceTab === 'plans' ? 1 : 2;
+      tabScrollViewRef.current?.scrollTo({
         x: tabIndex * screenWidth,
-        animated: false,
+        animated,
       });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screenWidth]); // Only sync on screen width change, not on tab change
+    },
+    [activeBalanceTab, screenWidth]
+  );
+
+  useLayoutEffect(() => {
+    scrollPagerToActiveTab(false);
+  }, [scrollPagerToActiveTab]);
+
+  useEffect(() => {
+    if (!screenWidth) return;
+    const apply = () => scrollPagerToActiveTab(false);
+    apply();
+    const raf = requestAnimationFrame(() => {
+      apply();
+      requestAnimationFrame(apply);
+    });
+    const interaction = InteractionManager.runAfterInteractions(apply);
+    return () => {
+      cancelAnimationFrame(raf);
+      interaction.cancel();
+    };
+  }, [screenWidth, scrollPagerToActiveTab]);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -625,6 +639,7 @@ export default function HomeScreen() {
 
   // Show AccountInformationModal only when coming from Tier1CompletionModal
   const params = useLocalSearchParams();
+  const globalSearchParams = useGlobalSearchParams();
   useEffect(() => {
     if (!session?.user?.id) return;
     
@@ -643,6 +658,17 @@ export default function HomeScreen() {
       return () => clearTimeout(timer);
     }
   }, [params.showAccountInfo, session?.user?.id, hasShownAccountInfoModal]);
+
+  // Deep-link / post-create: select Vaults / Payouts without pager haptic (useLayoutEffect syncs scroll)
+  useEffect(() => {
+    const raw = params.balanceTab ?? globalSearchParams.balanceTab;
+    const tab = Array.isArray(raw) ? raw[0] : raw;
+    if (tab !== 'plans' && tab !== 'payouts' && tab !== 'home') return;
+    setActiveBalanceTab(tab as 'home' | 'plans' | 'payouts');
+    requestAnimationFrame(() => {
+      router.setParams({ balanceTab: undefined });
+    });
+  }, [params.balanceTab, globalSearchParams.balanceTab]);
 
   // Load shown deposit IDs and dismissed modal flag from storage on mount
   useEffect(() => {
@@ -1566,6 +1592,7 @@ export default function HomeScreen() {
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={handleScrollEnd}
+          onLayout={() => scrollPagerToActiveTab(false)}
           scrollEventThrottle={16}
           decelerationRate="fast"
           snapToInterval={screenWidth}
