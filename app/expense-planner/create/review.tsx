@@ -20,7 +20,7 @@ interface Bucket {
 }
 
 export default function ReviewScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
@@ -241,13 +241,13 @@ export default function ReviewScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Review your plan</Text>
-        <Text style={styles.subtitle}>Please review all details before creating your plan</Text>
+        <Text style={styles.title}>Review your vault</Text>
+        <Text style={styles.subtitle}>Please review all details before creating your vault</Text>
 
         {/* Plan Name */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Plan Name</Text>
+            <Text style={styles.sectionTitle}>Vault Name</Text>
           </View>
           <Text style={styles.sectionValue}>{planName}</Text>
         </View>
@@ -255,7 +255,7 @@ export default function ReviewScreen() {
         {/* Target & Deadline */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Budget Amount & Dates</Text>
+            <Text style={styles.sectionTitle}>Vault Amount & Dates</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Target Amount</Text>
@@ -314,7 +314,7 @@ export default function ReviewScreen() {
         {/* Budget Start Action */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>When plan starts</Text>
+            <Text style={styles.sectionTitle}>When vault starts</Text>
           </View>
           {startAction === 'auto_payout' ? (
             <View style={styles.payoutAccountRow}>
@@ -328,14 +328,14 @@ export default function ReviewScreen() {
                 )}
               </View>
               <View style={styles.payoutAccountTextContainer}>
-                <Text style={styles.sectionValue}>Auto payout to bank</Text>
+                <Text style={styles.sectionValue}>Auto payout to bank account</Text>
                 <Text style={styles.payoutAccountMeta}>
                   {payoutAccountLabel || 'Selected payout account'}
                 </Text>
               </View>
             </View>
           ) : (
-            <Text style={styles.sectionValue}>Keep balance in Plan</Text>
+            <Text style={styles.sectionValue}>Keep balance in Vault</Text>
           )}
         </View>
 
@@ -357,7 +357,7 @@ export default function ReviewScreen() {
             {alertRiskFailure && (
               <View style={styles.alertItem}>
                 <Check size={16} color={colors.primary} />
-                <Text style={styles.alertText}>Notify when plan risks failing</Text>
+                <Text style={styles.alertText}>Notify when vault risks failing</Text>
               </View>
             )}
             {alertWeeklyProgress && (
@@ -379,7 +379,7 @@ export default function ReviewScreen() {
                 const Icon = category.icon;
                 return (
                   <View key={category.id} style={styles.categoryBadge}>
-                    <Icon size={16} color={colors.primary} strokeWidth={1.5} />
+                    <Icon size={16} color={isDark ? colors.text : colors.primary} strokeWidth={1.5} />
                     <Text style={styles.categoryBadgeText}>{category.name}</Text>
                   </View>
                 );
@@ -395,7 +395,7 @@ export default function ReviewScreen() {
       </ScrollView>
 
       <FloatingButton
-        title="Create Plan"
+        title="Create Vault"
         onPress={handleCreatePlan}
         disabled={isCreating}
         hapticType="medium"

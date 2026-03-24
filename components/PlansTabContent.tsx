@@ -113,7 +113,7 @@ export default function PlansTabContent({
                 />
               </View>
               <Text style={styles.availableToSpendProgressText}>
-                 Funded {formatBalance(expensePlansFundedBalance)} / {formatBalance(totalCreatedBudget)} of Total Spending Budgets
+                 Funded {formatBalance(expensePlansFundedBalance)} / {formatBalance(totalCreatedBudget)} of Total Plans
               </Text>
             </View>
           </View>

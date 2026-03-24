@@ -108,7 +108,7 @@ export default function TargetAmountScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Budget Amount</Text>
+        <Text style={styles.headerTitle}>Vault Amount</Text>
         <Pressable
           onPress={async () => {
             if (Platform.OS !== 'web') {
@@ -134,9 +134,9 @@ export default function TargetAmountScreen() {
           )}
 
           <View style={styles.section}>
-          <Text style={styles.sectionTitle}>What's your total budget for this plan?</Text>
+          <Text style={styles.sectionTitle}>What's your total target amount for this vault?</Text>
           <Text style={styles.sectionDescription}>
-            Enter how much you want to allow for this plan.
+            Enter how much you want to save for this vault.
           </Text>
             <View
               style={[

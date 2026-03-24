@@ -35,7 +35,7 @@ export default function PlanNameScreen() {
 
   const handleContinue = () => {
     if (!planName.trim()) {
-      setError('Please enter a plan name');
+      setError('Please enter a vault name');
       haptics.notification();
       return;
     }
@@ -66,7 +66,7 @@ export default function PlanNameScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Plan Name</Text>
+        <Text style={styles.headerTitle}>Vault Name</Text>
         <Pressable
           onPress={async () => {
             if (Platform.OS !== 'web') {
@@ -92,14 +92,14 @@ export default function PlanNameScreen() {
           )}
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Let's give your plan a name</Text>
+            <Text style={styles.sectionTitle}>Let's give your vault a name</Text>
             <Text style={styles.sectionDescription}>
-              Give it a clear name so you can track and control your budget.
+              Give it a clear name so you can track and control your vault.
             </Text>
             <TextInput
               ref={nameInputRef}
               style={styles.textInput}
-              placeholder="e.g., Dubai Holiday, Shopping spree, etc."
+              placeholder="e.g., House rent, Holiday, Travel fund, etc."
               placeholderTextColor={colors.textTertiary}
               value={planName}
               onChangeText={(text) => {

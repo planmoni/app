@@ -160,7 +160,7 @@ export default function FundingSourceScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Budget funding</Text>
+        <Text style={styles.headerTitle}>Vault funding</Text>
         <Pressable
           onPress={async () => {
             if (Platform.OS !== 'web') {
@@ -179,9 +179,9 @@ export default function FundingSourceScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-          <Text style={styles.title}>How should this plan be funded?</Text>
+          <Text style={styles.title}>How should this vault be funded?</Text>
           <Text style={styles.subtitle}>
-            Budget is funded upfront. Choose how you want to add funds to your plan. Extra top-ups become extra to spend without changing the budget.
+            Vault is funded upfront. Choose how you want to add funds to your vault. Extra top-ups become extra to spend without changing the vault.
           </Text>
 
           {/* Auto Fund */}
@@ -196,7 +196,7 @@ export default function FundingSourceScreen() {
                 haptics.notification();
                 Alert.alert(
                   'Auto Top-Up Unavailable',
-                  'Auto top-up is only available when the budget start date is at least 1 week away. Please select manual top-up instead.',
+                  'Auto top-up is only available when the vault start date is at least 1 week away. Please select manual top-up instead.',
                   [{ text: 'OK' }]
                 );
                 return;
@@ -235,8 +235,8 @@ export default function FundingSourceScreen() {
                   isAutoTopUpDisabled && styles.optionSubtitleDisabled
                 ]}>
                   {isAutoTopUpDisabled 
-                    ? 'Auto top-up requires the budget start date to be at least 1 week away.'
-                    : 'Automatically top-up your budget plan from your available balance little by little.'}
+                    ? 'Auto top-up requires the vault start date to be at least 1 week away.'
+                    : 'Automatically top-up your vault from your available balance little by little.'}
                 </Text>
               </View>
               <View style={[

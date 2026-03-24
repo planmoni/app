@@ -226,7 +226,7 @@ export const CATEGORIES: Category[] = [
     name: 'Housing & Rent', 
     icon: Home,
     subCategories: [
-      { id: 'rent_lease', name: 'Rent/Lease' },
+      { id: 'rent_lease', name: 'House Rent' },
       { id: 'broker_fees', name: 'Broker Fees (Agent & Agreement Fees)' },
       { id: 'property_maintenance', name: 'Property Maintenance (Electricity, Water, Security)' },
       { id: 'new_property', name: 'New Property (Purchase, Renovation)' },

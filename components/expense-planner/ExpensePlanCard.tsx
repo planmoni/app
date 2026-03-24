@@ -543,7 +543,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
                   {IconComponent && (
                     <IconComponent 
                       size={14} 
-                      color={colors.primary}
+                      color={isDark ? colors.text : colors.primary}
                       strokeWidth={1.5}
                     />
                   )}

@@ -11,6 +11,7 @@ import { ExpensePlan } from '@/types/expense-planner';
 import { getCategoryById } from '@/lib/expenseCategories';
 import { getBudgetDuration, isBudgetStarted } from '@/lib/expensePlanUtils';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useCloseExpensePlanVault } from '@/hooks/useCloseExpensePlanVault';
 
 export default function PlanDetailsPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -19,6 +20,7 @@ export default function PlanDetailsPage() {
   const { expensePlans } = useExpensePlans();
   const haptics = useHaptics();
   const [showAllCategories, setShowAllCategories] = useState(false);
+  const requestCloseVault = useCloseExpensePlanVault(id);
 
   const plan = expensePlans.find(p => p.id === id) as ExpensePlan | undefined;
 
@@ -45,6 +47,14 @@ export default function PlanDetailsPage() {
   const budgetDuration = plan?.start_date && plan?.end_date 
     ? getBudgetDuration(plan.start_date, plan.end_date) 
     : null;
+
+  const currentBalance = (plan as any)?.current_balance ?? 0;
+  const planTotalBudget = plan.total_budget ?? 0;
+  const showCloseVault = !(
+    budgetStarted &&
+    currentBalance > 0 &&
+    currentBalance < planTotalBudget
+  );
 
   // Get funding method
   const fundingMethod = plan?.funding_method || plan?.metadata?.funding_method || 'manual';
@@ -366,6 +376,18 @@ export default function PlanDetailsPage() {
             )}
           </View>
         )}
+
+        {showCloseVault && (
+          <Pressable
+            style={styles.closeVaultButton}
+            onPress={() =>
+              requestCloseVault({ planName: plan.name, currentBalance })
+            }
+          >
+            <X size={20} color={colors.textTertiary} />
+            <Text style={styles.closeVaultButtonText}>Close Vault</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -531,6 +553,24 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     },
     chevronIconRotated: {
       transform: [{ rotate: '180deg' }],
+    },
+    closeVaultButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.backgroundTertiary,
+      paddingVertical: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 8,
+      marginBottom: 24,
+    },
+    closeVaultButtonText: {
+      fontSize: getScaledFontSize(15, textSizeMultiplier),
+      fontWeight: '600',
+      color: '#EF4444',
     },
   });
 

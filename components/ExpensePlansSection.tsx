@@ -145,7 +145,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     addExpensePlanText: {
       fontSize: getScaledFontSize(14, textSizeMultiplier),
       fontWeight: '600',
-      color: colors.primary,
+      color: isDark ? colors.text : colors.primary,
       marginTop: 12,
       marginBottom: 4,
     },

@@ -102,7 +102,7 @@ export default function StartActionScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Plan start rule</Text>
+        <Text style={styles.headerTitle}>Vault start rule</Text>
         <Pressable
           onPress={() => {
             haptics.selection();
@@ -116,8 +116,8 @@ export default function StartActionScreen() {
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-          <Text style={styles.title}>What happens when the budget is due?</Text>
-          <Text style={styles.subtitle}>Choose how the budget amount should be handled on start.</Text>
+          <Text style={styles.title}>What happens when the vault is due?</Text>
+          <Text style={styles.subtitle}>Choose how the vault amount should be handled on start.</Text>
 
           <Pressable
             style={[
@@ -139,8 +139,8 @@ export default function StartActionScreen() {
                 <Banknote size={24} color={startAction === 'wallet' ? colors.primary : colors.text} />
               </View>
               <View style={styles.optionHeaderText}>
-                <Text style={styles.optionTitle}>Spend directly from budget</Text>
-                <Text style={styles.optionSubtitle}>Keep the funds in this plan's wallet to spend/allocate.</Text>
+                <Text style={styles.optionTitle}>Spend directly from vault</Text>
+                <Text style={styles.optionSubtitle}>Keep the funds in this vault's wallet to spend/allocate.</Text>
               </View>
               <View style={[
                 styles.radio,
@@ -169,8 +169,8 @@ export default function StartActionScreen() {
                 <Banknote size={24} color={startAction === 'auto_payout' ? colors.primary : colors.text} />
               </View>
               <View style={styles.optionHeaderText}>
-                <Text style={styles.optionTitle}>Auto payout to bank</Text>
-                <Text style={styles.optionSubtitle}>Send the budget amount to a chosen payout account.</Text>
+                <Text style={styles.optionTitle}>Auto payout to bank account</Text>
+                <Text style={styles.optionSubtitle}>Send the vault amount to a chosen payout account.</Text>
               </View>
               <View style={[
                 styles.radio,

@@ -112,7 +112,7 @@ const CATEGORY_ICONS: Record<string, any> = {
 // Sub-category names mapping (simplified - in production, this would come from the same source)
 const SUB_CATEGORY_NAMES: Record<string, Record<string, string>> = {
   housing_rent: {
-    rent_lease: 'Rent/Lease',
+    rent_lease: 'House Rent',
     broker_fees: 'Broker Fees (Agent & Agreement Fees)',
     property_maintenance: 'Property Maintenance (Electricity, Water, Security)',
     new_property: 'New Property (Purchase, Renovation)',

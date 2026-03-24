@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { 
@@ -31,8 +31,6 @@ import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { useExpenseBuckets } from '@/hooks/useExpenseBuckets';
 import { isBudgetStarted, formatDateRange } from '@/lib/expensePlanUtils';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
-import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 
 const CATEGORY_COLORS: Record<string, string> = {
   travel: '#3B82F6',
@@ -52,16 +50,13 @@ export default function PlanDetailScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const { id } = useLocalSearchParams();
-  const { session } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [planWallet, setPlanWallet] = useState<any>(null);
   const [planHealth, setPlanHealth] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const { expensePlans, fetchExpensePlans, deleteExpensePlan, transferPlanToWallet } = useExpensePlans();
+  const { expensePlans, fetchExpensePlans, deleteExpensePlan } = useExpensePlans();
   const { buckets, fetchBuckets } = useExpenseBuckets(id as string);
-  const { payoutAccounts, fetchPayoutAccounts } = usePayoutAccounts();
-
   const plan = expensePlans.find(p => p.id === id) || null;
   const currentBalance = (plan as any)?.current_balance || 0;
   const budgetStarted = plan ? isBudgetStarted(plan.start_date) : false;
@@ -224,170 +219,6 @@ export default function PlanDetailScreen() {
       pathname: '/expense-planner/[id]/schedule-withdrawal',
       params: { id: id as string },
     });
-  };
-
-  const handleCloseBudget = () => {
-    haptics.mediumImpact();
-    
-    if (!plan) return;
-
-    // Check if plan is unfunded
-    if (currentBalance === 0) {
-      // Show confirmation modal for unfunded plan
-      Alert.alert(
-        'Close Budget',
-        `Are you sure you want to close "${plan.name}"? This action cannot be undone.`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Yes',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                await deleteExpensePlan(id as string);
-                haptics.success();
-                router.replace('/(tabs)');
-              } catch (error: any) {
-                haptics.error();
-                Alert.alert('Error', error.message || 'Failed to close budget. Please try again.');
-              }
-            },
-          },
-        ]
-      );
-      return;
-    }
-
-    // For funded or partially funded plans, show options
-    Alert.alert(
-      'Close Vault',
-      `What would you like to do with the remaining funds (₦${currentBalance.toLocaleString()})?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Move to Wallet',
-          onPress: async () => {
-            try {
-              haptics.mediumImpact();
-              const result = await transferPlanToWallet(id as string, currentBalance);
-              
-              // Delete the plan after successful transfer
-              await deleteExpensePlan(id as string);
-              
-              // Navigate to success screen
-              router.push({
-                pathname: '/expense-planner/[id]/transfer-success',
-                params: {
-                  planId: id as string,
-                  planName: plan?.name || 'Vault',
-                  amountTransferred: currentBalance.toString(),
-                  newWalletBalance: (result as any)?.new_wallet_balance?.toString() || '0',
-                },
-              });
-            } catch (error: any) {
-              haptics.error();
-              Alert.alert('Error', error.message || 'Failed to transfer funds. Please try again.');
-            }
-          },
-        },
-        {
-          text: 'Auto Payout to Bank',
-          onPress: async () => {
-            // Check if user has payout accounts
-            await fetchPayoutAccounts();
-            
-            if (payoutAccounts.length === 0) {
-              Alert.alert(
-                'No Payout Account',
-                'You need to add a payout account first to receive funds.',
-                [
-                  {
-                    text: 'Cancel',
-                    style: 'cancel',
-                  },
-                  {
-                    text: 'Add Account',
-                    onPress: () => {
-                      router.push('/payout-accounts');
-                    },
-                  },
-                ]
-              );
-              return;
-            }
-
-            // Use default account or first account
-            const defaultAccount = payoutAccounts.find(acc => acc.is_default) || payoutAccounts[0];
-            
-            // Call the close plan with payout function
-            try {
-              haptics.mediumImpact();
-              
-              // Call the database function to update balances and create transaction
-              const { data: dbResult, error: dbError } = await supabase.rpc('close_plan_with_payout', {
-                arg_plan_id: id,
-                arg_amount: currentBalance,
-                arg_account_id: defaultAccount.id,
-              });
-
-              if (dbError || !dbResult?.success) {
-                throw new Error(dbResult?.error || dbError?.message || 'Failed to process payout');
-              }
-
-              // Then call the edge function to initiate the bank transfer
-              // Note: The edge function will handle the actual bank transfer
-              const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/withdraw-plan-extra-funds`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${session?.access_token}`,
-                },
-                body: JSON.stringify({
-                  planId: id,
-                  amount: currentBalance,
-                  accountId: defaultAccount.id,
-                }),
-              });
-
-              const result = await response.json();
-
-              if (!response.ok || !result.success) {
-                // Even if bank transfer fails, the plan is already closed in the database
-                // We should still delete the plan and show a message
-                console.warn('Bank transfer failed, but plan is closed:', result.error);
-              }
-
-              haptics.success();
-              
-              // Delete the plan after successful withdrawal
-              await deleteExpensePlan(id as string);
-              
-              Alert.alert(
-                'Vault Closed',
-                `₦${currentBalance.toLocaleString()} has been transferred to ${defaultAccount.bank_name} ••••${defaultAccount.account_number.slice(-4)}.`,
-                [
-                  {
-                    text: 'OK',
-          onPress: () => {
-                      router.replace('/(tabs)');
-                    },
-                  },
-                ]
-              );
-            } catch (error: any) {
-              haptics.error();
-              Alert.alert('Error', error.message || 'Failed to process payout. Please try again.');
-            }
-          },
-        },
-      ]
-    );
   };
 
   const handleViewBalance = () => {
@@ -581,7 +412,6 @@ export default function PlanDetailScreen() {
           onSpend={handleSpend}
           onFundPlan={handleFundPlan}
           onAdjustBudget={handleAdjustBudget}
-          onCloseBudget={handleCloseBudget}
           budgetStarted={budgetStarted}
           totalBudget={totalBudget}
         />

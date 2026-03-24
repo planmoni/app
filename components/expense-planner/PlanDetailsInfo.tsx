@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
-import { ArrowRight, Clock, Calendar, ChevronDown, ShoppingCart, CreditCard, Settings, X, Info, ArrowDown } from 'lucide-react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { ArrowRight, Clock, Calendar, ChevronDown, ShoppingCart, CreditCard, Settings, Info, ArrowDown } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -16,7 +16,6 @@ interface PlanDetailsInfoProps {
   onSpend?: () => void;
   onFundPlan?: () => void;
   onAdjustBudget?: () => void;
-  onCloseBudget?: () => void;
   budgetStarted?: boolean;
   totalBudget?: number;
   fundingMethod?: string;
@@ -29,7 +28,6 @@ export default function PlanDetailsInfo({
   onSpend,
   onFundPlan,
   onAdjustBudget,
-  onCloseBudget,
   budgetStarted = false,
   totalBudget = 0,
   fundingMethod = 'manual'
@@ -381,17 +379,6 @@ export default function PlanDetailsInfo({
             )}
 
             {/* Adjust Budget Button - Only show if budget hasn't started */}
-
-            {/* Close Budget Button */}
-            <Pressable 
-              style={[styles.actionButton, styles.actionButtonDanger]}
-              onPress={onCloseBudget}
-            >
-              <X size={20} color={colors.textTertiary}/>
-              <Text style={[styles.actionButtonText, styles.actionButtonTextDanger]}>
-                Close Vault
-              </Text>
-            </Pressable>
           </>
         )}
       </View>
@@ -622,10 +609,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       backgroundColor: colors.backgroundTertiary,
       borderColor: colors.border,
     },
-    actionButtonDanger: {
-      backgroundColor: colors.backgroundTertiary,
-      borderColor: colors.border,
-    },
     actionButtonText: {
       fontSize: getScaledFontSize(15, textSizeMultiplier),
       fontWeight: '600',
@@ -633,9 +616,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     },
     actionButtonTextSecondary: {
       color: isDark ? colors.text : colors.primary,
-    },
-    actionButtonTextDanger: {
-      color: '#EF4444',
     },
     disabledActionButton: {
       flexDirection: 'row',
