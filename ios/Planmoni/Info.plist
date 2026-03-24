@@ -47,6 +47,10 @@
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>TIKTOK_APP_ID</key>
+    <string>616288647079362578</string>
+    <key>TIKTOK_TEST_EVENT_CODE</key>
+    <string>TEST12345</string>
     <key>IntercomRegion</key>
     <string>US</string>
     <key>LSApplicationQueriesSchemes</key>
@@ -75,6 +79,8 @@
     <string>This app uses the microphone to provide a better experience.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Planmoni needs access to your photos to upload document images.</string>
+    <key>NSUserTrackingUsageDescription</key>
+    <string>This identifier will be used to deliver personalized ads and measure ad performance.</string>
     <key>UIBackgroundModes</key>
     <array>
       <string>remote-notification</string>

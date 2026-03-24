@@ -980,7 +980,7 @@ export default function ViewPayoutScreen() {
           </Animated.View>
         )}
 
-        {isOwner && (plan.status === 'active' || plan.status === 'paused') && (
+        {/* {isOwner && (plan.status === 'active' || plan.status === 'paused') && (
           <Animated.View
             style={[
               styles.scheduleCard,
@@ -998,7 +998,7 @@ export default function ViewPayoutScreen() {
               <Text style={[styles.cancelPlanButtonText, { color: colors.textSecondary }]}>Cancel Plan</Text>
             </Pressable>
           </Animated.View>
-        )}
+        )} */}
 
         {/* {plan.status !== 'cancelled' && plan.status !== 'completed' && (
           <Animated.View 

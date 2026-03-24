@@ -52,6 +52,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { useAppLock } from '@/contexts/AppLockContext';
 import { getScaledFontSize } from '@/lib/textSize';
+import { TIKTOK_APP_ID, TIKTOK_APP_SECRET } from '@/lib/tiktok-config';
 import { usePin } from '@/contexts/PinContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';

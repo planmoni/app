@@ -2728,6 +2728,7 @@ PODS:
     - SDWebImage/Core (~> 5.17)
   - Sentry/HybridSDK (8.50.2)
   - SocketRocket (0.7.1)
+  - TikTokBusinessSDK (1.6.0)
   - Yoga (0.0.0)
   - ZXingObjC/Core (3.6.9)
   - ZXingObjC/OneD (3.6.9):
@@ -2868,6 +2869,7 @@ DEPENDENCIES:
   - RNScreens (from `../node_modules/react-native-screens`)
   - "RNSentry (from `../node_modules/@sentry/react-native`)"
   - RNSVG (from `../node_modules/react-native-svg`)
+  - TikTokBusinessSDK
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 SPEC REPOS:
@@ -2894,6 +2896,7 @@ SPEC REPOS:
     - SDWebImageWebPCoder
     - Sentry
     - SocketRocket
+    - TikTokBusinessSDK
     - ZXingObjC
 
 EXTERNAL SOURCES:
@@ -3314,9 +3317,10 @@ SPEC CHECKSUMS:
   SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380
   Sentry: d95f5f3b32d01324b3e27d3c52747005302cc026
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
+  TikTokBusinessSDK: 6fe49b5b06a24cfe6bf42da789e2f3c6ba39c0e3
   Yoga: b37eeaa6148984cac70ecaf8022bb209e03296cb
   ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5
 
-PODFILE CHECKSUM: b9a9e74e991db815897c5727636d0dc385b94d9b
+PODFILE CHECKSUM: 6c15ef4f3330beb7e76389db311ec5f5c2962b41
 
 COCOAPODS: 1.16.2

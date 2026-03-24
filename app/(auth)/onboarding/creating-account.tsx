@@ -9,6 +9,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import { accountCreationHandler } from '@/scripts/account-creation-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { trackTikTokEvent } from '@/lib/tiktok';
 
 export default function CreatingAccountScreen() {
   const { colors } = useTheme();
@@ -86,7 +87,8 @@ export default function CreatingAccountScreen() {
         onSuccess: async (data: any) => {
           console.log('Account creation successful:', data);
           setCreationProgress('Account created successfully!');
-          
+          trackTikTokEvent('Registration');
+
           // Set flag so home screen shows onboarding questionnaire modal once
           try {
             const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
