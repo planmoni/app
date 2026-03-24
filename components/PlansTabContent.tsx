@@ -83,6 +83,7 @@ export default function PlansTabContent({
         style={styles.tabScrollView}
         contentContainerStyle={styles.tabScrollContent}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
         refreshControl={
           onRefresh ? (
             <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />

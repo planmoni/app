@@ -47,6 +47,7 @@ export default function PayoutsTabContent({
         style={styles.tabScrollView}
         contentContainerStyle={styles.tabScrollContent}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
         refreshControl={
           onRefresh ? (
             <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />

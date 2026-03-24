@@ -286,7 +286,7 @@ export default function HomeScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const tabScrollViewRef = useRef<ScrollView>(null);
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
-  const { impact, notification } = useHaptics();
+  const { impact, notification, selection } = useHaptics();
   
   // Handle tab change with scroll
   const handleTabChange = useCallback((tab: 'home' | 'plans' | 'payouts') => {
@@ -302,15 +302,19 @@ export default function HomeScreen() {
     });
   }, [screenWidth, impact]);
 
-  // Handle scroll end to update active tab
+  // Handle scroll end to update active tab (swipe between Home / Vaults / Payouts)
   const handleScrollEnd = useCallback((event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
-    const tabIndex = Math.round(offsetX / screenWidth);
+    const tabIndex = Math.min(2, Math.max(0, Math.round(offsetX / screenWidth)));
     const newTab = tabIndex === 0 ? 'home' : tabIndex === 1 ? 'plans' : 'payouts';
-    if (newTab !== activeBalanceTab) {
-      setActiveBalanceTab(newTab);
-    }
-  }, [screenWidth, activeBalanceTab]);
+    setActiveBalanceTab((prev) => {
+      if (newTab !== prev) {
+        selection();
+        return newTab;
+      }
+      return prev;
+    });
+  }, [screenWidth, selection]);
 
   // Sync scroll position on mount or screen width change only
   useEffect(() => {
@@ -1566,7 +1570,7 @@ export default function HomeScreen() {
           decelerationRate="fast"
           snapToInterval={screenWidth}
           snapToAlignment="start"
-          scrollEnabled={false}
+          scrollEnabled
           style={[styles.tabContentScrollView, { width: screenWidth }]}
           contentContainerStyle={{ width: screenWidth * 3 }}
         >
@@ -1576,6 +1580,7 @@ export default function HomeScreen() {
               style={styles.tabScrollView}
               contentContainerStyle={styles.tabScrollContent}
               showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
               onScroll={Animated.event(
                 [{ nativeEvent: { contentOffset: { y: scrollY } } }],
                 { useNativeDriver: false }
