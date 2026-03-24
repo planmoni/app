@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFabKeyboardOffset } from '@/hooks/useFabKeyboardOffset';
 import { BlurView } from 'expo-blur';
 import LocationSearchModal from '@/components/LocationSearchModal';
+import { supabase } from '@/lib/supabase';
 
 interface PersonalInfoStepProps {
   onComplete: () => void;
@@ -70,6 +71,9 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   
+  // BVN data loading state
+  const [isLoadingBVNData, setIsLoadingBVNData] = useState(false);
+  
   // Refs
   const lastNameInputRef = useRef<TextInput>(null);
   const middleNameInputRef = useRef<TextInput>(null);
@@ -122,12 +126,88 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
     return null;
   };
 
+  // Load BVN names if BVN is verified
+  useEffect(() => {
+    const loadBVNNames = async () => {
+      if (!isBVNVerified || !session?.user?.id) return;
+      
+      // If names are already populated from formData, sync state with formData
+      if (formData?.first_name && formData?.last_name) {
+        if (firstName !== formData.first_name) setFirstName(formData.first_name);
+        if (lastName !== formData.last_name) setLastName(formData.last_name);
+        if (middleName !== (formData.middle_name || '')) setMiddleName(formData.middle_name || '');
+        return;
+      }
+      
+      try {
+        setIsLoadingBVNData(true);
+        
+        // Query safehaven_accounts to get account_name
+        const { data: accountData, error } = await supabase
+          .from('safehaven_accounts')
+          .select('account_name')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .limit(1)
+          .maybeSingle();
+        
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching BVN account data:', error);
+          return;
+        }
+        
+        if (accountData?.account_name) {
+          // Extract names from account_name
+          const names = accountData.account_name.trim().split(/\s+/);
+          const bvnFirstName = names[0] || '';
+          const bvnLastName = names[names.length - 1] || '';
+          const bvnMiddleName = names.length > 2 ? names.slice(1, -1).join(' ') : '';
+          
+          // Update state with BVN names
+          setFirstName(bvnFirstName);
+          setLastName(bvnLastName);
+          setMiddleName(bvnMiddleName);
+          
+          // Save to formData
+          await saveFormData({
+            first_name: bvnFirstName,
+            last_name: bvnLastName,
+            middle_name: bvnMiddleName
+          });
+        }
+      } catch (error) {
+        console.error('Error loading BVN names:', error);
+      } finally {
+        setIsLoadingBVNData(false);
+      }
+    };
+    
+    loadBVNNames();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBVNVerified, session?.user?.id, formData?.first_name, formData?.last_name, formData?.middle_name]);
+
   const handleDatePickerOpen = () => {
     const existingDate = parseDateFromString(dateOfBirth);
     if (existingDate) {
+      // Ensure the existing date is within valid range
+      const today = new Date();
+      const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+      const maxDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+      maxDate.setHours(23, 59, 59, 999);
+      
+      if (existingDate >= minDate && existingDate <= maxDate) {
       setSelectedDate(existingDate);
       setCurrentMonth(existingDate);
     } else {
+        // If existing date is out of range, set to a valid default (12 years ago)
+        const defaultDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+      setSelectedDate(null);
+        setCurrentMonth(defaultDate);
+      }
+    } else {
+      // Default to 12 years ago (maximum selectable date)
+      const today = new Date();
+      const defaultDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
       setSelectedDate(null);
       // Set to maximum allowed date (7 years ago) by default
       const maxDate = new Date();
@@ -145,13 +225,32 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
   };
 
   const handleDateSelect = (date: Date) => {
+    const today = new Date();
+    const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+    const maxDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+    maxDate.setHours(23, 59, 59, 999);
+    
+    // Only allow selection if date is within valid range
+    if (date >= minDate && date <= maxDate) {
     setSelectedDate(date);
+    }
   };
 
   const handleDateConfirm = () => {
     if (selectedDate) {
+      const today = new Date();
+      const minDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+      const maxDate = new Date(today.getFullYear() - 12, today.getMonth(), today.getDate());
+      maxDate.setHours(23, 59, 59, 999);
+      
+      // Validate date is within range before confirming
+      if (selectedDate >= minDate && selectedDate <= maxDate) {
       setDateOfBirth(formatDateForDisplay(selectedDate));
       setErrors(prev => ({ ...prev, dateOfBirth: '' }));
+      } else {
+        showToast('Please select a valid date of birth (minimum age: 12 years)', 'error');
+        return;
+      }
     }
     handleDatePickerClose();
   };
@@ -425,13 +524,15 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
               )}
               <View style={[styles.inputContainer, errors.firstName && styles.inputError]}>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, isBVNVerified && styles.inputReadOnly]}
                   placeholder="Enter your first name"
                   placeholderTextColor={colors.textTertiary}
                   value={firstName}
                   onChangeText={(text) => {
+                    if (!isBVNVerified) {
                     setFirstName(text);
                     setErrors(prev => ({ ...prev, firstName: '' }));
+                    }
                   }}
                   autoCapitalize="words"
                   returnKeyType="next"
@@ -440,6 +541,7 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
                 />
               </View>
               {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
+              {isBVNVerified && <Text style={styles.helperText}>This field is populated from your BVN verification</Text>}
             </View>
             
             <View style={styles.inputGroup}>
@@ -450,13 +552,15 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
               <View style={[styles.inputContainer, errors.lastName && styles.inputError]}>
                 <TextInput
                   ref={lastNameInputRef}
-                  style={styles.input}
+                  style={[styles.input, isBVNVerified && styles.inputReadOnly]}
                   placeholder="Enter your last name"
                   placeholderTextColor={colors.textTertiary}
                   value={lastName}
                   onChangeText={(text) => {
+                    if (!isBVNVerified) {
                     setLastName(text);
                     setErrors(prev => ({ ...prev, lastName: '' }));
+                    }
                   }}
                   autoCapitalize="words"
                   returnKeyType="next"
@@ -465,6 +569,7 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
                 />
               </View>
               {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
+              {isBVNVerified && <Text style={styles.helperText}>This field is populated from your BVN verification</Text>}
             </View>
             
             <View style={styles.inputGroup}>
@@ -475,17 +580,22 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
               <View style={styles.inputContainer}>
                 <TextInput
                   ref={middleNameInputRef}
-                  style={styles.input}
+                  style={[styles.input, isBVNVerified && styles.inputReadOnly]}
                   placeholder="Enter your middle name"
                   placeholderTextColor={colors.textTertiary}
                   value={middleName}
-                  onChangeText={setMiddleName}
+                  onChangeText={(text) => {
+                    if (!isBVNVerified) {
+                      setMiddleName(text);
+                    }
+                  }}
                   autoCapitalize="words"
                   returnKeyType="next"
                   onSubmitEditing={() => phoneInputRef.current?.focus()}
                   editable={!isCompleted && !namesFromBVN}
                 />
               </View>
+              {isBVNVerified && <Text style={styles.helperText}>This field is populated from your BVN verification</Text>}
             </View>
             
             <View style={styles.inputGroup}>
@@ -1083,6 +1193,9 @@ function createStyles(colors: any, isDark: boolean) {
       height: 40,
       justifyContent: 'center',
       alignItems: 'center',
+    },
+    navigationButtonDisabled: {
+      opacity: 0.3,
     },
     monthYearContainer: {
       flex: 1,

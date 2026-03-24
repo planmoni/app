@@ -695,6 +695,18 @@ function RootLayoutNav() {
           }} 
         />
         <Stack.Screen 
+          name="paystack-payment" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="paystack-payment/success" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
+          name="paystack-payment/failure" 
+          options={{ headerShown: false, gestureEnabled: false }} 
+        />
+        <Stack.Screen 
           name="all-payouts" 
           options={{ headerShown: false, gestureEnabled: false }} 
         />

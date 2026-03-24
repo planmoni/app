@@ -138,7 +138,10 @@ export default function Toast({
         useNativeDriver: true,
       })
     ]).start(() => {
-      onDismiss();
+      // Defer state update to avoid scheduling updates during render
+      setTimeout(() => {
+        onDismiss();
+      }, 0);
     });
   };
 

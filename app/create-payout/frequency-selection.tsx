@@ -1281,22 +1281,22 @@ export default function FrequencySelectionScreen() {
                   style={[
                     styles.selectButton,
                     selectedFrequency && selectedFrequency !== 'custom' && styles.selectButtonSelected
-                  ]}
-                  onPress={() => {
-                    if (Platform.OS !== 'web') {
-                      haptics.selection();
-                    }
-                    setShowFrequencyDropdown(!showFrequencyDropdown);
-                  }}
-                >
-                  <Text style={[
-                    styles.selectButtonText,
+              ]}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  haptics.selection();
+                }
+                setShowFrequencyDropdown(!showFrequencyDropdown);
+              }}
+            >
+              <Text style={[
+                styles.selectButtonText,
                     selectedFrequency && selectedFrequency !== 'custom' && styles.selectButtonTextSelected
-                  ]}>
-                    {getSelectedFrequencyLabel()}
-                  </Text>
+              ]}>
+                {getSelectedFrequencyLabel()}
+              </Text>
                   <ChevronDown size={20} color={selectedFrequency && selectedFrequency !== 'custom' ? '#1E3A8A' : colors.textSecondary} />
-                </Pressable>
+            </Pressable>
 
                 {/* Frequency dropdown */}
                 {showFrequencyDropdown && (

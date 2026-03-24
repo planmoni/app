@@ -1,5 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, ArrowRight, Building2, Link2 } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +18,7 @@ export default function AddFundsScreen() {
   const isSmallScreen = screenWidth < 380;
 
   const styles = createStyles(colors, isDark, isSmallScreen);
+  const styles = createStyles(colors, isDark, isSmallScreen);
 
   const handleBack = () => {
     haptics.lightImpact();
@@ -23,7 +26,9 @@ export default function AddFundsScreen() {
   };
 
   const handleBankTransfer = () => {
+  const handleBankTransfer = () => {
     haptics.mediumImpact();
+    router.push('/bank-transfer');
     router.push('/bank-transfer');
   };
 
@@ -59,7 +64,9 @@ export default function AddFundsScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: Math.max(20, insets.bottom) }
+          { paddingBottom: Math.max(20, insets.bottom) }
         ]}
+        showsVerticalScrollIndicator={false}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
@@ -181,18 +188,26 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   title: {
     fontSize: isSmallScreen ? 20 : 24,
     fontWeight: '700',
+    fontSize: isSmallScreen ? 20 : 24,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: 8,
   },
+  subtitle: {
   subtitle: {
     fontSize: isSmallScreen ? 14 : 16,
     color: colors.textSecondary,
     marginBottom: 24,
     lineHeight: 22,
+    color: colors.textSecondary,
+    marginBottom: 24,
+    lineHeight: 22,
   },
+  optionsContainer: {
   optionsContainer: {
     gap: 16,
   },
+  optionCard: {
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -204,16 +219,25 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     gap: 16,
     position: 'relative',
     overflow: 'visible',
+    padding: isSmallScreen ? 16 : 20,
+    gap: 16,
+    position: 'relative',
+    overflow: 'visible',
   },
+  optionIconContainer: {
   optionIconContainer: {
     width: 48,
     height: 48,
+    borderRadius: 12,
+    backgroundColor: colors.accentBackground,
     borderRadius: 12,
     backgroundColor: colors.accentBackground,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  optionContent: {
   },
   optionContent: {
     flex: 1,
@@ -228,8 +252,12 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontSize: isSmallScreen ? 13 : 13,
     color: colors.textSecondary,
     lineHeight: 20,
+    lineHeight: 20,
   },
   comingSoonTag: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
     position: 'absolute',
     top: -6,
     right: -6,
@@ -238,8 +266,13 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     paddingHorizontal: 8,
     paddingVertical: 4,
     zIndex: 10,
+    paddingVertical: 4,
+    zIndex: 10,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  comingSoonText: {
+    fontSize: isSmallScreen ? 10 : 11,
   },
   comingSoonText: {
     fontSize: isSmallScreen ? 10 : 11,
@@ -249,12 +282,21 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   optionCardDisabled: {
     opacity: 0.5,
   },
+  optionCardDisabled: {
+    opacity: 0.5,
+  },
+  optionIconContainerDisabled: {
+    opacity: 0.6,
   optionIconContainerDisabled: {
     opacity: 0.6,
   },
   optionTitleDisabled: {
     opacity: 0.7,
+  optionTitleDisabled: {
+    opacity: 0.7,
   },
+  optionDescriptionDisabled: {
+    opacity: 0.7,
   optionDescriptionDisabled: {
     opacity: 0.7,
   },

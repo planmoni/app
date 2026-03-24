@@ -75,6 +75,41 @@ export function usePayoutAccounts() {
     }
   };
 
+  const getProfileFullName = async (): Promise<string | null> => {
+    // Try session metadata first
+    const metaName = session?.user?.user_metadata?.full_name;
+    if (metaName && typeof metaName === 'string' && metaName.trim().length > 0) {
+      return metaName.trim();
+    }
+
+    // Fallback to profiles table (full_name, or first_name + last_name)
+    if (!session?.user?.id) return null;
+    const { data, error: profileError } = await supabase
+      .from('profiles')
+      .select('full_name, first_name, last_name')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.warn('Error fetching profile full_name for payout validation:', profileError);
+      return null;
+    }
+
+    const combined = data?.full_name && data.full_name.trim().length > 0
+      ? data.full_name.trim()
+      : `${data?.first_name || ''} ${data?.last_name || ''}`.trim();
+
+    return combined.length > 0 ? combined : null;
+  };
+
+  const normalizeTokens = (value: string | null | undefined) => {
+    if (!value) return [] as string[];
+    return value
+      .split(/\s+/)
+      .map(t => t.trim().toLowerCase().replace(/[^a-z0-9]/g, ''))
+      .filter(Boolean);
+  };
+
   const addPayoutAccount = async (accountData: {
     account_name: string;
     account_number: string;
@@ -85,6 +120,23 @@ export function usePayoutAccounts() {
   }) => {
     try {
       setError(null);
+      
+      if (!session?.user?.id) {
+        const msg = 'User not authenticated';
+        setError(msg);
+        throw new Error(msg);
+      }
+
+      // Enforce max 3 accounts
+      if (payoutAccounts.length >= 3) {
+        const msg = 'You can only add up to 3 payout accounts. Please remove one to add another.';
+        setError(msg);
+        throw new Error(msg);
+      }
+
+      // Get profile name for validation
+      const profileFullName = await getProfileFullName();
+      const profileTokens = normalizeTokens(profileFullName);
       
       // Check if account already exists
       const { data: existingAccount, error: checkError } = await supabase
@@ -101,6 +153,20 @@ export function usePayoutAccounts() {
         const errorMessage = `This account (${accountData.account_number.slice(-4)}) at ${accountData.bank_name} already exists in your payout accounts.`;
         setError(errorMessage);
         throw new Error(errorMessage);
+      }
+
+      // Name validation: require at least 2 matching tokens
+      const accountNameTokens = normalizeTokens(accountData.account_name);
+
+      // Only enforce client-side if we have both sides
+      if (profileTokens.length > 0 && accountNameTokens.length > 0) {
+        const profileSet = new Set(profileTokens);
+        const matches = accountNameTokens.filter(tok => profileSet.has(tok));
+        if (matches.length < 2) {
+          const msg = 'The payout account does not match your name, please contact support';
+          setError(msg);
+          throw new Error(msg);
+        }
       }
       
       // Log the data being inserted for debugging
