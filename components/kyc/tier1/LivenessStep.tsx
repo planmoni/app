@@ -35,6 +35,9 @@ export default function LivenessStep({ onComplete }: LivenessStepProps) {
     try {
       setIsLoading(true);
       
+      // Close the modal immediately to prevent blank screen
+      setShowLivenessTest(false);
+      
       // Save the selfie URL to form data
       await saveFormData({
         selfie_url: selfieUrl
@@ -98,25 +101,32 @@ export default function LivenessStep({ onComplete }: LivenessStepProps) {
       }
       
       // Update progress
-      await updateProgress({
+      const updateResult = await updateProgress({
         current_step: 'bvn_verification',
         liveness_test_completed: true
       });
       
-      // Reload progress to ensure state is updated
+      // Reload progress to ensure state is updated - wait for it to complete
       await loadProgress();
+      
+      // Double-check that progress was updated correctly
+      // Wait a bit more to ensure state propagation
+      await new Promise(resolve => setTimeout(resolve, 200));
       
       showToast('Selfie captured and saved successfully', 'success');
       
-      // Auto-advance to next step
-      setTimeout(() => {
-        setShowLivenessTest(false);
+      // Wait to ensure modal animation completes before changing step
+      // Modal uses slide animation which takes ~300ms, so 500ms ensures it's fully closed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Auto-advance to next step after ensuring modal is fully closed
         onComplete();
-      }, 1000);
       
     } catch (error) {
       console.error('Error handling liveness completion:', error);
       showToast('Failed to process liveness completion. Please try again.', 'error');
+      // Ensure modal is closed even on error
+      setShowLivenessTest(false);
     } finally {
       setIsLoading(false);
     }

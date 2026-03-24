@@ -5,6 +5,9 @@ import { router } from 'expo-router';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useToast } from '@/contexts/ToastContext';
 import { inAppNotificationService } from '@/lib/in-app-notifications';
+import { trackTikTokEvent } from '@/lib/tiktok';
+import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee-calculator';
+import { PLAN_CREATION_FEE_PERCENT } from '@/types/payout-fees';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
@@ -24,10 +27,14 @@ export function useCreatePayout() {
     bankAccountId,
     payoutAccountId,
     customDates,
-    emergencyWithdrawalEnabled = false,
+    customDateAmounts,
+    customDateTimes,
+    emergencyWithdrawalEnabled = true, // Default to enabled
     dayOfWeek,
     payoutHour,
-    payoutMinute
+    payoutMinute,
+    purpose,
+    purposeOther,
   }: {
     name: string;
     description?: string;
@@ -39,10 +46,14 @@ export function useCreatePayout() {
     bankAccountId?: string | null;
     payoutAccountId?: string | null;
     customDates?: string[];
+    customDateAmounts?: Record<string, string>;
+    customDateTimes?: Record<string, string>; // date -> "HH:mm", default 12:00
     emergencyWithdrawalEnabled?: boolean;
     dayOfWeek?: number;
     payoutHour?: number;
     payoutMinute?: number;
+    purpose?: string;
+    purposeOther?: string;
   }) => {
     try {
       setIsLoading(true);
@@ -82,8 +93,29 @@ export function useCreatePayout() {
       console.log('- Current Balance:', balance);
       console.log('- Locked Balance:', lockedBalance);
 
-      // Check if user has enough available balance using fresh data
-      if (totalAmount > balance) {
+      // 💰 Compute fees (processing + stamp duty + transaction) so we know total required
+      const numPayouts = duration;
+      let feeAmount: number;
+      let netPayoutAmount: number;
+      let perPayoutForPlan: number;
+      if (frequency === 'custom' && customDates?.length) {
+        const perPayoutAmounts = customDates.map((d) => {
+          const raw = customDateAmounts?.[d];
+          const num = typeof raw === 'string' ? parseFloat(raw.replace(/,/g, '')) : Number(raw);
+          return !isNaN(num) ? num : 0;
+        });
+        const result = calculatePayoutFeesCustom(totalAmount, perPayoutAmounts);
+        feeAmount = result.totalFees;
+        netPayoutAmount = result.netPayoutAmount;
+        perPayoutForPlan = result.perPayoutAmount;
+      } else {
+        const result = calculatePayoutFees(totalAmount, numPayouts);
+        feeAmount = result.totalFees;
+        netPayoutAmount = result.netPayoutAmount;
+        perPayoutForPlan = result.perPayoutAmount;
+      }
+      // Fee is taken from the amount: user only needs totalAmount (fees are deducted from it)
+      if (balance < totalAmount) {
         throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${balance.toLocaleString()} available.`);
       }
 
@@ -102,14 +134,13 @@ export function useCreatePayout() {
       } else if (frequency === 'weekly') {
         nextPayoutDate.setDate(startDateObj.getDate() + 7);
       } else if (frequency === "weekly_specific" && dayOfWeek !== undefined) {
-        // Calculate the next occurrence of the specified day of week
+        // First payout: next occurrence of the selected day on or after start date (0 = start is that day)
         const currentDayOfWeek = startDateObj.getDay();
         const daysToAdd = (7 + dayOfWeek - currentDayOfWeek) % 7;
-        nextPayoutDate.setDate(
-          startDateObj.getDate() + (daysToAdd === 0 ? 7 : daysToAdd)
-        );
+        nextPayoutDate.setDate(startDateObj.getDate() + daysToAdd);
       } else if (frequency === "biweekly") {
-        nextPayoutDate.setDate(startDateObj.getDate() + 14);
+        // First payout on start_date; update_payout_plan_progress advances by 2 weeks from last payout
+        // nextPayoutDate is already a copy of startDateObj, no change needed
       } else if (frequency === "monthly") {
         nextPayoutDate.setMonth(startDateObj.getMonth() + 1);
       } else if (frequency === "end_of_month") {
@@ -129,19 +160,18 @@ export function useCreatePayout() {
       // Store the original frequency in the description for display purposes
       const enhancedDescription = description || "";
 
-      // Store additional metadata for special frequency types
-      const metadata = {
+      // Store additional metadata for special frequency types and optional fee breakdown
+      const metadata: Record<string, unknown> = {
         originalFrequency: frequency,
         dayOfWeek: dayOfWeek,
         payoutHour: payoutHour,
         payoutMinute: payoutMinute
       };
 
-      // 🔒 SECURITY: Lock funds FIRST before creating plan to prevent race conditions
-      // This ensures only one device can successfully lock funds, preventing duplicate plans
+      // 🔒 SECURITY: Lock only the net payout amount (fees are taken from totalAmount, not added on top)
       const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
         arg_user_id: session.user.id,
-        arg_amount: totalAmount
+        arg_amount: netPayoutAmount
       });
 
       if (lockError) {
@@ -174,6 +204,7 @@ export function useCreatePayout() {
       }
 
       console.log("Funds locked successfully. Available balance after lock:", lockResult?.available_balance);
+      console.log('Fee calculation (processing + stamp + transaction):', { feeAmount, netPayoutAmount, totalAmount });
 
       // ➕ SECURITY: Now create payout plan AFTER funds are locked
       // If this fails, we'll unlock the funds in the catch block
@@ -186,8 +217,8 @@ export function useCreatePayout() {
             name,
             description: enhancedDescription,
             total_amount: totalAmount,
-            payout_amount: payoutAmount,
-            frequency: dbFrequency, // Use the mapped frequency value
+            payout_amount: perPayoutForPlan,
+            frequency: dbFrequency,
             duration,
             start_date: startDate,
             bank_account_id: bankAccountId || null,
@@ -199,7 +230,12 @@ export function useCreatePayout() {
               dbFrequency === "custom" && customDates?.length
                 ? customDates[0]
                 : nextPayoutDateStr,
-            metadata: metadata, // Store additional frequency metadata
+            metadata: metadata,
+            fee_percentage: PLAN_CREATION_FEE_PERCENT,
+            fee_amount: feeAmount,
+            net_payout_amount: netPayoutAmount,
+            purpose: purpose || null,
+            purpose_other_text: purposeOther || null,
           })
           .select()
           .single();
@@ -208,44 +244,106 @@ export function useCreatePayout() {
           console.error('Error creating payout plan:', payoutError);
           
           // SECURITY: Unlock funds if plan creation fails
-          await supabase.rpc('unlock_funds', {
+        try {
+          const unlockResult = await supabase.rpc('unlock_funds', {
             arg_user_id: session.user.id,
-            arg_amount: totalAmount
-          }).catch((unlockErr: any) => {
-            console.error('Error unlocking funds after plan creation failure:', unlockErr);
+            arg_amount: netPayoutAmount
           });
+            if (unlockResult?.error) {
+              console.error('Error unlocking funds after plan creation failure:', unlockResult.error);
+            }
+          } catch (unlockErr: any) {
+            console.error('Error unlocking funds after plan creation failure:', unlockErr);
+          }
           
           throw payoutError;
         }
 
         payoutPlan = planData;
         console.log('Payout plan created:', payoutPlan.id);
-      } catch (planError) {
-        // SECURITY: Ensure funds are unlocked if plan creation fails
-        await supabase.rpc('unlock_funds', {
-          arg_user_id: session.user.id,
-          arg_amount: totalAmount
-        }).catch((unlockErr: any) => {
-          console.error('Error unlocking funds after plan creation failure:', unlockErr);
+
+        // 💸 Charge plan fee once (deduct from wallet) + record in user fees ledger/rollup
+        // This prevents the fee from ever reappearing in available balance.
+        const { data: feeChargeResult, error: feeChargeError } = await supabase.rpc('charge_plan_fee', {
+          p_plan_id: payoutPlan.id,
         });
+        if (feeChargeError) {
+          console.error('Error charging plan fee:', feeChargeError);
+          throw feeChargeError;
+        }
+        if (feeChargeResult && feeChargeResult.success === false) {
+          console.error('charge_plan_fee failed:', feeChargeResult);
+          throw new Error(feeChargeResult.error || 'Failed to charge plan fee');
+        }
+      } catch (planError) {
+        // SECURITY: Ensure funds are unlocked if plan creation fails (we locked netPayoutAmount)
+        try {
+          const unlockResult = await supabase.rpc('unlock_funds', {
+          arg_user_id: session.user.id,
+          arg_amount: netPayoutAmount
+          });
+          if (unlockResult?.error) {
+            console.error('Error unlocking funds after plan creation failure:', unlockResult.error);
+          }
+        } catch (unlockErr: any) {
+          console.error('Error unlocking funds after plan creation failure:', unlockErr);
+        }
         
         throw planError;
       }
 
-      // 📆 Insert custom dates if needed
+      // 📆 Insert custom dates if needed (with per-date amount and time)
       if (dbFrequency === "custom" && customDates?.length) {
+        const datesToInsert = customDates.map((date) => {
+          const timeStr = customDateTimes?.[date] || '12:00';
+          const [h, m] = timeStr.split(':').map(Number);
+          const hour = (isNaN(h) ? 12 : h % 24).toString().padStart(2, '0');
+          const minute = (isNaN(m) ? 0 : m % 60).toString().padStart(2, '0');
+          const payoutTime = `${hour}:${minute}:00`;
+
+          const baseRecord: any = {
+            payout_plan_id: payoutPlan.id,
+            payout_date: date,
+            payout_time: payoutTime,
+          };
+
+          if (customDateAmounts && customDateAmounts[date]) {
+            const amountStr = customDateAmounts[date];
+            const numericAmount = parseFloat(amountStr.replace(/,/g, ''));
+            if (!isNaN(numericAmount) && numericAmount > 0) {
+              baseRecord.amount = numericAmount;
+            }
+          }
+
+          return baseRecord;
+        });
+
         const { error: datesError } = await supabase
           .from("custom_payout_dates")
-          .insert(
-            customDates.map((date) => ({
-              payout_plan_id: payoutPlan.id,
-              payout_date: date,
-            }))
-          );
+          .insert(datesToInsert);
 
         if (datesError) {
           console.error("Error adding custom dates:", datesError);
           throw datesError;
+        }
+
+        // Set next_payout_date to first date + first time (trigger runs before rows exist, so we set it here)
+        const firstDate = customDates[0];
+        const firstTime = customDateTimes?.[firstDate] || '12:00';
+        const [fh, fm] = firstTime.split(':').map(Number);
+        const firstHour = isNaN(fh) ? 12 : fh % 24;
+        const firstMinute = isNaN(fm) ? 0 : fm % 60;
+        const firstDateTime = new Date(firstDate);
+        firstDateTime.setHours(firstHour, firstMinute, 0, 0);
+        const firstPayoutDateStr = firstDateTime.toISOString();
+
+        const { error: updateError } = await supabase
+          .from("payout_plans")
+          .update({ next_payout_date: firstPayoutDateStr })
+          .eq("id", payoutPlan.id);
+
+        if (updateError) {
+          console.error("Error setting initial next_payout_date for custom plan:", updateError);
         }
       }
 
@@ -281,6 +379,7 @@ export function useCreatePayout() {
 
       // ✅ Show toast
       showToast?.("Payout plan created successfully!", "success");
+      trackTikTokEvent('LoanApplication');
 
       // Get account details for success page
       let accountNumber = "";
@@ -314,6 +413,7 @@ export function useCreatePayout() {
       router.replace({
         pathname: "/create-payout/success",
         params: {
+          planId: payoutPlan.id,
           totalAmount: totalAmount.toString(),
           frequency,
           payoutAmount: payoutAmount.toString(),

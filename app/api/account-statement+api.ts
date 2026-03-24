@@ -4,7 +4,7 @@ import { Database } from '@/types/supabase';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
-const RESEND_API_KEY = process.env.RESEND_API_KEY || 're_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu';
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 function createJsonResponse(data: any, status: number = 200) {
   return new Response(JSON.stringify(data), {

@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
-import { ChevronRight, X, Mail, Lock, Fingerprint, CircleAlert as AlertCircle, Clock } from 'lucide-react-native';
+import { ChevronRight, X, Mail, Lock, Fingerprint, CircleAlert as AlertCircle, Clock, ShieldCheck } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useState, useEffect } from 'react';
@@ -96,6 +96,20 @@ export default function PendingActionsCard() {
   const getStandardPendingActions = (): PendingAction[] => {
     const actions: PendingAction[] = [];
 
+    // Verify Identity - show if KYC is not completed
+    // if (progress && !Boolean(progress.id_face_verified)) {
+    //   actions.push({
+    //     id: 'verify-identity',
+    //     title: 'Verify your Identity',
+    //     description: 'Complete KYC verification with just your BVN and a selfie',
+    //     icon: ShieldCheck,
+    //     iconBg: colors.primary + '20',
+    //     iconColor: isDark ? '#fff' : colors.primary,
+    //     route: '/kyc/simplified',
+    //     priority: 'high',
+    //   });
+    // }
+
     if (!profileData?.email_verified && !session?.user?.email_confirmed_at) {
       actions.push({
         id: 'verify-email',
@@ -151,6 +165,8 @@ export default function PendingActionsCard() {
     if (!profileData && !progress) return false;
     
     switch (actionId) {
+      case 'verify-identity':
+        return Boolean(progress?.id_face_verified);
       case 'verify-email':
         return !!profileData?.email_verified || !!session?.user?.email_confirmed_at;
       case 'setup-app-lock':
@@ -342,8 +358,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginRight: 8,
   },
   actionTitle: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 13, textSizeMultiplier),
-    fontWeight: '600',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
+    fontWeight: '500',
     color: colors.text,
     marginTop: 10,
   },
@@ -375,8 +391,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     alignItems: 'center',
   },
   sectionTitle: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
-    fontWeight: '700',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 13, textSizeMultiplier),
+    fontWeight: '500',
     color: colors.text,
     marginBottom: -20,
     marginTop: 1,

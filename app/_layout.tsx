@@ -15,20 +15,28 @@ import { AppVersionProvider } from '@/contexts/AppVersionContext';
 import UpdateAppModal from '@/components/UpdateAppModal';
 import { UserActivityTracker } from '@/hooks/useUserActivityTracking';
 import { NotificationProvider } from '@/contexts/NotificationContext';
+import { QueryClientProvider } from '@/contexts/QueryClientProvider';
 import { PaystackProvider } from 'react-native-paystack-webview';
 import Constants from 'expo-constants';
+
 
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
 import { usePayoutNotifications } from '@/hooks/usePayoutNotifications';
 import { useTransactionNotifications } from '@/hooks/useTransactionNotifications';
-import { SplashScreen, Stack , usePathname } from 'expo-router';
+import { supabase } from '@/lib/supabase';
+import { SplashScreen, Stack, usePathname, router } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, StyleSheet, Platform } from 'react-native';
+import { Text, View, StyleSheet, Platform, AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications, setupTokenRefresh } from '@/lib/notifications';
+import { initializeMessaging } from '@/lib/firebase';
+import { initAppsFlyer } from '@/lib/appsflyer';
+import { identifyTikTokUser } from '@/lib/tiktok';
 import * as SystemUI from 'expo-system-ui';
+import * as Updates from 'expo-updates';
 // Conditionally import NavigationBar to handle cases where native module isn't available
 let NavigationBar: any = null;
 try {
@@ -49,6 +57,7 @@ import AppBlur from '@/components/AppBlur';
 
 // import { SessionDebugger } from '@/components/SessionDebugger';
 import AppErrorProvider, { useAppError } from '@/contexts/AppErrorContext';
+import { FeedbackProvider, useFeedback } from '@/contexts/FeedbackContext';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch((e) =>
@@ -68,12 +77,32 @@ function RootLayoutNav() {
   const previousSessionRef = useRef<typeof session>(null);
   const [isAuthTransitioning, setIsAuthTransitioning] = useState(false);
   
+  // Track app state for update checks
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  
   // Track page changes for redirect after unlock
   usePageTracking();
   
   // Initialize notification hooks for payout and transaction notifications
   usePayoutNotifications();
   useTransactionNotifications();
+
+  // Initialize AppsFlyer SDK (Android / iOS)
+  useEffect(() => {
+    initAppsFlyer();
+  }, []);
+
+  // TikTok: identify user when session is available (iOS)
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const email = session.user.email ?? undefined;
+    const name = [session.user.user_metadata?.first_name, session.user.user_metadata?.last_name].filter(Boolean).join(' ') || undefined;
+    identifyTikTokUser({
+      externalId: session.user.id,
+      externalUserName: name || undefined,
+      email: email || undefined,
+    });
+  }, [session?.user?.id, session?.user?.email, session?.user?.user_metadata]);
 
   // Update Android navigation bar style based on theme
   useEffect(() => {
@@ -224,6 +253,84 @@ function RootLayoutNav() {
     }
   }, [session?.user?.id]);
 
+  // Update last_seen_at on app open and when app comes to foreground (for re-engagement and daily digest)
+  const lastSeenAppStateRef = useRef<AppStateStatus>(AppState.currentState);
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    const updateLastSeen = () => {
+      supabase
+        .from('profiles')
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq('id', userId)
+        .then(({ error }) => {
+          if (error) console.warn('Failed to update last_seen_at:', error?.message);
+        });
+    };
+
+    updateLastSeen();
+
+    const sub = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      const prev = lastSeenAppStateRef.current;
+      lastSeenAppStateRef.current = nextAppState;
+      if (prev.match(/inactive|background/) && nextAppState === 'active') {
+        updateLastSeen();
+      }
+    });
+
+    return () => sub?.remove();
+  }, [session?.user?.id]);
+
+  // Feedback modal: show on second app open (once per user)
+  const { showFeedback } = useFeedback();
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const run = async () => {
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const countKey = 'planmoni_app_open_count';
+        const shownKey = 'planmoni_feedback_second_open_shown';
+        const raw = await AsyncStorage.getItem(countKey);
+        const count = Math.max(0, parseInt(raw ?? '0', 10) || 0);
+        const next = count + 1;
+        await AsyncStorage.setItem(countKey, String(next));
+        if (next === 2) {
+          const alreadyShown = await AsyncStorage.getItem(shownKey);
+          if (!alreadyShown) {
+            await AsyncStorage.setItem(shownKey, 'true');
+            showFeedback('second_open');
+          }
+        }
+      } catch (e) {
+        console.warn('Feedback second-open check failed:', e);
+      }
+    };
+    run();
+  }, [session?.user?.id, showFeedback]);
+
+  // Handle plan share deep link (myapp://plan/CODE or https://planmoni.com/plan/CODE)
+  useEffect(() => {
+    function getPlanCodeFromUrl(url: string | null): string | null {
+      if (!url || !url.trim()) return null;
+      const match = url.match(/plan\/([A-Za-z0-9_-]+)/);
+      return match ? match[1] : null;
+    }
+    function navigateToPlanShare(code: string) {
+      if (!code) return;
+      router.replace(`/plan/${encodeURIComponent(code)}` as any);
+    }
+    Linking.getInitialURL().then((url) => {
+      const code = getPlanCodeFromUrl(url);
+      if (code) navigateToPlanShare(code);
+    });
+    const sub = Linking.addEventListener('url', (event: { url: string }) => {
+      const code = getPlanCodeFromUrl(event.url);
+      if (code) navigateToPlanShare(code);
+    });
+    return () => sub.remove();
+  }, []);
+
   // Handle notifications when app is opened from background/closed state
   useEffect(() => {
     const checkInitialNotification = async () => {
@@ -245,15 +352,24 @@ function RootLayoutNav() {
             return;
           }
 
-          // Handle event/notification navigation
+          // Handle event/notification navigation (prefer explicit route, then type + plan_id, then type map)
+          const notificationType = data?.type ?? data?.eventType ?? data?.notificationType;
+          const planId = data?.plan_id;
+
           if (data?.route) {
             console.log('🔔 App opened from notification, navigating to:', data.route);
             setTimeout(() => {
               const { router } = require('expo-router');
               router.push(data.route as any);
             }, 1000);
-          } else if (data?.eventType || data?.notificationType) {
-            // Navigate based on event/notification type
+          } else if (planId && ['payout_ready', 'payout_failed', 'plan_expiry_reminder', 'mid_plan'].includes(notificationType)) {
+            const route = `/view-payout/${planId}`;
+            console.log('🔔 App opened from notification, navigating to:', route);
+            setTimeout(() => {
+              const { router } = require('expo-router');
+              router.push(route as any);
+            }, 1000);
+          } else if (notificationType) {
             const routeMap: Record<string, string> = {
               payout_completed: '/all-payouts',
               payout_scheduled: '/all-payouts',
@@ -268,9 +384,17 @@ function RootLayoutNav() {
               payout: '/all-payouts',
               transaction: '/transactions',
               security: '/profile',
+              payout_ready: '/all-payouts',
+              payout_failed: '/all-payouts',
+              plan_expiry_reminder: '/all-payouts',
+              daily_digest: '/(tabs)/',
+              re_engagement: '/(tabs)/',
+              no_plan_yet: '/create-payout/amount',
+              deposit_no_plan: '/create-payout/amount',
+              streak: '/(tabs)/',
             };
-            const eventType = (data.eventType || data.notificationType) as string;
-            const route = routeMap[eventType] || '/(tabs)/';
+            const route = routeMap[notificationType] || '/(tabs)/';
+            console.log('🔔 App opened from notification, navigating to:', route);
             setTimeout(() => {
               const { router } = require('expo-router');
               router.push(route as any);
@@ -310,6 +434,122 @@ function RootLayoutNav() {
       // Don't block app startup if fonts fail to load - use system fonts as fallback
     }
   }, [fontError]);
+
+  // Check for and apply OTA updates automatically
+  useEffect(() => {
+    let isChecking = false;
+
+    const checkForUpdates = async (source: string = 'initial') => {
+      // Only check for updates in production builds (not in development)
+      if (__DEV__) {
+        console.log('🔧 Development mode: Skipping OTA update check');
+        return;
+      }
+
+      // Prevent concurrent update checks
+      if (isChecking) {
+        console.log('⏳ Update check already in progress, skipping...');
+        return;
+      }
+
+      try {
+        isChecking = true;
+        
+        // Check if updates are enabled
+        if (!Updates.isEnabled) {
+          console.log('ℹ️ OTA updates are not enabled');
+          return;
+        }
+
+        // Get current update info for debugging
+        const currentlyRunningUpdate = Updates.updateId;
+        const runtimeVersion = Updates.runtimeVersion;
+        
+        console.log('🔄 Checking for OTA updates...', {
+          source,
+          currentlyRunningUpdate,
+          runtimeVersion,
+          updateUrl: Updates.url || 'N/A'
+        });
+        
+        // Check for available updates
+        const update = await Updates.checkForUpdateAsync();
+        
+        if (update.isAvailable) {
+          console.log('✅ Update available!', {
+            manifest: update.manifest?.id || 'N/A',
+            createdAt: update.manifest?.createdAt || 'N/A',
+            runtimeVersion: update.manifest?.runtimeVersion || 'N/A'
+          });
+          
+          // Download the update in the background
+          const fetchResult = await Updates.fetchUpdateAsync();
+          
+          if (fetchResult.isNew) {
+            console.log('✅ New update downloaded successfully, reloading app...');
+            
+            // Reload the app to apply the update
+            // Use a small delay to ensure any pending operations complete
+            setTimeout(() => {
+              Updates.reloadAsync().catch((error) => {
+                console.error('❌ Error reloading app with update:', error);
+                isChecking = false;
+              });
+            }, 1000);
+          } else {
+            console.log('ℹ️ Update downloaded but not new, already have this version');
+            isChecking = false;
+          }
+        } else {
+          console.log('✅ App is up to date', {
+            currentlyRunningUpdate,
+            runtimeVersion
+          });
+          isChecking = false;
+        }
+      } catch (error) {
+        console.error('❌ Error checking for updates:', error);
+        isChecking = false;
+        // Don't block app startup if update check fails
+      }
+    };
+
+    // Check for updates when app comes to foreground
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        // App came to foreground - check for updates
+        console.log('📱 App came to foreground, checking for updates...');
+        setTimeout(() => {
+          checkForUpdates('foreground');
+        }, 1000);
+      }
+      appStateRef.current = nextAppState;
+    };
+
+    // Initial check after app initialization
+    const timer = setTimeout(() => {
+      checkForUpdates('initial');
+    }, 2000);
+
+    // Subscribe to app state changes
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    // Periodic check every 30 minutes (as fallback)
+    const intervalId = setInterval(() => {
+      if (appStateRef.current === 'active') {
+        checkForUpdates('periodic');
+      }
+    }, 30 * 60 * 1000); // 30 minutes
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(intervalId);
+      subscription?.remove();
+    };
+  }, []);
 
   // Track app initialization - keep splash visible until everything is ready
   useEffect(() => {
@@ -455,18 +695,6 @@ function RootLayoutNav() {
           }} 
         />
         <Stack.Screen 
-          name="paystack-payment" 
-          options={{ headerShown: false, gestureEnabled: false }} 
-        />
-        <Stack.Screen 
-          name="paystack-payment/success" 
-          options={{ headerShown: false, gestureEnabled: false }} 
-        />
-        <Stack.Screen 
-          name="paystack-payment/failure" 
-          options={{ headerShown: false, gestureEnabled: false }} 
-        />
-        <Stack.Screen 
           name="all-payouts" 
           options={{ headerShown: false, gestureEnabled: false }} 
         />
@@ -527,7 +755,7 @@ function RootLayoutNav() {
           options={{ headerShown: false, gestureEnabled: false }} 
         />
         <Stack.Screen 
-          name="expense-planner" 
+          name="plan/[code]" 
           options={{ headerShown: false, gestureEnabled: false }} 
         />
         <Stack.Screen 
@@ -563,33 +791,19 @@ function RootLayoutNav() {
 export default function RootLayout() {
   useFrameworkReady();
 
-  // Get Paystack public key - try multiple sources (check both LIVE and regular keys)
-  const paystackPublicKey = 
-    Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
-    Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ||
-    Constants.expoConfig?.extra?.extra?.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
-    Constants.expoConfig?.extra?.extra?.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ||
-    process.env.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
-    process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
-  
-  // Log if public key is missing (only in dev)
-  if (__DEV__) {
-    console.log('🔍 Paystack Key Debug:', {
-      liveKeyFromConstants: Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ? 'found' : 'not found',
-      regularKeyFromConstants: Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ? 'found' : 'not found',
-      liveKeyFromEnv: process.env.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ? 'found' : 'not found',
-      regularKeyFromEnv: process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ? 'found' : 'not found',
-      finalKey: paystackPublicKey ? `${paystackPublicKey.substring(0, 10)}...` : 'EMPTY',
-    });
+  // Initialize Firebase messaging early to prevent initialization errors
+  useEffect(() => {
+    const initFirebase = async () => {
+      try {
+        await initializeMessaging();
+        console.log('✅ Firebase messaging initialized');
+      } catch (error) {
+        console.warn('⚠️ Firebase messaging initialization failed (non-critical):', error);
+      }
+    };
     
-    if (!paystackPublicKey) {
-      console.error('❌ Paystack public key is missing! Payment will not work.');
-      console.error('   Please set EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY or EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY in your .env file');
-      console.error('   Then restart the app with: npm start -- --clear');
-    } else {
-      console.log('✅ Paystack public key loaded:', paystackPublicKey.substring(0, 15) + '...');
-    }
-  }
+    initFirebase();
+  }, []);
 
   // Initialize expo-system-ui and navigation bar for edge-to-edge display
   useEffect(() => {
@@ -612,40 +826,50 @@ export default function RootLayout() {
     }
   }, []);
 
+  // Get Paystack public key from environment
+  const paystackPublicKey = 
+    Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
+    Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ||
+    process.env.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
+    process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ||
+    'pk_test_placeholder'; // Fallback to prevent provider error
+
   return (
     <AppErrorProvider>
-      <ThemeProvider>
-        <TextSizeProvider>
-          <ToastProvider>
-            <PaystackProvider 
-              publicKey={paystackPublicKey || 'pk_test_placeholder'} // Use placeholder if key is missing
-              currency="NGN"
-              defaultChannels={['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer']}
-              debug={__DEV__}
-            >
-              <AuthProvider>
-                <AppVersionProvider>
-                  <PinProvider>
-                    <AppLockProvider>
-                      <NotificationProvider>
-                        <BalanceProvider>
-                          <BottomNavProvider>
-                            <AppBlur>
-                              <UserActivityTracker>
-                                <RootLayoutNav />
-                              </UserActivityTracker>
-                            </AppBlur>
-                          </BottomNavProvider>
-                        </BalanceProvider>
-                      </NotificationProvider>
-                    </AppLockProvider>
-                  </PinProvider>
-                </AppVersionProvider>
-              </AuthProvider>
-            </PaystackProvider>
-          </ToastProvider>
-        </TextSizeProvider>
-      </ThemeProvider>
+      <QueryClientProvider>
+        <ThemeProvider>
+          <TextSizeProvider>
+            <ToastProvider>
+              <PaystackProvider 
+                publicKey={paystackPublicKey}
+                defaultChannels={['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer']}
+              >
+                <AuthProvider>
+                  <AppVersionProvider>
+                    <PinProvider>
+                      <AppLockProvider>
+                        <NotificationProvider>
+                          <BalanceProvider>
+                            <BottomNavProvider>
+                              <FeedbackProvider>
+                                <AppBlur>
+                                  <UserActivityTracker>
+                                    <RootLayoutNav />
+                                  </UserActivityTracker>
+                                </AppBlur>
+                              </FeedbackProvider>
+                            </BottomNavProvider>
+                          </BalanceProvider>
+                        </NotificationProvider>
+                      </AppLockProvider>
+                    </PinProvider>
+                  </AppVersionProvider>
+                </AuthProvider>
+              </PaystackProvider>
+            </ToastProvider>
+          </TextSizeProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     </AppErrorProvider>
   );
 }

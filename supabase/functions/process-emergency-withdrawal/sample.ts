@@ -140,46 +140,18 @@ serve(async (req: Request) => {
     let correctWithdrawalType = ""
     let feePercentage = 0
 
-    if (timeElapsedHours < 24) {
-      // Less than 24 hours - only instant withdrawal allowed
-      correctWithdrawalType = "instant"
-      feePercentage = 12.00
-    } else if (timeElapsedHours < 72) {
-      // Between 24-72 hours - 24hrs or instant withdrawal allowed
-      if (withdrawal.withdrawal_type === "instant") {
-        correctWithdrawalType = "instant"
-        feePercentage = 12.00
-      } else if (withdrawal.withdrawal_type === "24hrs") {
-        correctWithdrawalType = "24hrs"
-        feePercentage = 10.00
-      } else {
+    // Only instant withdrawals are allowed after 24 hours
+    if (withdrawal.withdrawal_type !== "instant") {
         return new Response(
           JSON.stringify({ 
-            error: "Invalid withdrawal type for this time period. Only 'instant' or '24hrs' allowed for plans less than 72 hours old." 
+          error: "Invalid withdrawal type. Only 'instant' withdrawals are allowed." 
           }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         )
       }
-    } else {
-      // More than 72 hours - all withdrawal types allowed
-      if (withdrawal.withdrawal_type === "instant") {
+
         correctWithdrawalType = "instant"
-        feePercentage = 12.00
-      } else if (withdrawal.withdrawal_type === "24hrs") {
-        correctWithdrawalType = "24hrs"
-        feePercentage = 10.00
-      } else if (withdrawal.withdrawal_type === "72hrs") {
-        correctWithdrawalType = "72hrs"
-        feePercentage = 6.00
-      } else {
-        return new Response(
-          JSON.stringify({ 
-            error: "Invalid withdrawal type. Must be 'instant', '24hrs', or '72hrs'." 
-          }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        )
-      }
-    }
+    feePercentage = 1.50
 
     console.log(`Selected withdrawal type: ${correctWithdrawalType}, Fee percentage: ${feePercentage}%`)
 
@@ -223,19 +195,9 @@ serve(async (req: Request) => {
     let scheduledProcessingTime = new Date()
     let status = "processing"
     
-    if (correctWithdrawalType === "instant") {
-      // Process immediately
+    // Instant withdrawals are always processed immediately
       scheduledProcessingTime = new Date()
       status = "processing"
-    } else if (correctWithdrawalType === "24hrs") {
-      // Schedule for processing within 24 hours
-      scheduledProcessingTime = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
-      status = "scheduled"
-    } else if (correctWithdrawalType === "72hrs") {
-      // Schedule for processing within 72 hours
-      scheduledProcessingTime = new Date(Date.now() + 72 * 60 * 60 * 1000) // 72 hours from now
-      status = "scheduled"
-    }
 
     // Update withdrawal status and scheduled time
     const { error: updateError } = await supabase
@@ -515,8 +477,9 @@ serve(async (req: Request) => {
       )
       }
     } else {
-      // For scheduled withdrawals (24hrs, 72hrs), just return success without processing
-      const processingTimeText = correctWithdrawalType === "24hrs" ? "within 24 hours" : "within 72 hours"
+      // This should not happen since we only allow instant withdrawals
+      // But keeping as fallback for scheduled withdrawals created before this change
+      const processingTimeText = "immediately"
       
       // Create notification for scheduled withdrawal
       await supabase

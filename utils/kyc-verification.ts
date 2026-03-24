@@ -637,3 +637,119 @@ export const verifyDocument = async (
   }
 };
 
+/**
+ * Verify BVN with Face Match for Simplified KYC
+ * Uses Dojah API's BVN + selfie verification endpoint (same method as verifyBVN)
+ * Returns face match results including confidence score and BVN photo
+ */
+export const verifyBVNWithFaceMatch = async (
+  bvn: string,
+  selfieImageUrl: string,
+  userId: string
+): Promise<{
+  success: boolean;
+  match?: boolean;
+  confidence?: number;
+  bvnPhoto?: string;
+  bvnData?: any;
+  error?: string;
+}> => {
+  try {
+    // Validate BVN
+    const bvnValidation = validateBVN(bvn);
+    if (!bvnValidation.isValid) {
+      return { success: false, error: bvnValidation.error || 'Invalid BVN' };
+    }
+
+    // Check if environment variables are available (same as verifyBVN)
+    const appId = process.env.EXPO_PUBLIC_DOJAH_APP_ID!;
+    const privateKey = process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY!;
+    
+    if (!appId || !privateKey) {
+      console.error('Missing Dojah credentials:', { appId: !!appId, privateKey: !!privateKey });
+      return { success: false, error: 'KYC service configuration error' };
+    }
+
+    // Convert selfie image to base64 (same method as verifyBVN)
+    let selfieImage = null;
+    
+    if (selfieImageUrl) {
+      const base64Image = await convertImageToBase64(selfieImageUrl);
+      if (base64Image) {
+        selfieImage = `data:image/jpeg;base64,${base64Image}`;
+      }
+    }
+    
+    if (!selfieImage) {
+      return { success: false, error: 'Selfie image is required for BVN verification. Please complete the liveness test first.' };
+    }
+
+    // Make actual Dojah API call with selfie (same method as verifyBVN)
+    const response = await fetch('https://api.dojah.io/api/v1/kyc/bvn/verify', {
+      method: 'POST',
+      headers: {
+        'AppId': appId,
+        'Authorization': privateKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        selfie_image: selfieImage,
+        bvn: parseInt(bvn)
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Dojah API error:', errorData);
+      return { 
+        success: false, 
+        error: errorData.message || errorData.error || `BVN verification failed: ${response.status} ${response.statusText}` 
+      };
+    }
+
+    const data = await response.json();
+    console.log('BVN verification response:', data);
+
+    if (!data.entity) {
+      return { success: false, error: 'Invalid BVN or no data returned' };
+    }
+
+    // Extract face match results from Dojah response
+    const entity = data.entity;
+    const selfieVerification = entity.selfie_verification || {};
+    const match = selfieVerification.match === true;
+    const confidence = selfieVerification.confidence_value 
+      ? parseFloat(selfieVerification.confidence_value) 
+      : undefined;
+    const bvnPhoto = entity.image || entity.image_url || undefined;
+
+    // Check if face match meets confidence threshold (≥80%)
+    const MIN_CONFIDENCE = 80;
+    const isMatchSuccessful = match && confidence !== undefined && confidence >= MIN_CONFIDENCE;
+
+    if (!isMatchSuccessful) {
+      return {
+        success: false,
+        match: match,
+        confidence: confidence,
+        bvnPhoto: bvnPhoto,
+        bvnData: entity,
+        error: confidence !== undefined && confidence < MIN_CONFIDENCE
+          ? `Face match confidence (${confidence.toFixed(1)}%) is below the required threshold (${MIN_CONFIDENCE}%). Please try again with better lighting or a clearer photo.`
+          : 'Face match verification failed. Please ensure your face is clearly visible and try again.',
+      };
+    }
+
+    return {
+      success: true,
+      match: match,
+      confidence: confidence,
+      bvnPhoto: bvnPhoto,
+      bvnData: entity,
+    };
+  } catch (error) {
+    console.error('BVN face match verification error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'BVN verification failed';
+    return { success: false, error: errorMessage };
+  }
+};

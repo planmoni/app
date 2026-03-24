@@ -36,10 +36,20 @@ export async function POST(request: Request) {
     console.log('📡 Fetching transactions for account:', paystackAccount.account_number);
 
     // Fetch transactions from Paystack API
+    // ✅ SECURE: Using server-side environment variable (no EXPO_PUBLIC_ prefix)
+    const paystackSecretKey = process.env.PAYSTACK_LIVE_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY;
+    
+    if (!paystackSecretKey) {
+      return new Response(JSON.stringify({ error: 'Paystack secret key not configured' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
     const response = await fetch('https://api.paystack.co/transaction', {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${process.env.EXPO_PUBLIC_PAYSTACK_LIVE_SECRET_KEY}`,
+        'Authorization': `Bearer ${paystackSecretKey}`,
         'Content-Type': 'application/json',
       },
     });

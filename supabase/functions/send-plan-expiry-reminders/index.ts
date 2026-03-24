@@ -171,7 +171,7 @@ Deno.serve(async (req: Request) => {
 
     console.log("Starting plan expiry reminder processing...");
 
-    // Get all active payout plans
+    // Get all active payout plans (include push_notifications for push reminders)
     const { data: activePlans, error: plansError } = await supabase
       .from("payout_plans")
       .select(`
@@ -186,7 +186,8 @@ Deno.serve(async (req: Request) => {
           id,
           first_name,
           email,
-          email_notifications
+          email_notifications,
+          push_notifications
         )
       `)
       .eq("status", "active")
@@ -281,6 +282,50 @@ Deno.serve(async (req: Request) => {
 
         console.log(`Sent expiry reminder for plan ${plan.id} to ${profile.email}`);
         sentCount++;
+
+        // Send push notification (in addition to email) if user has push enabled and plan/payout alerts on
+        const pushPrefs = profile.push_notifications || {};
+        const pushEnabled = pushPrefs.enabled !== false;
+        const planRemindersEnabled = pushPrefs.plan_reminders !== false && pushPrefs.payout_alerts !== false;
+        if (pushEnabled && planRemindersEnabled) {
+          try {
+            const pushTitle = remainingPayouts === 1 ? "One payout remaining!" : "Plan ending soon";
+            const pushBody = remainingPayouts === 1
+              ? `Only 1 payout left for "${plan.name}". Tap to view plan.`
+              : `Only ${remainingPayouts} payouts left for "${plan.name}". Tap to view plan.`;
+            const pushResponse = await fetch(
+              `${supabaseUrl}/functions/v1/send-push-notification`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${supabaseServiceKey}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  user_ids: [plan.user_id],
+                  notification_type: "payout_ready",
+                  title: pushTitle,
+                  body: pushBody,
+                  data: {
+                    type: "plan_expiry_reminder",
+                    plan_id: plan.id,
+                    route: `/view-payout/${plan.id}`,
+                    action: "view_plan",
+                    remaining_payouts: remainingPayouts,
+                    plan_name: plan.name,
+                  },
+                }),
+              }
+            );
+            if (pushResponse.ok) {
+              console.log(`Sent plan-expiry push for plan ${plan.id} to user ${plan.user_id}`);
+            } else {
+              console.warn(`Push failed for plan ${plan.id}:`, await pushResponse.text());
+            }
+          } catch (pushErr) {
+            console.warn(`Push notification error for plan ${plan.id}:`, pushErr);
+          }
+        }
 
         results.push({
           planId: plan.id,

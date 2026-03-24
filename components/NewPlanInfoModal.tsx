@@ -26,22 +26,22 @@ interface InfoItem {
 const infoItems: InfoItem[] = [
   {
     id: '1',
-    question: 'How do I create a payment plan?',
-    answer: 'Creating a payment plan is simple! First, add funds to your wallet. Then, set the amount you want to receive, choose how often you want to receive it (daily, weekly, or monthly), and select the time, Your money will be automatically credited to your account according to your schedule.',
+    question: 'How do I create a payout schedule?',
+    answer: 'Creating a payout schedule is simple! First, add funds to your wallet. Then, set the amount you want to receive, choose how often you want to receive it (daily, weekly, or monthly), and select the time, Your money will be automatically credited to your account according to your schedule.',
   },
   {
     id: '2',
-    question: 'What happens to my money in a payout plan?',
+    question: 'What happens to my money in a payout schedule?',
     answer: 'Your money is safely locked in your payout plan until the payout date you set. You can view your plan progress anytime, and once the payout date arrives, the funds will be automatically released to your available balance.',
   },
   {
     id: '3',
-    question: 'Can I cancel my payout plan?',
+    question: 'Can I cancel my payout schedule?',
     answer: 'Yes! You can view and manage all your payout plans , cancel it anytime via emergency withdrawal option. Please note that you will be charged a fee for this.',
   },
   {
     id: '4',
-    question: 'How do I add funds to create a plan?',
+    question: 'How do I add funds to create a payout schedule?',
     answer: 'You can add funds using bank transfer Simply tap the "Add funds" button to claim your account number and send funds to to it. Once funds are added, you can create your payout plan.',
   },
 ];
@@ -190,9 +190,9 @@ export default function NewPlanInfoModal({
               <View style={styles.iconContainer}>
                 <CalendarCheck size={40} color={colors.primary} />
               </View>
-              <Text style={styles.title}>Create Your First Plan</Text>
+              <Text style={styles.title}>Create Your First Payout Schedule</Text>
               <Text style={styles.description}>
-                Learn how payment plans work and start receiving your funds according to your schedule
+                Learn how payout schedules work and start receiving your funds according to your schedule
               </Text>
             </View>
 
@@ -227,7 +227,7 @@ export default function NewPlanInfoModal({
           {/* Sticky Button Container with SafeArea */}
           <SafeAreaView edges={['bottom']} style={styles.stickyButtonContainer}>
             <Button
-              title={isAuthenticated ? "Create Plan" : "Login to Create Plans"}
+              title={isAuthenticated ? "Start" : "Login to Create Schedules"}
               onPress={handleAddFunds}
               hapticType="medium"
               variant="primary"

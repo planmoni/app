@@ -1,6 +1,33 @@
 import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
+/** Lazy-load expo-secure-store so we never throw "Native module not found" at import time (Expo Go/simulator). */
+let secureStoreModule: typeof import('expo-secure-store') | null | false = null;
+async function getSecureStore(): Promise<typeof import('expo-secure-store') | null> {
+  if (secureStoreModule === false) return null;
+  if (secureStoreModule !== null) return secureStoreModule;
+  try {
+    secureStoreModule = await import('expo-secure-store');
+    return secureStoreModule;
+  } catch (_) {
+    secureStoreModule = false;
+    return null;
+  }
+}
+
+/** Lazy-load AsyncStorage so we never throw "Native module not found" at import time (simulator). */
+let asyncStorageModule: typeof import('@react-native-async-storage/async-storage').default | null | false = null;
+async function getAsyncStorage(): Promise<typeof import('@react-native-async-storage/async-storage').default | null> {
+  if (asyncStorageModule === false) return null;
+  if (asyncStorageModule !== null) return asyncStorageModule;
+  try {
+    const mod = await import('@react-native-async-storage/async-storage');
+    asyncStorageModule = mod.default;
+    return asyncStorageModule;
+  } catch (_) {
+    asyncStorageModule = false;
+    return null;
+  }
+}
 
 export interface SecureStoreAdapter {
   getItem: (key: string) => Promise<string | null>;
@@ -65,27 +92,43 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
       // Check SecureStore for sensitive keys
       if (this.isSensitiveKey(key)) {
         if (Platform.OS === 'web') {
-          // On web, use AsyncStorage with a prefix
-          const value = await AsyncStorage.getItem(`secure_${key}`);
-          if (value) {
-            this.setCache(key, value);
+          const AsyncStorage = await getAsyncStorage();
+          if (AsyncStorage) {
+            try {
+              const value = await AsyncStorage.getItem(`secure_${key}`);
+              if (value) this.setCache(key, value);
+              return value ?? null;
+            } catch (_) { return null; }
           }
-          return value;
+          return null;
         } else {
-          // On native, use SecureStore
-          const value = await SecureStore.getItemAsync(key);
-          if (value) {
-            this.setCache(key, value);
+          // On native: try SecureStore (lazy-loaded), then AsyncStorage (lazy-loaded)
+          const SecureStore = await getSecureStore();
+          if (SecureStore) {
+            try {
+              const value = await SecureStore.getItemAsync(key);
+              if (value) this.setCache(key, value);
+              return value ?? null;
+            } catch (_) {}
           }
-          return value;
+          const AsyncStorage = await getAsyncStorage();
+          if (AsyncStorage) {
+            try {
+              const value = await AsyncStorage.getItem(`secure_${key}`);
+              if (value) this.setCache(key, value);
+              return value ?? null;
+            } catch (_) { return null; }
+          }
+          return null;
         }
       } else {
-        // Non-sensitive keys use AsyncStorage
-        const value = await AsyncStorage.getItem(key);
-        if (value) {
-          this.setCache(key, value);
-        }
-        return value;
+        const AsyncStorage = await getAsyncStorage();
+        if (!AsyncStorage) return null;
+        try {
+          const value = await AsyncStorage.getItem(key);
+          if (value) this.setCache(key, value);
+          return value ?? null;
+        } catch (_) { return null; }
       }
     } catch (error) {
       console.error(`Error getting item from storage: ${key}`, error);
@@ -101,19 +144,38 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
       // Store in appropriate storage
       if (this.isSensitiveKey(key)) {
         if (Platform.OS === 'web') {
-          // On web, use AsyncStorage with a prefix
-          await AsyncStorage.setItem(`secure_${key}`, value);
+          const AsyncStorage = await getAsyncStorage();
+          if (AsyncStorage) {
+            try { await AsyncStorage.setItem(`secure_${key}`, value); } catch (_) {}
+          }
+          return;
         } else {
-          // On native, use SecureStore
-          await SecureStore.setItemAsync(key, value);
+          const SecureStore = await getSecureStore();
+          if (SecureStore) {
+            try {
+              await SecureStore.setItemAsync(key, value);
+              return;
+            } catch (_) {}
+          }
+          const AsyncStorage = await getAsyncStorage();
+          if (AsyncStorage) {
+            try {
+              await AsyncStorage.setItem(`secure_${key}`, value);
+            } catch (_) {
+              console.warn('SecureStoreAdapter: could not persist session');
+            }
+          }
+          return;
         }
       } else {
-        // Non-sensitive keys use AsyncStorage
-        await AsyncStorage.setItem(key, value);
+        const AsyncStorage = await getAsyncStorage();
+        if (AsyncStorage) {
+          try { await AsyncStorage.setItem(key, value); } catch (_) {}
+        }
       }
     } catch (error) {
       console.error(`Error setting item in storage: ${key}`, error);
-      throw error;
+      // Do not throw - allows signUp to succeed when persistence fails
     }
   }
 
@@ -125,19 +187,22 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
       // Remove from appropriate storage
       if (this.isSensitiveKey(key)) {
         if (Platform.OS === 'web') {
-          // On web, use AsyncStorage with a prefix
-          await AsyncStorage.removeItem(`secure_${key}`);
+          const AsyncStorage = await getAsyncStorage();
+          if (AsyncStorage) { try { await AsyncStorage.removeItem(`secure_${key}`); } catch (_) {} }
         } else {
-          // On native, use SecureStore
-          await SecureStore.deleteItemAsync(key);
+          const SecureStore = await getSecureStore();
+          if (SecureStore) {
+            try { await SecureStore.deleteItemAsync(key); } catch (_) {}
+          }
+          const AsyncStorage = await getAsyncStorage();
+          if (AsyncStorage) { try { await AsyncStorage.removeItem(`secure_${key}`); } catch (_) {} }
         }
       } else {
-        // Non-sensitive keys use AsyncStorage
-        await AsyncStorage.removeItem(key);
+        const AsyncStorage = await getAsyncStorage();
+        if (AsyncStorage) { try { await AsyncStorage.removeItem(key); } catch (_) {} }
       }
     } catch (error) {
       console.error(`Error removing item from storage: ${key}`, error);
-      throw error;
     }
   }
 

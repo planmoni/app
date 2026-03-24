@@ -1,11 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, ArrowRight } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Building2, Link2 } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useToast } from '@/contexts/ToastContext';
 import PaystackLogo from '@/assets/banks/paystack.svg';
 import SafeHavenLogo from '@/assets/banks/safe_haven_bank.svg';
 
@@ -14,7 +13,6 @@ export default function AddFundsScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const haptics = useHaptics();
-  const { showToast } = useToast();
   const isSmallScreen = screenWidth < 380;
 
   const styles = createStyles(colors, isDark, isSmallScreen);
@@ -29,14 +27,22 @@ export default function AddFundsScreen() {
     router.push('/bank-transfer');
   };
 
+  const handleFundWithBank = () => {
+    haptics.mediumImpact();
+    router.push({
+      pathname: '/deposit-flow/amount',
+      params: { newMethodType: 'mono-directpay' },
+    });
+  };
+
+  const handlePayFromLinkedAccount = () => {
+    haptics.mediumImpact();
+    router.push('/deposit-flow/select-linked-account');
+  };
+
   const handleCards = () => {
     haptics.mediumImpact();
     router.push('/paystack-payment');
-  };
-
-  const handleLinkBank = () => {
-    haptics.mediumImpact();
-    showToast('This feature is coming soon', 'info');
   };
 
   return (
@@ -57,7 +63,6 @@ export default function AddFundsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          <Text style={styles.title}>Choose how you want to add funds</Text>
           <Text style={styles.subtitle}>
             Select a payment method to add money to your wallet
           </Text>
@@ -74,7 +79,41 @@ export default function AddFundsScreen() {
               <View style={styles.optionContent}>
                 <Text style={styles.optionTitle}>Your Account Details</Text>
                 <Text style={styles.optionDescription}>
-                  Transfer money directly from your bank account
+                  Transfer money directly from your bank account with no fees
+                </Text>
+              </View>
+              <ArrowRight size={20} color={colors.textSecondary} />
+            </Pressable>
+
+            {/* Pay from linked account (Direct Debit) */}
+            {/* <Pressable
+              style={styles.optionCard}
+              onPress={handlePayFromLinkedAccount}
+            >
+              <View style={styles.optionIconContainer}>
+                <Link2 size={24} color={colors.primary} />
+              </View>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionTitle}>Pay from linked account</Text>
+                <Text style={styles.optionDescription}>
+                  Link once, then add funds anytime. We debit your linked bank account only when you choose to fund—no login each time.
+                </Text>
+              </View>
+              <ArrowRight size={20} color={colors.textSecondary} />
+            </Pressable> */}
+
+            {/* Fund with Bank Option (Mono Direct Pay) */}
+            <Pressable
+              style={styles.optionCard}
+              onPress={handleFundWithBank}
+            >
+              <View style={styles.optionIconContainer}>
+                <Building2 size={24} color={colors.primary} />
+              </View>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionTitle}>Add funds from Bank</Text>
+                <Text style={styles.optionDescription}>
+                  One-time payment via your bank. 
                 </Text>
               </View>
               <ArrowRight size={20} color={colors.textSecondary} />
@@ -89,15 +128,14 @@ export default function AddFundsScreen() {
                 <PaystackLogo width={24} height={24} />
               </View>
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>Continue with Paystack</Text>
+                <Text style={styles.optionTitle}>Fund with Paystack</Text>
                 <Text style={styles.optionDescription}>
-                  Add funds with Credit/Debit cards, Transfers, Direct Debit, USSD, and more.
+                  Add funds with various payment methods. Paystack fees apply.
                 </Text>
               </View>
               <ArrowRight size={20} color={colors.textSecondary} />
             </Pressable>
 
-            {/* Link Bank Option */}
           </View>
         </View>
       </ScrollView>
@@ -181,13 +219,13 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     flex: 1,
   },
   optionTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
-    fontWeight: '600',
+    fontSize: isSmallScreen ? 15 : 15,
+    fontWeight: '500',
     color: colors.text,
     marginBottom: 4,
   },
   optionDescription: {
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: isSmallScreen ? 13 : 13,
     color: colors.textSecondary,
     lineHeight: 20,
   },

@@ -1001,68 +1001,13 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
           .single();
 
         if (!planError && payoutPlan) {
-          const newCompletedPayouts = (payoutPlan.completed_payouts || 0) + 1;
-          
-          // Calculate next payout date
-          let nextPayoutDate: string | null = null;
-          if (newCompletedPayouts < payoutPlan.duration) {
-            const startDate = new Date(payoutPlan.start_date);
-            let nextDate = new Date(startDate);
-            
-            // Extract payout time from current next_payout_date if available, otherwise default to 9:00 AM
-            let payoutTime = { hours: 9, minutes: 0 };
-            if (payoutPlan.next_payout_date) {
-              const currentNextDate = new Date(payoutPlan.next_payout_date);
-              if (!isNaN(currentNextDate.getTime())) {
-                const hours = currentNextDate.getHours();
-                const minutes = currentNextDate.getMinutes();
-                // Only use the time if it's not midnight (likely a real time, not just a date)
-                if (hours !== 0 || minutes !== 0) {
-                  payoutTime = { hours, minutes };
-                }
-              }
-            }
-
-            switch (payoutPlan.frequency) {
-              case 'daily':
-                nextDate.setDate(startDate.getDate() + newCompletedPayouts);
-                break;
-              case 'weekly':
-                nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7));
-                break;
-              case 'biweekly':
-                nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 14));
-                break;
-              case 'monthly':
-                nextDate.setMonth(startDate.getMonth() + newCompletedPayouts);
-                break;
-            }
-            
-            // Set the payout time on the calculated date
-            nextDate.setHours(payoutTime.hours, payoutTime.minutes, 0, 0);
-            // Return as ISO string to preserve time component
-            nextPayoutDate = nextDate.toISOString();
+          // Use RPC so all frequencies (daily, weekly, weekly_specific, biweekly, monthly, end_of_month, quarterly, biannual, annually, custom) are correct
+          const { error: progressError } = await supabase.rpc('update_payout_plan_progress', {
+            p_plan_id: payoutPlan.id
+          });
+          if (progressError) {
+            console.error('safehaven-webhook: update_payout_plan_progress failed:', progressError);
           }
-
-          const planUpdates: any = {
-            completed_payouts: newCompletedPayouts,
-            updated_at: new Date().toISOString()
-          };
-          
-          if (nextPayoutDate) {
-            planUpdates.next_payout_date = nextPayoutDate;
-          } else {
-            planUpdates.next_payout_date = null;
-          }
-
-          if (newCompletedPayouts >= payoutPlan.duration) {
-            planUpdates.status = 'completed';
-          }
-
-          await supabase
-            .from('payout_plans')
-            .update(planUpdates)
-            .eq('id', payoutPlan.id);
 
           // Create success notification
           await supabase

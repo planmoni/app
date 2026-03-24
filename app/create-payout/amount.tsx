@@ -20,6 +20,8 @@ export default function AmountScreen() {
   const haptics = useHaptics();
   const availableBalance = balance - lockedBalance;
   const amountInputRef = useRef<TextInput>(null);
+  const balanceFormatted = availableBalance.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const [balanceWhole, balanceDec] = balanceFormatted.split('.');
 
   // Initialize amount from params if editing
   useEffect(() => {
@@ -50,8 +52,8 @@ export default function AmountScreen() {
       return;
     }
 
-    if (numericAmount < 5000) {
-      setError('Minimum amount is ₦5,000');
+    if (numericAmount < 1000) {
+      setError('Minimum amount is ₦1,000');
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       return;
     }
@@ -64,7 +66,7 @@ export default function AmountScreen() {
 
     haptics.mediumImpact();
     router.push({
-      pathname: '/create-payout/frequency-selection',
+      pathname: '/create-payout/purpose',
       params: {
         totalAmount: amount,
         frequency: params.frequency || '',
@@ -78,9 +80,13 @@ export default function AmountScreen() {
         payoutAccountId: params.payoutAccountId || '',
         emergencyWithdrawal: 'true', // Always enabled
         customDates: params.customDates || '',
+        customDateAmounts: params.customDateAmounts || '',
+        customDateTimes: params.customDateTimes || '',
         dayOfWeek: params.dayOfWeek || '',
         payoutHour: params.payoutHour || '',
         payoutMinute: params.payoutMinute || '',
+        purpose: params.purpose || '',
+        purposeOther: params.purposeOther || '',
       }
     });
   };
@@ -202,7 +208,10 @@ export default function AmountScreen() {
           <View style={styles.balanceContainer}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <View style={styles.balanceRow}>
-              <Text style={styles.balanceAmount}>₦{availableBalance.toLocaleString()}</Text>
+              <Text style={styles.balanceAmount}>
+                ₦{balanceWhole}
+                <Text style={{ color: colors.textTertiary }}>.{balanceDec ?? '00'}</Text>
+              </Text>
               <Pressable style={styles.maxButton} onPress={handleMaxPress}>
                 <Text style={styles.maxButtonText}>Max</Text>
               </Pressable>

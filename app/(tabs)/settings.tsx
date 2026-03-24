@@ -38,7 +38,7 @@ import {
   ClockAlert
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View , Platform } from 'react-native';
+import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View , Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -53,7 +53,7 @@ import React from 'react';
 import { useEmailNotifications } from '@/hooks/useEmailNotifications';
 import { useAppVersion } from '@/contexts/AppVersionContext';
 import Constants from 'expo-constants';
-import { Download, Info } from 'lucide-react-native';
+import { Download, Info, Star } from 'lucide-react-native';
 import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
@@ -454,19 +454,11 @@ export default function SettingsScreen() {
                 lastName={lastName} 
                 size={60}
                 fontSize={getScaledFontSize(24, textSizeMultiplier)}
-                kycTier={currentTier || 0}
-                hasAccount={hasAccount}
-                tier1Complete={checkTierCompletion().tier1}
               />
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{firstName} {lastName}</Text>
                 <Text style={styles.profileEmail}>{email}</Text>
                 <View style={styles.badgeContainer}>
-                  <View style={[styles.tierBadge, { backgroundColor: getTierBadgeColor(currentTier || 0) }]}>
-                    <Text style={[styles.tierBadgeText, { color: getTierBadgeTextColor(currentTier || 0) }]}>
-                      {getTierBadgeLabel(currentTier || 0)}
-                    </Text>
-                  </View>
                   {!isLoading2FA && twoFactorEnabled && (
                     <View style={styles.twoFactorBadge}>
                       <Text style={styles.twoFactorText}>2FA</Text>
@@ -648,7 +640,7 @@ export default function SettingsScreen() {
 
             <View style={styles.divider} />
 
-            <Pressable 
+            {/* <Pressable 
               style={styles.settingItem}
               onPress={handleTransactionLimits}
             >
@@ -660,7 +652,7 @@ export default function SettingsScreen() {
                 <Text style={styles.settingDescription}>See your transaction limits</Text>
               </View>
               <ChevronRight size={20} color={colors.textTertiary} />
-            </Pressable>
+            </Pressable> */}
 
             <View style={styles.divider} />
 
@@ -987,6 +979,38 @@ export default function SettingsScreen() {
                 </Pressable>
               </>
             )}
+
+            <View style={styles.divider} />
+            <Pressable
+              style={styles.settingItem}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                  const url = Platform.OS === 'ios'
+                    ? 'https://apps.apple.com/app/id6753706776?action=write-review'
+                    : Platform.OS === 'android'
+                      ? 'https://play.google.com/store/apps/details?id=com.planmoni.app'
+                      : null;
+                  if (url) Linking.openURL(url).catch(() => {});
+                }
+                logAnalyticsEvent('settings_rate_app');
+              }}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Star size={20} color={colors.textSecondary} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Rate this app</Text>
+                <Text style={styles.settingDescription}>
+                  {Platform.OS === 'ios'
+                    ? 'Share your feedback on the App Store'
+                    : Platform.OS === 'android'
+                      ? 'Share your feedback on the Play Store'
+                      : 'Share your feedback on the App Store or Play Store'}
+                </Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
           </View>
         </View>
 

@@ -41,22 +41,29 @@ export function usePayoutAccounts() {
 
       if (accountsError) throw accountsError;
 
-      // Then, fetch active payout plans count for each account
+      // Then, fetch active payout plans count for each account (only for own plans)
+      const userId = session?.user?.id;
       const accountsWithPlanCounts = await Promise.all(
-          (accounts || []).map(async (account: PayoutAccount) => {
-          const { count, error: countError } = await supabase
-            .from('payout_plans')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', session?.user?.id)
-            .eq('payout_account_id', account.id)
-            .in('status', ['active', 'pending']);
+        (accounts || []).map(async (account: PayoutAccount) => {
+          if (!userId) return { ...account, active_payout_plans_count: 0 };
+          try {
+            const { count, error: countError } = await supabase
+              .from('payout_plans')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', userId)
+              .eq('payout_account_id', account.id)
+              .in('status', ['active', 'paused']);
 
-          if (countError) {
-            console.error('Error fetching payout plans count for account:', account.id, countError);
+            if (countError) {
+              if (__DEV__) {
+                console.warn('Payout plans count for account', account.id, countError.message || countError);
+              }
+              return { ...account, active_payout_plans_count: 0 };
+            }
+            return { ...account, active_payout_plans_count: count ?? 0 };
+          } catch {
             return { ...account, active_payout_plans_count: 0 };
           }
-
-          return { ...account, active_payout_plans_count: count || 0 };
         })
       );
 

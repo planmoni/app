@@ -26,11 +26,14 @@ export default function EmergencyWithdrawalScreen() {
   const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport, hasEmergencyPin, hasAppLockPin } = usePin();
   const { options: withdrawalOptions, loading: optionsLoading, getDisplayName, getColorForType } = useEmergencyWithdrawalOptions();
   
-  const [selectedOption, setSelectedOption] = useState<'instant' | '24hrs' | '72hrs' | null>(null);
+  const [selectedOption, setSelectedOption] = useState<'instant' | null>(null);
   const [plan, setPlan] = useState<any>(null);
   const [showPinVerification, setShowPinVerification] = useState(false);
   const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
   const [biometricSupport, setBiometricSupport] = useState<any>(null);
+  // CRITICAL: Local state to prevent duplicate submissions (race condition guard)
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
   
   // Memoize styles to prevent recreation on every render
   const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
@@ -67,6 +70,7 @@ export default function EmergencyWithdrawalScreen() {
       : null;
 
     // Determine available options based on time elapsed
+    // Only instant withdrawals are available after 24 hours
     let availableOptions: any[] = [];
     let defaultOption = null;
 
@@ -74,16 +78,12 @@ export default function EmergencyWithdrawalScreen() {
       // SECURITY: Less than 24 hours - NO withdrawals allowed
       availableOptions = [];
       defaultOption = null;
-    } else if (timeElapsedHours < 72) {
-      // Between 24-72 hours - instant and 24hrs allowed
-      availableOptions = withdrawalOptions.filter(option => 
-        option.type === 'instant' || option.type === '24hrs'
-      );
-      defaultOption = '24hrs'; // Default to 24hrs for better fee
     } else {
-      // More than 72 hours - all options allowed
-      availableOptions = withdrawalOptions;
-      defaultOption = '72hrs'; // Default to 72hrs for best fee
+      // After 24 hours - only instant withdrawal allowed
+      availableOptions = withdrawalOptions.filter(option => 
+        option.type === 'instant'
+      );
+      defaultOption = 'instant';
     }
 
     return { 
@@ -102,7 +102,7 @@ export default function EmergencyWithdrawalScreen() {
       // Clear selection if withdrawals are disabled
       setSelectedOption(null);
     } else if (defaultOption && !selectedOption) {
-      setSelectedOption(defaultOption as 'instant' | '24hrs' | '72hrs');
+      setSelectedOption(defaultOption as 'instant' | null);
     }
   }, [defaultOption, selectedOption, isWithdrawalDisabled]);
 
@@ -147,38 +147,54 @@ export default function EmergencyWithdrawalScreen() {
     return calculateNetAmount(remainingAmount, selectedOption);
   }, [plan, selectedOption, calculateNetAmount]);
   
-  // Get the actual withdrawal amount (remaining amount in plan)
+  // Get the actual withdrawal amount (remaining amount in plan) - rounded down to 2 decimals
   const getWithdrawalAmount = useCallback(() => {
     if (!plan) return 0;
-    return plan.total_amount - (plan.completed_payouts * plan.payout_amount);
+    const amount = plan.total_amount - (plan.completed_payouts * plan.payout_amount);
+    return Math.floor(amount * 100) / 100; // Round down to 2 decimal places
   }, [plan]);
   
-  const handleOptionSelect = useCallback((option: 'instant' | '24hrs' | '72hrs') => {
+  const handleOptionSelect = useCallback((option: 'instant') => {
     haptics.selection();
     setSelectedOption(option);
   }, [haptics]);
 
   const handleConfirmWithdrawal = useCallback(async () => {
-    if (!selectedOption || !plan) return;
+    // CRITICAL: Prevent duplicate submissions
+    if (isSubmitting || hasSubmitted || !selectedOption || !plan) return;
     
-    const withdrawalAmount = getWithdrawalAmount();
+    setIsSubmitting(true);
     
-    // Process the emergency withdrawal
-    const result = await processEmergencyWithdrawal({
-      planId: plan.id,
-      planName: plan.name,
-      withdrawalAmount,
-      option: selectedOption,
-      // Use the plan's configured account (payout_account_id or bank_account_id)
-      payoutAccountId: plan.payout_account_id || undefined,
-      bankAccountId: plan.bank_account_id || undefined
-    });
-    
-    // Navigation is handled by the hook if successful
-    if (!result.success) {
-      console.error('Emergency withdrawal failed:', result.error);
+    try {
+      const withdrawalAmount = getWithdrawalAmount();
+      
+      // Process the emergency withdrawal
+      const result = await processEmergencyWithdrawal({
+        planId: plan.id,
+        planName: plan.name,
+        withdrawalAmount,
+        option: selectedOption,
+        // Use the plan's configured account (payout_account_id or bank_account_id)
+        payoutAccountId: plan.payout_account_id || undefined,
+        bankAccountId: plan.bank_account_id || undefined
+      });
+      
+      // Mark as submitted on success to prevent any further attempts
+      if (result.success) {
+        setHasSubmitted(true);
+      }
+      
+      // Navigation is handled by the hook if successful
+      if (!result.success) {
+        console.error('Emergency withdrawal failed:', result.error);
+        // Reset submitting state on error to allow retry
+        setIsSubmitting(false);
+      }
+    } catch (error) {
+      console.error('Error in handleConfirmWithdrawal:', error);
+      setIsSubmitting(false);
     }
-  }, [selectedOption, plan, getWithdrawalAmount, processEmergencyWithdrawal]);
+  }, [selectedOption, plan, getWithdrawalAmount, processEmergencyWithdrawal, isSubmitting, hasSubmitted]);
 
   const attemptBiometricAuthentication = useCallback(async () => {
     try {
@@ -243,7 +259,8 @@ export default function EmergencyWithdrawalScreen() {
   }, [haptics, handleConfirmWithdrawal]);
 
   const handleConfirm = useCallback(async () => {
-    if (!selectedOption || !plan) return;
+    // CRITICAL: Prevent duplicate clicks - check both local and hook loading states
+    if (!selectedOption || !plan || isSubmitting || hasSubmitted || isLoading) return;
     
     haptics.mediumImpact();
     
@@ -269,7 +286,7 @@ export default function EmergencyWithdrawalScreen() {
       // Fall back to PIN verification
       setShowPinVerification(true);
     }
-  }, [selectedOption, plan, haptics, emergencyBiometricEnabled, biometricSupport, attemptBiometricAuthentication, hasEmergencyPin, hasAppLockPin, handleConfirmWithdrawal]);
+  }, [selectedOption, plan, haptics, emergencyBiometricEnabled, biometricSupport, attemptBiometricAuthentication, hasEmergencyPin, hasAppLockPin, handleConfirmWithdrawal, isSubmitting, hasSubmitted, isLoading]);
 
   const handlePinVerificationSuccess = useCallback(async () => {
     setShowPinVerification(false);
@@ -404,7 +421,7 @@ export default function EmergencyWithdrawalScreen() {
                     isSelected && styles.selectedOption,
                     isDisabled && styles.disabledOption
                   ]}
-                  onPress={() => !isDisabled && handleOptionSelect(option.type as 'instant' | '24hrs' | '72hrs')}
+                  onPress={() => !isDisabled && handleOptionSelect(option.type as 'instant')}
                   disabled={isDisabled}
                 >
                   <View style={styles.optionHeader}>
@@ -423,9 +440,7 @@ export default function EmergencyWithdrawalScreen() {
                         {option.percentage}% processing fee
                       </Text>
                       <Text style={[styles.optionDescription, isDisabled && styles.disabledText]}>
-                        {option.type === 'instant' ? 'Money sent immediately' :
-                         option.type === '24hrs' ? 'Money sent within 24 hours' :
-                         'Money sent within 72 hours'}
+                        Money sent immediately
                       </Text>
                     </View>
                     {isSelected && (
@@ -451,10 +466,7 @@ export default function EmergencyWithdrawalScreen() {
               }
             </Text>
             <Text style={styles.timeInfoSubtext}>
-              {timeElapsedHours < 72 
-                ? "Instant and 24-hour withdrawals are available"
-                : "All withdrawal options are available"
-              }
+              Instant withdrawal is available
             </Text>
           </View>
         )}
@@ -486,7 +498,9 @@ export default function EmergencyWithdrawalScreen() {
           title={
             isWithdrawalDisabled 
               ? `Wait ${Math.floor(hoursRemaining)}h ${Math.round((hoursRemaining % 1) * 60)}m`
-              : isLoading 
+              : hasSubmitted
+                ? "Request Submitted"
+              : isLoading || isSubmitting
                 ? "Processing..." 
                 : isBiometricAuthenticating 
                   ? "Authenticating..." 
@@ -494,8 +508,8 @@ export default function EmergencyWithdrawalScreen() {
           }
           onPress={handleConfirm}
           style={styles.confirmButton}
-          disabled={isWithdrawalDisabled || !selectedOption || isLoading || isBiometricAuthenticating}
-          isLoading={isLoading || isBiometricAuthenticating}
+          disabled={isWithdrawalDisabled || !selectedOption || isLoading || isBiometricAuthenticating || isSubmitting || hasSubmitted}
+          isLoading={isLoading || isBiometricAuthenticating || isSubmitting}
           hapticType="medium"
         />
         <Button
@@ -808,9 +822,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   disabledOption: {
     opacity: 0.5,
-  },
-  disabledText: {
-    color: colors.textSecondary,
   },
   timeInfoCard: {
     backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',

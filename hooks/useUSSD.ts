@@ -378,7 +378,7 @@ export const useUSSD = () => {
   return {
     initializeUSSD,
     checkPaymentStatus,
-    checkUSSDAvailability,
+  checkUSSDAvailability,
     bankAvailability,
     isLoading,
     isVerifying,

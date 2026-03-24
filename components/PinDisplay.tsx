@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -18,7 +18,7 @@ export default function PinDisplay({ length, value }: PinDisplayProps) {
   const dotSize = isSmallScreen ? 12 : 16;
   const dotGap = isSmallScreen ? 12 : 16;
   
-  const styles = StyleSheet.create({
+  const styles = useMemo(() => StyleSheet.create({
     container: {
       flexDirection: 'row',
       justifyContent: 'center',
@@ -38,7 +38,7 @@ export default function PinDisplay({ length, value }: PinDisplayProps) {
       backgroundColor: colors.primary,
       borderColor: colors.primary,
     },
-  });
+  }), [colors, isDark, dotSize, dotGap, isSmallScreen]);
 
   return (
     <View style={styles.container}>

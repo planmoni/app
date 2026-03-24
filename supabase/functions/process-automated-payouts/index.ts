@@ -146,6 +146,7 @@ serve(async (req) => {
       // Declare variables outside try block for use in catch block
       let transferReference: string | null = null
       let automatedPayout: any = null
+      let actualPayoutAmount: number = plan.payout_amount // Default to plan amount
       
       try {
         console.log(`Processing payout for plan: ${plan.name} (${plan.id})`)
@@ -222,6 +223,23 @@ serve(async (req) => {
           throw new Error("Incomplete bank account information")
         }
 
+        // For custom frequency, get the amount from custom_payout_dates for today's date
+        if (plan.frequency === "custom") {
+          const { data: customDateData } = await supabase
+            .from("custom_payout_dates")
+            .select("amount")
+            .eq("payout_plan_id", plan.id)
+            .eq("payout_date", todayString)
+            .single()
+          
+          if (customDateData && customDateData.amount !== null) {
+            actualPayoutAmount = parseFloat(customDateData.amount.toString())
+            console.log(`Using custom amount ${actualPayoutAmount} for date ${todayString}`)
+          } else {
+            console.log(`No custom amount found for date ${todayString}, using plan default: ${plan.payout_amount}`)
+          }
+        }
+
         // Create automated payout record
         transferReference = `AUTO_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
         
@@ -231,7 +249,7 @@ serve(async (req) => {
             payout_plan_id: plan.id,
             user_id: plan.user_id,
             scheduled_date: todayString,
-            amount: plan.payout_amount,
+            amount: actualPayoutAmount,
             status: "processing",
             transfer_reference: transferReference,
             payout_account_id: plan.payout_account_id,
@@ -330,14 +348,14 @@ serve(async (req) => {
           throw new Error("SafeHaven account does not allow debits")
         }
 
-        if (safeHavenAccount.account_balance < plan.payout_amount) {
-          throw new Error(`Insufficient balance. Available: ₦${safeHavenAccount.account_balance}, Required: ₦${plan.payout_amount}`)
+        if (safeHavenAccount.account_balance < actualPayoutAmount) {
+          throw new Error(`Insufficient balance. Available: ₦${safeHavenAccount.account_balance}, Required: ₦${actualPayoutAmount}`)
         }
 
         console.log("Processing SafeHaven transfer:", {
           fromAccount: safeHavenAccount.account_number,
           toAccount: accountDetails.account_number,
-          amount: plan.payout_amount
+          amount: actualPayoutAmount
         })
 
         // Step 1: Perform name enquiry first
@@ -381,7 +399,7 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             saveBeneficiary: true,
-            amount: plan.payout_amount,
+            amount: actualPayoutAmount,
             beneficiaryAccountNumber: accountDetails.account_number,
             beneficiaryBankCode: accountDetails.bank_code,
             debitAccountNumber: safeHavenAccount.account_number,
@@ -431,7 +449,7 @@ serve(async (req) => {
           .insert({
             user_id: plan.user_id,
             type: "payout",
-            amount: plan.payout_amount,
+            amount: actualPayoutAmount,
             status: transferResult.status === "Completed" ? "completed" : "pending",
             source: "payout_plan",
             destination: "bank_account",
@@ -483,27 +501,82 @@ serve(async (req) => {
             case "weekly":
               nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
               break
-            case "biweekly":
-              nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 14))
+            case "weekly_specific":
+              // Get day_of_week from plan.day_of_week or metadata
+              // day_of_week: 0=Sunday, 1=Monday, ..., 6=Saturday
+              const dayOfWeek = plan.day_of_week ?? (plan.metadata as any)?.dayOfWeek
+              
+              if (dayOfWeek !== null && dayOfWeek !== undefined && dayOfWeek >= 0 && dayOfWeek <= 6) {
+                // Calculate the next payout date for weekly_specific
+                // Strategy: Find the next occurrence of the target day of week
+                // starting from start_date + (completed_payouts * 7 days)
+                
+                // Start from the week where the next payout should occur
+                // newCompletedPayouts is the count AFTER this payout is processed
+                const baseDate = new Date(startDate)
+                baseDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
+                
+                // Get the day of week for the base date
+                const baseDayOfWeek = baseDate.getDay()
+                
+                // Calculate days to add to reach the target day of week (0 = already on target day)
+                const daysToAdd = (dayOfWeek - baseDayOfWeek + 7) % 7
+                // When 0, baseDate is already the next occurrence (e.g. next Monday). Do NOT add 7.
+                nextDate.setDate(baseDate.getDate() + daysToAdd)
+                
+                console.log(`Weekly_specific plan ${plan.id}: day_of_week=${dayOfWeek}, start_date=${startDate.toISOString()}, completed_payouts=${newCompletedPayouts}, baseDate=${baseDate.toISOString()}, baseDayOfWeek=${baseDayOfWeek}, daysToAdd=${daysToAdd}, nextDate=${nextDate.toISOString()}`)
+              } else {
+                // Fallback to regular weekly if day_of_week is missing or invalid
+                console.warn(`Plan ${plan.id} has weekly_specific frequency but invalid day_of_week (${dayOfWeek}). Falling back to weekly calculation.`)
+                nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
+              }
               break
+            case "biweekly": {
+              // Advance from the date we just paid + 2 weeks (not from start_date), so the next
+              // payout is always 2 weeks after the last one regardless of initial next_payout_date.
+              const paidDate = plan.next_payout_date
+                ? new Date(plan.next_payout_date)
+                : startDate
+              nextDate = new Date(paidDate)
+              nextDate.setDate(nextDate.getDate() + 14)
+              break
+            }
             case "monthly":
               nextDate.setMonth(startDate.getMonth() + newCompletedPayouts)
               break
-            case "custom":
-              // For custom frequency, get the next date from custom_payout_dates
+            case "end_of_month": {
+              // Last day of (start_month + completed_payouts)
+              nextDate.setMonth(startDate.getMonth() + newCompletedPayouts + 1)
+              nextDate.setDate(0) // 0 = last day of previous month
+              break
+            }
+            case "quarterly":
+              nextDate.setMonth(startDate.getMonth() + (newCompletedPayouts * 3))
+              break
+            case "biannual":
+              nextDate.setMonth(startDate.getMonth() + (newCompletedPayouts * 6))
+              break
+            case "annually":
+              nextDate.setFullYear(startDate.getFullYear() + newCompletedPayouts)
+              break
+            case "custom": {
+              // Next date = first custom date after the one we just paid (not "today", to avoid skipping dates)
+              const paidDateStr = plan.next_payout_date
+                ? new Date(plan.next_payout_date).toISOString().slice(0, 10)
+                : todayString
               const { data: customDates } = await supabase
                 .from("custom_payout_dates")
                 .select("payout_date")
                 .eq("payout_plan_id", plan.id)
-                .gt("payout_date", todayString)
+                .gt("payout_date", paidDateStr)
                 .order("payout_date", { ascending: true })
                 .limit(1)
                 .single()
-              
               if (customDates) {
                 nextPayoutDate = customDates.payout_date
               }
               break
+            }
           }
 
           if (plan.frequency !== "custom") {
@@ -544,7 +617,7 @@ serve(async (req) => {
               user_id: plan.user_id,
               type: "payout_completed",
               title: "Payout Completed",
-              description: `Your payout of ₦${plan.payout_amount.toLocaleString()} from "${plan.name}" has been processed successfully.`,
+              description: `Your payout of ₦${actualPayoutAmount.toLocaleString()} from "${plan.name}" has been processed successfully.`,
               status: "unread",
               payout_plan_id: plan.id
             })
@@ -557,7 +630,7 @@ serve(async (req) => {
               user_id: plan.user_id,
               type: "payout_processing",
               title: "Payout Processing",
-              description: `Your payout of ₦${plan.payout_amount.toLocaleString()} from "${plan.name}" is being processed. You will be notified when it completes.`,
+              description: `Your payout of ₦${actualPayoutAmount.toLocaleString()} from "${plan.name}" is being processed. You will be notified when it completes.`,
               status: "unread",
               payout_plan_id: plan.id
             })
@@ -579,14 +652,14 @@ serve(async (req) => {
             transfer_id: transferId,
             transfer_code: paymentReference,
             transfer_status: transferResult.status,
-            amount: plan.payout_amount
+            amount: actualPayoutAmount
           }
         )
         
         results.push({
           planId: plan.id,
           planName: plan.name,
-          amount: plan.payout_amount,
+          amount: actualPayoutAmount,
           status: transferResult.status === "Completed" ? "success" : "processing",
           transferId: transferId,
           transferCode: paymentReference,
@@ -654,7 +727,7 @@ serve(async (req) => {
         results.push({
           planId: plan.id,
           planName: plan.name,
-          amount: plan.payout_amount,
+          amount: actualPayoutAmount,
           status: "failed",
           error: error.message
         })

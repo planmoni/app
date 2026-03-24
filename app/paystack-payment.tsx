@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Pressable,
   TextInput,
-  ScrollView,
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
@@ -19,6 +18,8 @@ import { usePaystack } from 'react-native-paystack-webview';
 import { supabase } from '@/lib/supabase';
 import { useBalance } from '@/contexts/BalanceContext';
 import Constants from 'expo-constants';
+import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
+import FloatingButton from '@/components/FloatingButton';
 
 export default function PaystackPaymentScreen() {
   const { colors, isDark } = useTheme();
@@ -42,7 +43,7 @@ export default function PaystackPaymentScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const MIN_AMOUNT = 100;
+  const MIN_AMOUNT = 5000;
   const MAX_AMOUNT = 5000000;
 
   const handleBack = () => {
@@ -76,6 +77,48 @@ export default function PaystackPaymentScreen() {
     return parseFloat(amount) || 0;
   };
 
+  // Calculate Paystack fee with new structure:
+  // - Amount < ₦2500: 1.5% only (no flat fee)
+  // - Amount ≥ ₦2500: 1.5% + ₦100, capped at ₦2000
+  // Fee is calculated on the amount user wants to add (what they'll receive)
+  const calculatePaystackFee = (amount: number): number => {
+    if (amount <= 0) return 0;
+    const percentageFee = amount * 0.015; // 1.5%
+    
+    if (amount < 2500) {
+      // No flat fee for amounts under ₦2500
+      return percentageFee;
+    } else {
+      // For amounts >= ₦2500: 1.5% + 100, capped at ₦2000
+      const feeWithFlat = percentageFee + 100;
+      return Math.min(feeWithFlat, 2000);
+    }
+  };
+
+  // Get the fee label text based on amount
+  const getPaystackFeeLabel = (amount: number): string => {
+    if (amount <= 0) return 'Paystack Fee';
+    
+    if (amount < 2500) {
+      return 'Paystack Fee (1.5%)';
+    } else {
+      const fee = calculatePaystackFee(amount);
+      if (fee >= 2000) {
+        return 'Paystack Fee (₦2000)';
+      } else {
+        return 'Paystack Fee (1.5% + ₦100)';
+      }
+    }
+  };
+
+  // Calculate total amount to pay (amount user wants + fee)
+  const getTotalAmountToPay = (): number => {
+    const numericAmount = getNumericAmount();
+    if (numericAmount <= 0) return 0;
+    const fee = calculatePaystackFee(numericAmount);
+    return numericAmount + fee;
+  };
+
   const isValidAmount = () => {
     const numericAmount = getNumericAmount();
     return numericAmount >= MIN_AMOUNT && numericAmount <= MAX_AMOUNT;
@@ -106,8 +149,8 @@ export default function PaystackPaymentScreen() {
       process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY;
     
     if (!publicKey || publicKey === 'pk_test_placeholder') {
-      console.error('🔴 Paystack public key is not configured!');
-      showToast('Payment configuration error. Please set EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY or EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY in your .env file and restart the app.', 'error');
+      console.error('🔴 Configuration error!');
+      showToast('Payment failed. Please contact support.', 'error');
       return;
     }
 
@@ -117,17 +160,17 @@ export default function PaystackPaymentScreen() {
 
     try {
       // Get the current user session
-      console.log('🔵 Getting user session...');
+      console.log('Get session...');
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
-        console.log('🔴 No session found');
+        console.warn('No session found');
         showToast('Please log in to continue', 'error');
         setIsLoading(false);
         return;
       }
 
-      console.log('🔵 Session found, getting user profile...');
+      console.log('Session found, get profile...');
       // Get user profile to get email
       const { data: profile } = await supabase
         .from('profiles')
@@ -136,17 +179,20 @@ export default function PaystackPaymentScreen() {
         .single();
 
       if (!profile?.email) {
-        console.log('🔴 No email found in profile');
+        console.warn('No email found in profile');
         showToast('Unable to get user email', 'error');
         setIsLoading(false);
         return;
       }
 
-      console.log('✅ Opening Paystack modal...');
-      console.log('🔵 Payment details:', {
+      console.log('Open Paystack modal...');
+      const totalAmount = getTotalAmountToPay();
+      console.log('Get payment details:', {
         email: profile.email,
-        amount: getNumericAmount(),
-        amountInKobo: getNumericAmount() * 100,
+        amountToAdd: getNumericAmount(),
+        fee: calculatePaystackFee(getNumericAmount()),
+        totalAmount: totalAmount,
+        amountInKobo: totalAmount * 100,
       });
 
       // Generate reference for transaction
@@ -155,10 +201,20 @@ export default function PaystackPaymentScreen() {
       // Trigger Paystack checkout
       // Note: Amount should be in the base currency unit (NGN), not kobo
       // The package will convert it to kobo internally (multiplies by 100)
+      // Payment methods are configured via defaultChannels in PaystackProvider
+      // We charge the total amount (amount user wants + fee)
+      // Pass the amount to credit (before fees) in metadata so webhook can credit correct amount
       popup.checkout({
         email: profile.email,
-        amount: getNumericAmount(), // Amount in NGN (package converts to kobo)
+        amount: totalAmount < MIN_AMOUNT ? MIN_AMOUNT : (totalAmount > MAX_AMOUNT ? MAX_AMOUNT : totalAmount), // Clamp amount between MIN and MAX to prevent invalid amounts
         reference: reference,
+        metadata: {
+          amount_to_credit: getNumericAmount(), // Amount user will receive (before fees)
+          fee: calculatePaystackFee(getNumericAmount()),
+          total_paid: totalAmount,
+          payment_type: 'paystack_checkout',
+          user_id: session.user.id,
+        },
         onSuccess: (res: any) => {
           console.log('✅ Payment successful:', res);
           setIsProcessing(true);
@@ -302,14 +358,7 @@ export default function PaystackPaymentScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: Math.max(20, insets.bottom) },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
+      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           {/* Amount Input Section */}
           <View style={styles.amountSection}>
@@ -341,13 +390,12 @@ export default function PaystackPaymentScreen() {
                   ₦{getNumericAmount().toLocaleString()}
                 </Text>
               </View>
-              <View style={styles.summaryDivider} />
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, styles.summaryTotal]}>
-                  Total to Pay
+                <Text style={styles.summaryLabel}>
+                  {getPaystackFeeLabel(getNumericAmount())}
                 </Text>
-                <Text style={[styles.summaryValue, styles.summaryTotal]}>
-                  ₦{getNumericAmount().toLocaleString()}
+                <Text style={[styles.summaryValue, styles.feeText]}>
+                  ₦{calculatePaystackFee(getNumericAmount()).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Text>
               </View>
             </View>
@@ -363,34 +411,16 @@ export default function PaystackPaymentScreen() {
             Powered by Paystack.
           </Text>
         </View>
-      </ScrollView>
+      </KeyboardAvoidingWrapper>
 
-      {/* Pay Button */}
-      <View
-        style={[
-          styles.footer,
-          { paddingBottom: Math.max(16, insets.bottom) },
-        ]}
-      >
-        <Pressable
-          style={[
-            styles.payButton,
-            (!isValidAmount() || isLoading || isProcessing) && styles.payButtonDisabled,
-          ]}
+      {/* Floating Pay Button */}
+      <FloatingButton
+        title={isProcessing ? 'Verifying Payment...' : `Pay ₦${getTotalAmountToPay().toLocaleString()}`}
           onPress={handlePayment}
           disabled={!isValidAmount() || isLoading || isProcessing}
-        >
-          {isLoading || isProcessing ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.payButtonText}>
-              {isProcessing
-                ? 'Verifying Payment...'
-                : `Pay ₦${getNumericAmount().toLocaleString()}`}
-            </Text>
-          )}
-        </Pressable>
-      </View>
+        loading={isLoading || isProcessing}
+        hapticType="medium"
+      />
     </SafeAreaView>
   );
 }
@@ -427,12 +457,11 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
       fontSize: isSmallScreen ? 16 : 18,
       fontWeight: '600',
       color: colors.text,
-    },
-    scrollView: {
       flex: 1,
+      textAlign: 'center',
     },
     scrollContent: {
-      flexGrow: 1,
+      paddingBottom: 100,
     },
     content: {
       padding: isSmallScreen ? 16 : 20,
@@ -509,10 +538,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
       backgroundColor: colors.border,
       marginVertical: 12,
     },
-    summaryTotal: {
-      fontSize: isSmallScreen ? 16 : 18,
-      fontWeight: '700',
-      color: colors.text,
+    feeText: {
+      color: colors.textSecondary,
     },
     securitySection: {
       flexDirection: 'row',
@@ -539,26 +566,5 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
       color: colors.textSecondary,
       lineHeight: 20,
       textAlign: 'center',
-    },
-    footer: {
-      padding: 16,
-      backgroundColor: colors.surface,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-    },
-    payButton: {
-      backgroundColor: colors.primary,
-      borderRadius: 12,
-      paddingVertical: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    payButtonDisabled: {
-      opacity: 0.5,
-    },
-    payButtonText: {
-      fontSize: isSmallScreen ? 16 : 18,
-      fontWeight: '700',
-      color: '#fff',
     },
   });

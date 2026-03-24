@@ -23,15 +23,21 @@ export default function FirstNameScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Filter out spaces, special characters, and numbers - only allow letters
-  const filterNameInput = (text: string) => {
-    // Only allow letters (A-Z, a-z) - remove spaces, numbers, and special characters
-    return text.replace(/[^A-Za-z]/g, '');
-  };
-
   useEffect(() => {
     setIsButtonEnabled(firstName.trim().length > 0);
   }, [firstName]);
+
+  // Filter input to disallow @#$!*&% and spaces
+  const filterInvalidChars = (text: string): string => {
+    // Remove @#$!*&% and spaces
+    return text.replace(/[@#$!*&%\s]/g, '');
+  };
+
+  const handleTextChange = (text: string) => {
+    const filteredText = filterInvalidChars(text);
+    setFirstName(filteredText);
+    setError(null);
+  };
 
   const handleContinue = () => {
     if (!firstName.trim()) {
@@ -86,11 +92,7 @@ export default function FirstNameScreen() {
                 placeholder="Enter your first name"
                 placeholderTextColor={colors.textTertiary}
                 value={firstName}
-                onChangeText={(text) => {
-                  const filteredText = filterNameInput(text);
-                  setFirstName(filteredText);
-                  setError(null);
-                }}
+                onChangeText={handleTextChange}
                 autoCapitalize="words"
                 textContentType="givenName"
               />

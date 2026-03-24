@@ -63,7 +63,7 @@ serve(async (req) => {
     }
 
     // Get Resend API key from environment variables
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "re_cZUmUFmE_Co9jLj1mrMEx4vVknuhwQXUu";
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     
     if (!RESEND_API_KEY) {
       console.error("Resend API key not configured");

@@ -1,5 +1,6 @@
 import { getFCMToken, onForegroundMessage } from './firebase';
 import { createClient } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -48,12 +49,14 @@ export class PushNotificationService {
 
   private async storeFCMToken(userId: string, token: string): Promise<void> {
     try {
+      const platform = Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';
+      
       const { error } = await supabase
         .from('user_fcm_tokens')
         .upsert({
           user_id: userId,
           fcm_token: token,
-          platform: 'web', // or 'ios', 'android' based on platform
+          platform,
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id'

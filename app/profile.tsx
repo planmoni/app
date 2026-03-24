@@ -214,133 +214,14 @@ export default function ProfileScreen() {
           <InitialsAvatar 
             firstName={firstName} 
             lastName={lastName} 
-            size={avatarSize}
             fontSize={avatarFontSize}
             kycTier={currentTier || 0}
-            hasAccount={hasAccount}
-            tier1Complete={checkTierCompletion().tier1}
           />
           <Text style={[styles.userName, { fontSize: titleFontSize }]}>{firstName} {lastName}</Text>
           <Text style={[styles.userEmail, { fontSize: emailFontSize }]}>{email}</Text>
-          <View style={[styles.tierBadge, { backgroundColor: getTierBadgeColor(kycLevel) }]}>
-            <Text style={[styles.tierBadgeText, { color: getTierBadgeTextColor(kycLevel) }]}>
-              {getTierBadgeLabel(kycLevel)}
-            </Text>
-          </View>
         </View>
 
-        <View style={styles.kycSection}>
-          <View style={styles.kycCard}>
-            {kycLoading || kycDataLoading ? (
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading verification status...</Text>
-              </View>
-            ) : (
-              <>
-                <View style={styles.kycHeader}>
-                  <View style={styles.kycTitleContainer}>
-                    <Text style={styles.kycTitle}>Verification Status</Text>
-                  </View>
-                </View>
-                
-                <Text style={styles.kycDescription}>{kycStatus.description}</Text>
-                
-                <View style={styles.kycLimits}>
-                  <Text style={styles.kycLimitsTitle}>Current Limits</Text>
-                  {tierLimits ? (
-                    <>
-                      <View style={styles.limitRow}>
-                        <Text style={styles.limitLabel}>Daily Deposit</Text>
-                        <Text style={styles.limitValue}>
-                          {formatCurrency(tierLimits.max_daily_deposit / 1)}
-                        </Text>
-                      </View>
-                      <View style={styles.limitRow}>
-                        <Text style={styles.limitLabel}>Weekly Deposit</Text>
-                        <Text style={styles.limitValue}>
-                          {formatCurrency(tierLimits.max_weekly_deposit / 1)}
-                        </Text>
-                      </View>
-                      <View style={styles.limitRow}>
-                        <Text style={styles.limitLabel}>Monthly Deposit</Text>
-                        <Text style={styles.limitValue}>
-                          {formatCurrency(tierLimits.max_monthly_deposit / 1)}
-                        </Text>
-                      </View>
-                      <View style={styles.limitRow}>
-                        <Text style={styles.limitLabel}>Single Transaction</Text>
-                        <Text style={styles.limitValue}>
-                          {formatCurrency(tierLimits.max_single_deposit / 1)}
-                        </Text>
-                      </View>
-                      <View style={styles.limitRow}>
-                        <Text style={styles.limitLabel}>Maximum Balance</Text>
-                        <Text style={styles.limitValue}>
-                          {formatCurrency(tierLimits.max_account_balance / 1)}
-                        </Text>
-                      </View>
-                    </>
-                  ) : (
-                    <View style={styles.limitRow}>
-                      <Text style={styles.limitLabel}>Daily Transaction</Text>
-                      <Text style={styles.limitValue}>{kycStatus.limits.daily}</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Show upgrade message for different scenarios */}
-                {progress && (
-                  <>
-                    {/* Tier 1: Show message to complete documents and address */}
-                    {kycLevel === 'tier1' && (
-                      <View style={styles.upgradeMessage}>
-                        <Upload size={16} color="#F59E0B" />
-                        <Text style={styles.upgradeMessageText}>
-                          Complete document verification and address details to unlock higher limits
-                        </Text>
-                      </View>
-                    )}
-                    
-                    {/* Tier 2: Show message to upload utility bill or wait for approval */}
-                    {kycLevel === 'tier2' && (
-                      <>
-                        {!kycData?.utility_bill_url && (
-                          <View style={styles.upgradeMessage}>
-                            <Upload size={16} color="#F59E0B" />
-                            <Text style={styles.upgradeMessageText}>
-                              Click "Upload Utility Bill" to unlock maximum transaction limits
-                            </Text>
-                          </View>
-                        )}
-                        {kycData?.utility_bill_url && !kycData?.approved && (
-                          <View style={styles.upgradeMessage}>
-                            <Clock size={16} color="#1E3A8A" />
-                            <Text style={styles.upgradeMessageText}>
-                              Utility bill uploaded. Waiting for admin approval to unlock maximum limits.
-                            </Text>
-                          </View>
-                        )}
-                      </>
-                    )}
-                  </>
-                )}
-
-                {/* Show upgrade button if not at tier 3 */}
-                {progress && kycLevel !== 'tier3' && (
-                  <Pressable style={styles.upgradeButton} onPress={handleUpgradeKYC}>
-                    <Text style={styles.upgradeButtonText}>
-                      {kycLevel === 'tier2' && (!kycData?.utility_bill_url || !kycData?.approved) 
-                        ? 'Upload Utility Bill' 
-                        : 'Upgrade Verification'
-                      }
-                    </Text>
-                    <ChevronRight size={20} color={colors.primary} />
-                  </Pressable>
-                )}
-              </>
-            )}
-          </View>
-        </View>
+       
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Information</Text>

@@ -56,9 +56,13 @@ export interface Database {
           completed_payouts: number
           next_payout_date: string | null
           emergency_withdrawal_enabled: boolean
+          fee_percentage: number | null
+          fee_amount: number | null
+          net_payout_amount: number | null
           created_at: string
           updated_at: string
           metadata: Json | null
+          share_code: string | null
         }
         Insert: {
           id?: string
@@ -77,9 +81,13 @@ export interface Database {
           completed_payouts?: number
           next_payout_date?: string | null
           emergency_withdrawal_enabled?: boolean
+          fee_percentage?: number | null
+          fee_amount?: number | null
+          net_payout_amount?: number | null
           created_at?: string
           updated_at?: string
           metadata?: Json | null
+          share_code?: string | null
         }
         Update: {
           id?: string
@@ -98,9 +106,59 @@ export interface Database {
           completed_payouts?: number
           next_payout_date?: string | null
           emergency_withdrawal_enabled?: boolean
+          fee_percentage?: number | null
+          fee_amount?: number | null
+          net_payout_amount?: number | null
           created_at?: string
           updated_at?: string
           metadata?: Json | null
+          share_code?: string | null
+        }
+      }
+      payout_plan_pairings: {
+        Row: {
+          id: string
+          payout_plan_id: string
+          paired_user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          payout_plan_id: string
+          paired_user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          payout_plan_id?: string
+          paired_user_id?: string
+          created_at?: string
+        }
+      }
+      payout_fees: {
+        Row: {
+          id: string
+          frequency: string
+          fee_percentage: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          frequency: string
+          fee_percentage: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          frequency?: string
+          fee_percentage?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
         }
       }
       custom_payout_dates: {
@@ -108,18 +166,21 @@ export interface Database {
           id: string
           payout_plan_id: string
           payout_date: string
+          payout_time: string | null
           created_at: string
         }
         Insert: {
           id?: string
           payout_plan_id: string
           payout_date: string
+          payout_time?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           payout_plan_id?: string
           payout_date?: string
+          payout_time?: string | null
           created_at?: string
         }
       }

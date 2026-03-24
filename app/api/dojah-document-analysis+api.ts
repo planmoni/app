@@ -8,8 +8,9 @@ const supabase = createClient(
 
 // Dojah API configuration
 const DOJAH_API_URL = 'https://api.dojah.io/api/v1';
-const DOJAH_APP_ID = process.env.EXPO_PUBLIC_DOJAH_APP_ID;
-const DOJAH_PRIVATE_KEY = process.env.EXPO_PUBLIC_DOJAH_PRIVATE_KEY;
+// ✅ SECURE: Using server-side environment variables (no EXPO_PUBLIC_ prefix)
+const DOJAH_APP_ID = process.env.EXPO_PUBLIC_DOJAH_APP_ID; // App ID is safe to be public
+const DOJAH_PRIVATE_KEY = process.env.DOJAH_PRIVATE_KEY; // Private key must be server-side only
 
 // Helper function to create JSON response
 function createJsonResponse(data: any, status: number = 200) {

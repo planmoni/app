@@ -5,8 +5,9 @@ import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { formatDisplayDate, formatPayoutFrequency } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { Building2, X } from 'lucide-react-native';
@@ -16,6 +17,8 @@ export default function SuccessScreen() {
   const params = useLocalSearchParams();
   const haptics = useHaptics();
   const { navigateToHome } = useSafeNavigation();
+  const { showFeedback } = useFeedback();
+  const mountedRef = useRef(true);
   
   // Get screen dimensions for responsive design
   const { width: screenWidth } = Dimensions.get('window');
@@ -23,6 +26,7 @@ export default function SuccessScreen() {
   const isMediumScreen = screenWidth >= 375 && screenWidth < 768;
   
   // Get values from route params with safe defaults
+  const planId = params.planId as string | undefined;
   const totalAmount = params.totalAmount as string || '0';
   const frequency = params.frequency as string || 'monthly';
   const payoutAmount = params.payoutAmount as string || '0';
@@ -40,13 +44,23 @@ export default function SuccessScreen() {
 
   // Trigger success haptic feedback when the screen loads
   useEffect(() => {
-    // Use a small delay to ensure the screen is fully rendered
+    mountedRef.current = true;
     const timer = setTimeout(() => {
       haptics.success();
     }, 300);
-    
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      mountedRef.current = false;
+    };
   }, []);
+
+  // Show feedback modal after a short delay (only if still on this screen)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (mountedRef.current) showFeedback('plan_creation');
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [showFeedback]);
 
   const handleViewPayouts = () => {
     haptics.mediumImpact();
@@ -56,6 +70,11 @@ export default function SuccessScreen() {
   const handleBackToDashboard = () => {
     haptics.lightImpact();
     router.replace('/(tabs)');
+  };
+
+  const handleSharePlan = () => {
+    haptics.mediumImpact();
+    if (planId) router.push({ pathname: '/view-payout', params: { id: planId, openShare: '1' } });
   };
 
   const styles = createStyles(colors, isSmallScreen, isMediumScreen);
@@ -145,6 +164,15 @@ export default function SuccessScreen() {
           style={styles.viewPayoutsButton}
           hapticType="medium"
         />
+        {planId ? (
+          <Button 
+            title="Share plan"
+            onPress={handleSharePlan}
+            variant="outline"
+            style={styles.dashboardButton}
+            hapticType="medium"
+          />
+        ) : null}
         <Button 
           title="Back to Dashboard"
           onPress={handleBackToDashboard}

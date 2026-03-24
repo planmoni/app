@@ -19,7 +19,7 @@ import {
   Clock as ClockIcon,
   X
 } from 'lucide-react-native';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Pressable, 
   ScrollView, 
@@ -35,9 +35,16 @@ import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
-import { formatPayoutFrequency, formatPayoutDateTime } from '@/lib/formatters';
+import { formatPayoutFrequency, formatPayoutDateTime, formatDisplayDate } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
+import { getPurposeLabel } from '@/lib/payout-purposes';
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
+import CustomAmountsBreakdownModal from '@/components/CustomAmountsBreakdownModal';
+import { supabase } from '@/lib/supabase';
+import { usePayoutPlanShare } from '@/hooks/usePayoutPlanShare';
+import { useToast } from '@/contexts/ToastContext';
+import { Modal } from 'react-native';
+import Button from '@/components/Button';
 
 type TabType = 'all' | 'active' | 'cancelled' | 'completed';
 
@@ -53,16 +60,102 @@ export default function AllPayoutsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
+  const [customDateAmounts, setCustomDateAmounts] = useState<Record<string, Record<string, number>>>({});
+  const [showBreakdownModal, setShowBreakdownModal] = useState(false);
+  const [selectedPlanForBreakdown, setSelectedPlanForBreakdown] = useState<string | null>(null);
+  const [showAddByCodeModal, setShowAddByCodeModal] = useState(false);
+  const [planCodeInput, setPlanCodeInput] = useState('');
+  const [addByCodeError, setAddByCodeError] = useState<string | null>(null);
+
+  const { getPlanByShareCode, pairToPlan, isLoading: isAddingByCode } = usePayoutPlanShare();
+  const { showToast } = useToast();
+
+  // Fetch custom payout dates with amounts
+  useEffect(() => {
+    const fetchCustomAmounts = async () => {
+      const customPlans = payoutPlans.filter(plan => plan.frequency === 'custom');
+      if (customPlans.length === 0) {
+        setCustomDateAmounts({});
+        return;
+      }
+
+      try {
+        const planIds = customPlans.map(plan => plan.id);
+        const { data, error } = await supabase
+          .from('custom_payout_dates')
+          .select('payout_plan_id, payout_date, amount')
+          .in('payout_plan_id', planIds)
+          .order('payout_date', { ascending: true });
+
+        if (error) throw error;
+
+        // Group by plan_id: { planId: { date: amount } }
+        const amountsByPlan: Record<string, Record<string, number>> = {};
+        data?.forEach(item => {
+          if (!amountsByPlan[item.payout_plan_id]) {
+            amountsByPlan[item.payout_plan_id] = {};
+          }
+          amountsByPlan[item.payout_plan_id][item.payout_date] = parseFloat(item.amount?.toString() || '0') || 0;
+        });
+
+        setCustomDateAmounts(amountsByPlan);
+      } catch (error) {
+        console.error('Error fetching custom payout amounts:', error);
+        setCustomDateAmounts({});
+      }
+    };
+
+    fetchCustomAmounts();
+  }, [payoutPlans]);
+
+  const handlePlusPress = () => {
+    haptics.mediumImpact();
+    setShowAddByCodeModal(true);
+    setPlanCodeInput('');
+    setAddByCodeError(null);
+  };
+
+  const handleAddByCode = async () => {
+    const code = planCodeInput.trim();
+    if (!code) {
+      setAddByCodeError('Enter a plan code');
+      return;
+    }
+    setAddByCodeError(null);
+    const plan = await getPlanByShareCode(code);
+    if (!plan.found) {
+      setAddByCodeError(plan.error || 'Invalid or expired code');
+      return;
+    }
+    if (plan.is_owner) {
+      setAddByCodeError('You already own this plan');
+      return;
+    }
+    if (plan.is_paired) {
+      setAddByCodeError("You're already following this plan");
+      return;
+    }
+    if (!plan.id) {
+      setAddByCodeError('Could not add plan');
+      return;
+    }
+    const success = await pairToPlan(plan.id);
+    if (success) {
+      setShowAddByCodeModal(false);
+      setPlanCodeInput('');
+      showToast('Plan added. You can now track it with your other plans.');
+      fetchPayoutPlans();
+    } else {
+      setAddByCodeError('Failed to add plan. Try again.');
+    }
+  };
 
   const handleCreatePayout = () => {
     haptics.mediumImpact();
-    
-    // Only show modal if user has never created a payout plan before
+    setShowAddByCodeModal(false);
     if (hasCreatedPayoutPlan) {
-      // User has created a payout plan before - navigate directly to create payout
       router.push('/create-payout/amount');
     } else {
-      // User has never created a payout plan - show info modal
       setShowNewPlanInfoModal(true);
     }
   };
@@ -105,7 +198,7 @@ export default function AllPayoutsScreen() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
-        return { bg: '#DCFCE7', text: '#22C55E', icon: TrendingUp };
+        return { bg: colors.primary, text: colors.accent, icon: TrendingUp };
       case 'cancelled':
         return { bg: '#FEE2E2', text: '#EF4444', icon: XCircle };
       case 'completed':
@@ -209,11 +302,55 @@ export default function AllPayoutsScreen() {
         </View>
         <Pressable 
           style={styles.createButton} 
-          onPress={handleCreatePayout}
+          onPress={handlePlusPress}
         >
           <Plus size={20} color="#FFFFFF" />
         </Pressable>
       </View>
+
+      {/* Add payout plan by code modal */}
+      <Modal
+        visible={showAddByCodeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAddByCodeModal(false)}
+      >
+        <Pressable 
+          style={styles.addByCodeModalOverlay} 
+          onPress={() => setShowAddByCodeModal(false)}
+        >
+          <Pressable style={[styles.addByCodeModalContent, { backgroundColor: colors.card }]} onPress={e => e.stopPropagation()}>
+            <View style={styles.addByCodeModalHeader}>
+              <Text style={[styles.addByCodeModalTitle, { color: colors.text }]}>Add payout plan</Text>
+              <Pressable onPress={() => { haptics.lightImpact(); setShowAddByCodeModal(false); }} hitSlop={12}>
+                <X size={24} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <Text style={[styles.addByCodeModalLabel, { color: colors.textSecondary }]}>Enter plan code</Text>
+            <TextInput
+              style={[styles.addByCodeInput, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, color: colors.text }]}
+              placeholder="e.g. ABC12XYZ"
+              placeholderTextColor={colors.textTertiary}
+              value={planCodeInput}
+              onChangeText={(t) => { setPlanCodeInput(t.toUpperCase()); setAddByCodeError(null); }}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            {addByCodeError ? (
+              <Text style={[styles.addByCodeError, { color: colors.error }]}>{addByCodeError}</Text>
+            ) : null}
+            <Button
+              title="Add"
+              onPress={handleAddByCode}
+              isLoading={isAddingByCode}
+              style={styles.addByCodeButton}
+            />
+            <Pressable onPress={handleCreatePayout} style={styles.createNewLink}>
+              <Text style={[styles.createNewLinkText, { color: colors.primary }]}>Create new payout plan</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Statistics Cards */}
       {/* {payoutPlans.length > 0 && (
@@ -361,7 +498,7 @@ export default function AllPayoutsScreen() {
             {activeTab === 'all' && (
               <Pressable style={styles.createFirstButton} onPress={handleCreatePayout}>
                 <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.createFirstButtonText}>Create Your First Plan</Text>
+                <Text style={styles.createFirstButtonText}>Create Your First Payout Schedule</Text>
               </Pressable>
             )}
           </View>
@@ -389,9 +526,21 @@ export default function AllPayoutsScreen() {
                   {/* Header with status and actions */}
                   <View style={styles.payoutHeader}>
                     <View style={styles.planInfo}>
-                      <Text style={styles.planName}>{plan.name}</Text>
+                      <View style={styles.planNameRow}>
+                        <Text style={styles.planName}>{plan.name}</Text>
+                        {plan.is_paired && (
+                          <View style={[styles.sharedBadge, { backgroundColor: colors.backgroundTertiary }]}>
+                            <Text style={[styles.sharedBadgeText, { color: colors.primary }]}>Shared with you</Text>
+                          </View>
+                        )}
+                      </View>
                       {plan.description && (
                         <Text style={styles.planDescription}>{plan.description}</Text>
+                      )}
+                      {(plan as any).purpose && (
+                        <Text style={styles.planPurpose} numberOfLines={1}>
+                          {getPurposeLabel((plan as any).purpose, (plan as any).purpose_other_text)}
+                        </Text>
                       )}
                     </View>
                     <View style={styles.headerActions}>
@@ -438,9 +587,25 @@ export default function AllPayoutsScreen() {
                       </View>
                       <View style={styles.detailContent}>
                         <Text style={styles.detailLabel}>Per Payout</Text>
-                        <Text style={styles.detailValue}>
-                          {formatCurrency(plan.payout_amount)}
-                        </Text>
+                        {plan.frequency === 'custom' && customDateAmounts[plan.id] && Object.keys(customDateAmounts[plan.id]).length > 0 ? (
+                          <View style={styles.customAmountsDetail}>
+                            <Text style={styles.detailValue}>Custom Amounts</Text>
+                            <Pressable
+                              onPress={() => {
+                                setSelectedPlanForBreakdown(plan.id);
+                                setShowBreakdownModal(true);
+                                haptics.selection();
+                              }}
+                              style={styles.seeBreakdownLink}
+                            >
+                              <Text style={styles.seeBreakdownText}>See breakdown</Text>
+                            </Pressable>
+                          </View>
+                        ) : (
+                          <Text style={styles.detailValue}>
+                            {formatCurrency(plan.payout_amount)}
+                          </Text>
+                        )}
                       </View>
                     </View>
                     
@@ -517,6 +682,18 @@ export default function AllPayoutsScreen() {
           handleAddFunds();
         }}
       />
+
+      {selectedPlanForBreakdown && customDateAmounts[selectedPlanForBreakdown] && (
+        <CustomAmountsBreakdownModal
+          isVisible={showBreakdownModal}
+          onClose={() => {
+            setShowBreakdownModal(false);
+            setSelectedPlanForBreakdown(null);
+          }}
+          customAmounts={customDateAmounts[selectedPlanForBreakdown]}
+          formatCurrency={formatCurrency}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -574,6 +751,56 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+  },
+  addByCodeModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  addByCodeModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 20,
+    padding: 24,
+  },
+  addByCodeModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  addByCodeModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  addByCodeModalLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  addByCodeInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  addByCodeError: {
+    fontSize: 13,
+    marginBottom: 12,
+  },
+  addByCodeButton: {
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  createNewLink: {
+    alignSelf: 'center',
+  },
+  createNewLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   // statsContainer: {
   //   marginBottom: 4,
@@ -773,16 +1000,36 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
+  planNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 4,
+  },
   planName: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 4,
+  },
+  sharedBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  sharedBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   planDescription: {
     fontSize: 14,
     color: colors.textSecondary,
     lineHeight: 20,
+  },
+  planPurpose: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   headerActions: {
     flexDirection: 'row',
@@ -888,6 +1135,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  customAmountsDetail: {
+    gap: 4,
+  },
+  seeBreakdownLink: {
+    marginTop: 4,
+  },
+  seeBreakdownText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
   footer: {
     flexDirection: 'row',

@@ -32,30 +32,47 @@ export function useCalendarEvents() {
   }, [session?.user?.id]);
 
   const fetchCalendarEvents = async () => {
+    if (!session?.user?.id) return;
     try {
       setError(null);
       setIsLoading(true);
 
-      // Fetch payout plans and their events
-      const { data: payoutPlans, error: plansError } = await supabase
+      const selectPlan = `
+        id,
+        name,
+        payout_amount,
+        status,
+        start_date,
+        next_payout_date,
+        created_at,
+        completed_payouts,
+        duration,
+        frequency
+      `;
+      const { data: ownedPlans, error: ownedError } = await supabase
         .from('payout_plans')
-        .select(`
-          id,
-          name,
-          payout_amount,
-          status,
-          start_date,
-          next_payout_date,
-          created_at,
-          completed_payouts,
-          duration,
-          frequency
-        `)
-        .eq('user_id', session?.user?.id);
+        .select(selectPlan)
+        .eq('user_id', session.user.id);
 
-      if (plansError) throw plansError;
+      if (ownedError) throw ownedError;
 
-      // Fetch transactions related to payouts
+      const { data: pairingRows } = await supabase
+        .from('payout_plan_pairings')
+        .select('payout_plan_id')
+        .eq('paired_user_id', session.user.id);
+
+      const pairedIds = (pairingRows || []).map((r: { payout_plan_id: string }) => r.payout_plan_id).filter(Boolean);
+      let pairedPlans: any[] = [];
+      if (pairedIds.length > 0) {
+        const { data: pairedData } = await supabase
+          .from('payout_plans')
+          .select(selectPlan)
+          .in('id', pairedIds);
+        pairedPlans = pairedData || [];
+      }
+      const payoutPlans = [...(ownedPlans || []), ...pairedPlans];
+
+      // Fetch payout transactions (RLS returns own + paired plan payouts)
       const { data: transactions, error: transactionsError } = await supabase
         .from('transactions')
         .select(`
@@ -69,7 +86,6 @@ export function useCalendarEvents() {
             name
           )
         `)
-        .eq('user_id', session?.user?.id)
         .eq('type', 'payout')
         .order('created_at', { ascending: false });
 
