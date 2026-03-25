@@ -24,6 +24,9 @@ export default function AmountScreen() {
   const monoAccountId = params.monoAccountId as string;
   const accountId = params.accountId as string;
   const bankName = params.bankName as string;
+  const planId = (params.planId as string | undefined) ?? undefined;
+  const planName = (params.planName as string | undefined) ?? undefined;
+  const totalBudget = (params.totalBudget as string | undefined) ?? undefined;
   
   const [amount, setAmount] = useState('');
   const [isInitiatingDirectPay, setIsInitiatingDirectPay] = useState(false);
@@ -111,7 +114,12 @@ export default function AmountScreen() {
           }
           router.push({
             pathname: '/deposit-flow/mono-directpay-widget',
-            params: { monoUrl: data.mono_url },
+            params: {
+              monoUrl: data.mono_url,
+              ...(planId && { planId }),
+              ...(planName && { planName }),
+              ...(totalBudget && { totalBudget }),
+            },
           });
         } catch (e) {
           Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong.');

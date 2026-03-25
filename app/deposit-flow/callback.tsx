@@ -8,10 +8,20 @@ import SafeFooter from '@/components/SafeFooter';
 
 export default function DepositCallbackScreen() {
   const { colors } = useTheme();
-  const params = useLocalSearchParams();
+  const params = useLocalSearchParams<{
+    reference?: string;
+    status?: string;
+    reason?: string;
+    planId?: string;
+    planName?: string;
+    totalBudget?: string;
+  }>();
   const reference = (params.reference as string) ?? '';
   const status = (params.status as string) ?? '';
   const reason = (params.reason as string) ?? '';
+  const planId = params.planId as string | undefined;
+  const planName = params.planName as string | undefined;
+  const totalBudget = params.totalBudget as string | undefined;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +45,12 @@ export default function DepositCallbackScreen() {
         if (!cancelled) {
           router.replace({
             pathname: '/deposit-flow/mono-processing',
-            params: { reference },
+            params: {
+              reference,
+              ...(planId && { planId }),
+              ...(planName && { planName }),
+              ...(totalBudget && { totalBudget }),
+            },
           });
         }
         setLoading(false);
@@ -47,7 +62,13 @@ export default function DepositCallbackScreen() {
       if (!cancelled) {
         router.replace({
           pathname: '/deposit-flow/mono-processing',
-          params: { reference, waitMessage: 'true' },
+            params: {
+              reference,
+              waitMessage: 'true',
+              ...(planId && { planId }),
+              ...(planName && { planName }),
+              ...(totalBudget && { totalBudget }),
+            },
         });
         setLoading(false);
       }

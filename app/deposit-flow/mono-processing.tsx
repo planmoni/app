@@ -20,9 +20,18 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 export default function MonoProcessingScreen() {
   const { colors } = useTheme();
   const haptics = useHaptics();
-  const params = useLocalSearchParams<{ reference: string; waitMessage?: string }>();
+  const params = useLocalSearchParams<{
+    reference: string;
+    waitMessage?: string;
+    planId?: string;
+    planName?: string;
+    totalBudget?: string;
+  }>();
   const reference = params.reference ?? '';
   const waitMessage = params.waitMessage === 'true';
+  const planId = params.planId as string | undefined;
+  const planName = params.planName as string | undefined;
+  const totalBudget = params.totalBudget as string | undefined;
   const { refreshWallet } = useBalance();
   const [displayAmount, setDisplayAmount] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,10 +47,18 @@ export default function MonoProcessingScreen() {
       } catch (_) {}
       router.replace({
         pathname: '/deposit-flow/mono-success',
-        params: { amount, reference, fee, totalCharged },
+        params: {
+          amount,
+          reference,
+          fee,
+          totalCharged,
+          ...(planId && { planId }),
+          ...(planName && { planName }),
+          ...(totalBudget && { totalBudget }),
+        },
       });
     },
-    [reference, refreshWallet]
+    [reference, refreshWallet, planId, planName, totalBudget]
   );
 
   const checkAndNavigate = useCallback(

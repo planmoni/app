@@ -57,6 +57,19 @@ export default function FundPlanScreen() {
     });
   };
 
+  const handleFundWithMono = () => {
+    haptics.mediumImpact();
+    router.push({
+      pathname: '/deposit-flow/amount',
+      params: {
+        newMethodType: 'mono-directpay',
+        planId,
+        planName,
+        totalBudget,
+      },
+    });
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -127,6 +140,23 @@ export default function FundPlanScreen() {
                 <Text style={styles.optionTitle}>Fund with Paystack</Text>
                 <Text style={styles.optionDescription}>
                   Add funds with Credit/Debit cards, Transfers, Direct Debit, USSD, and more.
+                </Text>
+              </View>
+              <ArrowRight size={20} color={colors.textSecondary} />
+            </Pressable>
+
+            {/* Fund with Mono Option */}
+            <Pressable
+              style={styles.optionCard}
+              onPress={handleFundWithMono}
+            >
+              <View style={styles.optionIconContainer}>
+                <CreditCard size={24} color={colors.primary} />
+              </View>
+              <View style={styles.optionContent}>
+                <Text style={styles.optionTitle}>Fund with Bank</Text>
+                <Text style={styles.optionDescription}>
+                  Add funds via Mono Direct Pay. Mono fees apply.
                 </Text>
               </View>
               <ArrowRight size={20} color={colors.textSecondary} />

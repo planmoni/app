@@ -77,8 +77,11 @@ function parseRedirectParams(url: string): { reference: string; status: string; 
 export default function MonoDirectPayWidgetScreen() {
   const { colors } = useTheme();
   const haptics = useHaptics();
-  const params = useLocalSearchParams<{ monoUrl: string }>();
+  const params = useLocalSearchParams<{ monoUrl: string; planId?: string; planName?: string; totalBudget?: string }>();
   const monoUrl = params.monoUrl ?? '';
+  const planId = params.planId as string | undefined;
+  const planName = params.planName as string | undefined;
+  const totalBudget = params.totalBudget as string | undefined;
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const hasHandledRedirect = useRef(false);
@@ -100,9 +103,16 @@ export default function MonoDirectPayWidgetScreen() {
     }
     router.replace({
       pathname: '/deposit-flow/callback',
-      params: { reference, status, reason },
+      params: {
+        reference,
+        status,
+        reason,
+        ...(planId && { planId }),
+        ...(planName && { planName }),
+        ...(totalBudget && { totalBudget }),
+      },
     });
-  }, []);
+  }, [planId, planName, totalBudget]);
 
   const handleRedirect = useCallback((url: string) => {
     const parsed = parseRedirectParams(url);
