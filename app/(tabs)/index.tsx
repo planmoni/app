@@ -1697,18 +1697,28 @@ export default function HomeScreen() {
               </View>
             </ImageBackground>
             
+            
             {/* Home Tab Content */}
             <>
               {/* On Track Card */}
+              {/* AI Suggestion Section - Only show for authenticated users */}
+              {/* {isAuthenticated && (
+                <AISuggestionCard 
+                  availableBalance={availableBalance}
+                  onSuggestionPress={handleAISuggestionPress}
+                />
+              )} */}
               <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
+              <OnTrackCard 
+                payoutPlans={payoutPlans}
+              />
+
               <ImageCarousel images={carouselImages} />
 
               <QuickPlans onRequireAuth={ensureAuthenticatedOrWelcome} />
 
 
-              <OnTrackCard 
-                payoutPlans={payoutPlans}
-              />
+              
               {activeSpendableBudgets.count > 0 && (
                 <ActiveSpendingPlansCard 
                   count={activeSpendableBudgets.count}
@@ -1723,13 +1733,7 @@ export default function HomeScreen() {
                 String(progress.id_face_verified) === 'true'
               ) && <KYCCard />} */}
 
-              {/* AI Suggestion Section - Only show for authenticated users */}
-              {/* {isAuthenticated && (
-                <AISuggestionCard 
-                  availableBalance={availableBalance}
-                  onSuggestionPress={handleAISuggestionPress}
-                />
-              )} */}
+              
 
               {/* Quick Plans Section */}
               <PendingActionsCard />
@@ -1775,6 +1779,7 @@ export default function HomeScreen() {
             payoutsTotalPaid={payoutsTotalPaid}
             payoutsTotalAmount={payoutsTotalAmount}
             onRequireAuth={ensureAuthenticatedOrWelcome}
+            setShowAddByCodeModal={setShowAddByCodeModal}
             setShowNewPlanInfoModal={setShowNewPlanInfoModal}
             setShowHowItWorksModal={setShowHowItWorksModal}
             isRefreshing={isRefreshing}
@@ -1840,8 +1845,10 @@ export default function HomeScreen() {
         <Pressable
           style={styles.floatingAddButton}
           onPress={() => {
+            if (!ensureAuthenticatedOrWelcome()) return;
             impact();
-            handleCreatePayout();
+            setShowAddByCodeModal(true);
+            logAnalyticsEvent('create_payout_click_modal');
           }}
         >
           <Plus size={24} color="#fff" />
@@ -1876,6 +1883,16 @@ export default function HomeScreen() {
         onAddFundsAfterClose={() => {
           // Navigate after modal is fully closed
           handleAddFunds();
+        }}
+      />
+      
+      {/* AddPayoutPlanByCodeModal */}
+      <AddPayoutPlanByCodeModal
+        isVisible={showAddByCodeModal}
+        onClose={() => setShowAddByCodeModal(false)}
+        onCreateNewPlan={() => {
+          setShowAddByCodeModal(false);
+          setShowNewPlanInfoModal(true);
         }}
       />
       

@@ -338,7 +338,7 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
 
 const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
-    marginTop: Platform.OS === 'ios' ? 20 : 1,
+    marginTop: Platform.OS === 'ios' ? 5 : 1,
     marginBottom: Platform.OS === 'ios' ? 10 : 8,
   },
   sectionHeader: {
