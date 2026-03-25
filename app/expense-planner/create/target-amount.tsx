@@ -134,7 +134,7 @@ export default function TargetAmountScreen() {
           )}
 
           <View style={styles.section}>
-          <Text style={styles.sectionTitle}>What's your total target amount for this vault?</Text>
+          <Text style={styles.sectionTitle}>What's the target for this vault?</Text>
           <Text style={styles.sectionDescription}>
             Enter how much you want to save for this vault.
           </Text>

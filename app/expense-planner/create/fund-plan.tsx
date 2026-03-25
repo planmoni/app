@@ -63,7 +63,7 @@ export default function FundPlanScreen() {
         <Pressable onPress={handleBack} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Fund Plan</Text>
+        <Text style={styles.headerTitle}>Fund Vault</Text>
         <Pressable
           onPress={() => router.replace('/(tabs)')}
           style={styles.closeButton}
@@ -82,14 +82,14 @@ export default function FundPlanScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          <Text style={styles.title}>Choose how to fund your plan</Text>
+          <Text style={styles.title}>Choose how to fund your vault</Text>
           <Text style={styles.subtitle}>
-            Select a payment method to add money to your expense plan
+            Select a payment method to add money to your vault
           </Text>
 
           {planName && (
             <View style={styles.planInfoCard}>
-              <Text style={styles.planInfoLabel}>Plan</Text>
+              <Text style={styles.planInfoLabel}>Vault</Text>
               <Text style={styles.planInfoName}>{planName}</Text>
               <Text style={styles.planInfoAmount}>
                 ₦{parseFloat(totalBudget || '0').toLocaleString()}

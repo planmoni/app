@@ -1202,8 +1202,21 @@ export default function HomeScreen() {
       }
     }
     
-    // If Tier 1 is complete AND has account, navigate directly to add funds page
-    if (tierCompletion.tier1 && hasAccount) {
+    // Allow access to the Add funds page even if Tier 1 isn't complete.
+    // Mono/Paystack flows don't require Tier 1, while bank-transfer may.
+    if (!tierCompletion.tier1) {
+      isNavigatingToAddFundsRef.current = true;
+      router.push('/add-funds');
+      logAnalyticsEvent('add_funds_click_non_kyc');
+      // Reset flag after navigation completes
+      setTimeout(() => {
+        isNavigatingToAddFundsRef.current = false;
+      }, 1000);
+      return;
+    }
+
+    // Tier 1 is complete at this point. If user already has an account, go directly.
+    if (hasAccount) {
       isNavigatingToAddFundsRef.current = true;
       router.push('/add-funds');
       logAnalyticsEvent('add_funds_click');
@@ -1213,9 +1226,8 @@ export default function HomeScreen() {
       }, 1000);
       return;
     }
-    
-    // If Tier 1 not complete or no account, show ClaimAccountModal
-    // The modal will handle navigation if account exists after checking
+
+    // Otherwise show ClaimAccountModal to help create/claim the safehaven account.
     setShowClaimAccountModal(true);
     logAnalyticsEvent('add_funds_click_claim_modal');
   };
@@ -1705,11 +1717,11 @@ export default function HomeScreen() {
                   onPress={() => handleTabChange('plans')}
                 />
               )}
-              {isAuthenticated && progress && !(
+              {/* {isAuthenticated && progress && !(
                 progress.id_face_verified === true || 
                 String(progress.id_face_verified) === '1' ||
                 String(progress.id_face_verified) === 'true'
-              ) && <KYCCard />}
+              ) && <KYCCard />} */}
 
               {/* AI Suggestion Section - Only show for authenticated users */}
               {/* {isAuthenticated && (

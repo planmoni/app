@@ -254,7 +254,7 @@ export default function DatesScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>When shoul the vault be accessible?</Text>
+        <Text style={styles.title}>When should the vault be accessible?</Text>
         <Text style={styles.description}>
           Pick the start and end dates for this vault (at least 2 days).
         </Text>
