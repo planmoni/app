@@ -26,6 +26,9 @@ export default function EditPeriodScreen() {
   const { expensePlans, updateExpensePlan, fetchExpensePlans } = useExpensePlans();
   
   const plan = expensePlans.find(p => p.id === planId);
+  const currentBalance = (plan as any)?.current_balance || 0;
+  const planTotalBudget = plan?.total_budget ?? 0;
+  const isPartiallyFunded = currentBalance > 0 && planTotalBudget > 0 && currentBalance < planTotalBudget;
   const [startDate, setStartDate] = useState<Date | null>(
     plan?.start_date ? new Date(plan.start_date) : null
   );
@@ -77,6 +80,7 @@ export default function EditPeriodScreen() {
   };
 
   const handleDateSelect = (date: Date) => {
+    if (isPartiallyFunded) return;
     if (isPastDate(date)) return;
     
     haptics.selection();
@@ -103,11 +107,13 @@ export default function EditPeriodScreen() {
   };
 
   const handlePrevMonth = () => {
+    if (isPartiallyFunded) return;
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
     haptics.lightImpact();
   };
 
   const handleNextMonth = () => {
+    if (isPartiallyFunded) return;
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
     haptics.lightImpact();
   };
@@ -127,6 +133,12 @@ export default function EditPeriodScreen() {
   const handleDone = async () => {
     if (!startDate || !endDate) {
       Alert.alert('Missing Dates', 'Please select both start and end dates');
+      haptics.notification();
+      return;
+    }
+
+    if (isPartiallyFunded) {
+      Alert.alert('Not Editable', 'Vault Period can’t be edited once the vault is partially funded.');
       haptics.notification();
       return;
     }
@@ -272,8 +284,8 @@ export default function EditPeriodScreen() {
                     isSelected && styles.calendarDaySelected,
                     isPast && styles.calendarDayPast,
                   ]}
-                  onPress={() => !isPast && handleDateSelect(date)}
-                  disabled={isPast}
+                  onPress={() => !isPast && !isPartiallyFunded && handleDateSelect(date)}
+                  disabled={isPast || isPartiallyFunded}
                 >
                   <Text style={[
                     styles.calendarDayText,
@@ -293,7 +305,7 @@ export default function EditPeriodScreen() {
       <FloatingButton
         title="Done"
         onPress={handleDone}
-        disabled={isSaving || !startDate || !endDate}
+        disabled={isSaving || isPartiallyFunded || !startDate || !endDate}
         hapticType="medium"
       />
     </SafeAreaView>

@@ -30,13 +30,18 @@ export default function AutoTopUpConfigScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const { saveDraftExpensePlan, saveLastStep } = useExpensePlans();
+  const { saveDraftExpensePlan, saveLastStep, updateExpensePlan, fetchExpensePlans } = useExpensePlans();
 
   const planId = params.planId as string | undefined;
+  const mode = (params.mode as string | undefined) || undefined;
+  const isEdit = mode === 'edit';
   const planName = params.planName as string;
   const targetAmount = parseFloat((params.targetAmount as string) || '0');
   const startDateStr = params.startDate as string;
   const endDateStr = params.endDate as string;
+  const dateType = params.dateType as string | undefined;
+  const payoutSchedule = params.payoutSchedule as string | undefined;
+  const requiredPerCycle = params.requiredPerCycle as string | undefined;
   const subCategories = params.subCategories as string | undefined;
   const planTypesParam = (params.planTypesParam || params.planTypes) as string | undefined;
 
@@ -191,7 +196,33 @@ export default function AutoTopUpConfigScreen() {
     haptics.mediumImpact();
 
     try {
-      // Save auto top-up configuration to draft plan
+      if (isEdit) {
+        if (!planId) {
+          Alert.alert('Error', 'Missing plan id.');
+          return;
+        }
+
+        // Persist auto top-up settings directly to the existing plan.
+        await updateExpensePlan(planId, {
+          funding_method: 'auto',
+          auto_topup_enabled: true,
+          auto_topup_frequency: topUpConfig.frequency,
+          auto_topup_amount: topUpConfig.amountPerCycle,
+          auto_topup_start_date: formatDateForStorage(topUpConfig.topUpStartDate),
+          auto_topup_end_date: formatDateForStorage(topUpConfig.topUpEndDate),
+          auto_topup_next_date: formatDateForStorage(topUpConfig.nextTopUpDate),
+          auto_topup_total_cycles: topUpConfig.cycles,
+        });
+
+        await fetchExpensePlans();
+        router.replace({
+          pathname: '/expense-planner/[id]/details',
+          params: { id: planId },
+        });
+        return;
+      }
+
+      // Create flow: Save auto top-up configuration to draft plan
       if (planId) {
         await saveDraftExpensePlan({
           planId,
@@ -200,16 +231,20 @@ export default function AutoTopUpConfigScreen() {
 
       // Navigate to start action with auto top-up config
       router.push({
-        pathname: '/expense-planner/create/start-action',
+        pathname: '/expense-planner/create/review',
         params: {
           planName,
           targetAmount: targetAmount.toString(),
           startDate: startDateStr,
           endDate: endDateStr || '',
           planId: planId || '',
+          dateType,
+          payoutSchedule,
+          requiredPerCycle: requiredPerCycle || '0',
           ...(subCategories && { subCategories }),
           ...(planTypesParam && { planTypes: planTypesParam }),
           fundingMethod: 'auto',
+          startAction: 'wallet',
           // Auto top-up configuration
           autoTopupEnabled: 'true',
           autoTopupFrequency: topUpConfig.frequency,
@@ -269,6 +304,18 @@ export default function AutoTopUpConfigScreen() {
             if (Platform.OS !== 'web') {
               haptics.lightImpact();
             }
+            if (isEdit) {
+              if (planId) {
+                router.replace({
+                  pathname: '/expense-planner/[id]/details',
+                  params: { id: planId },
+                });
+              } else {
+                router.replace('/(tabs)');
+              }
+              return;
+            }
+
             if (planId) {
               await saveLastStep(planId, '/expense-planner/create/auto-topup-config');
             }

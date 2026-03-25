@@ -50,11 +50,17 @@ export default function PlanDetailsPage() {
 
   const currentBalance = (plan as any)?.current_balance ?? 0;
   const planTotalBudget = plan.total_budget ?? 0;
-  const showCloseVault = !(
-    budgetStarted &&
-    currentBalance > 0 &&
-    currentBalance < planTotalBudget
-  );
+  const isPartiallyFunded = currentBalance > 0 && currentBalance < planTotalBudget;
+
+  // Enable Close Vault only when the vault has no added funds yet (0%) or the progress rounds to 0%.
+  // This should be independent of whether the budget period has started.
+  const fundingProgressPercentRounded = planTotalBudget > 0
+    ? Math.round((currentBalance / planTotalBudget) * 100)
+    : 0;
+
+  const showCloseVault =
+    currentBalance <= 0 ||
+    (planTotalBudget > 0 && fundingProgressPercentRounded === 0);
 
   // Get funding method
   const fundingMethod = plan?.funding_method || plan?.metadata?.funding_method || 'manual';
@@ -217,7 +223,7 @@ export default function PlanDetailsPage() {
           <View style={styles.infoCard}>
             <View style={styles.infoCardHeader}>
               <Text style={styles.infoLabel}>Vault Period</Text>
-              {!budgetStarted && (
+              {!budgetStarted && !isPartiallyFunded && (
                 <Pressable
                   onPress={() => {
                     haptics.selection();
@@ -276,7 +282,7 @@ export default function PlanDetailsPage() {
               </Text>
             </View>
 
-            <View style={styles.infoCard}>
+            {/* <View style={styles.infoCard}>
               <View style={styles.infoCardHeader}>
                 <Text style={styles.infoLabel}>Vault Start Rule</Text>
                 <Pressable
@@ -308,7 +314,7 @@ export default function PlanDetailsPage() {
                   )}
                 </View>
               )}
-            </View>
+            </View> */}
           </>
         )}
 
@@ -317,7 +323,7 @@ export default function PlanDetailsPage() {
           <View style={styles.categoriesCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionLabel}>Categories</Text>
-              {!budgetStarted && (
+              {!budgetStarted && !isPartiallyFunded && (
                 <Pressable
                   onPress={() => {
                     haptics.selection();

@@ -72,7 +72,7 @@ export default function FundAmountSuccessScreen() {
 
         <Text style={styles.title}>Funds Added Successfully!</Text>
         <Text style={styles.subtitle}>
-          Your funds have been transferred to your plan
+          Your funds have been added to your vault
         </Text>
 
         <View style={styles.summaryCard}>
@@ -91,13 +91,13 @@ export default function FundAmountSuccessScreen() {
 
           <View style={styles.balanceRow}>
             <View style={styles.balanceItem}>
-              <Text style={styles.balanceLabel}>New Plan Balance</Text>
+              <Text style={styles.balanceLabel}>New Vault Balance</Text>
               <Text style={styles.balanceAmount}>
                 ₦{newBalance.toLocaleString()}
               </Text>
             </View>
             <View style={styles.balanceItem}>
-              <Text style={styles.balanceLabel}>Total Budget</Text>
+              <Text style={styles.balanceLabel}>Total Target</Text>
               <Text style={styles.balanceAmount}>
                 ₦{totalBudget.toLocaleString()}
               </Text>
@@ -117,7 +117,7 @@ export default function FundAmountSuccessScreen() {
 
       <View style={styles.footer}>
         <Button 
-          title="View Plan"
+          title="View Vault"
           onPress={handleViewPlan}
           style={styles.viewPlanButton}
           hapticType="medium"

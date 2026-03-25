@@ -1708,10 +1708,11 @@ export default function HomeScreen() {
                   onSuggestionPress={handleAISuggestionPress}
                 />
               )} */}
-              <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
               <OnTrackCard 
                 payoutPlans={payoutPlans}
               />
+              <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
+              
 
               <ImageCarousel images={carouselImages} />
 
@@ -1892,7 +1893,18 @@ export default function HomeScreen() {
         onClose={() => setShowAddByCodeModal(false)}
         onCreateNewPlan={() => {
           setShowAddByCodeModal(false);
-          setShowNewPlanInfoModal(true);
+          // Only show the "first payout schedule" modal when the user truly has no payout history.
+          // If the user already has payout transactions, go straight to the create payout flow.
+          if (hasCreatedPayoutPlanLoading) {
+            router.push('/create-payout/amount');
+            return;
+          }
+
+          if (hasCreatedPayoutPlan) {
+            router.push('/create-payout/amount');
+          } else {
+            setShowNewPlanInfoModal(true);
+          }
         }}
       />
       

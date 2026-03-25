@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, X, Zap, Hand } from 'lucide-react-native';
@@ -22,15 +22,74 @@ export default function EditFundingScreen() {
   const [fundingMethod, setFundingMethod] = useState<'auto' | 'manual'>(
     (plan as any)?.funding_method || 'manual'
   );
+  const startDateStr = (plan as any)?.start_date as string | undefined;
+
+  // Matches `app/expense-planner/create/funding-source.tsx` rule:
+  // auto top-up only available when the vault start date is >= 7 days away.
+  const isAutoTopUpDisabled = useMemo(() => {
+    if (!startDateStr) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const startDate = new Date(startDateStr);
+    startDate.setHours(0, 0, 0, 0);
+
+    const daysUntil = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return daysUntil < 7;
+  }, [startDateStr]);
+
+  useEffect(() => {
+    if (isAutoTopUpDisabled && fundingMethod === 'auto') {
+      setFundingMethod('manual');
+    }
+  }, [isAutoTopUpDisabled, fundingMethod]);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleDone = async () => {
+    if (fundingMethod === 'auto' && isAutoTopUpDisabled) {
+      Alert.alert(
+        'Auto Top-Up Unavailable',
+        'Auto top-up is only available when the vault start date is at least 1 week away. Please select manual top-up instead.',
+        [{ text: 'OK' }],
+      );
+      haptics.notification();
+      return;
+    }
+
+    if (!plan) return;
+
+    // Auto mode uses the same flow as during vault creation:
+    // go through `auto-topup-config` to pick frequency/schedule.
+    if (fundingMethod === 'auto') {
+      if (!plan.start_date) {
+        Alert.alert('Error', 'Vault start date is missing. Please select a start date first.');
+        return;
+      }
+
+      haptics.mediumImpact();
+      router.push({
+        pathname: '/expense-planner/create/auto-topup-config',
+        params: {
+          mode: 'edit',
+          planId: planId || plan.id,
+          planName: plan.name,
+          targetAmount: (plan.total_budget || 0).toString(),
+          startDate: plan.start_date || '',
+          endDate: plan.end_date || '',
+        },
+      });
+      return;
+    }
+
     haptics.mediumImpact();
     setIsSaving(true);
 
     try {
       await updateExpensePlan(planId, {
-        funding_method: fundingMethod,
+        funding_method: 'manual',
+        auto_topup_enabled: false,
+        auto_topup_next_date: null,
       });
       await fetchExpensePlans();
       haptics.notification();
@@ -80,17 +139,29 @@ export default function EditFundingScreen() {
             style={[
               styles.optionButton,
               fundingMethod === 'auto' && styles.optionButtonSelected,
+              isAutoTopUpDisabled && styles.optionButtonDisabled,
             ]}
             onPress={() => {
+              if (isAutoTopUpDisabled) {
+                haptics.notification();
+                Alert.alert(
+                  'Auto Top-Up Unavailable',
+                  'Auto top-up is only available when the vault start date is at least 1 week away. Please select manual top-up instead.',
+                  [{ text: 'OK' }],
+                );
+                return;
+              }
               haptics.selection();
               setFundingMethod('auto');
             }}
+            disabled={isAutoTopUpDisabled}
           >
             <Zap size={24} color={fundingMethod === 'auto' ? colors.primary : colors.textSecondary} />
             <View style={styles.optionContent}>
               <Text style={[
                 styles.optionTitle,
                 fundingMethod === 'auto' && styles.optionTitleSelected,
+                isAutoTopUpDisabled && styles.optionTitleDisabled,
               ]}>
                 Auto
               </Text>
@@ -218,6 +289,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       borderColor: colors.primary,
       backgroundColor: colors.primary + '10',
     },
+    optionButtonDisabled: {
+      opacity: 0.55,
+    },
     optionContent: {
       flex: 1,
     },
@@ -229,6 +303,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     },
     optionTitleSelected: {
       color: colors.primary,
+    },
+    optionTitleDisabled: {
+      color: colors.textTertiary || colors.textSecondary,
     },
     optionDescription: {
       fontSize: getScaledFontSize(13, textSizeMultiplier),

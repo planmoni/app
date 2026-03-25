@@ -114,15 +114,18 @@ export default function FundingSourceScreen() {
             targetAmount: targetAmount.toString(),
             startDate: startDateStr,
             endDate: endDateStr || '',
+            dateType,
+            payoutSchedule,
+            requiredPerCycle: requiredPerCycle.toString(),
             planId: planId || '',
             ...(subCategories && { subCategories }),
             ...(planTypesParam && { planTypes: planTypesParam }),
           },
         });
       } else {
-        // Navigate directly to start action for manual funding
+        // Skip "Vault Start Rule" and force spending directly from the vault
         router.push({
-          pathname: '/expense-planner/create/start-action',
+          pathname: '/expense-planner/create/review',
           params: {
             planName,
             targetAmount: targetAmount.toString(),
@@ -132,6 +135,7 @@ export default function FundingSourceScreen() {
             payoutSchedule,
             requiredPerCycle: requiredPerCycle.toString(),
             fundingMethod,
+            startAction: 'wallet',
             planId: planId || '',
             ...(subCategories && { subCategories }),
             ...(planTypesParam && { planTypes: planTypesParam }),

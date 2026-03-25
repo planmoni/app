@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, X, Search } from 'lucide-react-native';
@@ -20,6 +20,9 @@ export default function EditCategoriesScreen() {
   const { expensePlans, updateExpensePlan, fetchExpensePlans } = useExpensePlans();
   
   const plan = expensePlans.find(p => p.id === planId);
+  const currentBalance = (plan as any)?.current_balance || 0;
+  const planTotalBudget = plan?.total_budget ?? 0;
+  const isPartiallyFunded = currentBalance > 0 && planTotalBudget > 0 && currentBalance < planTotalBudget;
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedSubCategories, setSelectedSubCategories] = useState<Record<string, string[]>>({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -66,11 +69,13 @@ export default function EditCategoriesScreen() {
   }, [searchQuery]);
 
   const handleCategoryClick = (categoryId: string) => {
+    if (isPartiallyFunded) return;
     haptics.selection();
     setSelectedCategoryId(prev => prev === categoryId ? null : categoryId);
   };
 
   const handleSubCategoryToggle = (categoryId: string, subCategoryId: string) => {
+    if (isPartiallyFunded) return;
     haptics.selection();
     setSelectedSubCategories(prev => {
       const current = prev[categoryId] || [];
@@ -86,6 +91,11 @@ export default function EditCategoriesScreen() {
   };
 
   const handleDone = async () => {
+    if (isPartiallyFunded) {
+      Alert.alert('Not Editable', 'Categories can’t be edited once the vault is partially funded.');
+      haptics.notification();
+      return;
+    }
     const allSelectedSubCategories = Object.values(selectedSubCategories).flat();
     
     if (allSelectedSubCategories.length === 0) {
@@ -164,6 +174,7 @@ export default function EditCategoriesScreen() {
             placeholderTextColor={colors.textTertiary}
             value={searchQuery}
             onChangeText={setSearchQuery}
+            editable={!isPartiallyFunded}
           />
         </View>
 
@@ -221,7 +232,7 @@ export default function EditCategoriesScreen() {
       <FloatingButton
         title="Done"
         onPress={handleDone}
-        disabled={isSaving || Object.values(selectedSubCategories).flat().length === 0}
+        disabled={isSaving || isPartiallyFunded || Object.values(selectedSubCategories).flat().length === 0}
         hapticType="medium"
       />
     </SafeAreaView>

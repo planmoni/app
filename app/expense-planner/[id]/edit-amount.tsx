@@ -23,6 +23,8 @@ export default function EditAmountScreen() {
   
   const plan = expensePlans.find(p => p.id === planId);
   const [targetAmount, setTargetAmount] = useState(plan?.total_budget?.toString() || '');
+  const originalTotalBudget = plan?.total_budget ?? 0;
+  const currentBalance = (plan as any)?.current_balance ?? 0;
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const amountInputRef = useRef<TextInput>(null);
@@ -83,6 +85,16 @@ export default function EditAmountScreen() {
 
     if (numericAmount < 1000) {
       setError('Minimum target is ₦1,000');
+      haptics.notification();
+      return;
+    }
+
+    // Once funding has started, users should only be able to increase the vault amount.
+    // This prevents reducing `total_budget` below the initially set value.
+    if (currentBalance > 0 && originalTotalBudget > 0 && numericAmount < originalTotalBudget) {
+      setError(
+        `You can only increase the vault amount after funding starts. Minimum is ₦${originalTotalBudget.toLocaleString('en-US')}.`,
+      );
       haptics.notification();
       return;
     }

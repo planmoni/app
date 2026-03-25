@@ -90,29 +90,47 @@ export default function AddPayoutPlanByCodeModal({
               <X size={24} color={colors.textSecondary} />
             </Pressable>
           </View>
-          <Text style={[styles.label, { color: colors.textSecondary }]}>Enter plan code</Text>
+
+          {/* Enter plan code */}
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Enter plan code</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, color: colors.text }]}
+            style={[
+              styles.input,
+              { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, color: colors.text },
+            ]}
             placeholder="e.g. ABC12XYZ"
             placeholderTextColor={colors.textTertiary}
             value={planCodeInput}
-            onChangeText={(t) => { setPlanCodeInput(t.toUpperCase()); setError(null); }}
+            onChangeText={(t) => {
+              setPlanCodeInput(t.toUpperCase());
+              setError(null);
+            }}
             autoCapitalize="characters"
             autoCorrect={false}
           />
-          {error ? (
-            <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
-          ) : null}
+          {error ? <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text> : null}
           <Button
             title="Add"
             onPress={handleAddByCode}
             isLoading={isAddingByCode}
-            style={styles.addButton}
+            style={styles.addCodeButton}
           />
+
+          {/* OR divider */}
+          <View style={styles.orRow}>
+            <View style={[styles.orLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.orText, { color: colors.textSecondary }]}>Or</Text>
+            <View style={[styles.orLine, { backgroundColor: colors.border }]} />
+          </View>
+
+          {/* Create new payout */}
           {onCreateNewPlan ? (
-            <Pressable onPress={handleCreateNewPlan} style={styles.createNewLink}>
-              <Text style={[styles.createNewLinkText, { color: colors.primary }]}>Create new payout plan</Text>
-            </Pressable>
+            <Button
+              title="Create new payout"
+              variant="outline"
+              onPress={handleCreateNewPlan}
+              style={styles.createNewButton}
+            />
           ) : null}
         </Pressable>
       </Pressable>
@@ -144,9 +162,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
-  label: {
+  sectionLabel: {
     fontSize: 14,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   input: {
     borderWidth: 1,
@@ -154,21 +172,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   errorText: {
     fontSize: 13,
     marginBottom: 12,
   },
-  addButton: {
+  addCodeButton: {
     marginTop: 4,
     marginBottom: 16,
   },
-  createNewLink: {
-    alignSelf: 'center',
+  orRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
   },
-  createNewLinkText: {
-    fontSize: 14,
+  orLine: {
+    flex: 1,
+    height: 1,
+  },
+  orText: {
+    fontSize: 13,
     fontWeight: '600',
+  },
+  createNewButton: {
+    marginTop: 0,
   },
 });

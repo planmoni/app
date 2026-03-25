@@ -312,32 +312,7 @@ export default function ReviewScreen() {
         </View>
 
         {/* Budget Start Action */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>When vault starts</Text>
-          </View>
-          {startAction === 'auto_payout' ? (
-            <View style={styles.payoutAccountRow}>
-              <View style={styles.bankLogoContainer}>
-                {SvgLogo ? (
-                  React.createElement(SvgLogo.default || SvgLogo, { width: 28, height: 28 })
-                ) : PngLogo ? (
-                  <Image source={PngLogo} style={styles.bankLogoImage} resizeMode="contain" />
-                ) : (
-                  <Landmark size={20} color={colors.primary} />
-                )}
-              </View>
-              <View style={styles.payoutAccountTextContainer}>
-                <Text style={styles.sectionValue}>Auto payout to bank account</Text>
-                <Text style={styles.payoutAccountMeta}>
-                  {payoutAccountLabel || 'Selected payout account'}
-                </Text>
-              </View>
-            </View>
-          ) : (
-            <Text style={styles.sectionValue}>Keep balance in Vault</Text>
-          )}
-        </View>
+        
 
         {/* Wallet Lock Rule */}
 
