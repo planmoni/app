@@ -190,7 +190,7 @@ export default function EditPeriodScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Edit Budget Period</Text>
+        <Text style={styles.headerTitle}>Edit Vault Period</Text>
         <Pressable
           onPress={() => {
             haptics.lightImpact();
@@ -203,9 +203,9 @@ export default function EditPeriodScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Budget Period</Text>
+        <Text style={styles.title}>Vault Period</Text>
         <Text style={styles.description}>
-          Select the start and end dates for this budget
+          Select the start and end dates for this vault
         </Text>
 
         {/* Selected Dates Display */}

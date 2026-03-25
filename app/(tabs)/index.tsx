@@ -1656,7 +1656,7 @@ export default function HomeScreen() {
                       )}
                     </Pressable>
                   </View>
-                  <Pressable 
+                  {/* <Pressable 
                     onPress={() => {
                       impact();
                       setShowBalanceActionsModal(true);
@@ -1665,7 +1665,7 @@ export default function HomeScreen() {
                     style={styles.eyeIconButton}
                   >
                     <MoreVertical size={20} color={'#fff'} />
-                  </Pressable>
+                  </Pressable> */}
                 </View>
                 <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
                 <View style={styles.lockedSection}>

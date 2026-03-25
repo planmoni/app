@@ -426,7 +426,7 @@ export default function PlanDetailScreen() {
         {buckets.length > 0 && (
           <>
             <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Budget Distribution</Text>
+              <Text style={styles.chartTitle}>Vault Distribution</Text>
               <PieChart data={pieChartData} total={plan.total_budget} />
             </View>
 

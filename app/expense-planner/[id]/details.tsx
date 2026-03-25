@@ -176,7 +176,7 @@ export default function PlanDetailsPage() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Plan Details</Text>
+        <Text style={styles.headerTitle}>Vault Details</Text>
         <Pressable
           onPress={() => router.back()}
           style={styles.closeButton}
@@ -194,7 +194,7 @@ export default function PlanDetailsPage() {
         {!budgetStarted && (
           <View style={styles.infoCard}>
             <View style={styles.infoCardHeader}>
-              <Text style={styles.infoLabel}>Budget Amount</Text>
+              <Text style={styles.infoLabel}>Vault Amount</Text>
               <Pressable
                 onPress={() => {
                   haptics.selection();
@@ -216,7 +216,7 @@ export default function PlanDetailsPage() {
         {plan.start_date && plan.end_date && (
           <View style={styles.infoCard}>
             <View style={styles.infoCardHeader}>
-              <Text style={styles.infoLabel}>Budget Period</Text>
+              <Text style={styles.infoLabel}>Vault Period</Text>
               {!budgetStarted && (
                 <Pressable
                   onPress={() => {
@@ -238,7 +238,7 @@ export default function PlanDetailsPage() {
           </View>
         )}
 
-        {/* Budget Duration */}
+        {/* Vault Duration */}
         {budgetDuration && (
           <View style={styles.infoCard}>
             <Text style={styles.infoLabel}>Duration</Text>
@@ -278,7 +278,7 @@ export default function PlanDetailsPage() {
 
             <View style={styles.infoCard}>
               <View style={styles.infoCardHeader}>
-                <Text style={styles.infoLabel}>Plan Start Rule</Text>
+                <Text style={styles.infoLabel}>Vault Start Rule</Text>
                 <Pressable
                   onPress={() => {
                     haptics.selection();
@@ -295,12 +295,12 @@ export default function PlanDetailsPage() {
               {startAction === 'wallet' ? (
                 <View>
                   <Text style={styles.infoValue}>
-                    {budgetStarted ? 'Keep balance in Plan' : 'Spend directly from budget'}
+                    {budgetStarted ? 'Keep balance in Vault' : 'Spend directly from vault'}
                   </Text>
                 </View>
               ) : (
                 <View>
-                  <Text style={styles.infoValue}>Auto payout to bank</Text>
+                  <Text style={styles.infoValue}>Auto payout to bank account</Text>
                   {payoutAccountLabel && (
                     <Text style={styles.payoutAccountText}>
                       {payoutAccountBankName} ••••{payoutAccountLabel.split('••••')[1] || ''}

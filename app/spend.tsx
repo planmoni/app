@@ -53,7 +53,7 @@ export default function SpendScreen() {
         <Pressable onPress={handleBack} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Budget Spend</Text>
+        <Text style={styles.headerTitle}>Vault Spend</Text>
         <Pressable onPress={handleClose} style={styles.closeButton}>
           <X size={20} color={colors.text} />
         </Pressable>
@@ -72,7 +72,7 @@ export default function SpendScreen() {
             {/* Started budgets section */}
             {startedBudgets.length > 0 ? (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Started budgets</Text>
+                <Text style={styles.sectionTitle}>Started vaults</Text>
                 <View style={styles.budgetsList}>
                   {startedBudgets.map(plan => {
                     const currentBalance = (plan as any).current_balance || 0;
@@ -103,9 +103,9 @@ export default function SpendScreen() {
               </View>
             ) : (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyTitle}>No budgets have started yet</Text>
+                <Text style={styles.emptyTitle}>No vaults ready to spend yet</Text>
                 <Text style={styles.emptySubtitle}>
-                  Budgets that have started will appear here
+                  Vault savings that are ready to spend will appear here
                 </Text>
               </View>
             )}

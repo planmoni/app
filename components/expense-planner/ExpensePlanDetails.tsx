@@ -51,7 +51,7 @@ export default function ExpensePlanDetails({ plan, buckets = [] }: ExpensePlanDe
 
   return (
     <View style={styles.detailsCard}>
-      <Text style={styles.detailsCardTitle}>Plan Details</Text>
+      <Text style={styles.detailsCardTitle}>Vault Details</Text>
       
       {/* Total Amount at Top */}
       <View style={styles.totalAmountContainer}>
@@ -59,7 +59,7 @@ export default function ExpensePlanDetails({ plan, buckets = [] }: ExpensePlanDe
           <DollarSign size={24} color={colors.primary} />
         </View>
         <View style={styles.totalAmountContent}>
-          <Text style={styles.totalAmountLabel}>Total Budget</Text>
+          <Text style={styles.totalAmountLabel}>Total Target</Text>
           <Text style={styles.totalAmountValue}>
             ₦{plan.total_budget.toLocaleString()}
           </Text>

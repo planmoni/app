@@ -30,8 +30,6 @@ export default function PayoutAccountsScreen() {
     deleteAccount
   } = usePayoutAccounts();
 
-  const isMaxPayoutAccounts = payoutAccounts.length >= 3;
-
   const handleEditAccount = (account: any) => {
     haptics.selection();
     setSelectedAccount(account);
@@ -146,10 +144,14 @@ export default function PayoutAccountsScreen() {
                     <View style={styles.bankIcon}>
                       {(() => {
                         const bankIcon = getBankIconLogo(account.bank_name);
-                        const SvgLogo = bankIcon.logoSvg ? (bankIcon.logoSvg as any).default || bankIcon.logoSvg : null;
-
-                        if (SvgLogo && typeof SvgLogo === 'function') {
-                          return <SvgLogo width={24} height={24} fill={colors.primary} />;
+                        
+                        if (bankIcon.logoSvg) {
+                          // Handle SVG components
+                          return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                            width: 24,
+                            height: 24,
+                            fill: colors.primary
+                          });
                         } else if (bankIcon.logo) {
                           return (
                             <Image 
@@ -236,25 +238,16 @@ export default function PayoutAccountsScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        {!isMaxPayoutAccounts ? (
-          <Button
-            title="Add New Account"
-            onPress={() => {
-              haptics.mediumImpact();
-              setShowAddAccount(true);
-            }}
-            style={styles.addButton}
-            icon={Plus}
-            hapticType="medium"
-          />
-        ) : (
-          <View style={styles.limitNotice}>
-            <Info size={16} color={colors.textSecondary} />
-            <Text style={styles.limitNoticeText}>
-              You can only add up to 3 payout accounts. Remove one to add another.
-            </Text>
-          </View>
-        )}
+        <Button
+          title="Add New Account"
+          onPress={() => {
+            haptics.mediumImpact();
+            setShowAddAccount(true);
+          }}
+          style={styles.addButton}
+          icon={Plus}
+          hapticType="medium"
+        />
       </View>
 
       <AddPayoutAccountModal
@@ -525,22 +518,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     height: 55,
     borderRadius: 20,
     justifyContent: 'center',
-  },
-  limitNotice: {
-    marginTop: 8,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-  },
-  limitNoticeText: {
-    flex: 1,
-    color: colors.textSecondary,
-    fontSize: 14,
   },
   addAccountButton: {
     flexDirection: 'row',

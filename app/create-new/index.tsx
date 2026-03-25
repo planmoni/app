@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Wallet, CalendarDays, X } from 'lucide-react-native';
+import { ArrowLeft, Wallet, CalendarDays, X, Vault } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
@@ -45,7 +45,7 @@ export default function CreateNewScreen() {
         <Pressable onPress={goBack} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Start New Plan</Text>
+        <Text style={styles.headerTitle}>New</Text>
         <Pressable onPress={goHome} style={styles.closeButton} hitSlop={8}>
           <X size={20} color={colors.text} />
         </Pressable>
@@ -62,13 +62,13 @@ export default function CreateNewScreen() {
             <CalendarDays size={24} color={colors.primary} />
           </View>
           <View style={styles.cardText}>
-            <Text style={styles.cardTitle}>Payout Schedule</Text>
-            <Text style={styles.cardSubtitle}>Setup up daily, weekly, monthly or yearly payout schedules or choose specific dates to receive your funds.</Text>
+            <Text style={styles.cardTitle}>Payout</Text>
+            <Text style={styles.cardSubtitle}>Setup daily, weekly, monthly or custom payout schedules.</Text>
           </View>
         </Pressable>
         <Pressable style={styles.card} onPress={startSpendingPlan}>
           <View style={styles.iconContainer}>
-            <Wallet size={24} color={colors.primary} />
+            <Vault size={24} color={colors.primary} />
           </View>
           <View style={styles.cardText}>
             <Text style={styles.cardTitle}>Vault</Text>

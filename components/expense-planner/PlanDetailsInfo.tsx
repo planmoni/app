@@ -361,7 +361,7 @@ export default function PlanDetailsInfo({
                 onPress={onFundPlan}
               >
                 <ArrowDown size={20} color={isDark ? colors.text : colors.primary} />
-                <Text style={styles.actionButtonText}>Add Funds</Text>
+                <Text style={styles.actionButtonText}>Add Funds to Vault</Text>
               </Pressable>
             ) : planFundingMethod === 'manual' && currentBalance >= planTotalBudget ? (
               // Plan is fully funded, don't show button
@@ -370,9 +370,9 @@ export default function PlanDetailsInfo({
               <View style={styles.disabledActionButton}>
                 <ArrowDown size={20} color={colors.textTertiary} />
                 <View style={styles.disabledActionButtonContent}>
-                  <Text style={styles.disabledActionButtonText}>Add Funds</Text>
+                  <Text style={styles.disabledActionButtonText}>Add Funds to Vault</Text>
                   <Text style={styles.disabledActionButtonReason}>
-                    Auto-funded plans are funded automatically
+                    Auto-funded vaults are funded automatically
                   </Text>
                 </View>
               </View>
@@ -400,7 +400,7 @@ export default function PlanDetailsInfo({
         onPress={() => router.push(`/expense-planner/${plan.id}/details`)}
       >
         <Info size={18} color= {isDark ? colors.text : colors.primary} />
-        <Text style={styles.viewDetailsButtonText}>View Plan Details</Text>
+        <Text style={styles.viewDetailsButtonText}>View Details</Text>
         <ArrowRight size={18} color={isDark ? colors.text : colors.primary} />
       </Pressable>
     </>

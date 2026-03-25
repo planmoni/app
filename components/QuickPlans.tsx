@@ -31,7 +31,7 @@ export default function QuickPlans({ onRequireAuth }: QuickPlansProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Quick Plan</Text>
+      <Text style={styles.title}>Quick Vault Setup</Text>
       <View style={styles.card}>
         <View style={styles.grid}>
           {categories.map((category) => {
@@ -75,10 +75,11 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
       marginBottom: 24,
     },
     title: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
+      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
       fontWeight: '600',
       color: colors.text,
       marginBottom: 12,
+      marginTop: 12,
     },
     card: {
       backgroundColor: colors.card,
