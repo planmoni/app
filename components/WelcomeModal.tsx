@@ -337,7 +337,7 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
   const platformMultiplier = isAndroid ? 0.8 : 1.0;
   const marginMultiplier = isAndroid ? 0.7 : 1.0;
   
-  const imageHeight = Math.min(modalHeight * 0.4 * platformMultiplier, 200);
+  const imageHeight = Math.min(modalHeight * 0.4 * platformMultiplier, 215);
   const verticalPadding = (isSmallScreen ? 16 : 20) * marginMultiplier;
   const titleSize = (isSmallScreen ? 24 : 30) * platformMultiplier;
   const descriptionSize = (isSmallScreen ? 13 : 15) * platformMultiplier;
@@ -571,10 +571,11 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   slideTitle: {
     marginTop: 60,
     fontWeight: '700',
-    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 0.8,
-    lineHeight: Platform.OS === 'ios' ? responsive.titleSize * 1.1 : responsive.titleSize * 1.1,
+    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1.5,
+    lineHeight: Platform.OS === 'ios' ? responsive.titleSize * 1.1 : responsive.titleSize * 1.5,
     letterSpacing: -0.9,
-    color: isDark ? colors.text : colors.primary,
+    maxWidth: '90%',
+    color: isDark ? colors.text : colors.text,
     textAlign: 'center',
   },
   slideDescription: {
