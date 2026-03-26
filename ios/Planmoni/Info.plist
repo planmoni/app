@@ -19,7 +19,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.0.1</string>
+    <string>2.0.2</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -75,8 +75,6 @@
     <string>This app uses the microphone to provide a better experience.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Planmoni needs access to your photos to upload document images.</string>
-    <key>NSUserTrackingUsageDescription</key>
-    <string>This identifier will be used to deliver personalized ads and measure ad performance.</string>
     <key>UIBackgroundModes</key>
     <array>
       <string>remote-notification</string>
