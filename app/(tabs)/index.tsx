@@ -58,7 +58,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { useAppLock } from '@/contexts/AppLockContext';
 import { getScaledFontSize } from '@/lib/textSize';
-import { TIKTOK_APP_ID, TIKTOK_APP_SECRET } from '@/lib/tiktok-config';
 import { usePin } from '@/contexts/PinContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
@@ -2666,9 +2665,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flex: 1,
     flexDirection: 'row',
     backgroundColor: colors.primary,
-    padding: Platform.OS === 'ios' ? 14 : 10,
-    borderRadius: Platform.OS === 'ios' ? 20 : 15,
-    height: Platform.OS === 'ios' ? 45 : 35,
+    // padding: Platform.OS === 'ios' ? 14 : 14,
+    borderRadius: Platform.OS === 'ios' ? 20 : 20,
+    height: Platform.OS === 'ios' ? 45 : 40,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
@@ -2677,9 +2676,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flex: 1,
     flexDirection: 'row',
     backgroundColor: '#fff',
-    padding: Platform.OS === 'ios' ? 14 : 10,
-    borderRadius: Platform.OS === 'ios' ? 20 : 15,
-    height: Platform.OS === 'ios' ? 45 : 35,
+    // padding: Platform.OS === 'ios' ? 14 : 14,
+    borderRadius: Platform.OS === 'ios' ? 20 : 20,
+    height: Platform.OS === 'ios' ? 45 : 40,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
@@ -2698,11 +2697,11 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flex: 1,
     flexDirection: 'row',
     backgroundColor: Platform.OS === 'ios' ? colors.backgroundBlack + '70' : colors.background + '10',
-    padding: Platform.OS === 'ios' ? 14 : 10,
+    // padding: Platform.OS === 'ios' ? 14 : 10,
     borderWidth: 2, 
     borderColor: isDark ? '#fff' : colors.primary,
-    borderRadius: Platform.OS === 'ios' ? 20 : 15,
-    height: Platform.OS === 'ios' ? 45 : 35,
+    borderRadius: Platform.OS === 'ios' ? 20 : 20,
+    height: Platform.OS === 'ios' ? 45 : 40,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -2713,9 +2712,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderWidth: 2,
     borderColor: '#fff',
     // backgroundColor: '#1E3A8A',
-    padding: Platform.OS === 'ios' ? 14 : 10,
-    borderRadius: Platform.OS === 'ios' ? 20 : 15,
-    height: Platform.OS === 'ios' ? 45 : 35,
+    // padding: Platform.OS === 'ios' ? 14 : 14,
+    borderRadius: Platform.OS === 'ios' ? 20 : 20,
+    height: Platform.OS === 'ios' ? 45 : 40,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,

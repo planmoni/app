@@ -5,7 +5,6 @@ import { router } from 'expo-router';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useToast } from '@/contexts/ToastContext';
 import { inAppNotificationService } from '@/lib/in-app-notifications';
-import { trackTikTokEvent } from '@/lib/tiktok';
 import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee-calculator';
 import { PLAN_CREATION_FEE_PERCENT } from '@/types/payout-fees';
 
@@ -379,7 +378,6 @@ export function useCreatePayout() {
 
       // ✅ Show toast
       showToast?.("Payout plan created successfully!", "success");
-      trackTikTokEvent('LoanApplication');
 
       // Get account details for success page
       let accountNumber = "";

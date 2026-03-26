@@ -5,8 +5,6 @@ import intercom_react_native
 import FirebaseCore
 import React
 import ReactAppDependencyProvider
-import TikTokBusinessSDK
-
 @UIApplicationMain
 public class AppDelegate: ExpoAppDelegate {
   var window: UIWindow?
@@ -38,28 +36,6 @@ FirebaseApp.configure()
 #endif
 
     IntercomModule.initialize("ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4", withAppId: "tf4dp3qt")
-
-    // TikTok Business SDK: initialize with debug in development
-    let tiktokAppId = Bundle.main.object(forInfoDictionaryKey: "TIKTOK_APP_ID") as? String ?? "616288647079362578"
-    let appId = Bundle.main.bundleIdentifier ?? "app.planmoni"
-    let config = TikTokConfig(appId: appId, tiktokAppId: tiktokAppId)
-    #if DEBUG
-    config.isDebugMode = true
-    #endif
-    TikTokBusiness.initializeSdk(config) { success, error in
-      if success {
-        print("[TikTok] SDK initialized successfully")
-        // Set test event code so events appear in TikTok Events Manager > Test events tab.
-        // Get your code from: TikTok Ads Manager > Assets > Events > [your pixel] > Test events tab.
-        // Remove or clear TIKTOK_TEST_EVENT_CODE in Info.plist before production.
-        if let testCode = Bundle.main.object(forInfoDictionaryKey: "TIKTOK_TEST_EVENT_CODE") as? String, !testCode.isEmpty {
-          TikTokBusiness.testEventCode = testCode
-          print("[TikTok] Test event code set:", testCode)
-        }
-      } else {
-        print("[TikTok] Init failed:", error?.localizedDescription ?? "unknown")
-      }
-    }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

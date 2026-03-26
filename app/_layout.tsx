@@ -34,7 +34,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications, setupTokenRefresh } from '@/lib/notifications';
 import { initializeMessaging } from '@/lib/firebase';
 import { initAppsFlyer } from '@/lib/appsflyer';
-import { identifyTikTokUser } from '@/lib/tiktok';
 import * as SystemUI from 'expo-system-ui';
 import * as Updates from 'expo-updates';
 // Conditionally import NavigationBar to handle cases where native module isn't available
@@ -91,18 +90,6 @@ function RootLayoutNav() {
   useEffect(() => {
     initAppsFlyer();
   }, []);
-
-  // TikTok: identify user when session is available (iOS)
-  useEffect(() => {
-    if (!session?.user?.id) return;
-    const email = session.user.email ?? undefined;
-    const name = [session.user.user_metadata?.first_name, session.user.user_metadata?.last_name].filter(Boolean).join(' ') || undefined;
-    identifyTikTokUser({
-      externalId: session.user.id,
-      externalUserName: name || undefined,
-      email: email || undefined,
-    });
-  }, [session?.user?.id, session?.user?.email, session?.user?.user_metadata]);
 
   // Update Android navigation bar style based on theme
   useEffect(() => {
