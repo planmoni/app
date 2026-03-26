@@ -51,9 +51,9 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
         };
       case 'partially_funded':
         return {
-          backgroundColor: '#6F7E93',
-          textColor: '#fff',
-          label: 'Partially Funded',
+          backgroundColor: isDark ? '#3A3A3A' : '#E5E5E5',
+          textColor: isDark ? '#B0B0B0' : '#6B6B6B',
+          label: 'Active',
         };
       case 'funded':
         return {
@@ -334,7 +334,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
     } else if (daysUntilStart === 1) {
       return 'Starts Tomorrow';
     } else if (daysUntilStart === 0) {
-      return 'Budget started';
+      return 'Vault unlocked';
     } else {
       // Budget has started
       const daysSinceStart = Math.abs(daysUntilStart);

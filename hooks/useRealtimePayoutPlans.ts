@@ -201,22 +201,16 @@ export function useRealtimePayoutPlans() {
         // Real-time subscription is only for UI updates when app is open
         if (channel) {
           channel.subscribe((status: any) => {
-            console.log('📡 Payout plans subscription status:', status);
             switch (status) {
               case 'SUBSCRIBED':
-                console.log('✅ Successfully subscribed to payout plans changes');
                 break;
               case 'CHANNEL_ERROR':
-                console.log('ℹ️ Channel subscription error - server-side push notifications will handle delivery');
                 break;
               case 'TIMED_OUT':
-                console.log('ℹ️ Channel subscription timed out - server-side push notifications will handle delivery');
                 break;
               case 'CLOSED':
-                console.log('🔒 Channel subscription closed');
                 break;
               default:
-                console.log(`ℹ️ Payout plans channel status: ${status}`);
             }
           });
         }

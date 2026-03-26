@@ -645,7 +645,7 @@ export function useExpensePlans() {
             }
           )
           .subscribe((status: any) => {
-            console.log('Expense plans subscription status:', status);
+            // Silence realtime subscription status noise
           });
       } catch (err) {
         console.error('Error setting up expense plans realtime subscription:', err);

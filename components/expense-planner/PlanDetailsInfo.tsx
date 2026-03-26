@@ -325,8 +325,8 @@ export default function PlanDetailsInfo({
               </Text>
               <Text style={styles.remainingText}>
                 {remainingBudget > 0
-                  ? `${formatBalance(remainingBudget)} remaining in budget`
-                  : 'Budget fully spent'}
+                  ? `${formatBalance(remainingBudget)} remaining in vault`
+                  : 'Vault fully spent'}
               </Text>
             </>
           ) : (
@@ -337,50 +337,45 @@ export default function PlanDetailsInfo({
               <Text style={styles.remainingText}>
                 {remainingToFund > 0
                   ? `${formatBalance(remainingToFund)} remaining to add`
-                  : 'Budget fully funded'}
+                  : 'Vault fully funded'}
               </Text>
             </>
           )}
         </View>
       </View>
       <View style={styles.actionsCard}>
-        {/* For partially funded budgets that have started, show only Spend button */}
-        {planBudgetStarted && currentBalance > 0 && currentBalance < planTotalBudget ? (
-          <Pressable 
-            style={styles.actionButton}
-            onPress={onSpend}
-          >
+        {/* Started vaults: Spend */}
+        {planBudgetStarted && onSpend ? (
+          <Pressable style={styles.actionButton} onPress={onSpend}>
             <Text style={styles.actionButtonText}>Spend</Text>
           </Pressable>
-        ) : (
-          <>
-            {/* Add Funds Button - Only for Manual plans that are not fully funded */}
-            {planFundingMethod === 'manual' && currentBalance < planTotalBudget ? (
-              <Pressable 
-                style={styles.actionButton}
-                onPress={onFundPlan}
-              >
-                <ArrowDown size={20} color={isDark ? colors.text : colors.primary} />
-                <Text style={styles.actionButtonText}>Add Funds to Vault</Text>
-              </Pressable>
-            ) : planFundingMethod === 'manual' && currentBalance >= planTotalBudget ? (
-              // Plan is fully funded, don't show button
-              null
-            ) : (
-              <View style={styles.disabledActionButton}>
-                <ArrowDown size={20} color={colors.textTertiary} />
-                <View style={styles.disabledActionButtonContent}>
-                  <Text style={styles.disabledActionButtonText}>Add Funds to Vault</Text>
-                  <Text style={styles.disabledActionButtonReason}>
-                    Auto-funded vaults are funded automatically
-                  </Text>
-                </View>
-              </View>
-            )}
+        ) : null}
 
-            {/* Adjust Budget Button - Only show if budget hasn't started */}
-          </>
-        )}
+        {/* Not fully funded + manual + not started: Add Funds */}
+        {planFundingMethod === 'manual' &&
+        !planBudgetStarted &&
+        currentBalance < planTotalBudget &&
+        onFundPlan ? (
+          <Pressable style={styles.actionButton} onPress={onFundPlan}>
+            <ArrowDown size={20} color={isDark ? colors.text : colors.primary} />
+            <Text style={styles.actionButtonText}>Add Funds to Vault</Text>
+          </Pressable>
+        ) : null}
+
+        {/* Auto funding, not full, budget not started yet: explain why Add Funds is N/A */}
+        {planFundingMethod !== 'manual' &&
+        currentBalance < planTotalBudget &&
+        !planBudgetStarted ? (
+          <View style={styles.disabledActionButton}>
+            <ArrowDown size={20} color={colors.textTertiary} />
+            <View style={styles.disabledActionButtonContent}>
+              <Text style={styles.disabledActionButtonText}>Add Funds to Vault</Text>
+              <Text style={styles.disabledActionButtonReason}>
+                Auto-funded vaults are funded automatically
+              </Text>
+            </View>
+          </View>
+        ) : null}
       </View>
 
       {/* Next Funding Countdown (Auto plans) */}

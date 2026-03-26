@@ -64,7 +64,7 @@ export function useRealtimeBankAccounts() {
         // Only subscribe if not already subscribed
         if (channel.state === 'closed' || channel.state === 'leaving') {
           channel.subscribe((status: any) => {
-            console.log('Bank accounts subscription status:', status);
+            // Silence realtime subscription status noise
           });
         }
       } catch (err) {

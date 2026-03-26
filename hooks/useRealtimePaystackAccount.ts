@@ -54,7 +54,7 @@ export function useRealtimePaystackAccount() {
             }
           )
           .subscribe((status: any) => {
-            console.log('Paystack account subscription status:', status);
+            // Silence realtime subscription status noise (CHANNEL_ERROR/TIMED_OUT)
           });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to setup account subscription');

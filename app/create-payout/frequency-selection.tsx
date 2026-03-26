@@ -372,6 +372,14 @@ export default function FrequencySelectionScreen() {
   const haptics = useHaptics();
   const { balance, lockedBalance } = useBalance();
   const availableBalance = balance - lockedBalance;
+  const vaultPlanId = params.vaultPlanId as string | undefined;
+  const vaultMaxRaw = params.vaultMaxAmount as string | undefined;
+  const vaultMaxParsed = vaultMaxRaw
+    ? parseFloat(String(vaultMaxRaw).replace(/,/g, ''))
+    : NaN;
+  const isVaultSchedule =
+    Boolean(vaultPlanId) && Number.isFinite(vaultMaxParsed) && vaultMaxParsed > 0;
+  const scheduleCap = isVaultSchedule ? vaultMaxParsed : availableBalance;
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 380;
   const isDark = useColorScheme() === 'dark';
@@ -1050,7 +1058,7 @@ export default function FrequencySelectionScreen() {
         return;
       }
       const numericTotal = parseFloat(totalAmount.replace(/,/g, '')) || 0;
-      if (numericTotal > availableBalance) {
+      if (numericTotal > scheduleCap) {
         if (Platform.OS !== 'web') {
           haptics.error();
         }
@@ -1072,7 +1080,7 @@ export default function FrequencySelectionScreen() {
       
       // Use totalAmount state (auto-adjusted when user edited per-date amounts), not params
       router.push({
-        pathname: '/create-payout/destination',
+        pathname: isVaultSchedule ? '/vault-schedule-payout/destination' : '/create-payout/destination',
         params: {
           totalAmount: totalAmount || params.totalAmount || '',
           frequency: 'custom',
@@ -1093,6 +1101,9 @@ export default function FrequencySelectionScreen() {
           payoutMinute: selectedMinute.toString(),
           purpose: params.purpose || '',
           purposeOther: params.purposeOther || '',
+          ...(isVaultSchedule && vaultPlanId && vaultMaxRaw
+            ? { vaultPlanId, vaultMaxAmount: vaultMaxRaw }
+            : {}),
         }
       });
       return;
@@ -1140,7 +1151,7 @@ export default function FrequencySelectionScreen() {
     }
 
     router.push({
-      pathname: '/create-payout/destination',
+      pathname: isVaultSchedule ? '/vault-schedule-payout/destination' : '/create-payout/destination',
       params: {
         totalAmount: params.totalAmount || '',
         frequency: selectedFrequency,
@@ -1160,6 +1171,9 @@ export default function FrequencySelectionScreen() {
         payoutMinute: selectedMinute.toString(),
         purpose: params.purpose || '',
         purposeOther: params.purposeOther || '',
+        ...(isVaultSchedule && vaultPlanId && vaultMaxRaw
+          ? { vaultPlanId, vaultMaxAmount: vaultMaxRaw }
+          : {}),
       }
     });
   };
@@ -1174,7 +1188,7 @@ export default function FrequencySelectionScreen() {
         return amount && !isNaN(parseFloat(amount.replace(/,/g, ''))) && parseFloat(amount.replace(/,/g, '')) > 0;
       });
       const numericTotal = parseFloat(totalAmount.replace(/,/g, '')) || 0;
-      const exceedsBalance = numericTotal > availableBalance;
+      const exceedsBalance = numericTotal > scheduleCap;
       return !allDatesHaveAmounts || remainder < 0 || exceedsBalance;
     }
     if (!selectedFrequency || !selectedDuration) {
@@ -1203,7 +1217,9 @@ export default function FrequencySelectionScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>New Payout plan</Text>
+        <Text style={styles.headerTitle}>
+          {isVaultSchedule ? 'Vault payout schedule' : 'New Payout plan'}
+        </Text>
         <Pressable 
           onPress={() => {
             if (Platform.OS !== 'web') {
@@ -1221,7 +1237,9 @@ export default function FrequencySelectionScreen() {
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: '50%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 3 of 5</Text>
+        <Text style={styles.stepText}>
+          {isVaultSchedule ? 'Step 2 of 4' : 'Step 3 of 5'}
+        </Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
@@ -1654,13 +1672,13 @@ export default function FrequencySelectionScreen() {
                   {(() => {
                     const { totalAllocated, remainder } = calculateAllocatedAndRemainder();
                     const numericTotal = parseFloat(totalAmount.replace(/,/g, '')) || 0;
-                    const exceedsBalance = numericTotal > availableBalance;
+                    const exceedsBalance = numericTotal > scheduleCap;
                     return (
                       <View style={styles.totalSummary}>
                         {exceedsBalance && (
                           <View style={styles.balanceExceedsBox}>
                             <Text style={styles.remainderWarning}>
-                              Total amount (₦{numericTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) exceeds your available balance (₦{availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Reduce amounts to continue.
+                              Total amount (₦{numericTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) exceeds your {isVaultSchedule ? 'vault cap' : 'available balance'} (₦{scheduleCap.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Reduce amounts to continue.
                             </Text>
                           </View>
                         )}

@@ -706,6 +706,10 @@ function RootLayoutNav() {
           options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen
+          name="vault-schedule-payout"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
           name="deposit-flow"
           options={{ headerShown: false, gestureEnabled: false }}
         />

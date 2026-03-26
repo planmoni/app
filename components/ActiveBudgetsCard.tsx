@@ -85,7 +85,7 @@ export default function ActiveSpendingPlansCard({ count, totalAmount, daysRemain
         ? 'the next 1 day'
         : `the next ${daysRemaining} days`;
 
-  const message = `You have ${count} active spending plan${count === 1 ? '' : 's'} of ₦${totalAmount.toLocaleString()}${daysText ? ` for ${daysText}` : ''}`;
+  const message = `You have ${count} unlocked vault${count === 1 ? '' : 's'} of ₦${totalAmount.toLocaleString()}${daysText ? ` for ${daysText}` : ''}`;
 
   if (!shouldShow || count <= 0) {
     return null;
@@ -99,7 +99,7 @@ export default function ActiveSpendingPlansCard({ count, totalAmount, daysRemain
         disabled={!onPress}
       >
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Active Spending Plans</Text>
+          <Text style={styles.title}>Unlocked Vaults</Text>
           {onPress && (
             <ArrowRight size={18} color={colors.textSecondary} />
           )}

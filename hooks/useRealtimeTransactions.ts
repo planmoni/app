@@ -106,7 +106,7 @@ export function useRealtimeTransactions() {
         // Only subscribe if not already subscribed
         if (channel && (channel.state === 'closed' || channel.state === 'leaving')) {
           channel.subscribe((status: any) => {
-            console.log('Transactions subscription status:', status);
+            // Silence realtime subscription noise (CHANNEL_ERROR/TIMED_OUT)
           });
         }
       } catch (err) {

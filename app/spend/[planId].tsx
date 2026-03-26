@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Calendar, Send, X } from 'lucide-react-native';
+import { ArrowLeft, Calendar, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -37,16 +37,8 @@ export default function SpendBalanceScreen() {
   const handleSchedule = () => {
     haptics.mediumImpact();
     router.push({
-      pathname: '/expense-planner/[id]/schedule-withdrawal',
-      params: { id: planId },
-    });
-  };
-
-  const handleWithdraw = () => {
-    haptics.mediumImpact();
-    router.push({
-      pathname: '/expense-planner/[id]/withdraw-amount',
-      params: { id: planId },
+      pathname: '/vault-schedule-payout/amount',
+      params: { planId },
     });
   };
 
@@ -99,7 +91,7 @@ export default function SpendBalanceScreen() {
           <Text style={styles.balanceLabel}>Spendable Balance</Text>
           <Text style={styles.balanceAmount}>{formatBalance(spendableBalance)}</Text>
           <Text style={styles.balanceSubtext}>
-            From budget of {formatBalance(totalBudget)}
+            From vault of {formatBalance(totalBudget)}
           </Text>
         </View>
 
@@ -112,17 +104,6 @@ export default function SpendBalanceScreen() {
             <Calendar size={20} color={colors.text} />
             <Text style={[styles.actionButtonText, styles.scheduleButtonText]}>
               Schedule
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[styles.actionButton, styles.withdrawButton]}
-            onPress={handleWithdraw}
-            disabled={spendableBalance <= 0}
-          >
-            <Send size={20} color={colors.primary} />
-            <Text style={[styles.actionButtonText, styles.withdrawButtonText]}>
-              Withdraw
             </Text>
           </Pressable>
         </View>
@@ -212,19 +193,12 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       backgroundColor: colors.backgroundTertiary,
       borderColor: colors.border,
     },
-    withdrawButton: {
-      backgroundColor: colors.primary + '15',
-      borderColor: colors.primary + '30',
-    },
     actionButtonText: {
       fontSize: getScaledFontSize(16, textSizeMultiplier),
       fontWeight: '600',
     },
     scheduleButtonText: {
       color: colors.text,
-    },
-    withdrawButtonText: {
-      color: colors.primary,
     },
   });
 

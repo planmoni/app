@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, X, ChevronDown, Pencil } from 'lucide-react-native';
+import { ArrowLeft, X, ChevronDown, Pencil, ShoppingCart } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
@@ -176,6 +176,14 @@ export default function PlanDetailsPage() {
     return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
+  const handleSpend = () => {
+    haptics.mediumImpact();
+    router.push({
+      pathname: '/spend/[planId]',
+      params: { planId: id as string },
+    });
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -196,6 +204,18 @@ export default function PlanDetailsPage() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
       >
+        {budgetStarted && (
+          <Pressable
+            style={styles.spendButton}
+            onPress={handleSpend}
+            accessibilityRole="button"
+            accessibilityLabel="Spend from vault"
+          >
+            <ShoppingCart size={20} color={isDark ? colors.text : colors.primary} />
+            <Text style={styles.spendButtonText}>Spend</Text>
+          </Pressable>
+        )}
+
         {/* Budget Amount (hidden when started) */}
         {!budgetStarted && (
           <View style={styles.infoCard}>
@@ -445,6 +465,23 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     },
     scrollContent: {
       padding: 16,
+    },
+    spendButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.primary + '20',
+      paddingVertical: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      marginBottom: 12,
+    },
+    spendButtonText: {
+      fontSize: getScaledFontSize(15, textSizeMultiplier),
+      fontWeight: '600',
+      color: isDark ? colors.text : colors.primary,
     },
     infoCard: {
       backgroundColor: colors.card,

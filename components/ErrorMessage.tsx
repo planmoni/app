@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, Pressable, useMemo } from 'react-native';
+import { useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
