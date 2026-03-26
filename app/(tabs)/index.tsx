@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 // import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal'; // Disabled - success modal removed after onboarding
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
+import AddPayoutPlanByCodeModal from '@/components/AddPayoutPlanByCodeModal';
 import AccountInformationModal from '@/components/AccountInformationModal';
 import PlanCreationModal from '@/components/PlanCreationModal';
 import AppLockModal from '@/components/AppLockModal';
@@ -15,17 +16,20 @@ import ImageCarousel from '@/components/ImageCarousel';
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useGlobalSearchParams, useLocalSearchParams } from 'expo-router';
 import {
   HelpCircleIcon,
   Eye,
   EyeOff,
   Plus,
+  PieChart,
   CalendarCheck,
+  Calendar,
   Clock,
-  Building2,
-  ChevronRight,
-  ChevronDown,
+  MoreVertical,
+  ArrowDown,
+  ArrowRight,
+  Send,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -41,6 +45,9 @@ import {
   Platform,
   BackHandler,
   InteractionManager,
+  useWindowDimensions,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -55,6 +62,7 @@ import { usePin } from '@/contexts/PinContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
+import { useExpensePlans } from '@/hooks/useExpensePlans';
 // import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
@@ -66,13 +74,22 @@ import NotificationIcon from '@/components/NotificationIcon';
 import { supabase } from '@/lib/supabase';
 import NextPayoutCard from '@/components/NextPayoutCard';
 import PayoutPlansSection from '@/components/PayoutPlansSection';
+import ExpensePlansSection from '@/components/ExpensePlansSection';
 import RatingCard from '@/components/RatingCard';
 import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
+import ActiveSpendingPlansCard from '@/components/ActiveBudgetsCard';
+import QuickPlans from '@/components/QuickPlans';
+import DailySpendGuidance from '@/components/DailySpendGuidance';
+import { getCategoryIcon, getCategoryById } from '@/lib/expenseCategories';
+import { getBudgetDuration, isBudgetStarted } from '@/lib/expensePlanUtils';
+import { formatTransactionType } from '@/lib/formatters';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 // import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
+import PlansTabContent from '@/components/PlansTabContent';
+import PayoutsTabContent from '@/components/PayoutsTabContent';
 
 interface Banner {
   id: string;
@@ -83,6 +100,170 @@ interface Banner {
   link_url?: string | null;
   order_index?: number;
   is_active?: boolean;
+}
+
+interface BalanceActionsModalProps {
+  isVisible: boolean;
+  onClose: () => void;
+  onAddFunds: () => void;
+  onWithdraw: () => void;
+  onViewTransactionHistory: () => void;
+  colors: any;
+  isDark: boolean;
+  textSizeMultiplier: number;
+}
+
+function BalanceActionsModal({
+  isVisible,
+  onClose,
+  onAddFunds,
+  onWithdraw,
+  onViewTransactionHistory,
+  colors,
+  isDark,
+  textSizeMultiplier,
+}: BalanceActionsModalProps) {
+  const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [modalVisible, setModalVisible] = useState(false);
+
+  useEffect(() => {
+    if (isVisible) {
+      setModalVisible(true);
+      slideAnim.setValue(Dimensions.get('window').height);
+      fadeAnim.setValue(0);
+      
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else if (modalVisible) {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: Dimensions.get('window').height,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setModalVisible(false);
+      });
+    }
+  }, [isVisible, modalVisible]);
+
+  if (!modalVisible) return null;
+
+  const modalStyles = StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalContainer: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingTop: 20,
+      paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+      paddingHorizontal: 20,
+      maxHeight: Dimensions.get('window').height * 0.4,
+    },
+    handle: {
+      width: 40,
+      height: 4,
+      backgroundColor: colors.border,
+      borderRadius: 2,
+      alignSelf: 'center',
+      marginBottom: 20,
+    },
+    option: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 16,
+      paddingHorizontal: 4,
+      gap: 16,
+    },
+    optionIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    optionText: {
+      fontSize: getScaledFontSize(16, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+      flex: 1,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 4,
+    },
+  });
+
+  return (
+    <Modal
+      visible={modalVisible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+    >
+      <View style={modalStyles.overlay}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+        <Animated.View
+          style={[
+            modalStyles.modalContainer,
+            {
+              transform: [{ translateY: slideAnim }],
+              opacity: fadeAnim,
+            },
+          ]}
+        >
+          <View style={modalStyles.handle} />
+          
+          <Pressable style={modalStyles.option} onPress={onAddFunds}>
+            <View style={modalStyles.optionIcon}>
+              <Plus size={20} color={colors.primary} />
+            </View>
+            <Text style={modalStyles.optionText}>Add funds</Text>
+          </Pressable>
+
+          <View style={modalStyles.divider} />
+
+          <Pressable style={modalStyles.option} onPress={onWithdraw}>
+            <View style={modalStyles.optionIcon}>
+              <ArrowDown size={20} color={colors.primary} />
+            </View>
+            <Text style={modalStyles.optionText}>Withdraw</Text>
+          </Pressable>
+
+          <View style={modalStyles.divider} />
+
+          <Pressable style={modalStyles.option} onPress={onViewTransactionHistory}>
+            <View style={modalStyles.optionIcon}>
+              <Clock size={20} color={colors.primary} />
+            </View>
+            <Text style={modalStyles.optionText}>Transaction History</Text>
+          </Pressable>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
 }
 
 export default function HomeScreen() {
@@ -99,12 +280,72 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
+  const { expensePlans } = useExpensePlans();
+  const [activeBalanceTab, setActiveBalanceTab] = useState<'home' | 'plans' | 'payouts'>('home');
+  const { width: screenWidth } = useWindowDimensions();
+  const tabScrollViewRef = useRef<ScrollView>(null);
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
-  const { impact, notification } = useHaptics();
+  const { impact, notification, selection } = useHaptics();
+  
+  // Tab labels + state; horizontal pager position is synced in useLayoutEffect / useEffect below
+  const handleTabChange = useCallback((tab: 'home' | 'plans' | 'payouts') => {
+    impact();
+    setActiveBalanceTab(tab);
+  }, [impact]);
+
+  // Handle scroll end to update active tab (swipe between Home / Vaults / Payouts)
+  const handleScrollEnd = useCallback((event: any) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const tabIndex = Math.min(2, Math.max(0, Math.round(offsetX / screenWidth)));
+    const newTab = tabIndex === 0 ? 'home' : tabIndex === 1 ? 'plans' : 'payouts';
+    setActiveBalanceTab((prev) => {
+      if (newTab !== prev) {
+        selection();
+        return newTab;
+      }
+      return prev;
+    });
+  }, [screenWidth, selection]);
+
+  // Keep horizontal pager offset aligned with activeBalanceTab (tap, swipe, or deep link).
+  // After stack navigation, a single rAF scroll often runs before layout — labels can show Vaults while offset stays 0.
+  const scrollPagerToActiveTab = useCallback(
+    (animated: boolean) => {
+      if (!screenWidth) return;
+      const tabIndex =
+        activeBalanceTab === 'home' ? 0 : activeBalanceTab === 'plans' ? 1 : 2;
+      tabScrollViewRef.current?.scrollTo({
+        x: tabIndex * screenWidth,
+        animated,
+      });
+    },
+    [activeBalanceTab, screenWidth]
+  );
+
+  useLayoutEffect(() => {
+    scrollPagerToActiveTab(false);
+  }, [scrollPagerToActiveTab]);
+
+  useEffect(() => {
+    if (!screenWidth) return;
+    const apply = () => scrollPagerToActiveTab(false);
+    apply();
+    const raf = requestAnimationFrame(() => {
+      apply();
+      requestAnimationFrame(apply);
+    });
+    const interaction = InteractionManager.runAfterInteractions(apply);
+    return () => {
+      cancelAnimationFrame(raf);
+      interaction.cancel();
+    };
+  }, [screenWidth, scrollPagerToActiveTab]);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRefreshTimeRef = useRef<number>(0);
   const [carouselImages, setCarouselImages] = useState<any[]>([]);
   const [imagesReady, setImagesReady] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -116,6 +357,7 @@ export default function HomeScreen() {
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
   const [hasShownTier1ClaimModal, setHasShownTier1ClaimModal] = useState(false);
   const [showNewPlanInfoModal, setShowNewPlanInfoModal] = useState(false);
+  const [showAddByCodeModal, setShowAddByCodeModal] = useState(false);
   const [showAccountInfoModal, setShowAccountInfoModal] = useState(false);
   const [hasShownAccountInfoModal, setHasShownAccountInfoModal] = useState(false);
   const accountInfoModalShownRef = useRef(false);
@@ -125,15 +367,25 @@ export default function HomeScreen() {
   const [lastShownDepositId, setLastShownDepositId] = useState<string | null>(null);
   const [shownDepositIds, setShownDepositIds] = useState<Set<string>>(new Set());
   const [hasDismissedDepositModal, setHasDismissedDepositModal] = useState(false);
+  const DEPOSIT_MODAL_DISABLED = true;
   const [showAppLockModal, setShowAppLockModal] = useState(false);
   const [hasShownAppLockModal, setHasShownAppLockModal] = useState(false);
   const [showIdentityVerificationModal, setShowIdentityVerificationModal] = useState(false);
   const [showKYCVerificationModal, setShowKYCVerificationModal] = useState(false);
-  const [hasShownKYCModalThisSession, setHasShownKYCModalThisSession] = useState(false);
   const [showOnboardingQuestionnaire, setShowOnboardingQuestionnaire] = useState(false);
+  const [hasShownKYCModalThisSession, setHasShownKYCModalThisSession] = useState(false);
+  const [showBalanceActionsModal, setShowBalanceActionsModal] = useState(false);
   const { hasAppLockPin } = usePin();
   const route = useRoute();
   const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
+
+  const ensureAuthenticatedOrWelcome = useCallback(() => {
+    if (!isAuthenticated) {
+      setShowWelcomeModal(true);
+      return false;
+    }
+    return true;
+  }, [isAuthenticated]);
 
   // Lazy load heavy modals
   const [TransactionModalComponent, setTransactionModalComponent] = useState<React.ComponentType<any> | null>(null);
@@ -166,6 +418,19 @@ export default function HomeScreen() {
       });
     }
   }, [showClaimAccountModal, ClaimAccountModalComponent]);
+
+  // Load WelcomeModal when needed (how-it-works or explicit welcome)
+  useEffect(() => {
+    if ((showHowItWorksModal || showWelcomeModal) && !WelcomeModalComponent) {
+      import('@/components/WelcomeModal')
+        .then(module => {
+          setWelcomeModalComponent(() => module.default);
+        })
+        .catch(error => {
+          console.error('Error loading WelcomeModal:', error);
+        });
+    }
+  }, [showHowItWorksModal, showWelcomeModal, WelcomeModalComponent]);
 
   // Prevent navigation back to welcome page when authenticated
   useEffect(() => {
@@ -373,6 +638,7 @@ export default function HomeScreen() {
 
   // Show AccountInformationModal only when coming from Tier1CompletionModal
   const params = useLocalSearchParams();
+  const globalSearchParams = useGlobalSearchParams();
   useEffect(() => {
     if (!session?.user?.id) return;
     
@@ -391,6 +657,17 @@ export default function HomeScreen() {
       return () => clearTimeout(timer);
     }
   }, [params.showAccountInfo, session?.user?.id, hasShownAccountInfoModal]);
+
+  // Deep-link / post-create: select Vaults / Payouts without pager haptic (useLayoutEffect syncs scroll)
+  useEffect(() => {
+    const raw = params.balanceTab ?? globalSearchParams.balanceTab;
+    const tab = Array.isArray(raw) ? raw[0] : raw;
+    if (tab !== 'plans' && tab !== 'payouts' && tab !== 'home') return;
+    setActiveBalanceTab(tab as 'home' | 'plans' | 'payouts');
+    requestAnimationFrame(() => {
+      router.setParams({ balanceTab: undefined });
+    });
+  }, [params.balanceTab, globalSearchParams.balanceTab]);
 
   // Load shown deposit IDs and dismissed modal flag from storage on mount
   useEffect(() => {
@@ -422,6 +699,7 @@ export default function HomeScreen() {
 
   // Detect new deposits and show PlanCreationModal
   useEffect(() => {
+    if (DEPOSIT_MODAL_DISABLED) return;
     if (!session?.user?.id || transactions.length === 0 || hasDismissedDepositModal) return;
 
     const depositTransactions = transactions.filter(
@@ -495,7 +773,7 @@ export default function HomeScreen() {
     });
   }, []);
 
-  // Fetch carousel images from Supabase
+  // Fetch carousel images from Supabase (non-blocking, lazy load images)
   const fetchCarouselImages = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -509,29 +787,31 @@ export default function HomeScreen() {
       }
 
       if (data && data.length > 0) {
-        // Pre-load all images to ensure they're available
-        const preloadedImages = await Promise.all(
-          data.map(async (banner: Banner) => {
-            try {
-              // Use React Native's Image.getSize to preload the image
-              await new Promise<void>((resolve, reject) => {
+        // Set images immediately without blocking preload
+        // Images will load lazily when displayed in the carousel component
+        setCarouselImages(data);
+        setImagesReady(true);
+
+        // Preload images in background (non-blocking, deferred)
+        // Use InteractionManager to defer until after interactions complete
+        InteractionManager.runAfterInteractions(() => {
+          data.forEach((banner: Banner) => {
+            // Preload images asynchronously without blocking the UI
+            // Use Image.getSize in a non-blocking way
                 Image.getSize(
                   banner.image_url,
-                  () => resolve(),
-                  (error) => reject(error)
+              () => {
+                // Image loaded successfully - no action needed
+              },
+              () => {
+                // Image failed to load - will load when displayed
+              }
                 );
               });
-              return banner;
-            } catch (error) {
-              return banner; // Return banner even if image fails to load
-            }
-          })
-        );
-
-        setCarouselImages(preloadedImages);
-        setImagesReady(true);
+        });
       }
     } catch (error) {
+      // Silently fail - carousel is non-critical
     }
   }, []);
 
@@ -545,6 +825,24 @@ export default function HomeScreen() {
     return payoutPlans.filter(plan => plan.status === 'active');
   }, [payoutPlans]);
 
+  const payoutsTotalAmount = useMemo(() => {
+    if (!activePlans || activePlans.length === 0) return 0;
+    return activePlans.reduce((sum, plan) => {
+      const totalAmount = Number((plan as any)?.total_amount) || 0;
+      return sum + totalAmount;
+    }, 0);
+  }, [activePlans]);
+
+  const payoutsTotalPaid = useMemo(() => {
+    if (!activePlans || activePlans.length === 0) return 0;
+    return activePlans.reduce((sum, plan) => {
+      const completedPayouts = Number((plan as any)?.completed_payouts) || 0;
+      const payoutAmount = Number((plan as any)?.payout_amount) || 0;
+      const completedAmount = completedPayouts * payoutAmount;
+      return sum + completedAmount;
+    }, 0);
+  }, [activePlans]);
+
   const handleProfilePress = useCallback(() => {
     router.push('/profile');
     logAnalyticsEvent('profile_click');
@@ -552,10 +850,31 @@ export default function HomeScreen() {
 
   // Handle pull-to-refresh - refresh all page data
   const handleRefresh = useCallback(async () => {
+    // Debounce: prevent multiple rapid refreshes (minimum 1 second between refreshes)
+    const now = Date.now();
+    if (now - lastRefreshTimeRef.current < 1000) {
+      return;
+    }
+    lastRefreshTimeRef.current = now;
+
+    // Clear any existing timeout
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
+
     setIsRefreshing(true);
+
+    // Set a timeout to ensure refresh state doesn't get stuck (max 10 seconds)
+    refreshTimeoutRef.current = setTimeout(() => {
+      setIsRefreshing(false);
+      refreshTimeoutRef.current = null;
+    }, 10000);
+
     try {
-      // Refresh all data in parallel for better performance
-      await Promise.all([
+      // Refresh critical data in parallel (excluding carousel images which are non-critical)
+      // Use Promise.allSettled to prevent one failure from blocking others
+      const results = await Promise.allSettled([
         // Refresh wallet balance
         refreshWallet(),
         // Refresh payout plans
@@ -564,18 +883,29 @@ export default function HomeScreen() {
         fetchTransactions(),
         // Refresh KYC progress
         loadProgress(),
-        // Refresh carousel images
-        fetchCarouselImages(),
       ]);
+
+      // Log any failures but don't block the refresh
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const operationNames = ['wallet', 'payout plans', 'transactions', 'KYC progress'];
+          console.warn(`Refresh failed for ${operationNames[index]}:`, result.reason);
+        }
+      });
       
       // Add haptic feedback for successful refresh
       impact();
     } catch (error) {
       console.error('Error refreshing page data:', error);
     } finally {
+      // Clear timeout and reset refresh state
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
       setIsRefreshing(false);
     }
-  }, [refreshWallet, fetchPayoutPlans, fetchTransactions, loadProgress, impact, fetchCarouselImages]);
+  }, [refreshWallet, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
 
   const handleHelpPress = useCallback(async () => {
     try {
@@ -615,16 +945,179 @@ export default function HomeScreen() {
   }, []);
 
   const getGreeting = () => {
-    const hour = currentDate.getHours();
-    
-    if (hour >= 0 && hour < 12) {
-      return 'Good morning';
-    } else if (hour >= 12 && hour < 17) {
-      return 'Good afternoon';
-    } else {
-      return 'Good evening';
-    }
+    return 'Hi';
   };
+
+  // Sum of all plan balances (funded progress reference)
+  const expensePlansFundedBalance = useMemo(() => {
+    if (!expensePlans || expensePlans.length === 0) return 0;
+    return expensePlans.reduce((total, plan) => {
+      const currentBalance = (plan as any).current_balance || 0;
+      return total + currentBalance;
+    }, 0);
+  }, [expensePlans]);
+
+  // Spendable balance = started plans only
+  const expensePlansSpendableBalance = useMemo(() => {
+    if (!expensePlans || expensePlans.length === 0) return 0;
+    return expensePlans.reduce((total, plan) => {
+      const started = plan.start_date ? isBudgetStarted(plan.start_date) : false;
+      if (!started) return total;
+      const currentBalance = (plan as any).current_balance || 0;
+      return total + currentBalance;
+    }, 0);
+  }, [expensePlans]);
+
+  // Active (started) budgets with spendable balance
+  const activeSpendableBudgets = useMemo(() => {
+    if (!expensePlans || expensePlans.length === 0) return { count: 0, total: 0, minDays: null as number | null };
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let count = 0;
+    let total = 0;
+    let minDays: number | null = null;
+
+    expensePlans.forEach(plan => {
+      if (plan.status !== 'active') return;
+      if (!isBudgetStarted(plan.start_date)) return;
+      const balance = (plan as any)?.current_balance || 0;
+      if (balance <= 0) return;
+
+      count += 1;
+      total += balance;
+
+      if (plan.end_date) {
+        const endDate = new Date(plan.end_date);
+        endDate.setHours(0, 0, 0, 0);
+        const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysUntilEnd >= 0) {
+          if (minDays === null || daysUntilEnd < minDays) {
+            minDays = daysUntilEnd;
+          }
+        }
+      }
+    });
+
+    return { count, total, minDays };
+  }, [expensePlans]);
+
+  // Find ongoing budgets (started budgets with funds)
+  const ongoingBudgets = useMemo(() => {
+    if (!expensePlans || expensePlans.length === 0) return [];
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return expensePlans
+      .filter(p => {
+        const hasFunds = (p.current_balance || 0) > 0;
+        return p.status === 'active' && isBudgetStarted(p.start_date) && hasFunds;
+      })
+      .map(plan => {
+        let daysUntilEnd: number | null = null;
+        if (plan.end_date) {
+          const endDate = new Date(plan.end_date);
+          endDate.setHours(0, 0, 0, 0);
+          daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        return { plan, daysUntilEnd };
+      })
+      .sort((a, b) => {
+        // Sort by days until end (ascending), nulls last
+        if (a.daysUntilEnd === null && b.daysUntilEnd === null) return 0;
+        if (a.daysUntilEnd === null) return 1;
+        if (b.daysUntilEnd === null) return -1;
+        return a.daysUntilEnd - b.daysUntilEnd;
+      });
+  }, [expensePlans]);
+
+  // Find next maturing budget
+  const nextMaturingBudget = useMemo(() => {
+    if (!expensePlans || expensePlans.length === 0) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const upcomingPlans = expensePlans
+      .filter(p => p.status === 'active' && p.end_date)
+      .map(plan => {
+        const endDate = new Date(plan.end_date!);
+        endDate.setHours(0, 0, 0, 0);
+        const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        
+        let daysUntilStart: number | null = null;
+        if (plan.start_date) {
+          const startDate = new Date(plan.start_date);
+          startDate.setHours(0, 0, 0, 0);
+          daysUntilStart = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        const duration = getBudgetDuration(plan.start_date, plan.end_date);
+        const hasStarted = isBudgetStarted(plan.start_date);
+        return { plan, daysUntilEnd, daysUntilStart, endDate, duration, hasStarted };
+      })
+      // Up next should be budgets that haven't started
+      .filter(({ hasStarted, daysUntilStart, daysUntilEnd }) => !hasStarted && (daysUntilStart ?? 0) >= 0 && daysUntilEnd >= 0)
+      .sort((a, b) => {
+        const aStart = a.daysUntilStart ?? Number.MAX_SAFE_INTEGER;
+        const bStart = b.daysUntilStart ?? Number.MAX_SAFE_INTEGER;
+        if (aStart === bStart) return a.daysUntilEnd - b.daysUntilEnd;
+        return aStart - bStart;
+      });
+
+    return upcomingPlans.length > 0 ? upcomingPlans[0] : null;
+  }, [expensePlans]);
+
+  // Get category icons and selected subcategories for next maturing budget
+  const getNextMaturingBudgetCategoryIcons = useMemo(() => {
+    if (!nextMaturingBudget?.plan?.buckets || nextMaturingBudget.plan.buckets.length === 0) {
+      return [];
+    }
+
+    const uniqueCategories = new Set<string>();
+    const icons: Array<{ categoryId: string; Icon: any }> = [];
+
+    for (const bucket of nextMaturingBudget.plan.buckets) {
+      if (uniqueCategories.size >= 3) break;
+      
+      if (!uniqueCategories.has(bucket.category_id)) {
+        const Icon = getCategoryIcon(bucket.category_id);
+        if (Icon) {
+          uniqueCategories.add(bucket.category_id);
+          icons.push({ categoryId: bucket.category_id, Icon });
+        }
+      }
+    }
+
+    return icons;
+  }, [nextMaturingBudget]);
+
+  // Get selected subcategories for next maturing budget
+  const getNextMaturingBudgetSubcategories = useMemo(() => {
+    if (!nextMaturingBudget?.plan?.buckets || nextMaturingBudget.plan.buckets.length === 0) {
+      return [];
+    }
+
+    const subcategories: Array<{ categoryId: string; subcategoryId: string; subcategoryName: string }> = [];
+
+    for (const bucket of nextMaturingBudget.plan.buckets) {
+      const category = getCategoryById(bucket.category_id);
+      if (category) {
+        const subcategory = category.subCategories.find(sub => sub.id === bucket.subcategory_id);
+        if (subcategory) {
+          subcategories.push({
+            categoryId: bucket.category_id,
+            subcategoryId: bucket.subcategory_id,
+            subcategoryName: subcategory.name
+          });
+        }
+      }
+    }
+
+    return subcategories;
+  }, [nextMaturingBudget]);
 
   const buttonOpacity = scrollY.interpolate({
     inputRange: [0, 200],
@@ -676,46 +1169,94 @@ export default function HomeScreen() {
       return;
     }
 
+    if (!ensureAuthenticatedOrWelcome()) {
+      setShowBalanceActionsModal(false);
+      return;
+    }
+
     // Trigger medium impact haptic feedback
     impact();
     
-    // For unauthenticated users, show WelcomeModal
-    if (!isAuthenticated) {
-      setShowWelcomeModalForUnauth(true);
-      logAnalyticsEvent('add_funds_click_unauthenticated_modal');
-      return;
+    // Close the balance actions modal first
+    setShowBalanceActionsModal(false);
+    
+    // Check if user has completed Tier 1
+    const tierCompletion = checkTierCompletion();
+    
+    // Check if user has an account
+    let hasAccount = false;
+    if (session?.user?.id) {
+      try {
+        const { data } = await supabase
+          .from('safehaven_accounts')
+          .select('id, account_number')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .not('account_number', 'ilike', 'PENDING_%')
+          .maybeSingle();
+        
+        hasAccount = !!(data && data.account_number && !data.account_number.startsWith('PENDING_'));
+      } catch (error) {
+        console.error('Error checking account:', error);
+      }
     }
     
-    // Always navigate to add funds page regardless of KYC status
-    isNavigatingToAddFundsRef.current = true;
-    router.push('/add-funds');
-    logAnalyticsEvent('add_funds_click');
-    // Reset flag after navigation completes
-    setTimeout(() => {
-      isNavigatingToAddFundsRef.current = false;
-    }, 1000);
+    // Allow access to the Add funds page even if Tier 1 isn't complete.
+    // Mono/Paystack flows don't require Tier 1, while bank-transfer may.
+    if (!tierCompletion.tier1) {
+      isNavigatingToAddFundsRef.current = true;
+      router.push('/add-funds');
+      logAnalyticsEvent('add_funds_click_non_kyc');
+      // Reset flag after navigation completes
+      setTimeout(() => {
+        isNavigatingToAddFundsRef.current = false;
+      }, 1000);
+      return;
+    }
+
+    // Tier 1 is complete at this point. If user already has an account, go directly.
+    if (hasAccount) {
+      isNavigatingToAddFundsRef.current = true;
+      router.push('/add-funds');
+      logAnalyticsEvent('add_funds_click');
+      // Reset flag after navigation completes
+      setTimeout(() => {
+        isNavigatingToAddFundsRef.current = false;
+      }, 1000);
+      return;
+    }
+
+    // Otherwise show ClaimAccountModal to help create/claim the safehaven account.
+    setShowClaimAccountModal(true);
+    logAnalyticsEvent('add_funds_click_claim_modal');
+  };
+
+  const handleWithdraw = () => {
+    impact();
+    setShowBalanceActionsModal(false);
+    // TODO: Navigate to withdraw screen or show withdraw modal
+    Alert.alert('Withdraw', 'Withdraw functionality coming soon');
+    logAnalyticsEvent('withdraw_click');
+  };
+
+  const handleViewTransactionHistory = () => {
+    impact();
+    setShowBalanceActionsModal(false);
+    router.push('/transactions');
+    logAnalyticsEvent('view_transaction_history', { source: 'balance_card' });
   };
 
   const handleCreatePayout = () => {
     // Trigger medium impact haptic feedback
     impact();
     
-    // For authenticated users, only show modal if user has never created a payout plan before
-    if (isAuthenticated) {
-      if (hasCreatedPayoutPlan) {
-        // User has created a payout plan before - navigate directly to create payout
-        router.push('/create-payout/amount');
-        logAnalyticsEvent('create_payout_click_direct');
-      } else {
-        // User has never created a payout plan - show info modal
-        setShowNewPlanInfoModal(true);
-        logAnalyticsEvent('create_payout_click_modal');
-      }
-    } else {
-      // Unauthenticated users - show WelcomeModal
-      setShowWelcomeModalForUnauth(true);
-      logAnalyticsEvent('create_payout_click_modal');
+    if (!ensureAuthenticatedOrWelcome()) {
+      return;
     }
+
+    // Route to unified create chooser
+    router.push('/create-new');
+    logAnalyticsEvent('create_payout_click_start');
   };
 
   const handleAISuggestionPress = (suggestion: any) => {
@@ -855,7 +1396,7 @@ export default function HomeScreen() {
       status: displayStatus,
       date: new Date(transaction.created_at).toLocaleDateString(),
       time: new Date(transaction.created_at).toLocaleTimeString(),
-      type: transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1),
+      type: formatTransactionType(transaction.type),
       source: plan?.name || transaction.source,
       destination: `${bankName} •••• ${accountNumber.slice(-4)}`, // Use actual bank name
       transactionId: transaction.id,
@@ -955,112 +1496,155 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
-      <ScrollView 
-        style={styles.scrollView} 
-        contentContainerStyle={styles.scrollContent}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
-        onScrollBeginDrag={() => updateLastActiveOnInteraction()}
-        onTouchStart={() => updateLastActiveOnInteraction()}
-        scrollEventThrottle={16}
-        bounces={true}
-        alwaysBounceVertical={true}
-        contentInsetAdjustmentBehavior="never"
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={isDark ? '#fff' : '#fff'}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        <LinearGradient
-          colors={isDark ? ['#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F', '#0E141F'] : ['#F8FAFC']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          locations={[0, 0.3, 0.5, 0.6, 0.85, 1]}
-          style={[styles.gradientContainer, { paddingTop: insets.top + 200, marginTop: -200 }]}
-        >
-          <View style={styles.gradientContent}>
-            <View style={styles.header}>
-              <View style={styles.headerTop}>
-                {isAuthenticated ? (
-                  <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
-                    <View style={styles.whiteAvatarContainer}>
-                      <Text style={styles.whiteAvatarText}>
-                        {firstName?.[0]?.toUpperCase() || ''}{lastName?.[0]?.toUpperCase() || ''}
-                      </Text>
-                    </View>
-                  </Pressable>
-                ) : (
-                  <Pressable style={styles.avatarButton}>
-                    <View style={[styles.avatarPlaceholder, { backgroundColor: '#fff' }]}>
-                      <Image
-                        source={require('@/assets/images/AppIcon.png')}
-                        style={styles.avatarAppIcon}
-                        resizeMode="contain"
-                      />
-                    </View>
-                  </Pressable>
-                )}
-                <View style={styles.headerActions}>
-                  {!isAuthenticated ? (
-                    <Pressable onPress={() => setShowWelcomeModalForUnauth(true)}>
-                      <NotificationIcon color={isDark ? '#fff' : '#000'} />
-                    </Pressable>
-                  ) : (
-                    <NotificationIcon color={isDark ? '#fff' : '#000'} />
-                  )}
-                  <Pressable 
-                    onPress={handleHelpPress} 
-                    style={styles.helpButton}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <PlanmoniLoader size="small" />
-                    ) : (
-                      <HelpCircleIcon size={24} color={isDark ? '#fff' : '#000'} />
-                    )}
-                  </Pressable>
-                </View>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Sticky Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          {isAuthenticated ? (
+            <Pressable onPress={handleProfilePress} style={styles.avatarButton}>
+              <InitialsAvatar 
+                firstName={firstName} 
+                lastName={lastName} 
+                size={48}
+                fontSize={typeof textSizeMultiplier === 'number' && !isNaN(textSizeMultiplier) 
+                  ? getScaledFontSize(18, textSizeMultiplier) 
+                  : 18}
+                kycTier={typeof currentTier === 'number' && !isNaN(currentTier) ? currentTier : 0}
+                hasAccount={hasAccount}
+                tier1Complete={checkTierCompletion().tier1}
+              />
+            </Pressable>
+          ) : (
+            <Pressable style={styles.avatarButton}>
+              <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
+                <Image 
+                  source={require('@/assets/images/Icon-planmoni.png')}
+                  style={styles.planmoniIcon}
+                  resizeMode="contain"
+                />
               </View>
-              <View style={styles.greetingContainer}>
-                <View style={styles.greetingRow}>
-                  <Text style={styles.greeting}>
-                    {getGreeting()}{isAuthenticated ? `, ${firstName}.` : '.'}
-                  </Text>
-                  {!isAuthenticated && (
-                    <Pressable 
-                      onPress={() => router.push('/(auth)/login')} 
-                      style={[styles.loginButton, { borderColor: isDark ? '#fff' : '#000' }]}
-                    >
-                      <Text style={[styles.loginButtonText, {color: isDark ? '#fff' : '#000' }]}>Login</Text>
-                    </Pressable>
-                  )}
-                </View>
-                {/* <Text style={styles.subGreeting}> Create payout plans, stay funded always</Text> */}
-              </View>
+            </Pressable>
+          )}
+          <View style={styles.greetingInlineContainer}>
+            {isAuthenticated ? (
+            <View style={styles.greetingInlineRow}>
+              <Text style={styles.greetingInline} numberOfLines={1} ellipsizeMode="tail">
+                  {getGreeting()}, {firstName}.
+              </Text>
+              <Text style={styles.subGreetingInline} numberOfLines={1} ellipsizeMode="tail">
+                It's time to plan your finances
+              </Text>
             </View>
-
-          <View style={styles.balanceCard}>
-            <View style={styles.balanceCardContent}>
+            ) : (
               <Pressable 
-                onPress={toggleBalanceCardExpansion}
-                style={styles.balanceHeaderPressable}
+                onPress={() => router.push('/(auth)/login')} 
+                style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
               >
+                <Text style={[styles.loginButtonText, {color: isDark ? '#fff' : colors.primary }]}>Login</Text>
+              </Pressable>
+            )}
+          </View>
+          <View style={styles.headerActions}>
+            <NotificationIcon />
+            <Pressable 
+              onPress={handleHelpPress} 
+              style={styles.helpButton}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <PlanmoniLoader size="small" />
+              ) : (
+                <HelpCircleIcon size={24} color={colors.text} />
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
+      {/* Sticky Balance Tabs */}
+      <View style={styles.tabsContainer}>
+        <Pressable
+          onPress={() => handleTabChange('home')}
+        >
+          <Text style={[
+            styles.tabText,
+            activeBalanceTab === 'home' && styles.activeTabText
+          ]}>
+            Home
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => handleTabChange('plans')}
+        >
+          <Text style={[
+            styles.tabText,
+            activeBalanceTab === 'plans' && styles.activeTabText
+          ]}>
+            Vaults
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => handleTabChange('payouts')}
+        >
+          <Text style={[
+            styles.tabText,
+            activeBalanceTab === 'payouts' && styles.activeTabText
+          ]}>
+            Payouts
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Swipeable Tab Content */}
+      <View style={styles.tabContentWrapper}>
+        <ScrollView
+          ref={tabScrollViewRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleScrollEnd}
+          onLayout={() => scrollPagerToActiveTab(false)}
+          scrollEventThrottle={16}
+          decelerationRate="fast"
+          snapToInterval={screenWidth}
+          snapToAlignment="start"
+          scrollEnabled
+          style={[styles.tabContentScrollView, { width: screenWidth }]}
+          contentContainerStyle={{ width: screenWidth * 3 }}
+        >
+          {/* Home Tab Content */}
+          <View style={[styles.tabPage, { width: screenWidth }]}>
+            <ScrollView
+              style={styles.tabScrollView}
+              contentContainerStyle={styles.tabScrollContent}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                { useNativeDriver: false }
+              )}
+              onScrollBeginDrag={() => updateLastActiveOnInteraction()}
+              onTouchStart={() => updateLastActiveOnInteraction()}
+              scrollEventThrottle={16}
+              refreshControl={
+                <RefreshControl
+                  refreshing={isRefreshing}
+                  onRefresh={handleRefresh}
+                />
+              }
+            >
+            {/* Home Tab - Full Balance Card with Buttons */}
+            <ImageBackground 
+              source={require('@/assets/images/background.png')} 
+              style={styles.balanceCard}
+              resizeMode="cover"
+            >
+              <View style={styles.balanceCardContent}>
                 <View style={styles.balanceLabelContainer}>
                   <View style={styles.balanceLabelGroup}>
-                    <Text style={styles.balanceLabel}>Your available balance</Text>
+                    <Text style={styles.balanceLabel}>Available balance</Text>
                     <Pressable 
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        toggleBalances();
-                      }}
+                      onPress={toggleBalances}
                       style={styles.eyeIconButton}
                       hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                     >
@@ -1071,187 +1655,205 @@ export default function HomeScreen() {
                       )}
                     </Pressable>
                   </View>
-                  <Pressable 
-                    onPress={toggleBalanceCardExpansion}
-                    style={styles.expandButton}
+                  {/* <Pressable 
+                    onPress={() => {
+                      impact();
+                      setShowBalanceActionsModal(true);
+                    }}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={styles.eyeIconButton}
                   >
-                    <Animated.View
-                      style={{
-                        transform: [{
-                          rotate: balanceCardAnimation.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ['0deg', '180deg'],
-                          }),
-                        }],
-                      }}
-                    >
-                      <ChevronDown size={20} color={colors.textSecondary} />
-                    </Animated.View>
+                    <MoreVertical size={20} color={'#fff'} />
+                  </Pressable> */}
+                </View>
+                <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
+                <View style={styles.lockedSection}>
+                  {/* <View style={styles.lockedLabelContainer}>
+                    <Clock size={16} color={colors.textTertiary} />
+                    <Text style={styles.lockedLabel}>
+                      {formatBalance(lockedBalance)} in active payout plans
+                    </Text>
+                  </View> */}
+                </View>
+                <View style={styles.buttonGroup}>
+                  <Pressable 
+                    style={styles.addFundsButtonBalance} 
+                  onPress={() => {
+                    handleAddFunds();
+                  }}
+                  >
+                    <ArrowDown size={20} color={'#fff'}/>
+                    <Text style={[styles.addFundsTextBalance]}>Add funds</Text>
+                  </Pressable>
+                  <Pressable 
+                    style={styles.createButtonBalance} 
+                    onPress={handleCreatePayout}
+                  >
+                    <CalendarCheck size={22} color={colors.primary} />
+                    <Text style={styles.createButtonTextBalance}>New</Text>
                   </Pressable>
                 </View>
-              </Pressable>
-              <Text style={styles.balanceAmount}>
-                {(() => {
-                  const parts = getBalanceParts(availableBalance);
-                  return (
-                    <>
-                      {parts.main}
-                      {parts.decimal ? <Text style={{ color: colors.textTertiary }}>{parts.decimal}</Text> : null}
-                    </>
-                  );
-                })()}
-              </Text>
-              <Animated.View 
-                style={[
-                  styles.lockedSection,
-                  {
-                    height: lockedSectionHeight,
-                    opacity: lockedSectionOpacity,
-                    overflow: 'hidden',
-                  }
-                ]}
-              >
-                <View style={styles.lockedLabelContainer}>
-                  <Clock size={16} color={colors.textSecondary} />
-                  <Text style={styles.lockedLabel}>
-                  {(() => {
-                    const parts = getBalanceParts(lockedBalance);
-                    return (
-                      <>
-                        {parts.main}
-                        {parts.decimal ? <Text style={{ color: colors.textTertiary }}>{parts.decimal}</Text> : null}
-                        {' locked in active payout plans'}
-                      </>
-                    );
-                  })()}
-                </Text>
-                </View>
-              </Animated.View>
-              <View style={styles.buttonGroup}>
-                <Pressable 
-                  style={styles.addFundsButton} 
-                  onPress={handleAddFunds}
-                >
-                  <Plus size={18} color={isDark ? '#fff' : colors.primary}/>
-                  <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
-                </Pressable>
-                <Pressable 
-                  style={styles.createButton} 
-                  onPress={handleCreatePayout}
-                >
-                  <CalendarCheck size={18} color={isDark ? '#fff' : '#C3F57E'} />
-                  <Text style={[styles.createButtonText]}>New Plan</Text>
-                </Pressable>
               </View>
-            </View>
-          </View>
-          </View>
-        </LinearGradient>
-        
-        <View style={styles.contentContainer}>
+            </ImageBackground>
+            
+            
+            {/* Home Tab Content */}
+            <>
               {/* On Track Card */}
-              <OnTrackCard payoutPlans={payoutPlans} />
-        {/* AI Suggestion Section - Only show for authenticated users */}
-        {isAuthenticated && (
-          <AISuggestionCard 
-            availableBalance={availableBalance}
-            onSuggestionPress={handleAISuggestionPress}
-          />
-        )}
-        
-        {/* <IntercomButton /> */}
+              {/* AI Suggestion Section - Only show for authenticated users */}
+              {/* {isAuthenticated && (
+                <AISuggestionCard 
+                  availableBalance={availableBalance}
+                  onSuggestionPress={handleAISuggestionPress}
+                />
+              )} */}
+              <OnTrackCard 
+                payoutPlans={payoutPlans}
+              />
+              <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
+              
 
-        {/* KYC Tiers Test Buttons */}
-        {/* <View style={styles.kycTiersContainer}>
-          <Text style={[styles.kycTiersTitle, { color: colors.text }]}>KYC Tiers Test</Text>
-          <View style={styles.kycTiersButtons}>
-            <Pressable
-              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/kyc-tiers/tier-one')}
-            >
-              <Text style={styles.kycTierButtonText}>Tier 1</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/kyc-tiers/tier-two')}
-            >
-              <Text style={styles.kycTierButtonText}>Tier 2</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.kycTierButton, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/kyc-tiers/tier-three')}
-            >
-              <Text style={styles.kycTierButtonText}>Tier 3</Text>
-            </Pressable>
+              <ImageCarousel images={carouselImages} />
+
+              <QuickPlans onRequireAuth={ensureAuthenticatedOrWelcome} />
+
+
+              
+              {activeSpendableBudgets.count > 0 && (
+                <ActiveSpendingPlansCard 
+                  count={activeSpendableBudgets.count}
+                  totalAmount={activeSpendableBudgets.total}
+                  daysRemaining={activeSpendableBudgets.minDays}
+                  onPress={() => handleTabChange('plans')}
+                />
+              )}
+              {/* {isAuthenticated && progress && !(
+                progress.id_face_verified === true || 
+                String(progress.id_face_verified) === '1' ||
+                String(progress.id_face_verified) === 'true'
+              ) && <KYCCard />} */}
+
+              
+
+              {/* Quick Plans Section */}
+              <PendingActionsCard />
+
+
+              
+
+                <View style={styles.bottomPadding} />
+
+                {/* <RatingCard /> */}
+              </>
+            </ScrollView>
           </View>
-        </View> */}
-        
 
-        {/* Quick Topup Card */}
-        
+          {/* Plans Tab Content */}
+          <PlansTabContent
+            screenWidth={screenWidth}
+            styles={styles}
+            colors={colors}
+            impact={impact}
+            router={router}
+            formatBalance={formatBalance}
+            expensePlansBalance={expensePlansSpendableBalance}
+            expensePlansFundedBalance={expensePlansFundedBalance}
+            expensePlans={expensePlans}
+            ongoingBudgets={ongoingBudgets}
+            nextMaturingBudget={nextMaturingBudget}
+            getNextMaturingBudgetCategoryIcons={getNextMaturingBudgetCategoryIcons}
+            isRefreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            onRequireAuth={ensureAuthenticatedOrWelcome}
+          />
 
-        <ImageCarousel 
-          images={carouselImages} 
-          onImagePress={!isAuthenticated ? () => setShowWelcomeModalForUnauth(true) : undefined}
-        />
-        <PendingActionsCard />
+          {/* Payouts Tab Content */}
+          <PayoutsTabContent
+            screenWidth={screenWidth}
+            styles={styles}
+            colors={colors}
+            formatBalance={formatBalance}
+            lockedBalance={lockedBalance}
+            nextPayout={nextPayout}
+            activePlans={activePlans}
+            payoutsTotalPaid={payoutsTotalPaid}
+            payoutsTotalAmount={payoutsTotalAmount}
+            onRequireAuth={ensureAuthenticatedOrWelcome}
+            setShowAddByCodeModal={setShowAddByCodeModal}
+            setShowNewPlanInfoModal={setShowNewPlanInfoModal}
+            setShowHowItWorksModal={setShowHowItWorksModal}
+            isRefreshing={isRefreshing}
+            onRefresh={handleRefresh}
+          />
+        </ScrollView>
+      </View>
 
-        <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
+      {/* Sticky Buttons - Only show on Home tab */}
+      {activeBalanceTab === 'home' && (
+        <Animated.View style={[
+          styles.stickyButtons,
+          {
+            opacity: buttonOpacity,
+            transform: [{
+              translateY: buttonOpacity.interpolate({
+                inputRange: [0, 1],
+                outputRange: [100, 0],
+              }),
+            }],
+          },
+        ]}>
+          <Pressable 
+            style={styles.addFundsButton} 
+            onPress={() => {
+              handleAddFunds();
+            }}
+          >
+            <ArrowDown size={20} color={isDark ? '#fff' : colors.primary} />
+            <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
+          </Pressable>
+          <Pressable 
+            style={styles.createButton} 
+            onPress={handleCreatePayout}
+          >
+            <CalendarCheck size={22} color={'#fff'} />
+            <Text style={styles.createButtonText}>New</Text>
+          </Pressable>
+        </Animated.View>
+      )}
 
-
-        {/* Most Recent Payouts Section */}
-
-        {/* Next Payout Section */}
-        <NextPayoutCard nextPayout={nextPayout} />
-
-
-        {/* Payout Plans Section */}
-        <PayoutPlansSection 
-          activePlans={activePlans} 
-          onShowNewPlanInfo={() => isAuthenticated ? setShowNewPlanInfoModal(true) : setShowWelcomeModalForUnauth(true)}
-          onShowHowItWorks={() => setShowHowItWorksModal(true)}
-          onShowWelcomeModal={() => setShowWelcomeModalForUnauth(true)}
-          isUserAuthenticated={isAuthenticated}
-        />
-
-        
-
-
-              <View style={styles.bottomPadding} />
-
-              <RatingCard />
-            </View>
-      </ScrollView>
-
-      <Animated.View style={[
-        styles.stickyButtons,
-        {
-          opacity: buttonOpacity,
-          transform: [{
-            translateY: buttonOpacity.interpolate({
-              inputRange: [0, 1],
-              outputRange: [100, 0],
-            }),
-          }],
-        },
-      ]}>
-        <Pressable 
-          style={styles.addFundsButton} 
-          onPress={handleAddFunds}
+      {/* Floating + Button for Plans Tab */}
+      {activeBalanceTab === 'plans' && (
+        <Pressable
+          style={styles.floatingAddButton}
+          onPress={() => {
+            if (!ensureAuthenticatedOrWelcome()) return;
+            impact();
+            router.push({
+              pathname: '/expense-planner/create/plan-details',
+              params: {
+                planTypes: JSON.stringify(['one_time']),
+              },
+            });
+          }}
         >
-          <Plus size={18} color={isDark ? '#fff' : colors.primary} />
-          <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
+          <Plus size={24} color="#fff" />
         </Pressable>
-        <Pressable 
-          style={styles.createButton} 
-          onPress={handleCreatePayout}
+      )}
+
+      {/* Floating + Button for Payouts Tab */}
+      {activeBalanceTab === 'payouts' && (
+        <Pressable
+          style={styles.floatingAddButton}
+          onPress={() => {
+            if (!ensureAuthenticatedOrWelcome()) return;
+            impact();
+            setShowAddByCodeModal(true);
+            logAnalyticsEvent('create_payout_click_modal');
+          }}
         >
-          <CalendarCheck size={18} color={isDark ? '#fff' : '#C3F57E'} />
-          <Text style={[styles.createButtonText]}>New Plan</Text>
+          <Plus size={24} color="#fff" />
         </Pressable>
-        
-      </Animated.View>
+      )}
 
       {/* Transaction Modal - Lazy loaded */}
       {selectedTransaction && isTransactionModalVisible && TransactionModalComponent && (
@@ -1261,6 +1863,18 @@ export default function HomeScreen() {
           transaction={selectedTransaction}
         />
       )}
+
+      {/* Balance Actions Modal */}
+      <BalanceActionsModal
+        isVisible={showBalanceActionsModal}
+        onClose={() => setShowBalanceActionsModal(false)}
+        onAddFunds={handleAddFunds}
+        onWithdraw={handleWithdraw}
+        onViewTransactionHistory={handleViewTransactionHistory}
+        colors={colors}
+        isDark={isDark}
+        textSizeMultiplier={textSizeMultiplier}
+      />
       
       {/* NewPlanInfoModal - available for both authenticated and unauthenticated users */}
       <NewPlanInfoModal
@@ -1269,6 +1883,27 @@ export default function HomeScreen() {
         onAddFundsAfterClose={() => {
           // Navigate after modal is fully closed
           handleAddFunds();
+        }}
+      />
+      
+      {/* AddPayoutPlanByCodeModal */}
+      <AddPayoutPlanByCodeModal
+        isVisible={showAddByCodeModal}
+        onClose={() => setShowAddByCodeModal(false)}
+        onCreateNewPlan={() => {
+          setShowAddByCodeModal(false);
+          // Only show the "first payout schedule" modal when the user truly has no payout history.
+          // If the user already has payout transactions, go straight to the create payout flow.
+          if (hasCreatedPayoutPlanLoading) {
+            router.push('/create-payout/amount');
+            return;
+          }
+
+          if (hasCreatedPayoutPlan) {
+            router.push('/create-payout/amount');
+          } else {
+            setShowNewPlanInfoModal(true);
+          }
         }}
       />
       
@@ -1394,6 +2029,18 @@ export default function HomeScreen() {
         onClose={() => setShowLivenessTest(false)}
       /> */}
 
+      {/* Welcome Modal - unauthenticated gating */}
+      {showWelcomeModal && WelcomeModalComponent && (
+        <WelcomeModalComponent
+          isVisible={showWelcomeModal}
+          onClose={() => {
+            setShowWelcomeModal(false);
+            setHasShownWelcomeModal(true);
+          }}
+          showButtons
+        />
+      )}
+
       {/* How it Works Modal - Lazy loaded */}
       {showHowItWorksModal && WelcomeModalComponent && (
         <WelcomeModalComponent
@@ -1410,7 +2057,7 @@ export default function HomeScreen() {
           onClose={() => setShowWelcomeModalForUnauth(false)}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -1422,12 +2069,14 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     shadowOffset: { width: 1, height: 6},
     shadowOpacity: 0.09,
     shadowRadius: 9,
+    paddingLeft: 16,
+    paddingTop: Platform.OS === 'ios' ? 0 : 10,
   },
-  scrollView: {
+  tabScrollView: {
     flex: 1,
     backgroundColor: 'transparent',
   },
-  scrollContent: {
+  tabScrollContent: {
     paddingBottom: 80,
   },
   contentContainer: {
@@ -1441,35 +2090,29 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     paddingBottom: 16,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: Platform.OS === 'ios' ? 20 : 10,
+    backgroundColor: colors.backgroundSecondary,
+    paddingHorizontal: 5,
+    paddingTop: 0,
+    zIndex: 10,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Platform.OS === 'ios' ? 10 : 5,
+    gap: 12,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexShrink: 0,
   },
   avatarButton: {
     borderRadius: 24,
     overflow: 'visible', // Changed to visible to allow badge to show
-  },
-  whiteAvatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#153875',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  whiteAvatarText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#C3F57E',
+    flexShrink: 0,
   },
   avatarPlaceholder: {
     width: 48,
@@ -1478,15 +2121,16 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarAppIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  planmoniIcon: {
+    width: 28,
+    height: 28,
   },
   loginButton: {
     paddingHorizontal: 20,
+    width: '60%',
     paddingVertical: 10,
-    borderRadius: 20,
+    alignItems: 'center',
+    borderRadius: 14,
     borderWidth: 1.5,
     backgroundColor: 'transparent',
   },
@@ -1501,6 +2145,28 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  greetingInlineContainer: {
+    flex: 1,
+    flexShrink: 1,
+    marginHorizontal: 1,
+    minWidth: 0,
+  },
+  greetingInlineRow: {
+    flexDirection: 'column',
+    gap: 2,
+  },
+  greetingInline: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.text,
+    flexShrink: 1,
+  },
+  subGreetingInline: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 11, textSizeMultiplier),
+    fontWeight: '400',
+    color: colors.textSecondary,
+    flexShrink: 1,
   },
   greetingContainer: {
     marginTop: 12,
@@ -1523,15 +2189,408 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: colors.backgroundSecondary,
     lineHeight: 18,
   },
-  balanceCard: {
-    borderRadius: 20,
-    backgroundColor: isDark ? colors.card : '#fff',
-    overflow: 'hidden',
-    marginTop: 0,
-    marginBottom: 0,
+  tabsContainer: {
+    flexDirection: 'row',
+    gap: 24,
+    marginBottom: 16,
+    paddingHorizontal: 20,
+    backgroundColor: colors.backgroundSecondary,
+    zIndex: 10,
+  },
+  tabText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 16, textSizeMultiplier),
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  activeTabText: {
+    color: isDark ? colors.text : colors.primary,
+    fontWeight: '600',
+  },
+  textBalanceContainer: {
+    marginBottom: 20,
+    paddingVertical: 16,
+  },
+  textBalanceLabel: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  textBalanceAmount: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 36 : 28, textSizeMultiplier),
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  textBalanceLocked: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  textBalanceLockedText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
+    color: colors.textSecondary,
+  },
+  availableToSpendCard: {
+    backgroundColor: '#1E3A8A',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: isDark ? '#29323E' : '#E2E8F0',
- 
+    borderColor: colors.border,
+
+  },
+  availableToSpendContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  availableToSpendInfo: {
+    flex: 1,
+    gap: 8,
+  },
+  availableToSpendLabel: {
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
+    fontWeight: '500',
+    color: colors.textTertiary,
+    marginBottom: 4,
+  },
+  availableToSpendAmount: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 32 : 28, textSizeMultiplier),
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  availableToSpendSubtext: {
+    flexDirection: 'row',
+    color: colors.accentBackground,
+    alignItems: 'center',
+    gap: 6,
+  },
+  availableToSpendSubtextText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
+    color: colors.textSecondary,
+  },
+  availableToSpendProgress: {
+    marginTop: 1,
+    gap: 6,
+  },
+  availableToSpendProgressTrack: {
+    height: 8,
+    borderRadius: 8,
+    backgroundColor: '#ffffff33',
+    overflow: 'hidden',
+  },
+  availableToSpendProgressFill: {
+    height: '100%',
+    borderRadius: 8,
+    backgroundColor: colors.accent,
+  },
+  availableToSpendProgressText: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    color: '#E2E8F0',
+    fontWeight: '600',
+  },
+  spendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.primary + '15',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+    minWidth: 90,
+  },
+  spendButtonText: {
+    fontSize: getScaledFontSize(15, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  payoutsBalanceCard: {
+    backgroundColor: '#1E3A8A',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  payoutsBalanceContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  payoutsBalanceInfo: {
+    flex: 1,
+    gap: 8,
+  },
+  payoutsBalanceLabel: {
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
+    fontWeight: '500',
+    color: colors.textTertiary,
+    marginBottom: 4,
+  },
+  payoutsBalanceAmount: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 32 : 28, textSizeMultiplier),
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  payoutsBalanceSubtext: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  payoutsBalanceSubtextText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
+    color: colors.textSecondary,
+  },
+  payoutsBalanceProgress: {
+    marginTop: 8,
+    gap: 6,
+  },
+  payoutsBalanceProgressTrack: {
+    height: 8,
+    borderRadius: 8,
+    backgroundColor: '#ffffff33',
+    overflow: 'hidden',
+  },
+  payoutsBalanceProgressFill: {
+    height: '100%',
+    borderRadius: 8,
+    backgroundColor: colors.accent,
+  },
+  payoutsBalanceProgressText: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    color: '#E2E8F0',
+    fontWeight: '600',
+  },
+  createPayoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.primary + '15',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+    minWidth: 100,
+  },
+  createPayoutButtonText: {
+    fontSize: getScaledFontSize(15, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  ongoingSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+    marginBottom: 12,
+  },
+  ongoingSectionTitle: {
+    fontSize: getScaledFontSize(17, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.text,
+  },
+  ongoingCarouselContainer: {
+    paddingRight: 1,
+  },
+  ongoingCardWrapper: {
+    width: Platform.OS === 'ios' ? 300 : 280,
+    marginRight: Platform.OS === 'ios' ? 16 : 10,
+  },
+  ongoingSingleCard: {
+    marginHorizontal: 5,
+    marginBottom: 16,
+  },
+  upNextSectionHeader: {
+    paddingHorizontal: 5,
+    marginBottom: 12,
+  },
+  upNextSectionTitle: {
+    fontSize: getScaledFontSize(17, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.text,
+  },
+  upNextCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 5,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+
+  },
+  upNextCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  upNextIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+  upNextHeaderContent: {
+    flex: 1,
+    gap: 6,
+  },
+  upNextLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 2,
+  },
+  upNextLabel: {
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
+    fontWeight: '500',
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+    flex: 1,
+  },
+  upNextReadyTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  upNextReadyTagReady: {
+    backgroundColor: colors.primary,
+    borderColor: colors.accent,
+  },
+  upNextReadyTagNotReady: {
+    backgroundColor: '#6F7E93' + '15',
+    borderColor: '#6F7E93' + '40',
+  },
+  upNextReadyTagText: {
+    fontSize: getScaledFontSize(11, textSizeMultiplier),
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  upNextReadyTagTextReady: {
+    color: colors.accent,
+  },
+  upNextReadyTagTextNotReady: {
+    color: '#6F7E93',
+  },
+  upNextPlanName: {
+    fontSize: getScaledFontSize(17, textSizeMultiplier),
+    fontWeight: '500',
+    color: colors.text,
+    marginBottom: -8,
+  },
+  upNextCategoryIconsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  upNextCategoryIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.accentBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  upNextStackedIcon: {
+    marginLeft: -14, // Half overlap (50% of 28px width)
+  },
+  upNextSelectedCategoriesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    flex: 1,
+  },
+  upNextSelectedCategoryText: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 11, textSizeMultiplier),
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  upNextCardBody: {
+    marginTop: 16,
+    gap: 5,
+  },
+  upNextAmountRow: {
+    marginBottom: 4,
+  },
+  upNextBudgetAmount: {
+    fontSize: getScaledFontSize(25, textSizeMultiplier),
+    fontWeight: '700',
+    color: colors.text,
+  },
+  upNextDaysBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    width: '45%',
+    backgroundColor: colors.accentBackground,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary + '20',
+  },
+  upNextDaysText: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  upNextDate: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  upNextProgressContainer: {
+    gap: 8,
+  },
+  upNextProgressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  upNextProgressLabel: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  upNextProgressBarContainer: {
+    width: '100%',
+  },
+  upNextProgressBarBackground: {
+    height: 6,
+    backgroundColor: colors.border || colors.surface,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  upNextProgressBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 3,
+  },
+  balanceCard: {
+    borderRadius: 15,
+    borderWidth: 1,
+    // backgroundColor: colors.balanceBackground,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    marginBottom: 10,
+    marginTop: 0,
   },
   balanceCardContent: {
     paddingVertical: Platform.OS === 'ios' ? 16 : 15,
@@ -1556,9 +2615,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     gap: 8,
   },
   balanceLabel: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
-    fontWeight: '500',
-    color: colors.textSecondary,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontWeight: '600',
+    color: colors.textTertiary,
   },
   historyButton: {
     padding: 4,
@@ -1566,12 +2625,15 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   eyeIconButton: {
     padding: 4,
   },
+  addFundsLink: {
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontWeight: '600',
+  },
   balanceAmount: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 45 : 40, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 40 : 38, textSizeMultiplier),
     fontWeight: '700',
-    color: isDark ? '#fff' : colors.primary,
-    marginBottom: -15,
-    marginTop: 10,
+    color: '#fff',
+    marginBottom: Platform.OS === 'ios' ? -10 : -10,
   },
   lockedSection: {
     flexDirection: 'row',
@@ -1587,13 +2649,12 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   lockedLabel: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
-    color: colors.textSecondary,
-    fontWeight: '400',
+    color: colors.textTertiary,
   },
   lockedAmount: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
-    color: colors.text,
+    color: '#fff',
   },
   buttonGroup: {
     flexDirection: 'row',
@@ -1603,39 +2664,76 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   createButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: isDark ? colors.card : colors.primary,
-    paddingHorizontal: Platform.OS === 'ios' ? 15 : 12,
-    paddingVertical: Platform.OS === 'ios' ? 13 : 10,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    borderRadius: 50,
-    minHeight: Platform.OS === 'ios' ? 44 : 40,
+    backgroundColor: colors.primary,
+    // padding: Platform.OS === 'ios' ? 14 : 14,
+    borderRadius: Platform.OS === 'ios' ? 20 : 20,
+    height: Platform.OS === 'ios' ? 45 : 40,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 5,
+  },
+  createButtonBalance: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    // padding: Platform.OS === 'ios' ? 14 : 14,
+    borderRadius: Platform.OS === 'ios' ? 20 : 20,
+    height: Platform.OS === 'ios' ? 45 : 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
   },
   createButtonText: {
-    color: isDark ? '#fff' : '#C3F57E',
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 14, textSizeMultiplier),
-    fontWeight: '500',
-    marginLeft: 6,
+    color: '#fff',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
+    fontWeight: '600',
+  },
+  createButtonTextBalance: {
+    color: colors.primary,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
+    fontWeight: '600',
   },
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: isDark ? colors.card : '#F7F7F7',
-    paddingHorizontal: Platform.OS === 'ios' ? 15 : 12,
-    paddingVertical: Platform.OS === 'ios' ? 13 : 10,
-    borderWidth: 1,
-    borderColor: '#CFCFCF',
-    borderRadius: 50,
-    minHeight: Platform.OS === 'ios' ? 44 : 40,
+    backgroundColor: Platform.OS === 'ios' ? colors.backgroundBlack + '70' : colors.background + '10',
+    // padding: Platform.OS === 'ios' ? 14 : 10,
+    borderWidth: 2, 
+    borderColor: isDark ? '#fff' : colors.primary,
+    borderRadius: Platform.OS === 'ios' ? 20 : 20,
+    height: Platform.OS === 'ios' ? 45 : 40,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+  },
+  addFundsButtonBalance: {
+    flex: 1,
+    flexDirection: 'row',
+    borderWidth: 2,
+    borderColor: '#fff',
+    // backgroundColor: '#1E3A8A',
+    // padding: Platform.OS === 'ios' ? 14 : 14,
+    borderRadius: Platform.OS === 'ios' ? 20 : 20,
+    height: Platform.OS === 'ios' ? 45 : 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   addFundsText: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 14, textSizeMultiplier),
-    fontWeight: '500',
-    marginLeft: 6,
+    color: colors.primary,
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
+    fontWeight: '600',
+    textAlign: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addFundsTextBalance: {
+    color: '#fff',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 14 : 13, textSizeMultiplier),
+    fontWeight: '600',
+    textAlign: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   summaryCard: {
     marginBottom: 20,
@@ -2115,6 +3213,35 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  floatingAddButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  tabContentWrapper: {
+    flex: 1,
+    marginHorizontal: -16, // Extend beyond parent padding
+  },
+  tabContentScrollView: {
+    flex: 1,
+    // Width will be set inline
+  },
+  tabPage: {
+    flex: 1,
+    paddingHorizontal: 16, // Add padding back to each page
+    flexShrink: 0,
   },
   bottomPadding: {
     height: 1,

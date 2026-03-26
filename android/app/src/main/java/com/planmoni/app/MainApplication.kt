@@ -1,4 +1,5 @@
 package com.planmoni.app
+import com.appsflyer.AppsFlyerLib
 import com.intercom.reactnative.IntercomModule
 
 import android.app.Application
@@ -49,8 +50,12 @@ class MainApplication : Application(), ReactApplication {
       load()
     }
     ApplicationLifecycleDispatcher.onApplicationCreate(this)
-  IntercomModule.initialize(this, "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf", "tf4dp3qt")
-}
+    IntercomModule.initialize(this, "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf", "tf4dp3qt")
+
+    // AppsFlyer SDK
+    AppsFlyerLib.getInstance().init("DABqeACmmj9KgnxWSo4EzH", null, this)
+    AppsFlyerLib.getInstance().start(this)
+  }
 
   override fun onConfigurationChanged(newConfig: Configuration) {
     super.onConfigurationChanged(newConfig)

@@ -52,8 +52,8 @@ export default function AmountScreen() {
       return;
     }
 
-    if (numericAmount < 5000) {
-      setError('Minimum amount is ₦5,000');
+    if (numericAmount < 1000) {
+      setError('Minimum amount is ₦1,000');
       haptics.notification(Haptics.NotificationFeedbackType.Error);
       return;
     }
@@ -66,7 +66,7 @@ export default function AmountScreen() {
 
     haptics.mediumImpact();
     router.push({
-      pathname: '/create-payout/frequency-selection',
+      pathname: '/create-payout/purpose',
       params: {
         totalAmount: amount,
         frequency: params.frequency || '',
@@ -78,11 +78,15 @@ export default function AmountScreen() {
         accountName: params.accountName || '',
         bankAccountId: params.bankAccountId || '',
         payoutAccountId: params.payoutAccountId || '',
-        emergencyWithdrawal: params.emergencyWithdrawal || 'false',
+        emergencyWithdrawal: 'true', // Always enabled
         customDates: params.customDates || '',
+        customDateAmounts: params.customDateAmounts || '',
+        customDateTimes: params.customDateTimes || '',
         dayOfWeek: params.dayOfWeek || '',
         payoutHour: params.payoutHour || '',
         payoutMinute: params.payoutMinute || '',
+        purpose: params.purpose || '',
+        purposeOther: params.purposeOther || '',
       }
     });
   };
@@ -160,9 +164,9 @@ export default function AmountScreen() {
 
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '20%' }]} />
+          <View style={[styles.progressFill, { width: '25%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 1 of 5</Text>
+        <Text style={styles.stepText}>Step 1 of 4</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>

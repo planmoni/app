@@ -239,26 +239,20 @@ export default function ImageCarousel({
 
   const dynamicHeight = calculateDynamicHeight();
 
-  // Loading state
-  if (isLoading || isPrefetching) {
-    const cacheStats = imageCache.getCacheStats();
+  // Initial loading state - only show if we have no images yet
+  if ((isLoading || isPrefetching) && images.length === 0) {
     return (
       <View style={[styles.container, { height: dynamicHeight }]}> 
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={styles.loadingText}>
-            {isPrefetching 
-              ? `Loading banners...` 
-              : 'Loading banners...'
-            }
-          </Text>
+          <Text style={styles.loadingText}>Loading banners...</Text>
         </View>
       </View>
     );
   }
 
-  // Error state
-  if (error) {
+  // Error state - only show if we have no images to display
+  if (error && images.length === 0) {
     return (
       <View style={[styles.container, { height: dynamicHeight }]}> 
         <Text style={styles.errorText}>{error}</Text>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useExpensePlans } from '@/hooks/useExpensePlans';
+import { replaceToVaultsHomeTab } from '@/lib/replaceToVaultsHomeTab';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
@@ -27,15 +29,69 @@ export default function MonoSuccessScreen() {
     }, 800);
     return () => clearTimeout(t);
   }, [refreshWallet]);
-  const params = useLocalSearchParams<{ amount: string; reference: string; fee?: string; totalCharged?: string }>();
+  const params = useLocalSearchParams<{
+    amount: string;
+    reference: string;
+    fee?: string;
+    totalCharged?: string;
+    planId?: string;
+    planName?: string;
+    totalBudget?: string;
+  }>();
   const amount = params.amount ?? '0';
   const reference = params.reference ?? '';
+  const planId = params.planId as string | undefined;
+  const planName = params.planName as string | undefined;
+  const totalBudget = params.totalBudget as string | undefined;
   const feeNum = params.fee ? Number(params.fee) : 0;
   const totalChargedNum = params.totalCharged ? Number(params.totalCharged) : 0;
   const hasFee = feeNum > 0;
 
+  const { addFundsToPlan } = useExpensePlans();
+  const hasTransferredRef = useRef(false);
+  const [fundingInProgress, setFundingInProgress] = useState(!!planId);
+  const [fundingError, setFundingError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!planId || hasTransferredRef.current) return;
+    hasTransferredRef.current = true;
+
+    let cancelled = false;
+    setFundingInProgress(true);
+    setFundingError(null);
+
+    const run = async () => {
+      try {
+        const amountNum = Number(String(amount).replace(/,/g, ''));
+        if (!Number.isFinite(amountNum) || amountNum <= 0) {
+          throw new Error('Invalid payment amount.');
+        }
+
+        const result = await addFundsToPlan(planId, amountNum);
+        if (cancelled) return;
+
+        replaceToVaultsHomeTab();
+      } catch (e: any) {
+        if (cancelled) return;
+        setFundingError(e?.message || 'Failed to fund your vault. Please try again.');
+        setFundingInProgress(false);
+        hasTransferredRef.current = false; // allow retry if user navigates back
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [planId, amount, planName, totalBudget, addFundsToPlan, router]);
+
   const handleBackToDashboard = () => {
     haptics.mediumImpact();
+    if (planId) {
+      replaceToVaultsHomeTab();
+      return;
+    }
     router.replace('/(tabs)');
   };
 
@@ -101,7 +157,17 @@ export default function MonoSuccessScreen() {
       >
         <SuccessAnimation />
         <Text style={styles.title}>Payment Successful!</Text>
-        <Text style={styles.subtitle}>Your funds have been added to your wallet</Text>
+        {planId ? (
+          <Text style={styles.subtitle}>
+            {fundingError
+              ? 'We couldn’t fund your vault'
+              : fundingInProgress
+                ? 'Funding your vault...'
+                : 'Your vault has been funded'}
+          </Text>
+        ) : (
+          <Text style={styles.subtitle}>Your funds have been added to your wallet</Text>
+        )}
 
         <View style={styles.summaryCard}>
           <View style={styles.amountContainer}>
@@ -156,23 +222,27 @@ export default function MonoSuccessScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(16, insets.bottom) }]}>
-        <Button title="Back to Dashboard" onPress={handleBackToDashboard} style={styles.primaryButton} icon={Home} />
-        <Button title="View Transaction" onPress={handleViewTransaction} variant="outline" style={styles.secondaryButton} />
-        <Text style={styles.refreshHint}>If your balance didn&apos;t update, tap below to sync.</Text>
-        <Pressable
-          onPress={handleRefreshBalance}
-          disabled={refreshing}
-          style={({ pressed }) => [styles.refreshButton, (pressed || refreshing) && styles.refreshButtonPressed]}
-        >
-          {refreshing ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <RefreshCw size={18} color={colors.primary} />
-          )}
-          <Text style={styles.refreshButtonText}>
-            {refreshing ? 'Refreshing...' : 'Refresh balance'}
-          </Text>
-        </Pressable>
+        <Button title={planId ? 'Back to Vaults' : 'Back to Dashboard'} onPress={handleBackToDashboard} style={styles.primaryButton} icon={Home} />
+        {!planId && (
+          <>
+            <Button title="View Transaction" onPress={handleViewTransaction} variant="outline" style={styles.secondaryButton} />
+            <Text style={styles.refreshHint}>If your balance didn&apos;t update, tap below to sync.</Text>
+            <Pressable
+              onPress={handleRefreshBalance}
+              disabled={refreshing}
+              style={({ pressed }) => [styles.refreshButton, (pressed || refreshing) && styles.refreshButtonPressed]}
+            >
+              {refreshing ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <RefreshCw size={18} color={colors.primary} />
+              )}
+              <Text style={styles.refreshButtonText}>
+                {refreshing ? 'Refreshing...' : 'Refresh balance'}
+              </Text>
+            </Pressable>
+          </>
+        )}
       </View>
       <SafeFooter />
     </SafeAreaView>

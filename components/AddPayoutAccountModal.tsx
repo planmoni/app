@@ -139,8 +139,14 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       onClose(newAccount);
     } catch (error) {
       haptics.notification(Haptics.NotificationFeedbackType.Error);
+      let message = 'Failed to add account';
+      if (error && typeof error === 'object' && 'message' in error && typeof (error as any).message === 'string') {
+        message = (error as any).message;
+      } else if (error instanceof Error) {
+        message = error.message;
+      }
       setFormErrors({
-        general: error instanceof Error ? error.message : 'Failed to add account'
+        general: message
       });
     } finally {
       setIsSubmitting(false);

@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { saveItem, getItem, deleteItem, BIOMETRIC_ENABLED_KEY } from '@/lib/secure-storage';
 import { BiometricService } from '@/lib/biometrics';
 import { UserScopedStorage, createUserScopedStorage } from '@/lib/user-scoped-storage';
-import { useAuth } from './AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Storage keys (will be scoped by user ID)
 const APP_LOCK_PIN_KEY = 'app_lock_pin';

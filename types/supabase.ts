@@ -38,6 +38,80 @@ export interface Database {
           updated_at?: string
         }
       }
+      vault_payout_schedules: {
+        Row: {
+          id: string
+          user_id: string
+          budget_plan_id: string
+          payout_account_id: string
+          total_amount: number
+          payout_amount: number
+          net_payout_amount: number
+          fee_percentage: number | null
+          fee_amount: number
+          frequency: string
+          duration: number
+          start_date: string
+          next_payout_date: string | null
+          day_of_week: number | null
+          payout_hour: number | null
+          payout_minute: number | null
+          completed_payouts: number
+          status: 'active' | 'paused' | 'completed' | 'cancelled'
+          plan_transaction_id: string | null
+          metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          budget_plan_id: string
+          payout_account_id: string
+          total_amount: number
+          payout_amount: number
+          net_payout_amount: number
+          fee_percentage?: number | null
+          fee_amount?: number
+          frequency: string
+          duration: number
+          start_date: string
+          next_payout_date?: string | null
+          day_of_week?: number | null
+          payout_hour?: number | null
+          payout_minute?: number | null
+          completed_payouts?: number
+          status?: 'active' | 'paused' | 'completed' | 'cancelled'
+          plan_transaction_id?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          budget_plan_id?: string
+          payout_account_id?: string
+          total_amount?: number
+          payout_amount?: number
+          net_payout_amount?: number
+          fee_percentage?: number | null
+          fee_amount?: number
+          frequency?: string
+          duration?: number
+          start_date?: string
+          next_payout_date?: string | null
+          day_of_week?: number | null
+          payout_hour?: number | null
+          payout_minute?: number | null
+          completed_payouts?: number
+          status?: 'active' | 'paused' | 'completed' | 'cancelled'
+          plan_transaction_id?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
       payout_plans: {
         Row: {
           id: string
@@ -62,6 +136,7 @@ export interface Database {
           created_at: string
           updated_at: string
           metadata: Json | null
+          share_code: string | null
         }
         Insert: {
           id?: string
@@ -86,6 +161,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
           metadata?: Json | null
+          share_code?: string | null
         }
         Update: {
           id?: string
@@ -110,6 +186,27 @@ export interface Database {
           created_at?: string
           updated_at?: string
           metadata?: Json | null
+          share_code?: string | null
+        }
+      }
+      payout_plan_pairings: {
+        Row: {
+          id: string
+          payout_plan_id: string
+          paired_user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          payout_plan_id: string
+          paired_user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          payout_plan_id?: string
+          paired_user_id?: string
+          created_at?: string
         }
       }
       payout_fees: {
@@ -143,18 +240,21 @@ export interface Database {
           id: string
           payout_plan_id: string
           payout_date: string
+          payout_time: string | null
           created_at: string
         }
         Insert: {
           id?: string
           payout_plan_id: string
           payout_date: string
+          payout_time?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           payout_plan_id?: string
           payout_date?: string
+          payout_time?: string | null
           created_at?: string
         }
       }

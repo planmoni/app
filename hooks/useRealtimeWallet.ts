@@ -137,17 +137,13 @@ export function useRealtimeWallet() {
           .subscribe((status: 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED') => {
             switch (status) {
               case 'SUBSCRIBED':
-                console.log('✅ Wallet subscription successful');
                 setError(null);
                 break;
               case 'CHANNEL_ERROR':
-                console.log('ℹ️ Wallet subscription error - server-side push notifications will handle delivery');
                 break;
               case 'TIMED_OUT':
-                console.log('ℹ️ Wallet subscription timed out - server-side push notifications will handle delivery');
                 break;
               case 'CLOSED':
-                console.log('ℹ️ Wallet subscription closed');
                 break;
             }
           });

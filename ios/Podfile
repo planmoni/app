@@ -15,9 +15,6 @@ prepare_react_native_project!
 
 target 'Planmoni' do
   use_expo_modules!
-  # Required for Firebase Swift pods when using static libraries
-  pod 'GoogleUtilities', :modular_headers => true
-  pod 'FirebaseCore', :modular_headers => true
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
@@ -52,15 +49,6 @@ target 'Planmoni' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
     )
-
-    # Ensure Firebase pods define modules so dependents (e.g. FirebaseInstallations) can find FirebaseCore
-    installer.pods_project.targets.each do |target|
-      if target.name.start_with?('Firebase')
-        target.build_configurations.each do |config|
-          config.build_settings['DEFINES_MODULE'] = 'YES'
-        end
-      end
-    end
 
     # This is necessary for Xcode 14, because it signs resource bundles by default
     # when building for devices.

@@ -38,7 +38,7 @@ import {
   ClockAlert
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View , Platform } from 'react-native';
+import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View , Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import HelpCenterModal from '@/components/HelpCenterModal';
@@ -53,7 +53,7 @@ import React from 'react';
 import { useEmailNotifications } from '@/hooks/useEmailNotifications';
 import { useAppVersion } from '@/contexts/AppVersionContext';
 import Constants from 'expo-constants';
-import { Download, Info } from 'lucide-react-native';
+import { Download, Info, Star } from 'lucide-react-native';
 import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
@@ -476,7 +476,7 @@ export default function SettingsScreen() {
           
           <View style={styles.card}>
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Eye size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -499,7 +499,7 @@ export default function SettingsScreen() {
 
 
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Moon size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -548,7 +548,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('open_text_size_settings');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Sliders size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -577,7 +577,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_account_statement');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Terms size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -593,7 +593,7 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleViewTransactionHistory}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <History size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -628,7 +628,7 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleViewPayoutAccounts}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Wallet size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -644,7 +644,7 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleTransactionLimits}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <ClockAlert size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -688,7 +688,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_security_center');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <ScanFace size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -704,7 +704,7 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleChangePassword}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Lock size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -761,7 +761,7 @@ export default function SettingsScreen() {
               style={styles.settingItem}
               onPress={handleLoginHistory}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <History size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -780,7 +780,7 @@ export default function SettingsScreen() {
             
             <View style={styles.card}>
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Bell size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -798,7 +798,7 @@ export default function SettingsScreen() {
             <View style={styles.divider} />
 
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <AlertTriangle size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -816,7 +816,7 @@ export default function SettingsScreen() {
             <View style={styles.divider} />
 
             <View style={styles.settingItem}>
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Clock size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -843,7 +843,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_notification_settings');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Sliders size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -870,7 +870,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_help_center');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <MessageSquare size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -914,7 +914,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('view_terms');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Terms size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -939,7 +939,7 @@ export default function SettingsScreen() {
                 logAnalyticsEvent('check_for_updates_manual');
               }}
             >
-              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+              <View style={styles.settingIcon}>
                 <Info size={20} color={colors.textSecondary} />
               </View>
               <View style={styles.settingContent}>
@@ -979,6 +979,38 @@ export default function SettingsScreen() {
                 </Pressable>
               </>
             )}
+
+            <View style={styles.divider} />
+            <Pressable
+              style={styles.settingItem}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  haptics.lightImpact();
+                  const url = Platform.OS === 'ios'
+                    ? 'https://apps.apple.com/app/id6753706776?action=write-review'
+                    : Platform.OS === 'android'
+                      ? 'https://play.google.com/store/apps/details?id=com.planmoni.app'
+                      : null;
+                  if (url) Linking.openURL(url).catch(() => {});
+                }
+                logAnalyticsEvent('settings_rate_app');
+              }}
+            >
+              <View style={[styles.settingIcon, { backgroundColor: colors.backgroundTertiary }]}>
+                <Star size={20} color={colors.textSecondary} />
+              </View>
+              <View style={styles.settingContent}>
+                <Text style={styles.settingLabel}>Rate this app</Text>
+                <Text style={styles.settingDescription}>
+                  {Platform.OS === 'ios'
+                    ? 'Share your feedback on the App Store'
+                    : Platform.OS === 'android'
+                      ? 'Share your feedback on the Play Store'
+                      : 'Share your feedback on the App Store or Play Store'}
+                </Text>
+              </View>
+              <ChevronRight size={20} color={colors.textTertiary} />
+            </Pressable>
           </View>
         </View>
 
@@ -1211,9 +1243,12 @@ const createStyles = (colors: any, textSizeMultiplier: number) => StyleSheet.cre
     width: Platform.OS === 'ios' ? 40 : 32,
     height: Platform.OS === 'ios' ? 40 : 32,
     borderRadius: 12,
+    backgroundColor: colors.accentBackground,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Platform.OS === 'ios' ? 16 : 10,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   settingContent: {
     flex: 1,

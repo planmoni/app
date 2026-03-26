@@ -5,7 +5,6 @@ import intercom_react_native
 import FirebaseCore
 import React
 import ReactAppDependencyProvider
-
 @UIApplicationMain
 public class AppDelegate: ExpoAppDelegate {
   var window: UIWindow?
@@ -37,7 +36,8 @@ FirebaseApp.configure()
 #endif
 
     IntercomModule.initialize("ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4", withAppId: "tf4dp3qt")
-  return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
   // Linking API

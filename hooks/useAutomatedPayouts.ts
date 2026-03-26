@@ -68,7 +68,7 @@ export function useAutomatedPayouts(planId?: string) {
           }
         )
         .subscribe((status: any) => {
-          console.log('Automated payouts subscription status:', status);
+          // Silence realtime subscription status noise
         });
 
       return () => {

@@ -6,7 +6,7 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 export type Transaction = {
   id: string;
   user_id: string;
-  type: 'deposit' | 'payout' | 'withdrawal';
+  type: 'deposit' | 'payout' | 'withdrawal' | 'expense_plan_topup' | 'referral_bonus';
   amount: number;
   status: 'pending' | 'completed' | 'failed';
   source: string;
@@ -23,6 +23,40 @@ export function useRealtimeTransactions() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+
+  const fetchTransactions = useCallback(async (limit = 50) => {
+    try {
+      setError(null);
+      const { data, error: fetchError } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          payout_plans (
+            name
+          ),
+          bank_accounts (
+            bank_name,
+            account_number
+          )
+        `)
+        .eq('user_id', session!.user.id)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      if (data) {
+        setTransactions(data as Transaction[]);
+      }
+    } catch (err: any) {
+      console.error('Error fetching transactions:', err);
+      setError(err.message || 'Failed to fetch transactions');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (!session?.user?.id) {
@@ -72,7 +106,7 @@ export function useRealtimeTransactions() {
         // Only subscribe if not already subscribed
         if (channel && (channel.state === 'closed' || channel.state === 'leaving')) {
           channel.subscribe((status: any) => {
-            console.log('Transactions subscription status:', status);
+            // Silence realtime subscription noise (CHANNEL_ERROR/TIMED_OUT)
           });
         }
       } catch (err) {
@@ -95,34 +129,6 @@ export function useRealtimeTransactions() {
       }
     };
   }, [session?.user?.id, fetchTransactions]);
-
-  const fetchTransactions = useCallback(async (limit = 50) => {
-    try {
-      setError(null);
-      const { data, error: fetchError } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          payout_plans (
-            name
-          ),
-          bank_accounts (
-            bank_name,
-            account_number
-          )
-        `)
-        .eq('user_id', session?.user?.id)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (fetchError) throw fetchError;
-      setTransactions(data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch transactions');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [session?.user?.id]);
 
   return {
     transactions,

@@ -1,8 +1,9 @@
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X } from 'lucide-react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X, Target, Info } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCreatePayout } from '@/hooks/useCreatePayout';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -11,12 +12,14 @@ import FloatingButton from '@/components/FloatingButton';
 import ErrorMessage from '@/components/ErrorMessage';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatDisplayDate, formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
+import { getPurposeLabel } from '@/lib/payout-purposes';
 import { useBanks } from '@/hooks/useBanks';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { usePin } from '@/contexts/PinContext';
 import PinVerificationModal from '@/components/PinVerificationModal';
 import { supabase } from '@/lib/supabase';
-import { PayoutFeeFrequency } from '@/types/payout-fees';
+import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee-calculator';
+import type { PayoutFeeResult } from '@/lib/payout-fee-calculator';
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -26,8 +29,8 @@ export default function ReviewScreen() {
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPinVerification, setShowPinVerification] = useState(false);
-  const [feeAmount, setFeeAmount] = useState<number>(0);
-  const [feePercentage, setFeePercentage] = useState<number>(0);
+  const [feeBreakdown, setFeeBreakdown] = useState<PayoutFeeResult | null>(null);
+  const [showFeesBreakdownModal, setShowFeesBreakdownModal] = useState(false);
   const { banks } = useBanks();
   const { verifyPayoutPin, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin } = usePin();
   
@@ -45,17 +48,18 @@ export default function ReviewScreen() {
   const emergencyWithdrawal = params.emergencyWithdrawal !== 'false'; // Default to true
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
   const customDateAmounts = params.customDateAmounts ? JSON.parse(params.customDateAmounts as string) : {};
+  const customDateTimes = params.customDateTimes ? JSON.parse(params.customDateTimes as string) : {};
   const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
   const payoutHour = params.payoutHour ? parseInt(params.payoutHour as string) : undefined;
   const payoutMinute = params.payoutMinute ? parseInt(params.payoutMinute as string) : undefined;
+  const purpose = params.purpose as string | undefined;
+  const purposeOther = params.purposeOther as string | undefined;
 
   // Calculate available balance
   const availableBalance = balance - lockedBalance;
   
-  // Parse total amount to number for comparison
+  // Parse total amount to number for comparison. Fee is taken from the amount (not added on top).
   const numericTotalAmount = parseFloat(totalAmount.replace(/,/g, ''));
-  
-  // Check if user has insufficient balance
   const hasInsufficientBalance = numericTotalAmount > availableBalance;
 
   useEffect(() => {
@@ -75,48 +79,44 @@ export default function ReviewScreen() {
     fetchBalance();
   }, []);
 
-  // Fetch and calculate fee
+  // Calculate fee breakdown (processing + stamp duty + transaction).
+  // Single primitive dep key so effect doesn't re-run when params object reference changes.
+  const feeDepsKey = `${totalAmount ?? ''}|${frequency ?? ''}|${duration ?? ''}|${(params as Record<string, unknown>).customDates ?? ''}|${(params as Record<string, unknown>).customDateAmounts ?? ''}`;
   useEffect(() => {
-    const fetchFeeAndCalculate = async () => {
-      if (!totalAmount || !frequency) return;
-
+    if (!totalAmount || !frequency) {
+      setFeeBreakdown(null);
+      return;
+    }
+    const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+    if (isNaN(numericTotal) || numericTotal <= 0) {
+      setFeeBreakdown(null);
+      return;
+    }
+    const numPayouts = parseInt(duration || '0', 10) || 0;
+    if (frequency === 'custom') {
       try {
-        // Map frequency to database frequency type
-        const dbFrequency: PayoutFeeFrequency = frequency === 'weekly_specific' ? 'weekly_specific' : 
-                                                frequency === 'end_of_month' ? 'end_of_month' :
-                                                frequency as PayoutFeeFrequency;
-        
-        // Fetch fee percentage from database
-        const { data, error } = await supabase
-          .from('payout_fees')
-          .select('fee_percentage')
-          .eq('frequency', dbFrequency)
-          .eq('is_active', true)
-          .single();
-        
-        if (error || !data) {
-          console.warn('Error fetching fee percentage, using 0:', error);
-          setFeePercentage(0);
-          setFeeAmount(0);
-          return;
+        const customDatesStr = (params as Record<string, unknown>).customDates as string | undefined;
+        const customDateAmountsStr = (params as Record<string, unknown>).customDateAmounts as string | undefined;
+        const dates = customDatesStr ? JSON.parse(customDatesStr) : [];
+        const amounts = customDateAmountsStr ? JSON.parse(customDateAmountsStr) : {};
+        if (Array.isArray(dates) && dates.length > 0) {
+          const perPayoutAmounts = dates.map((d: string) => {
+            const raw = amounts[d];
+            return typeof raw === 'string' ? parseFloat(raw.replace(/,/g, '')) || 0 : Number(raw) || 0;
+          });
+          setFeeBreakdown(calculatePayoutFeesCustom(numericTotal, perPayoutAmounts));
+        } else {
+          setFeeBreakdown(null);
         }
-        
-        const percentage = data.fee_percentage || 0;
-        setFeePercentage(percentage);
-        
-        // Calculate fee amount
-        const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
-        const calculatedFee = numericTotal * (percentage / 100);
-        setFeeAmount(calculatedFee);
-      } catch (error) {
-        console.error('Error calculating fee:', error);
-        setFeePercentage(0);
-        setFeeAmount(0);
+      } catch {
+        setFeeBreakdown(null);
       }
-    };
-
-    fetchFeeAndCalculate();
-  }, [totalAmount, frequency]);
+    } else if (numPayouts > 0) {
+      setFeeBreakdown(calculatePayoutFees(numericTotal, numPayouts));
+    } else {
+      setFeeBreakdown(null);
+    }
+  }, [feeDepsKey]);
 
   const handleConfirmPayout = useCallback(async () => {
     // SECURITY: Prevent multiple simultaneous submissions
@@ -145,7 +145,7 @@ export default function ReviewScreen() {
       }
       
       await createPayout({
-        name: `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`,
+        name: purpose ? getPurposeLabel(purpose, purposeOther) : `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`,
         description: `${formatPayoutFrequency(frequency, dayOfWeek)} payout of ${payoutAmount}`,
         totalAmount: parseFloat(totalAmount.replace(/[^0-9.]/g, '')),
         payoutAmount: parseFloat(payoutAmount.replace(/[^0-9.]/g, '')),
@@ -157,9 +157,12 @@ export default function ReviewScreen() {
         payoutAccountId: payoutAccountId || null,
         customDates,
         customDateAmounts: Object.keys(customDateAmounts).length > 0 ? customDateAmounts : undefined,
+        customDateTimes: Object.keys(customDateTimes).length > 0 ? customDateTimes : undefined,
         emergencyWithdrawalEnabled: emergencyWithdrawal,
         payoutHour: payoutHour,
         payoutMinute: payoutMinute,
+        purpose: purpose || undefined,
+        purposeOther: purposeOther || undefined,
       });
     } catch (err) {
       console.error('Error in handleConfirmPayout:', err);
@@ -167,7 +170,7 @@ export default function ReviewScreen() {
         haptics.error();
       }
     }
-  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, customDateAmounts, emergencyWithdrawal, haptics, createPayout, isLoading]);
+  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, customDateAmounts, customDateTimes, emergencyWithdrawal, haptics, createPayout, isLoading, purpose, purposeOther]);
 
   const handleStartPlan = useCallback(async () => {
     if (hasInsufficientBalance) {
@@ -211,7 +214,7 @@ export default function ReviewScreen() {
     setShowPinVerification(false);
   }, []);
 
-  const styles = useMemo(() => createStyles(colors, isDark), [colors, isDark]);
+  const styles = React.useMemo(() => createStyles(colors, isDark), [colors, isDark]);
 
   // Helper function to get bank code from bank name
   const getBankCode = useCallback((bankName: string): string | null => {
@@ -347,7 +350,7 @@ export default function ReviewScreen() {
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: '100%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 4 of 4</Text>
+        <Text style={styles.stepText}>Step 5 of 5</Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
@@ -364,12 +367,56 @@ export default function ReviewScreen() {
               <View style={styles.warningBox}>
                 <AlertTriangle size={20} color={colors.error} />
                 <Text style={styles.warningText}>
-                  Insufficient balance. You need ₦{numericTotalAmount.toLocaleString()} but only have ₦{availableBalance.toLocaleString()} available.
+                  Insufficient balance. You need ₦{numericTotalAmount.toLocaleString()} but only have ₦{availableBalance.toLocaleString()} available. Fees are deducted from this amount.
                 </Text>
               </View>
             )}
 
             <View style={styles.detailsList}>
+              {purpose ? (
+                <View style={styles.detailItem}>
+                  <View style={[styles.detailIcon, { backgroundColor:colors.backgroundTertiary}]}>
+                    <Target size={20} color={colors.text} />
+                  </View>
+                  <View style={styles.detailContent}>
+                    <Text style={styles.detailLabel}>Purpose</Text>
+                    <Text style={styles.detailValue}>{getPurposeLabel(purpose, purposeOther)}</Text>
+                  </View>
+                  <Pressable
+                    style={styles.editButton}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') haptics.selection();
+                      router.push({
+                        pathname: '/create-payout/purpose',
+                        params: {
+                          totalAmount: totalAmount,
+                          frequency: frequency,
+                          payoutAmount: payoutAmount,
+                          duration: duration,
+                          startDate: startDate,
+                          bankName: bankName,
+                          accountNumber: accountNumber,
+                          accountName: accountName,
+                          bankAccountId: bankAccountId,
+                          payoutAccountId: payoutAccountId,
+                          emergencyWithdrawal: emergencyWithdrawal.toString(),
+                          customDates: customDates ? JSON.stringify(customDates) : '',
+                          customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
+                          customDateTimes: Object.keys(customDateTimes).length > 0 ? JSON.stringify(customDateTimes) : '',
+                          dayOfWeek: dayOfWeek?.toString() || '',
+                          payoutHour: payoutHour?.toString() || '',
+                          payoutMinute: payoutMinute?.toString() || '',
+                          purpose: purpose || '',
+                          purposeOther: purposeOther || '',
+                        },
+                      });
+                    }}
+                  >
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
               <View style={styles.detailItem}>
                 <View style={[styles.detailIcon, { backgroundColor:colors.backgroundTertiary}]}>
                   <Wallet size={20} color={colors.text} />
@@ -400,9 +447,12 @@ export default function ReviewScreen() {
                         emergencyWithdrawal: emergencyWithdrawal.toString(),
                         customDates: customDates ? JSON.stringify(customDates) : '',
                         customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
+                        customDateTimes: Object.keys(customDateTimes).length > 0 ? JSON.stringify(customDateTimes) : '',
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
+                        purpose: purpose || '',
+                        purposeOther: purposeOther || '',
                       }
                     });
                   }}
@@ -422,9 +472,16 @@ export default function ReviewScreen() {
                     <View style={styles.customAmountsList}>
                       {customDates.map((date: string) => {
                         const amount = customDateAmounts[date] || payoutAmount;
+                        const timeStr = customDateTimes[date] || '12:00';
+                        const [h, m] = (timeStr || '12:00').split(':').map(Number);
+                        const hour = isNaN(h) ? 12 : h % 24;
+                        const minute = isNaN(m) ? 0 : m % 60;
+                        const period = hour >= 12 ? 'PM' : 'AM';
+                        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                        const timeDisplay = `${displayHour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${period}`;
                         return (
                           <Text key={date} style={styles.detailSubtext}>
-                            {formatDisplayDate(date)}: ₦{parseFloat(amount.toString().replace(/,/g, '')).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {formatDisplayDate(date)}: ₦{parseFloat(amount.toString().replace(/,/g, '')).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} at {timeDisplay}
                           </Text>
                         );
                       })}
@@ -455,9 +512,12 @@ export default function ReviewScreen() {
                         emergencyWithdrawal: emergencyWithdrawal.toString(),
                         customDates: customDates ? JSON.stringify(customDates) : '',
                         customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
+                        customDateTimes: Object.keys(customDateTimes).length > 0 ? JSON.stringify(customDateTimes) : '',
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
+                        purpose: purpose || '',
+                        purposeOther: purposeOther || '',
                       }
                     });
                   }}
@@ -497,9 +557,12 @@ export default function ReviewScreen() {
                         emergencyWithdrawal: emergencyWithdrawal.toString(),
                         customDates: customDates ? JSON.stringify(customDates) : '',
                         customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
+                        customDateTimes: Object.keys(customDateTimes).length > 0 ? JSON.stringify(customDateTimes) : '',
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
+                        purpose: purpose || '',
+                        purposeOther: purposeOther || '',
                       }
                     });
                   }}
@@ -558,9 +621,12 @@ export default function ReviewScreen() {
                         emergencyWithdrawal: emergencyWithdrawal.toString(),
                         customDates: customDates ? JSON.stringify(customDates) : '',
                         customDateAmounts: Object.keys(customDateAmounts).length > 0 ? JSON.stringify(customDateAmounts) : '',
+                        customDateTimes: Object.keys(customDateTimes).length > 0 ? JSON.stringify(customDateTimes) : '',
                         dayOfWeek: dayOfWeek?.toString() || '',
                         payoutHour: payoutHour?.toString() || '',
                         payoutMinute: payoutMinute?.toString() || '',
+                        purpose: purpose || '',
+                        purposeOther: purposeOther || '',
                       }
                     });
                   }}
@@ -603,9 +669,23 @@ export default function ReviewScreen() {
               )} */}
 
               <View style={[styles.summaryRow, styles.totalRow]}>
-                <Text style={styles.totalLabel}>Total Fees</Text>
+                <View style={styles.totalFeesLabelRow}>
+                  <Text style={styles.totalLabel}>Total Fees</Text>
+                  {feeBreakdown && feeBreakdown.totalFees > 0 && (
+                    <Pressable
+                      hitSlop={8}
+                      onPress={() => {
+                        if (Platform.OS !== 'web') haptics.selection();
+                        setShowFeesBreakdownModal(true);
+                      }}
+                      style={styles.feesInfoIconWrap}
+                    >
+                      <Info size={18} color={colors.primary} />
+                    </Pressable>
+                  )}
+                </View>
                 <Text style={styles.totalValue}>
-                  ₦{feeAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ₦{(feeBreakdown?.totalFees ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Text>
               </View>
             </View>
@@ -623,6 +703,59 @@ export default function ReviewScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingWrapper>
+
+      <Modal
+        visible={showFeesBreakdownModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowFeesBreakdownModal(false)}
+      >
+        <Pressable style={styles.feesModalOverlay} onPress={() => setShowFeesBreakdownModal(false)}>
+          <Pressable style={styles.feesModalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.feesModalHeader}>
+              <Text style={styles.feesModalTitle}>Fee breakdown</Text>
+              <Pressable
+                hitSlop={8}
+                onPress={() => {
+                  if (Platform.OS !== 'web') haptics.selection();
+                  setShowFeesBreakdownModal(false);
+                }}
+                style={styles.feesModalCloseBtn}
+              >
+                <X size={22} color={colors.text} />
+              </Pressable>
+            </View>
+            {feeBreakdown && (
+              <View style={styles.feesBreakdownBody}>
+                <View style={styles.feesBreakdownRow}>
+                  <Text style={styles.feesBreakdownLabel}>Processing fee (1.5% capped at ₦500)</Text>
+                  <Text style={styles.feesBreakdownValue}>
+                    ₦{feeBreakdown.processingFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View style={styles.feesBreakdownRow}>
+                  <Text style={styles.feesBreakdownLabel}>Stamp duty (₦50 per payout above ₦9,999)</Text>
+                  <Text style={styles.feesBreakdownValue}>
+                    ₦{feeBreakdown.stampDuty.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View style={styles.feesBreakdownRow}>
+                  <Text style={styles.feesBreakdownLabel}>Transaction fee (₦10.75 per payout)</Text>
+                  <Text style={styles.feesBreakdownValue}>
+                    ₦{feeBreakdown.transactionFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View style={[styles.feesBreakdownRow, styles.feesBreakdownTotalRow]}>
+                  <Text style={styles.feesBreakdownTotalLabel}>Total fees</Text>
+                  <Text style={styles.feesBreakdownTotalValue}>
+                    ₦{feeBreakdown.totalFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <FloatingButton 
         title={isLoading ? "Processing..." : "Start Payout Plan"}
@@ -801,17 +934,23 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 12,
+    flexWrap: 'wrap',
+    gap: 4,
   },
   summaryLabel: {
     fontSize: 14,
     color: colors.textSecondary,
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
   },
   summaryValue: {
     fontSize: 14,
     fontWeight: '500',
     color: colors.text,
+    flexShrink: 0,
   },
   emergencyBadge: {
     backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : '#DCFCE7',
@@ -829,13 +968,96 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderTopColor: colors.border,
     marginTop: 8,
     paddingTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  totalFeesLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  feesInfoIconWrap: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   totalLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.text,
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
   },
   totalValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    flexShrink: 0,
+  },
+  feesModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  feesModalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+  },
+  feesModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  feesModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  feesModalCloseBtn: {
+    padding: 4,
+  },
+  feesBreakdownBody: {
+    paddingVertical: 20,
+    gap: 14,
+  },
+  feesBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  feesBreakdownLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    flex: 1,
+    marginRight: 12,
+  },
+  feesBreakdownValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  feesBreakdownTotalRow: {
+    marginTop: 8,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  feesBreakdownTotalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  feesBreakdownTotalValue: {
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,

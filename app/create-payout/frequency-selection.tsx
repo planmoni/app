@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, Platform, ScrollView, useColorScheme, Modal, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Calendar, ChevronRight, ChevronDown, ArrowLeft, X, CalendarDays, Clock, ChevronLeft, Plus } from 'lucide-react-native';
+import { Calendar, ChevronRight, ChevronDown, ArrowLeft, X, CalendarDays, Clock, ChevronLeft, Plus, Info } from 'lucide-react-native';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -9,8 +9,16 @@ import FloatingButton from '@/components/FloatingButton';
 import Button from '@/components/Button';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useWindowDimensions } from 'react-native';
+import { useBalance } from '@/contexts/BalanceContext';
 import { supabase } from '@/lib/supabase';
-import { PayoutFeeFrequency } from '@/types/payout-fees';
+import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee-calculator';
+import type { PayoutFeeResult } from '@/lib/payout-fee-calculator';
+import {
+  PLAN_CREATION_FEE_PERCENT,
+  STAMP_DUTY_NAIRA,
+  STAMP_DUTY_THRESHOLD_NAIRA,
+  TRANSACTION_FEE_NAIRA,
+} from '@/types/payout-fees';
 
 type FrequencyOption = {
   value: string;
@@ -362,6 +370,16 @@ export default function FrequencySelectionScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const haptics = useHaptics();
+  const { balance, lockedBalance } = useBalance();
+  const availableBalance = balance - lockedBalance;
+  const vaultPlanId = params.vaultPlanId as string | undefined;
+  const vaultMaxRaw = params.vaultMaxAmount as string | undefined;
+  const vaultMaxParsed = vaultMaxRaw
+    ? parseFloat(String(vaultMaxRaw).replace(/,/g, ''))
+    : NaN;
+  const isVaultSchedule =
+    Boolean(vaultPlanId) && Number.isFinite(vaultMaxParsed) && vaultMaxParsed > 0;
+  const scheduleCap = isVaultSchedule ? vaultMaxParsed : availableBalance;
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 380;
   const isDark = useColorScheme() === 'dark';
@@ -376,7 +394,7 @@ export default function FrequencySelectionScreen() {
     return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
-  const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
+  const [selectedFrequency, setSelectedFrequency] = useState<string | null>('daily');
   const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState<'frequency' | 'custom'>('frequency');
   
@@ -396,9 +414,14 @@ export default function FrequencySelectionScreen() {
   
   // Individual amounts per date for custom dates
   const [dateAmounts, setDateAmounts] = useState<Record<string, string>>({});
+  const [dateTimes, setDateTimes] = useState<Record<string, string>>({}); // date -> "HH:mm", default 12:00
+  const [timePickerForDate, setTimePickerForDate] = useState<string | null>(null); // which date's time we're picking
+  const [showBulkTimePicker, setShowBulkTimePicker] = useState(false); // set time for all payouts
   const [netAmount, setNetAmount] = useState<number>(0); // Total amount after fees
   const [feeAmount, setFeeAmount] = useState<number>(0);
   const [isEqualSplit, setIsEqualSplit] = useState(true);
+  const [showFeesBreakdownModal, setShowFeesBreakdownModal] = useState(false);
+  const [feesBreakdownForModal, setFeesBreakdownForModal] = useState<PayoutFeeResult | null>(null);
   
   const isUpdatingDurationRef = useRef(false);
   const lastSelectedFrequencyRef = useRef<string>('');
@@ -496,59 +519,46 @@ export default function FrequencySelectionScreen() {
     }
   };
 
-  // Fetch fee percentage for a given frequency
-  const fetchFeePercentage = useCallback(async (frequency: string): Promise<number> => {
-    try {
-      // Map frequency to database frequency type
-      let dbFrequency: PayoutFeeFrequency;
-      if (frequency === 'weekly_specific') {
-        dbFrequency = 'weekly_specific';
-      } else if (frequency === 'end_of_month') {
-        dbFrequency = 'end_of_month';
-      } else if (frequency === 'custom') {
-        dbFrequency = 'custom';
-      } else {
-        dbFrequency = frequency as PayoutFeeFrequency;
-      }
-      
-      const { data, error } = await supabase
-        .from('payout_fees')
-        .select('fee_percentage')
-        .eq('frequency', dbFrequency)
-        .eq('is_active', true)
-        .single();
-      
-      if (error || !data) {
-        console.warn('Error fetching fee percentage for', frequency, error);
-        return 0;
-      }
-      
-      return data.fee_percentage || 0;
-    } catch (error) {
-      console.error('Error in fetchFeePercentage:', error);
-      return 0;
-    }
+  const fetchFeePercentage = useCallback(async (_frequency: string): Promise<number> => {
+    return PLAN_CREATION_FEE_PERCENT;
   }, []);
 
-  const calculatePayoutAmount = useCallback(async (total: string, payouts: number, frequency?: string) => {
+  const calculatePayoutAmount = useCallback((total: string, payouts: number) => {
     const numericTotal = parseFloat(total.replace(/,/g, ''));
     if (!isNaN(numericTotal) && payouts > 0) {
-      const freq = frequency || selectedFrequency || 'daily';
-      const feePercentage = await fetchFeePercentage(freq);
-      const feeAmount = numericTotal * (feePercentage / 100);
-      const netAmount = numericTotal - feeAmount;
-      const baseAmount = netAmount / payouts;
-      const roundedDown = Math.floor(baseAmount * 100) / 100;
-      const formattedAmount = roundedDown.toLocaleString(undefined, {
+      const result = calculatePayoutFees(numericTotal, payouts);
+      const formattedAmount = result.perPayoutAmount.toLocaleString(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       });
-      
       if (formattedAmount !== payoutAmount) {
         setPayoutAmount(formattedAmount);
       }
     }
-  }, [payoutAmount, selectedFrequency, fetchFeePercentage]);
+  }, [payoutAmount]);
+
+  // Initialize dateTimes from params when we have customDates
+  useEffect(() => {
+    if (!params.customDates) return;
+    try {
+      const dates = JSON.parse(params.customDates as string);
+      if (!Array.isArray(dates)) return;
+      const initial: Record<string, string> = {};
+      if (params.customDateTimes) {
+        const times = JSON.parse(params.customDateTimes as string);
+        if (times && typeof times === 'object') {
+          dates.forEach((d: string) => { initial[d] = times[d] || '12:00'; });
+        } else {
+          dates.forEach((d: string) => { initial[d] = '12:00'; });
+        }
+      } else {
+        dates.forEach((d: string) => { initial[d] = '12:00'; });
+      }
+      setDateTimes(initial);
+    } catch (e) {
+      console.error('Error parsing customDateTimes/customDates:', e);
+    }
+  }, [params.customDateTimes, params.customDates]);
 
   // Initialize from params
   useEffect(() => {
@@ -672,7 +682,7 @@ export default function FrequencySelectionScreen() {
       setSelectedDuration(defaultDuration);
       setNumberOfPayouts(defaultDuration.value);
       if (totalAmount && totalAmount !== '0') {
-        calculatePayoutAmount(totalAmount, defaultDuration.value, selectedFrequency);
+        calculatePayoutAmount(totalAmount, defaultDuration.value);
       }
     }
     
@@ -691,7 +701,7 @@ export default function FrequencySelectionScreen() {
   // Update amount when duration changes (only for frequency tab)
   useEffect(() => {
     if (activeTab === 'frequency' && selectedDuration && totalAmount && totalAmount !== '0' && selectedFrequency) {
-      calculatePayoutAmount(totalAmount, selectedDuration.value, selectedFrequency);
+      calculatePayoutAmount(totalAmount, selectedDuration.value);
     } else if (activeTab === 'frequency' && !selectedDuration) {
       setPayoutAmount('0');
     }
@@ -730,7 +740,7 @@ export default function FrequencySelectionScreen() {
     setNumberOfPayouts(duration.value);
     
     if (totalAmount && totalAmount !== '0') {
-      calculatePayoutAmount(totalAmount, duration.value, selectedFrequency || undefined);
+      calculatePayoutAmount(totalAmount, duration.value);
     }
     
     setShowDurationPicker(false);
@@ -764,6 +774,56 @@ export default function FrequencySelectionScreen() {
     return `${displayHour.toString().padStart(2, '0')}:${minuteStr} ${period}`;
   };
 
+  // Format "HH:mm" for custom date time display (e.g. "12:00" -> "12:00 PM")
+  const formatTimeForDisplay = (timeStr: string) => {
+    const [h, m] = (timeStr || '12:00').split(':').map(Number);
+    const hour = isNaN(h) ? 12 : h % 24;
+    const minute = isNaN(m) ? 0 : m % 60;
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${period}`;
+  };
+
+  // Parse "HH:mm" to { hour, minute } for TimePicker
+  const parseTimeToHourMinute = (timeStr: string) => {
+    const [h, m] = (timeStr || '12:00').split(':').map(Number);
+    return { hour: isNaN(h) ? 12 : h % 24, minute: isNaN(m) ? 0 : m % 60 };
+  };
+
+  const handleCustomDateTimeSelect = (hour: number, minute: number) => {
+    if (timePickerForDate) {
+      const h = hour.toString().padStart(2, '0');
+      const min = minute.toString().padStart(2, '0');
+      setDateTimes(prev => ({ ...prev, [timePickerForDate]: `${h}:${min}` }));
+      setTimePickerForDate(null);
+    }
+  };
+
+  const handleBulkTimeSelect = (hour: number, minute: number) => {
+    const h = hour.toString().padStart(2, '0');
+    const min = minute.toString().padStart(2, '0');
+    const chosenTime = `${h}:${min}`;
+    setDateTimes(prev => {
+      const next = { ...prev };
+      customDates.forEach(d => { next[d] = chosenTime; });
+      return next;
+    });
+    setShowBulkTimePicker(false);
+  };
+
+  // Bulk time label: single time when all same, else "Mixed"
+  const bulkTimeDisplay = (() => {
+    if (customDates.length === 0) return { label: '12:00 PM', isMixed: false, initialTime: '12:00' as string };
+    const times = customDates.map(d => dateTimes[d] || '12:00');
+    const first = times[0];
+    const allSame = times.every(t => t === first);
+    return {
+      label: allSame ? formatTimeForDisplay(first) : 'Mixed',
+      isMixed: !allSame,
+      initialTime: allSame ? first : '12:00',
+    };
+  })();
+
   const getDayOfWeekName = () => {
     if (selectedDayOfWeek === null) return 'Select Day';
     return DAYS_OF_WEEK.find(day => day.value === selectedDayOfWeek)?.label || 'Select Day';
@@ -791,42 +851,71 @@ export default function FrequencySelectionScreen() {
     }
   }, [params.customDates]);
 
-  // Calculate fees and net amount for custom dates
+  // Calculate fees and net amount for custom dates - equal split (processing + transaction + stamp duty)
   useEffect(() => {
-    if (activeTab === 'custom' && totalAmount && totalAmount !== '0') {
-      const calculateFees = async () => {
-        try {
-          const feePercentage = await fetchFeePercentage('custom');
-          const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
-          const calculatedFee = numericTotal * (feePercentage / 100);
-          const calculatedNet = numericTotal - calculatedFee;
-          setFeeAmount(calculatedFee);
-          setNetAmount(calculatedNet);
-          
-          // If equal split, distribute net amount equally
-          if (isEqualSplit && customDates.length > 0) {
-            const amountPerDate = calculatedNet / customDates.length;
-            const roundedAmount = Math.floor(amountPerDate * 100) / 100;
-            const newDateAmounts: Record<string, string> = {};
-            customDates.forEach(date => {
-              newDateAmounts[date] = roundedAmount.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              });
-            });
-            setDateAmounts(newDateAmounts);
-          }
-        } catch (error) {
-          console.error('Error calculating fees:', error);
-        }
-      };
-      calculateFees();
-    } else if (activeTab === 'custom' && (!totalAmount || totalAmount === '0')) {
-      setDateAmounts({});
-      setNetAmount(0);
-      setFeeAmount(0);
+    if (activeTab !== 'custom' || !totalAmount || totalAmount === '0') {
+      if (activeTab === 'custom') {
+        setDateAmounts({});
+        setNetAmount(0);
+        setFeeAmount(0);
+      }
+      return;
     }
-  }, [activeTab, totalAmount, customDates, isEqualSplit, fetchFeePercentage]);
+    const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+    if (isNaN(numericTotal) || numericTotal <= 0) return;
+
+    if (isEqualSplit && customDates.length > 0) {
+      const result = calculatePayoutFees(numericTotal, customDates.length);
+      setFeeAmount(result.totalFees);
+      setNetAmount(result.netPayoutAmount);
+      const newDateAmounts: Record<string, string> = {};
+      customDates.forEach(date => {
+        newDateAmounts[date] = result.perPayoutAmount.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      });
+      setDateAmounts(newDateAmounts);
+    } else if (customDates.length === 0) {
+      setFeeAmount(0);
+      setNetAmount(numericTotal);
+    }
+  }, [activeTab, totalAmount, customDates, isEqualSplit]);
+
+  // When custom amounts are edited (!isEqualSplit), recalc fee and net from per-date amounts
+  useEffect(() => {
+    if (activeTab !== 'custom' || isEqualSplit || customDates.length === 0 || !totalAmount || totalAmount === '0') return;
+    const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
+    if (isNaN(numericTotal) || numericTotal <= 0) return;
+    const perPayoutAmounts = customDates.map(date => {
+      const amountStr = dateAmounts[date] || '0';
+      return parseFloat(amountStr.replace(/,/g, '')) || 0;
+    });
+    const result = calculatePayoutFeesCustom(numericTotal, perPayoutAmounts);
+    setFeeAmount(result.totalFees);
+    setNetAmount(result.netPayoutAmount);
+  }, [activeTab, totalAmount, customDates, isEqualSplit, dateAmounts]);
+
+  // When editing per-date amounts (custom, not equal split), treat sum of date amounts as net and recalc gross (totalAmount)
+  useEffect(() => {
+    if (activeTab !== 'custom' || isEqualSplit || customDates.length === 0) return;
+    const perPayoutAmounts = customDates.map((date) => {
+      const amountStr = dateAmounts[date] || '0';
+      return parseFloat(amountStr.replace(/,/g, '')) || 0;
+    });
+    const totalAllocated = perPayoutAmounts.reduce((s, a) => s + a, 0);
+    if (totalAllocated <= 0) return;
+    const N = customDates.length;
+    const transaction = TRANSACTION_FEE_NAIRA * N;
+    const stampCount = perPayoutAmounts.filter((a) => a > STAMP_DUTY_THRESHOLD_NAIRA).length;
+    const stamp = STAMP_DUTY_NAIRA * stampCount;
+    const sum = totalAllocated + transaction + stamp;
+    // totalAmount - processing(totalAmount) = sum, so totalAmount = sum + min(0.015*totalAmount, 500)
+    const totalAmountWithCap = sum + 500;
+    const useCap = 0.015 * totalAmountWithCap >= 500;
+    const newTotalAmount = useCap ? totalAmountWithCap : sum / (1 - PLAN_CREATION_FEE_PERCENT / 100);
+    setTotalAmount(newTotalAmount.toFixed(2));
+  }, [activeTab, isEqualSplit, customDates, dateAmounts]);
 
   const handleSelectDates = () => {
     if (Platform.OS !== 'web') {
@@ -837,12 +926,17 @@ export default function FrequencySelectionScreen() {
 
   const handleDateSelect = (date: string) => {
     if (customDates.includes(date)) {
-      // Remove date and its amount
+      // Remove date and its amount and time
       setCustomDates(customDates.filter(d => d !== date));
       setDateAmounts(prev => {
         const newAmounts = { ...prev };
         delete newAmounts[date];
         return newAmounts;
+      });
+      setDateTimes(prev => {
+        const next = { ...prev };
+        delete next[date];
+        return next;
       });
     } else {
       if (customDates.length < 7) {
@@ -850,6 +944,7 @@ export default function FrequencySelectionScreen() {
           return new Date(a).getTime() - new Date(b).getTime();
         });
         setCustomDates(newDates);
+        setDateTimes(prev => ({ ...prev, [date]: '12:00' }));
         // If equal split, add amount for new date
         if (isEqualSplit && netAmount > 0 && newDates.length > 0) {
           const amountPerDate = netAmount / newDates.length;
@@ -904,20 +999,39 @@ export default function FrequencySelectionScreen() {
     if (Platform.OS !== 'web') {
       haptics.selection();
     }
-    setIsEqualSplit(!isEqualSplit);
-    if (!isEqualSplit && customDates.length > 0 && netAmount > 0) {
-      // Recalculate equal split
-      const amountPerDate = netAmount / customDates.length;
-      const roundedAmount = Math.floor(amountPerDate * 100) / 100;
-      const newDateAmounts: Record<string, string> = {};
-      customDates.forEach(date => {
-        newDateAmounts[date] = roundedAmount.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        });
-      });
-      setDateAmounts(newDateAmounts);
+    setIsEqualSplit(true);
+    // Reset total amount to original (from amount step); effect will recalc fee, net, and equal dateAmounts
+    const originalTotal = (params.totalAmount as string) || totalAmount || '0';
+    if (originalTotal && originalTotal !== '0') {
+      setTotalAmount(originalTotal);
     }
+  };
+
+  const handleRemoveDateFromAmountRow = (date: string) => {
+    if (Platform.OS !== 'web') haptics.selection();
+    if (customDates.length <= 1) return;
+    const remainingDates = customDates.filter(d => d !== date);
+    setCustomDates(remainingDates);
+    setDateAmounts(prev => {
+      const next = { ...prev };
+      delete next[date];
+      if (isEqualSplit && remainingDates.length > 0 && netAmount > 0) {
+        const amountPerDate = netAmount / remainingDates.length;
+        const roundedAmount = Math.floor(amountPerDate * 100) / 100;
+        remainingDates.forEach(d => {
+          next[d] = roundedAmount.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          });
+        });
+      }
+      return next;
+    });
+    setDateTimes(prev => {
+      const next = { ...prev };
+      delete next[date];
+      return next;
+    });
   };
 
   // Calculate total allocated and remainder
@@ -943,6 +1057,13 @@ export default function FrequencySelectionScreen() {
         }
         return;
       }
+      const numericTotal = parseFloat(totalAmount.replace(/,/g, '')) || 0;
+      if (numericTotal > scheduleCap) {
+        if (Platform.OS !== 'web') {
+          haptics.error();
+        }
+        return;
+      }
       
       if (Platform.OS !== 'web') {
         haptics.mediumImpact();
@@ -957,10 +1078,11 @@ export default function FrequencySelectionScreen() {
           })
         : '0';
       
+      // Use totalAmount state (auto-adjusted when user edited per-date amounts), not params
       router.push({
-        pathname: '/create-payout/destination',
+        pathname: isVaultSchedule ? '/vault-schedule-payout/destination' : '/create-payout/destination',
         params: {
-          totalAmount: params.totalAmount || totalAmount || '',
+          totalAmount: totalAmount || params.totalAmount || '',
           frequency: 'custom',
           payoutAmount: averagePayoutAmount,
           duration: customDates.length.toString(),
@@ -973,9 +1095,15 @@ export default function FrequencySelectionScreen() {
           emergencyWithdrawal: 'true',
           customDates: JSON.stringify(customDates),
           customDateAmounts: JSON.stringify(dateAmounts), // Pass individual amounts
+          customDateTimes: JSON.stringify(dateTimes),
           dayOfWeek: '',
           payoutHour: selectedHour.toString(),
           payoutMinute: selectedMinute.toString(),
+          purpose: params.purpose || '',
+          purposeOther: params.purposeOther || '',
+          ...(isVaultSchedule && vaultPlanId && vaultMaxRaw
+            ? { vaultPlanId, vaultMaxAmount: vaultMaxRaw }
+            : {}),
         }
       });
       return;
@@ -1023,7 +1151,7 @@ export default function FrequencySelectionScreen() {
     }
 
     router.push({
-      pathname: '/create-payout/destination',
+      pathname: isVaultSchedule ? '/vault-schedule-payout/destination' : '/create-payout/destination',
       params: {
         totalAmount: params.totalAmount || '',
         frequency: selectedFrequency,
@@ -1037,9 +1165,15 @@ export default function FrequencySelectionScreen() {
         payoutAccountId: params.payoutAccountId || '',
         emergencyWithdrawal: 'true', // Always enabled by default
         customDates: '',
+        customDateTimes: '',
         dayOfWeek: selectedDayOfWeek !== null ? selectedDayOfWeek.toString() : '',
         payoutHour: selectedHour.toString(),
         payoutMinute: selectedMinute.toString(),
+        purpose: params.purpose || '',
+        purposeOther: params.purposeOther || '',
+        ...(isVaultSchedule && vaultPlanId && vaultMaxRaw
+          ? { vaultPlanId, vaultMaxAmount: vaultMaxRaw }
+          : {}),
       }
     });
   };
@@ -1053,7 +1187,9 @@ export default function FrequencySelectionScreen() {
         const amount = dateAmounts[date];
         return amount && !isNaN(parseFloat(amount.replace(/,/g, ''))) && parseFloat(amount.replace(/,/g, '')) > 0;
       });
-      return !allDatesHaveAmounts || remainder < 0;
+      const numericTotal = parseFloat(totalAmount.replace(/,/g, '')) || 0;
+      const exceedsBalance = numericTotal > scheduleCap;
+      return !allDatesHaveAmounts || remainder < 0 || exceedsBalance;
     }
     if (!selectedFrequency || !selectedDuration) {
       return true;
@@ -1081,7 +1217,9 @@ export default function FrequencySelectionScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>New Payout plan</Text>
+        <Text style={styles.headerTitle}>
+          {isVaultSchedule ? 'Vault payout schedule' : 'New Payout plan'}
+        </Text>
         <Pressable 
           onPress={() => {
             if (Platform.OS !== 'web') {
@@ -1099,7 +1237,9 @@ export default function FrequencySelectionScreen() {
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: '50%' }]} />
         </View>
-        <Text style={styles.stepText}>Step 2 of 4</Text>
+        <Text style={styles.stepText}>
+          {isVaultSchedule ? 'Step 2 of 4' : 'Step 3 of 5'}
+        </Text>
       </View>
 
       <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
@@ -1153,28 +1293,28 @@ export default function FrequencySelectionScreen() {
             <View style={styles.tabContent}>
               <View style={styles.section}>
                 <Text style={styles.sectionDescription}>
-                  Select how often you want to get paid
+                  Select how often you want your money to be disbursed
                 </Text>
                 <Pressable
                   style={[
                     styles.selectButton,
                     selectedFrequency && selectedFrequency !== 'custom' && styles.selectButtonSelected
-                  ]}
-                  onPress={() => {
-                    if (Platform.OS !== 'web') {
-                      haptics.selection();
-                    }
-                    setShowFrequencyDropdown(!showFrequencyDropdown);
-                  }}
-                >
-                  <Text style={[
-                    styles.selectButtonText,
+              ]}
+              onPress={() => {
+                if (Platform.OS !== 'web') {
+                  haptics.selection();
+                }
+                setShowFrequencyDropdown(!showFrequencyDropdown);
+              }}
+            >
+              <Text style={[
+                styles.selectButtonText,
                     selectedFrequency && selectedFrequency !== 'custom' && styles.selectButtonTextSelected
-                  ]}>
-                    {getSelectedFrequencyLabel()}
-                  </Text>
+              ]}>
+                {getSelectedFrequencyLabel()}
+              </Text>
                   <ChevronDown size={20} color={selectedFrequency && selectedFrequency !== 'custom' ? '#1E3A8A' : colors.textSecondary} />
-                </Pressable>
+            </Pressable>
 
                 {/* Frequency dropdown */}
                 {showFrequencyDropdown && (
@@ -1324,21 +1464,46 @@ export default function FrequencySelectionScreen() {
                   </View>
 
                   {/* Amount per Duration - Only show for frequency tab */}
-                  {activeTab === 'frequency' && selectedDuration && payoutAmount !== '0' && (
-                    <View style={styles.amountSection}>
-                      <Text style={styles.amountLabel}>Amount per payout</Text>
-                      <Text style={styles.amountValue}>₦{payoutAmount}</Text>
-                      <Text style={styles.amountDescription}>
-                        {numberOfPayouts} {selectedFrequency === 'daily' ? 'daily' : 
-                         selectedFrequency === 'weekly_specific' ? 'weekly' :
-                         selectedFrequency === 'biweekly' ? 'bi-weekly' :
-                         selectedFrequency === 'end_of_month' ? 'monthly' :
-                         selectedFrequency === 'quarterly' ? 'quarterly' :
-                         selectedFrequency === 'biannual' ? 'bi-annual' :
-                         'annual'} payment{numberOfPayouts !== 1 ? 's' : ''}
-                      </Text>
-                    </View>
-                  )}
+                  {activeTab === 'frequency' && selectedDuration && payoutAmount !== '0' && (() => {
+                    const numericTotal = parseFloat(totalAmount.replace(/,/g, '')) || 0;
+                    const feeResult = numericTotal > 0 && numberOfPayouts > 0 ? calculatePayoutFees(numericTotal, numberOfPayouts) : null;
+                    return (
+                      <View style={styles.amountSection}>
+                        <Text style={styles.amountLabel}>Amount per payout</Text>
+                        <Text style={styles.amountValue}>₦{payoutAmount}</Text>
+                        <Text style={styles.amountDescription}>
+                          {numberOfPayouts} {selectedFrequency === 'daily' ? 'daily' : 
+                           selectedFrequency === 'weekly_specific' ? 'weekly' :
+                           selectedFrequency === 'biweekly' ? 'bi-weekly' :
+                           selectedFrequency === 'end_of_month' ? 'monthly' :
+                           selectedFrequency === 'quarterly' ? 'quarterly' :
+                           selectedFrequency === 'biannual' ? 'bi-annual' :
+                           'annual'} payment{numberOfPayouts !== 1 ? 's' : ''}
+                        </Text>
+                        {feeResult && feeResult.totalFees > 0 && (
+                          <View style={styles.frequencyTotalFeesRow}>
+                            <View style={styles.totalFeesLabelRow}>
+                              <Text style={styles.frequencyTotalFeesLabel}>Total fees</Text>
+                              <Pressable
+                                hitSlop={8}
+                                onPress={() => {
+                                  if (Platform.OS !== 'web') haptics.selection();
+                                  setFeesBreakdownForModal(feeResult);
+                                  setShowFeesBreakdownModal(true);
+                                }}
+                                style={styles.feesInfoIconWrap}
+                              >
+                                <Info size={18} color={colors.primary} />
+                              </Pressable>
+                            </View>
+                            <Text style={styles.frequencyTotalFeesValue}>
+                              ₦{feeResult.totalFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })()}
                 </>
               )}
             </View>
@@ -1349,7 +1514,7 @@ export default function FrequencySelectionScreen() {
             <View style={styles.tabContent}>
               <View style={styles.section}>
                 <Text style={styles.sectionDescription}>
-                  Select up to 7 dates you want to get paid
+                  Select up to 7 dates you want your money to be disbursed
                 </Text>
                 <Pressable
                   style={[styles.selectButton, styles.selectButtonSelected]}
@@ -1361,7 +1526,7 @@ export default function FrequencySelectionScreen() {
                   </Text>
                   <ChevronRight size={20} color={colors.text} />
                 </Pressable>
-                {customDates.length > 0 && (
+                {/* {customDates.length > 0 && (
                   <View style={styles.selectedDatesPreview}>
                     {customDates.slice(0, 3).map((date, index) => {
                       const dateObj = new Date(date);
@@ -1382,29 +1547,16 @@ export default function FrequencySelectionScreen() {
                       <Text style={styles.moreDatesText}>+{customDates.length - 3} more</Text>
                     )}
                   </View>
-                )}
+                )} */}
               </View>
 
               {/* Amount Breakdown for Custom Dates - Only show for custom tab */}
               {activeTab === 'custom' && customDates.length > 0 && totalAmount && totalAmount !== '0' && (
                 <View style={styles.amountSection}>
-                  <View style={styles.amountHeader}>
-                    <Text style={styles.amountLabel}>Set amount per date</Text>
-                    <Pressable
-                      style={styles.splitToggle}
-                      onPress={handleEqualSplitToggle}
-                    >
-                      <Text style={[
-                        styles.splitToggleText,
-                        isEqualSplit && styles.splitToggleTextActive
-                      ]}>
-                        Equal Split
-                      </Text>
-                    </Pressable>
-                  </View>
+                  
                   
                   {/* Show fee and net amount info */}
-                  {feeAmount > 0 && (
+                  {/* {feeAmount > 0 && (
                     <View style={styles.feeInfo}>
                       <Text style={styles.feeInfoText}>
                         Fee: ₦{feeAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1413,9 +1565,45 @@ export default function FrequencySelectionScreen() {
                         Net amount: ₦{netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Text>
                     </View>
-                  )}
+                  )} */}
 
-                  {/* Individual date amounts */}
+                  {/* Time for all payouts - bulk selector */}
+                  <View style={styles.bulkTimeRow}>
+                    <Text style={styles.bulkTimeLabel}>Time for all payouts</Text>
+                    <Pressable
+                      style={[styles.bulkTimeButton, bulkTimeDisplay.isMixed && styles.bulkTimeButtonMixed]}
+                      onPress={() => {
+                        if (Platform.OS !== 'web') haptics.selection();
+                        setShowBulkTimePicker(true);
+                      }}
+                    >
+                      <Clock size={16} color={bulkTimeDisplay.isMixed ? colors.textSecondary : colors.primary} />
+                      <Text style={[styles.bulkTimeButtonText, { color: bulkTimeDisplay.isMixed ? colors.textSecondary : colors.primary }]}>
+                        {bulkTimeDisplay.label}
+                      </Text>
+                      <ChevronDown size={16} color={bulkTimeDisplay.isMixed ? colors.textSecondary : colors.primary} />
+                    </Pressable>
+                  </View>
+                  {bulkTimeDisplay.isMixed && (
+                    <Pressable
+                      onPress={() => {
+                        if (Platform.OS !== 'web') haptics.selection();
+                        setDateTimes(prev => {
+                          const next = { ...prev };
+                          customDates.forEach(d => { next[d] = '12:00'; });
+                          return next;
+                        });
+                      }}
+                      style={({ pressed }) => [styles.bulkTimeHint, pressed && styles.bulkTimeHintPressed]}
+                    >
+                      <Text style={styles.bulkTimeHintText}>Reset to default time</Text>
+                    </Pressable>
+                  )}
+                  <View style={styles.amountHeader}>
+                    <Text style={styles.amountLabel}>Customize amount & payout time</Text>
+                  </View>
+
+                  {/* Individual date amounts - left: date + time, right: amount + remaining */}
                   <View style={styles.datesAmountsContainer}>
                     {customDates.map((date, index) => {
                       const formattedDate = formatDateForDisplay(date);
@@ -1425,33 +1613,56 @@ export default function FrequencySelectionScreen() {
                         return sum + (isNaN(amt) ? 0 : amt);
                       }, 0);
                       const remainderUpToThis = netAmount - allocatedUpToThis;
-                      
+                      const timeStr = dateTimes[date] || '12:00';
                       return (
-                        <View key={date} style={styles.dateAmountRow}>
-                          <View style={styles.dateAmountInfo}>
-                            <Text style={styles.dateAmountLabel}>{formattedDate}</Text>
-                            {remainderUpToThis < 0 && (
-                              <Text style={styles.dateAmountWarning}>
-                                Exceeds available
-                              </Text>
-                            )}
-                          </View>
-                          <View style={styles.dateAmountInputContainer}>
-                            <Text style={styles.currencySymbolSmall}>₦</Text>
-                            <TextInput
-                              style={styles.dateAmountInput}
-                              keyboardType="numeric"
-                              value={amountValue}
-                              onChangeText={(text) => handleDateAmountChange(date, text)}
-                              placeholder="0.00"
-                              placeholderTextColor={colors.textTertiary}
-                            />
-                          </View>
-                          {remainderUpToThis >= 0 && remainderUpToThis < netAmount && (
-                            <Text style={styles.dateRemainderText}>
-                              Remaining: ₦{remainderUpToThis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </Text>
+                        <View key={date} style={styles.dateAmountRowWrapper}>
+                          {customDates.length > 1 && (
+                            <Pressable
+                              style={styles.dateAmountRowRemove}
+                              onPress={() => handleRemoveDateFromAmountRow(date)}
+                              hitSlop={8}
+                            >
+                              <X size={18} color={colors.textSecondary} />
+                            </Pressable>
                           )}
+                          <View style={styles.dateAmountRow}>
+                            <View style={styles.amountColumn}>
+                              <View style={styles.dateAmountInputContainer}>
+                                <Text style={styles.currencySymbolSmall}>₦</Text>
+                                <TextInput
+                                  style={styles.dateAmountInput}
+                                  keyboardType="numeric"
+                                  value={amountValue}
+                                  onChangeText={(text) => handleDateAmountChange(date, text)}
+                                  placeholder="0.00"
+                                  placeholderTextColor={colors.textTertiary}
+                                />
+                              </View>
+                              {/* {remainderUpToThis < 0 ? (
+                                <Text style={styles.dateAmountWarning}>Exceeds available</Text>
+                              ) : remainderUpToThis >= 0 && remainderUpToThis < netAmount ? (
+                                <Text style={styles.dateRemainderText}>
+                                  Remaining: ₦{remainderUpToThis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </Text>
+                              ) : null} */}
+                            </View>
+                            <View style={styles.dateTimeColumn}>
+                              <Text style={styles.dateAmountLabel}>{formattedDate}</Text>
+                              <Pressable
+                                style={styles.dateTimeChip}
+                                onPress={() => {
+                                  if (Platform.OS !== 'web') haptics.selection();
+                                  setTimePickerForDate(date);
+                                }}
+                              >
+                                <Clock size={14} color={colors.primary} />
+                                <Text style={[styles.dateTimeChipText, { color: colors.primary }]}>
+                                  {formatTimeForDisplay(timeStr)}
+                                </Text>
+                                <ChevronDown size={14} color={colors.primary} />
+                              </Pressable>
+                            </View>
+                          </View>
                         </View>
                       );
                     })}
@@ -1460,8 +1671,17 @@ export default function FrequencySelectionScreen() {
                   {/* Total summary */}
                   {(() => {
                     const { totalAllocated, remainder } = calculateAllocatedAndRemainder();
+                    const numericTotal = parseFloat(totalAmount.replace(/,/g, '')) || 0;
+                    const exceedsBalance = numericTotal > scheduleCap;
                     return (
                       <View style={styles.totalSummary}>
+                        {exceedsBalance && (
+                          <View style={styles.balanceExceedsBox}>
+                            <Text style={styles.remainderWarning}>
+                              Total amount (₦{numericTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) exceeds your {isVaultSchedule ? 'vault cap' : 'available balance'} (₦{scheduleCap.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Reduce amounts to continue.
+                            </Text>
+                          </View>
+                        )}
                         <View style={styles.totalSummaryRow}>
                           <Text style={styles.totalSummaryLabel}>Total allocated:</Text>
                           <Text style={styles.totalSummaryValue}>
@@ -1476,9 +1696,37 @@ export default function FrequencySelectionScreen() {
                             </Text>
                           </View>
                         )}
+                        {feeAmount > 0 && (
+                          <View style={styles.totalSummaryRow}>
+                            <View style={styles.totalFeesLabelRow}>
+                              <Text style={styles.totalSummaryLabel}>Total fees (incl. VAT):</Text>
+                              <Pressable
+                                hitSlop={8}
+                                onPress={() => {
+                                  if (Platform.OS !== 'web') haptics.selection();
+                                  const numericTotal = parseFloat(totalAmount.replace(/,/g, '')) || 0;
+                                  const breakdown = isEqualSplit
+                                    ? calculatePayoutFees(numericTotal, customDates.length)
+                                    : calculatePayoutFeesCustom(
+                                        numericTotal,
+                                        customDates.map((d) => parseFloat((dateAmounts[d] || '0').replace(/,/g, '')) || 0)
+                                      );
+                                  setFeesBreakdownForModal(breakdown);
+                                  setShowFeesBreakdownModal(true);
+                                }}
+                                style={styles.feesInfoIconWrap}
+                              >
+                                <Info size={18} color={colors.primary} />
+                              </Pressable>
+                            </View>
+                            <Text style={styles.totalSummaryValue}>
+                              ₦{feeAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </Text>
+                          </View>
+                        )}
                         {remainder > 0 && (
                           <Text style={styles.remainderNote}>
-                            This remainder will be returned to your available balance.
+                            Any remainder will be returned to your available balance.
                           </Text>
                         )}
                         {remainder < 0 && (
@@ -1501,9 +1749,12 @@ export default function FrequencySelectionScreen() {
                                   emergencyWithdrawal: params.emergencyWithdrawal || 'false',
                                   customDates: params.customDates || '',
                                   customDateAmounts: params.customDateAmounts || '',
+                                  customDateTimes: params.customDateTimes || '',
                                   dayOfWeek: params.dayOfWeek || '',
                                   payoutHour: params.payoutHour || '',
                                   payoutMinute: params.payoutMinute || '',
+                                  purpose: params.purpose || '',
+                                  purposeOther: params.purposeOther || '',
                                 }
                               });
                             }}
@@ -1516,6 +1767,16 @@ export default function FrequencySelectionScreen() {
                       </View>
                     );
                   })()}
+
+                  {/* Split equally - only when amount per date has been changed */}
+                  {!isEqualSplit && (
+                    <Pressable
+                      style={styles.splitToggleBelowTotal}
+                      onPress={handleEqualSplitToggle}
+                    >
+                      <Text style={styles.splitToggleText}>Split equally</Text>
+                    </Pressable>
+                  )}
                 </View>
               )}
             </View>
@@ -1530,6 +1791,59 @@ export default function FrequencySelectionScreen() {
         hapticType="medium"
       />
 
+      <Modal
+        visible={showFeesBreakdownModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowFeesBreakdownModal(false)}
+      >
+        <Pressable style={styles.feesModalOverlay} onPress={() => setShowFeesBreakdownModal(false)}>
+          <Pressable style={styles.feesModalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.feesModalHeader}>
+              <Text style={styles.feesModalTitle}>Fee breakdown</Text>
+              <Pressable
+                hitSlop={8}
+                onPress={() => {
+                  if (Platform.OS !== 'web') haptics.selection();
+                  setShowFeesBreakdownModal(false);
+                }}
+                style={styles.feesModalCloseBtn}
+              >
+                <X size={22} color={colors.text} />
+              </Pressable>
+            </View>
+            {feesBreakdownForModal && (
+              <View style={styles.feesBreakdownBody}>
+                <View style={styles.feesBreakdownRow}>
+                  <Text style={styles.feesBreakdownLabel}>Processing fee (1.5% capped at ₦500)</Text>
+                  <Text style={styles.feesBreakdownValue}>
+                    ₦{feesBreakdownForModal.processingFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View style={styles.feesBreakdownRow}>
+                  <Text style={styles.feesBreakdownLabel}>Stamp duty (₦50 per payout above ₦9,999)</Text>
+                  <Text style={styles.feesBreakdownValue}>
+                    ₦{feesBreakdownForModal.stampDuty.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View style={styles.feesBreakdownRow}>
+                  <Text style={styles.feesBreakdownLabel}>Transaction fee (₦10.75 per payout)</Text>
+                  <Text style={styles.feesBreakdownValue}>
+                    ₦{feesBreakdownForModal.transactionFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View style={[styles.feesBreakdownRow, styles.feesBreakdownTotalRow]}>
+                  <Text style={styles.feesBreakdownTotalLabel}>Total fees</Text>
+                  <Text style={styles.feesBreakdownTotalValue}>
+                    ₦{feesBreakdownForModal.totalFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <TimePicker
         isVisible={showTimePicker}
         onClose={() => setShowTimePicker(false)}
@@ -1537,6 +1851,26 @@ export default function FrequencySelectionScreen() {
         selectedHour={selectedHour}
         selectedMinute={selectedMinute}
       />
+
+      {timePickerForDate !== null && (
+        <TimePicker
+          isVisible={true}
+          onClose={() => setTimePickerForDate(null)}
+          onSelect={handleCustomDateTimeSelect}
+          selectedHour={parseTimeToHourMinute(dateTimes[timePickerForDate] || '12:00').hour}
+          selectedMinute={parseTimeToHourMinute(dateTimes[timePickerForDate] || '12:00').minute}
+        />
+      )}
+
+      {showBulkTimePicker && (
+        <TimePicker
+          isVisible={true}
+          onClose={() => setShowBulkTimePicker(false)}
+          onSelect={handleBulkTimeSelect}
+          selectedHour={parseTimeToHourMinute(bulkTimeDisplay.initialTime ?? '12:00').hour}
+          selectedMinute={parseTimeToHourMinute(bulkTimeDisplay.initialTime ?? '12:00').minute}
+        />
+      )}
 
       <DatePicker
         isVisible={showDatePicker}
@@ -1751,7 +2085,8 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
     marginBottom: 8,
   },
   amountLabel: {
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: '500',
     color: colors.text,
   },
   amountRow: {
@@ -1769,7 +2104,36 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
     fontSize: 14,
     color: colors.textSecondary,
   },
+  frequencyTotalFeesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  frequencyTotalFeesLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  frequencyTotalFeesValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
   splitToggle: {
+    backgroundColor: colors.backgroundTertiary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  splitToggleBelowTotal: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
     backgroundColor: colors.backgroundTertiary,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -1883,27 +2247,108 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
     fontSize: 12,
     color: colors.textSecondary,
   },
+  bulkTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  bulkTimeLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  bulkTimeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '15',
+  },
+  bulkTimeButtonMixed: {
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundTertiary,
+  },
+  bulkTimeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  bulkTimeHint: {
+    marginBottom: 12,
+    alignSelf: 'flex-end',
+  },
+  bulkTimeHintPressed: {
+    opacity: 0.7,
+  },
+  bulkTimeHintText: {
+    fontSize: 12,
+    textDecorationLine: 'underline',
+    color: colors.primary,
+    fontWeight: '500',
+  },
   datesAmountsContainer: {
     gap: 12,
     marginBottom: 16,
   },
+  dateAmountRowWrapper: {
+    position: 'relative',
+  },
+  dateAmountRowRemove: {
+    position: 'absolute',
+    top: -5,
+    right: -10,
+    zIndex: 1,
+    padding: 4,
+    borderRadius: 8,
+    backgroundColor: colors.backgroundTertiary,
+  },
   dateAmountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
     borderColor: colors.border,
+    gap: 16,
   },
-  dateAmountInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+  dateTimeColumn: {
+    flex: 0,
+    minWidth: 100,
+    gap: 6,
+    alignItems: 'flex-end',
   },
   dateAmountLabel: {
     fontSize: 14,
     fontWeight: '500',
     color: colors.text,
+  },
+  dateTimeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundTertiary,
+  },
+  dateTimeChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  amountColumn: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+    alignItems: 'flex-start',
   },
   dateAmountWarning: {
     fontSize: 12,
@@ -1913,12 +2358,13 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
   dateAmountInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    width: '100%',
+    maxWidth: 160,
     backgroundColor: colors.backgroundTertiary,
     borderRadius: 8,
-    padding: 12,
+    padding: 10,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 4,
   },
   currencySymbolSmall: {
     fontSize: 16,
@@ -1969,6 +2415,84 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
     color: colors.textSecondary,
     fontStyle: 'italic',
     marginTop: 4,
+  },
+  balanceExceedsBox: {
+    width: '100%',
+    marginBottom: 8,
+  },
+  totalFeesLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  feesInfoIconWrap: {
+    padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  feesModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  feesModalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+  },
+  feesModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  feesModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  feesModalCloseBtn: {
+    padding: 4,
+  },
+  feesBreakdownBody: {
+    paddingVertical: 20,
+    gap: 14,
+  },
+  feesBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  feesBreakdownLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    flex: 1,
+    marginRight: 12,
+  },
+  feesBreakdownValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  feesBreakdownTotalRow: {
+    marginTop: 8,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  feesBreakdownTotalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  feesBreakdownTotalValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
   },
   remainderWarning: {
     fontSize: 12,

@@ -24,7 +24,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [type, setType] = useState<ToastType>('info');
   const [duration, setDuration] = useState(3000);
   const haptics = useHaptics();
+  
   // Get theme here and pass to Toast as props to ensure it always has theme access
+  // Note: This requires ThemeProvider to be a parent in the component tree
   const { colors, isDark } = useTheme();
 
   const showToast = (

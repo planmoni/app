@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, Dimensions, Image, Pressable, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useSafeNavigation } from '@/hooks/useSafeNavigation';
+import { replaceToPayoutsHomeTab } from '@/lib/replaceToPayoutsHomeTab';
 import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +16,6 @@ export default function SuccessScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams();
   const haptics = useHaptics();
-  const { navigateToHome } = useSafeNavigation();
   const { showFeedback } = useFeedback();
   const mountedRef = useRef(true);
   
@@ -26,6 +25,7 @@ export default function SuccessScreen() {
   const isMediumScreen = screenWidth >= 375 && screenWidth < 768;
   
   // Get values from route params with safe defaults
+  const planId = params.planId as string | undefined;
   const totalAmount = params.totalAmount as string || '0';
   const frequency = params.frequency as string || 'monthly';
   const payoutAmount = params.payoutAmount as string || '0';
@@ -66,9 +66,14 @@ export default function SuccessScreen() {
     router.push('/all-payouts');
   };
 
-  const handleBackToDashboard = () => {
+  const handleBackToPayouts = () => {
     haptics.lightImpact();
-    router.replace('/(tabs)');
+    replaceToPayoutsHomeTab();
+  };
+
+  const handleSharePlan = () => {
+    haptics.mediumImpact();
+    if (planId) router.push({ pathname: '/view-payout', params: { id: planId, openShare: '1' } });
   };
 
   const styles = createStyles(colors, isSmallScreen, isMediumScreen);
@@ -83,7 +88,7 @@ export default function SuccessScreen() {
             if (Platform.OS !== 'web') {
               haptics.lightImpact();
             }
-            navigateToHome();
+            replaceToPayoutsHomeTab();
           }} 
           style={styles.cancelButton}
         >
@@ -158,9 +163,18 @@ export default function SuccessScreen() {
           style={styles.viewPayoutsButton}
           hapticType="medium"
         />
+        {planId ? (
+          <Button 
+            title="Share plan"
+            onPress={handleSharePlan}
+            variant="outline"
+            style={styles.dashboardButton}
+            hapticType="medium"
+          />
+        ) : null}
         <Button 
-          title="Back to Dashboard"
-          onPress={handleBackToDashboard}
+          title="Back to Payouts"
+          onPress={handleBackToPayouts}
           variant="outline"
           style={styles.dashboardButton}
           hapticType="light"

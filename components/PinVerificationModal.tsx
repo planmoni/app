@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  Modal,
   View,
   Text,
   StyleSheet,
@@ -8,7 +7,6 @@ import {
   Animated,
   Dimensions,
   Platform,
-  useWindowDimensions,
 } from 'react-native';
 import { X, Fingerprint } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -42,7 +40,7 @@ export default function PinVerificationModal({
   biometricType = 'app',
 }: PinVerificationModalProps) {
   const { colors, isDark } = useTheme();
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useMemo(() => Dimensions.get('window'), []);
   const { verifyBiometric, biometricEnabled, payoutBiometricEnabled, emergencyBiometricEnabled, checkBiometricSupport, verifyAppLockPin } = usePin();
   const haptics = useHaptics();
   const router = useRouter();

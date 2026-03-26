@@ -200,14 +200,12 @@ export default function AppLockScreen() {
         }, 500);
       } else {
         haptics.error();
-        if (result.error !== "Authentication cancelled") {
-          Alert.alert('Authentication Failed', 'Biometric authentication failed. Please try again or use your PIN.');
-        }
+        // Do not show modal when biometric fails - user can retry or use PIN
       }
     } catch (error) {
       console.error('AppLockScreen - Biometric unlock error:', error);
       haptics.error();
-      Alert.alert('Error', 'Biometric authentication failed. Please try again.');
+      // Do not show modal when biometric fails - user can retry or use PIN
     } finally {
       setIsVerifying(false);
     }

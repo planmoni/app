@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useInsightsData } from '@/hooks/useInsightsData';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { useExpensePlans } from '@/hooks/useExpensePlans';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import Button from '@/components/Button';
 import SummaryCard from '@/components/SummaryCard';
@@ -14,6 +15,8 @@ import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { calculatePlanInsights, generateInsightMessages } from '@/lib/insights/planInsights';
+import { Target, AlertCircle, Percent } from 'lucide-react-native';
 
 
 export default function InsightsScreen() {
@@ -22,8 +25,21 @@ export default function InsightsScreen() {
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { metrics, trends, vaultStats, isLoading, error, refreshInsights } = useInsightsData();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
+  const { expensePlans } = useExpensePlans();
   const [customPayoutDates, setCustomPayoutDates] = useState<Record<string, string[]>>({});
   const [vaultStatsLimit, setVaultStatsLimit] = useState(5);
+
+  // Calculate plan insights
+  const planInsights = useMemo(() => {
+    if (expensePlans.length === 0) return null;
+    return calculatePlanInsights(expensePlans);
+  }, [expensePlans]);
+
+  const planInsightMessages = useMemo(() => {
+    if (!planInsights) return [];
+    // TODO: Get actual monthly income from user profile
+    return generateInsightMessages(planInsights, 100000);
+  }, [planInsights]);
 
   // Map icon names to components
   const getIconComponent = (iconName: string) => {
@@ -312,6 +328,55 @@ export default function InsightsScreen() {
             payoutPlans={payoutPlans}
             getLastPayoutDate={getLastPayoutDate}
           />
+
+          {/* Plan Insights */}
+          {/* {isAuthenticated && planInsightMessages.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Expense Plan Insights</Text>
+              {planInsightMessages.map((insight, index) => {
+                const getIcon = () => {
+                  switch (insight.type) {
+                    case 'completion_rate':
+                      return Target;
+                    case 'underfunding':
+                      return AlertCircle;
+                    case 'overspending':
+                      return AlertCircle;
+                    case 'income_allocation':
+                      return Percent;
+                    case 'goals_completed':
+                      return TrendingUp;
+                    default:
+                      return TrendingUp;
+                  }
+                };
+                const Icon = getIcon();
+                
+                return (
+                  <Card key={index} style={styles.trendCard}>
+                    <View style={styles.trendContent}>
+                      <View style={styles.planInsightContent}>
+                        <View style={styles.planInsightHeader}>
+                          <View style={[styles.planInsightIcon, { backgroundColor: insight.trend === 'up' ? '#DCFCE7' : insight.trend === 'down' ? '#FEE2E2' : '#EFF6FF' }]}>
+                            <Icon size={20} color={insight.trend === 'up' ? '#22C55E' : insight.trend === 'down' ? '#EF4444' : colors.primary} />
+                          </View>
+                          <View style={styles.planInsightText}>
+                            <Text style={styles.trendTitle}>{insight.title}</Text>
+                            <Text style={styles.trendDescription}>{insight.description}</Text>
+                          </View>
+                        </View>
+                        <View style={[styles.trendValue, { backgroundColor: insight.trend === 'up' ? '#DCFCE7' : insight.trend === 'down' ? '#FEE2E2' : '#EFF6FF' }]}>
+                          <Text style={[styles.trendValueText, { color: insight.trend === 'up' ? '#22C55E' : insight.trend === 'down' ? '#EF4444' : colors.primary }]}>
+                            {typeof insight.value === 'number' ? insight.value.toLocaleString('en-US') : insight.value}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </Card>
+                );
+              })}
+            </View>
+          )} */}
 
           {isAuthenticated && (
           <View style={styles.section}>
@@ -699,5 +764,24 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     color: '#FFFFFF',
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     fontWeight: '600',
+  },
+  planInsightContent: {
+    flex: 1,
+  },
+  planInsightHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 12,
+  },
+  planInsightIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  planInsightText: {
+    flex: 1,
   },
 });

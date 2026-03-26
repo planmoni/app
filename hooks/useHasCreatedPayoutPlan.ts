@@ -19,17 +19,18 @@ export function useHasCreatedPayoutPlan() {
   const checkIfUserHasCreatedPayoutPlan = async () => {
     try {
       setIsLoading(true);
-      
-      // Check if user has any "payout_scheduled" events (created when a payout plan is created)
+
+      // Only consider users who have existing payout transactions.
+      // This prevents showing the "first payout schedule" modal when the user already has payout history.
       const { data, error } = await supabase
-        .from('events')
+        .from('transactions')
         .select('id')
         .eq('user_id', session?.user?.id)
-        .eq('type', 'payout_scheduled')
+        .eq('type', 'payout')
         .limit(1);
 
       if (error) {
-        console.error('Error checking payout plan creation:', error);
+        console.error('Error checking payout transaction history:', error);
         // Default to false on error to be safe
         setHasCreatedPayoutPlan(false);
       } else {
@@ -37,7 +38,7 @@ export function useHasCreatedPayoutPlan() {
         setHasCreatedPayoutPlan((data?.length ?? 0) > 0);
       }
     } catch (err) {
-      console.error('Error checking if user has created payout plan:', err);
+      console.error('Error checking if user has created payout transactions:', err);
       setHasCreatedPayoutPlan(false);
     } finally {
       setIsLoading(false);

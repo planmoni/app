@@ -9,7 +9,6 @@ import { useHaptics } from '@/hooks/useHaptics';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import { accountCreationHandler } from '@/scripts/account-creation-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
 export default function CreatingAccountScreen() {
   const { colors } = useTheme();
   const { showToast } = useToast();
@@ -86,7 +85,7 @@ export default function CreatingAccountScreen() {
         onSuccess: async (data: any) => {
           console.log('Account creation successful:', data);
           setCreationProgress('Account created successfully!');
-          
+
           // Set flag so home screen shows onboarding questionnaire modal once
           try {
             const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;

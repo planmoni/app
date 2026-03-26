@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import FeedbackModal, { FeedbackSource } from '@/components/FeedbackModal';
+
+const FEEDBACK_MODAL_USER_RATED_KEY = 'feedback_modal_user_rated';
 
 interface FeedbackContextValue {
   showFeedback: (source: FeedbackSource) => void;
@@ -13,8 +16,11 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [source, setSource] = useState<FeedbackSource | undefined>(undefined);
 
   const showFeedback = useCallback((s: FeedbackSource) => {
-    setSource(s);
-    setVisible(true);
+    AsyncStorage.getItem(FEEDBACK_MODAL_USER_RATED_KEY).then((value) => {
+      if (value === 'true') return;
+      setSource(s);
+      setVisible(true);
+    });
   }, []);
 
   const hideFeedback = useCallback(() => {
@@ -22,10 +28,15 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     setSource(undefined);
   }, []);
 
+  const handleRated = useCallback(() => {
+    AsyncStorage.setItem(FEEDBACK_MODAL_USER_RATED_KEY, 'true').catch(() => {});
+    hideFeedback();
+  }, [hideFeedback]);
+
   return (
     <FeedbackContext.Provider value={{ showFeedback, hideFeedback }}>
       {children}
-      <FeedbackModal visible={visible} onClose={hideFeedback} source={source} />
+      <FeedbackModal visible={visible} onClose={hideFeedback} onRate={handleRated} source={source} />
     </FeedbackContext.Provider>
   );
 }

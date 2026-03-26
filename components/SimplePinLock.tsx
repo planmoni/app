@@ -161,11 +161,11 @@ export default function SimplePinLock() {
           router.replace(targetPage);
         }, 500);
       } else {
-        Alert.alert('Authentication Failed', 'Biometric authentication failed. Please try again or use your PIN.');
+        // Do not show modal when biometric fails - user can retry or use PIN
       }
     } catch (error) {
       console.error('SimplePinLock - Biometric unlock error:', error);
-      Alert.alert('Error', 'Biometric authentication failed. Please try again.');
+      // Do not show modal when biometric fails - user can retry or use PIN
     }
   };
 

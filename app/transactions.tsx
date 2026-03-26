@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeTransactions, Transaction } from '@/hooks/useRealtimeTransactions';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { formatTransactionType } from '@/lib/formatters';
 type TransactionType = 'all' | 'deposits' | 'payouts' | 'withdrawals';
 
 export default function TransactionsScreen() {
@@ -40,7 +41,7 @@ export default function TransactionsScreen() {
       status: displayStatus,
       date: new Date(transaction.created_at).toLocaleDateString(),
       time: new Date(transaction.created_at).toLocaleTimeString(),
-      type: transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1),
+      type: formatTransactionType(transaction.type),
       source: transaction.source,
       destination: transaction.destination,
       transactionId: transaction.id,
@@ -341,6 +342,12 @@ export default function TransactionsScreen() {
                       iconBg = '#F97316';
                       iconColor = '#fff';
                       break;
+                    case 'expense_plan_topup':
+                      // Budget Top-Up: ArrowDownRight with accent/primary colors (similar to deposit)
+                      Icon = ArrowDownRight;
+                      iconBg = colors.accent;
+                      iconColor = colors.primary;
+                      break;
                     default:
                       Icon = ArrowDownRight;
                       iconBg = colors.accent;
@@ -348,7 +355,7 @@ export default function TransactionsScreen() {
                   }
                 }
                 
-                const isPositive = transaction.type === 'deposit';
+                const isPositive = transaction.type === 'deposit' || transaction.type === 'expense_plan_topup';
                 
                 // Format date and time
                 const txDate = new Date(transaction.created_at);
@@ -370,7 +377,7 @@ export default function TransactionsScreen() {
                     <View style={styles.transactionInfo}>
                       <View style={styles.transactionHeader}>
                         <Text style={styles.transactionTitle}>
-                          {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
+                          {formatTransactionType(transaction.type)}
                         </Text>
                         <Text style={[
                           styles.transactionAmount,
