@@ -11,7 +11,6 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import { useSafeHavenBanksForPayout, SafeHavenBankForPayout } from '@/hooks/useSafeHavenBanksForPayout';
 import { useSafeHavenNameEnquiry } from '@/hooks/useSafeHavenNameEnquiry';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase } from '@/lib/supabase';
 
 interface AddPayoutAccountModalProps {
   isVisible: boolean;
@@ -49,11 +48,6 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   const [showBankSelector, setShowBankSelector] = useState(false);
   const [bankSearchQuery, setBankSearchQuery] = useState('');
   const [accountResolved, setAccountResolved] = useState(false);
-  const [bankCodes, setBankCodes] = useState<{ paystackCode: string | null; safehavenCode: string | null }>({
-    paystackCode: null,
-    safehavenCode: null
-  });
-  const [isLoadingBankCodes, setIsLoadingBankCodes] = useState(false);
   
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -117,8 +111,8 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       haptics.impact();
       
       const bankName = selectedBank?.name || formData.bankName.trim();
-      // Payouts use SafeHaven only; SafeHaven code comes from selected bank (SafeHaven list).
-      const safehavenCode = bankCodes.safehavenCode || selectedBank?.code || null;
+      // Payouts use SafeHaven only; bank code comes from selected bank (SafeHaven list).
+      const safehavenCode = selectedBank?.code || null;
       if (!safehavenCode) {
         setFormErrors({ general: 'SafeHaven bank code is required for payouts.' });
         return;
@@ -195,7 +189,6 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     setAccountResolved(false);
     setFormErrors({});
     setResolutionError(null);
-    setBankCodes({ paystackCode: null, safehavenCode: null });
   };
   
   const handleClose = () => {
@@ -219,45 +212,6 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     });
   };
 
-  // Function to fetch bank codes from bank_comparison table
-  const fetchBankCodesFromDatabase = async (bankName: string) => {
-    try {
-      setIsLoadingBankCodes(true);
-      
-      const { data: mapping, error } = await supabase
-        .from("bank_comparison")
-        .select("safehaven_code, paystack_code")
-        .ilike("bank_name", bankName)
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error fetching bank codes from bank_comparison:", error);
-        return { paystackCode: null, safehavenCode: null };
-      }
-
-      if (mapping) {
-        console.log("✅ Found bank codes from bank_comparison:", {
-          bankName,
-          paystackCode: mapping.paystack_code,
-          safehavenCode: mapping.safehaven_code
-        });
-        return {
-          paystackCode: mapping.paystack_code || null,
-          safehavenCode: mapping.safehaven_code || null
-        };
-      }
-
-      console.log("⚠️ No bank codes found in bank_comparison for:", bankName);
-      return { paystackCode: null, safehavenCode: null };
-    } catch (error) {
-      console.error("Error in fetchBankCodesFromDatabase:", error);
-      return { paystackCode: null, safehavenCode: null };
-    } finally {
-      setIsLoadingBankCodes(false);
-    }
-  };
-
   const handleBankSelect = async (bank: SafeHavenBankForPayout) => {
     setSelectedBank(bank);
     setFormData(prev => ({ ...prev, bankName: bank.name }));
@@ -270,8 +224,6 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       setFormData(prev => ({ ...prev, accountName: '' }));
       setResolutionError(null);
     }
-    
-    setBankCodes({ safehavenCode: bank.code, paystackCode: null });
     
     // If account number is already entered, resolve account name via SafeHaven name-enquiry
     if (formData.accountNumber.length === 10) {
