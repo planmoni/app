@@ -72,38 +72,65 @@ function SlideItem({
         animatedStyle
       ]}
     >
-      <View style={styles.slideContent}>
-        <View style={styles.imageContainer}>
-          {slide.showLogo ? (
-            <Image 
-              source={isDark ? require('@/assets/images/logo-dark.png') : require('@/assets/images/logo-light.png')}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
-          ) : (
-            <View style={[
-              styles.imageBackground,
-              { backgroundColor: slide.accentColor + '20' }
-            ]}>
+      {slide.id === '1' ? (
+        <View style={styles.introSlideContent}>
+          <Text style={styles.introWelcomeText}>Welcome to</Text>
+          <Image
+            source={isDark ? require('@/assets/images/logo-dark.png') : require('@/assets/images/logo-light.png')}
+            style={styles.introLogo}
+            resizeMode="contain"
+          />
+          <Image
+            source={isDark ? require('@/assets/images/award-light.png') : require('@/assets/images/award-dark.png')}
+            style={styles.introAwardImage}
+            resizeMode="contain"
+          />
+          <Image
+            source={isDark ? require('@/assets/images/partnership-light.png') : require('@/assets/images/partnership-dark.png')}
+            style={styles.introPartnershipImage}
+            resizeMode="contain"
+          />
+        </View>
+      ) : (
+        <View style={styles.slideContent}>
+          <View style={styles.textContainer}>
+            <View style={styles.titleSection}>
+              <Text style={styles.slideTitle}>{slide.title}</Text>
+            </View>
+            
+            {slide.description && (
+              <Text style={styles.slideDescription}>{slide.description}</Text>
+            )}
+          </View>
+
+          <View style={styles.imageContainer}>
+            {slide.showLogo ? (
+              <Image 
+                source={isDark ? require('@/assets/images/logo-dark.png') : require('@/assets/images/logo-light.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            ) : slide.rawImage ? (
               <Image 
                 source={slide.image}
                 style={styles.slideImage}
                 resizeMode="contain"
               />
-            </View>
-          )}
-        </View>
-        
-        <View style={styles.textContainer}>
-          <View style={styles.titleSection}>
-            <Text style={styles.slideTitle}>{slide.title}</Text>
+            ) : (
+              <View style={[
+                styles.imageBackground,
+                { backgroundColor: slide.accentColor + '20' }
+              ]}>
+                <Image 
+                  source={slide.image}
+                  style={styles.slideImage}
+                  resizeMode="contain"
+                />
+              </View>
+            )}
           </View>
-          
-          {slide.description && (
-            <Text style={styles.slideDescription}>{slide.description}</Text>
-          )}
         </View>
-      </View>
+      )}
     </Animated.View>
   );
 }
@@ -180,27 +207,48 @@ const SLIDES = [
   },
   {
     id: '2',
-    title: 'Put Yourself or Others on a Salary Schedule',
-    description: 'Split lump-sums into scheduled daily, weekly, bi-weekly or monthly payouts that work for your lifestyle.',
-    image: require('@/assets/images/PayYourselfOnTime.png'),
+    title: 'Secure your money in vaults, access them when due',
+    description: '',
+    image: require('@/assets/images/Slide 2.png'),
     gradient: ['#059669', '#10B981'],
     accentColor: '#34D399',
+    rawImage: true,
   },
   {
     id: '3',
-    title: 'Stabilize Cash Flow',
-    description: 'Secure your money with automated payouts and say goodbye to irregular income forever.',
-    image: require('@/assets/images/SmartSavings.png'),
+    title: 'Plan your every money move',
+    description: '',
+    image: require('@/assets/images/Slide 3.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
+    rawImage: true,
   },
   {
     id: '4',
-    title: 'Build Healthy\nMoney Habits',
-    description: 'Automate discipline and achieve long-term financial goals effortlessly.',
-    image: require('@/assets/images/BuildHealthyHabits.png'),
+    title: 'Choose how money leaves',
+    description: '',
+    image: require('@/assets/images/Slide 4.png'),
     gradient: ['#7C3AED', '#A855F7'],
     accentColor: '#C084FC',
+    rawImage: true,
+  },
+  {
+    id: '5',
+    title: 'Timely payouts, 24/7/365',
+    description: '',
+    image: require('@/assets/images/Slide 5.png'),
+    gradient: ['#EC4899', '#F97316'],
+    accentColor: '#F9A8D4',
+    rawImage: true,
+  },
+  {
+    id: '6',
+    title: 'Join thousands of users who love Planmoni',
+    description: '',
+    image: require('@/assets/images/Slide 6.png'),
+    gradient: ['#0EA5E9', '#2563EB'],
+    accentColor: '#7DD3FC',
+    rawImage: true,
   },
 ];
 
@@ -217,6 +265,9 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isNavigating, setIsNavigating] = useState(false);
   const scrollViewRef = useRef<Animated.ScrollView>(null);
+  const resetScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isClosingRef = useRef(false);
 
   const modalHeight = height * 0.9;
 
@@ -227,12 +278,33 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
       setCurrentIndex(0);
       scrollX.value = 0;
       setIsNavigating(false); // Reset navigation state when modal opens
+      isClosingRef.current = false;
       // Small delay to ensure ScrollView is mounted
-      setTimeout(() => {
+      if (resetScrollTimerRef.current) {
+        clearTimeout(resetScrollTimerRef.current);
+      }
+      resetScrollTimerRef.current = setTimeout(() => {
         scrollViewRef.current?.scrollTo({ x: 0, animated: false });
       }, 100);
     }
+    return () => {
+      if (resetScrollTimerRef.current) {
+        clearTimeout(resetScrollTimerRef.current);
+        resetScrollTimerRef.current = null;
+      }
+      if (navigationTimerRef.current) {
+        clearTimeout(navigationTimerRef.current);
+        navigationTimerRef.current = null;
+      }
+    };
   }, [isVisible]);
+
+  const handleClose = () => {
+    // Prevent repeated close events while modal is dismissing.
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
+    onClose();
+  };
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -247,9 +319,12 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
   const handleSignUp = () => {
     if (isNavigating) return; // Prevent multiple clicks
     setIsNavigating(true);
-    onClose();
+    handleClose();
     // Add a small delay to ensure modal closes before navigation
-    setTimeout(() => {
+    if (navigationTimerRef.current) {
+      clearTimeout(navigationTimerRef.current);
+    }
+    navigationTimerRef.current = setTimeout(() => {
       router.push('/(auth)/onboarding/first-name');
     }, 300);
   };
@@ -257,9 +332,12 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
   const handleSignIn = () => {
     if (isNavigating) return; // Prevent multiple clicks
     setIsNavigating(true);
-    onClose();
+    handleClose();
     // Add a small delay to ensure modal closes before navigation
-    setTimeout(() => {
+    if (navigationTimerRef.current) {
+      clearTimeout(navigationTimerRef.current);
+    }
+    navigationTimerRef.current = setTimeout(() => {
       router.push('/(auth)/login');
     }, 300);
   };
@@ -291,28 +369,19 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
       animationType="slide"
       transparent={true}
       statusBarTranslucent={true}
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
+        <Pressable style={styles.backdrop} onPress={handleClose} />
         <View style={styles.modalContainer}>
           {/* Close Button */}
           <Pressable
             style={styles.closeButton}
-            onPress={onClose}
+            onPress={handleClose}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <X size={24} color={colors.text} />
           </Pressable>
-
-          {/* Logo */}
-          <View style={styles.logoContainer}>
-            <Image 
-              source={isDark ? require('@/assets/images/logo-dark.png') : require('@/assets/images/logo-light.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
 
           {/* Slider Container */}
           <View style={styles.sliderContainer}>
@@ -380,12 +449,6 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
               >
                 <Text style={styles.signUpButtonText}>Sign Up</Text>
               </Pressable>
-            </View>
-            <View style={styles.availabilityContainer}>
-              <Text style={styles.flagIcon}>🇳🇬</Text>
-              <Text style={styles.availabilityText}>
-                This app is only available in Nigeria
-              </Text>
             </View>
           </BlurView>
         </View>
@@ -469,12 +532,43 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     padding: responsive.verticalPadding * 0.8,
   },
   slideImage: {
-    width: responsive.width * 0.55,
-    height: responsive.imageHeight,
+    width: responsive.width * 1.55,
+    height: responsive.imageHeight * 1.9,
   },
   logoImage: {
     width: responsive.width * 0.6,
     height: responsive.imageHeight * 1.5,
+  },
+  introSlideContent: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: responsive.verticalPadding,
+  },
+  introWelcomeText: {
+    fontSize: Platform.OS === 'ios' ? 26 : 24,
+    // lineHeight: Platform.OS === 'ios' ? 42 : 38,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: -16,
+    marginTop: 70,
+    textAlign: 'center',
+  },
+  introLogo: {
+    width: responsive.width * 0.5,
+    height: responsive.imageHeight * 0.44,
+    marginBottom: 1,
+  },
+  introAwardImage: {
+    width: responsive.width * 0.44,
+    height: responsive.imageHeight * 0.96,
+    marginBottom: 10,
+  },
+  introPartnershipImage: {
+    width: responsive.width * 0.5,
+    height: responsive.imageHeight * 0.56,
+    marginTop: 20,
   },
   textContainer: {
     alignItems: 'center',
@@ -486,17 +580,18 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     marginBottom: responsive.verticalPadding * 0.8,
   },
   slideTitle: {
-    fontWeight: '800',
-    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1.1,
+    marginTop: 60,
+    fontWeight: '700',
+    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 0.8,
     lineHeight: Platform.OS === 'ios' ? responsive.titleSize * 1.1 : responsive.titleSize * 1.1,
-    letterSpacing: -0.5,
+    letterSpacing: -0.9,
     color: isDark ? colors.text : colors.primary,
     textAlign: 'center',
   },
   slideDescription: {
     color: colors.text,
     textAlign: 'center',
-    fontSize: Platform.OS === 'ios' ? responsive.descriptionSize * 1.0: responsive.descriptionSize * 1.2,
+    fontSize: Platform.OS === 'ios' ? responsive.descriptionSize * 0.8: responsive.descriptionSize * 1.2,
     lineHeight: Platform.OS === 'ios' ? responsive.descriptionSize * 1.4 : responsive.descriptionSize * 1.5,
     maxWidth: '90%',
   },
