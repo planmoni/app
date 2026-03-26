@@ -225,7 +225,7 @@ const SLIDES = [
   },
   {
     id: '4',
-    title: 'Choose how money leaves',
+    title: 'Create payouts, control timing',
     description: '',
     image: require('@/assets/images/Slide 4.png'),
     gradient: ['#7C3AED', '#A855F7'],
@@ -266,7 +266,6 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
   const [isNavigating, setIsNavigating] = useState(false);
   const scrollViewRef = useRef<Animated.ScrollView>(null);
   const resetScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isClosingRef = useRef(false);
 
   const modalHeight = height * 0.9;
@@ -291,10 +290,6 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
       if (resetScrollTimerRef.current) {
         clearTimeout(resetScrollTimerRef.current);
         resetScrollTimerRef.current = null;
-      }
-      if (navigationTimerRef.current) {
-        clearTimeout(navigationTimerRef.current);
-        navigationTimerRef.current = null;
       }
     };
   }, [isVisible]);
@@ -321,10 +316,7 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
     setIsNavigating(true);
     handleClose();
     // Add a small delay to ensure modal closes before navigation
-    if (navigationTimerRef.current) {
-      clearTimeout(navigationTimerRef.current);
-    }
-    navigationTimerRef.current = setTimeout(() => {
+    setTimeout(() => {
       router.push('/(auth)/onboarding/first-name');
     }, 300);
   };
@@ -334,10 +326,7 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
     setIsNavigating(true);
     handleClose();
     // Add a small delay to ensure modal closes before navigation
-    if (navigationTimerRef.current) {
-      clearTimeout(navigationTimerRef.current);
-    }
-    navigationTimerRef.current = setTimeout(() => {
+    setTimeout(() => {
       router.push('/(auth)/login');
     }, 300);
   };
