@@ -52,7 +52,7 @@ export default function ExpensePlannerOverviewScreen() {
         <Pressable onPress={handleBack} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Expense Plans</Text>
+        <Text style={styles.headerTitle}>Your Vaults</Text>
         <Pressable
           onPress={handleCreatePlan}
           style={styles.createButton}
