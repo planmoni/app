@@ -6,6 +6,10 @@ verify_jwt = false
 [functions.mono-directpay-verify-and-credit]
 verify_jwt = true
 
+# Retry pending Mono DirectPay: called by cron or manually with service role; no user JWT
+[functions.retry-pending-mono-directpay]
+verify_jwt = false
+
 [functions.send-push-notification]
 enabled = true
 verify_jwt = true

@@ -80,6 +80,30 @@ export function useCreatePayout() {
 
       // Get the most up-to-date wallet data from the database
       const walletData = await refreshWallet();
+      // Client audit: before lock snapshot
+      try {
+        await supabase.from('client_audit_logs').insert({
+          user_id: session.user.id,
+          plan_id: null,
+          stage: 'before_lock',
+          context: {
+            name,
+            totalAmount,
+            payoutAmount,
+            frequency,
+            duration,
+            startDate,
+            bankAccountId: bankAccountId || null,
+            payoutAccountId: payoutAccountId || null,
+            dayOfWeek,
+            payoutHour,
+            payoutMinute,
+            wallet: walletData
+          }
+        });
+      } catch (e) {
+        console.warn('Client audit before_lock failed:', e);
+      }
 
       if (!walletData) {
         throw new Error(
@@ -172,6 +196,21 @@ export function useCreatePayout() {
         arg_user_id: session.user.id,
         arg_amount: netPayoutAmount
       });
+      // Client audit: after lock snapshot
+      try {
+        const walletAfterLock = await refreshWallet();
+        await supabase.from('client_audit_logs').insert({
+          user_id: session.user.id,
+          plan_id: null,
+          stage: 'after_lock',
+          context: {
+            lockResult,
+            wallet: walletAfterLock
+          }
+        });
+      } catch (e) {
+        console.warn('Client audit after_lock failed:', e);
+      }
 
       if (lockError) {
         console.error("Error locking funds:", lockError);
@@ -266,6 +305,22 @@ export function useCreatePayout() {
         const { data: feeChargeResult, error: feeChargeError } = await supabase.rpc('charge_plan_fee', {
           p_plan_id: payoutPlan.id,
         });
+        // Client audit: after fee snapshot
+        try {
+          const walletAfterFee = await refreshWallet();
+          await supabase.from('client_audit_logs').insert({
+            user_id: session.user.id,
+            plan_id: payoutPlan.id,
+            stage: 'after_fee',
+            context: {
+              fee: { feePercentage, feeAmount, netPayoutAmount, feeFrequency },
+              feeChargeResult,
+              wallet: walletAfterFee
+            }
+          });
+        } catch (e) {
+          console.warn('Client audit after_fee failed:', e);
+        }
         if (feeChargeError) {
           console.error('Error charging plan fee:', feeChargeError);
           throw feeChargeError;
@@ -423,6 +478,20 @@ export function useCreatePayout() {
       });
     } catch (err) {
       console.error("Error creating payout plan:", err);
+      // Client audit: error snapshot
+      try {
+        await supabase.from('client_audit_logs').insert({
+          user_id: session?.user?.id || null,
+          plan_id: null,
+          stage: 'error',
+          context: {
+            error: err instanceof Error ? { message: err.message, stack: err.stack } : err,
+            input: { name, totalAmount, payoutAmount, frequency, duration, startDate, bankAccountId, payoutAccountId, dayOfWeek, payoutHour, payoutMinute }
+          }
+        });
+      } catch (e) {
+        console.warn('Client audit error log failed:', e);
+      }
       let errorMessage = "Failed to create payout plan";
 
       if (err instanceof Error) {
