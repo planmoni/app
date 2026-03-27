@@ -8,10 +8,9 @@ import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
 import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
-import { useBanks, Bank } from '@/hooks/useBanks';
-import { useAccountResolution } from '@/hooks/useAccountResolution';
+import { useSafeHavenBanksForPayout, SafeHavenBankForPayout } from '@/hooks/useSafeHavenBanksForPayout';
+import { useSafeHavenNameEnquiry } from '@/hooks/useSafeHavenNameEnquiry';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase } from '@/lib/supabase';
 
 interface AddPayoutAccountModalProps {
   isVisible: boolean;
@@ -24,8 +23,8 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   const insets = useSafeAreaInsets();
   const haptics = useHaptics();
   const { addPayoutAccount } = usePayoutAccounts();
-  const { banks, isLoading: banksLoading } = useBanks();
-  const { resolveAccount, isResolving, error: resolutionError, setError: setResolutionError } = useAccountResolution();
+  const { banks, isLoading: banksLoading } = useSafeHavenBanksForPayout();
+  const { resolveAccountName, isResolving, error: resolutionError, setError: setResolutionError } = useSafeHavenNameEnquiry();
   
   // Debug logging
   useEffect(() => {
@@ -45,15 +44,10 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     bankName: ''
   });
   
-  const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
+  const [selectedBank, setSelectedBank] = useState<SafeHavenBankForPayout | null>(null);
   const [showBankSelector, setShowBankSelector] = useState(false);
   const [bankSearchQuery, setBankSearchQuery] = useState('');
   const [accountResolved, setAccountResolved] = useState(false);
-  const [bankCodes, setBankCodes] = useState<{ paystackCode: string | null; safehavenCode: string | null }>({
-    paystackCode: null,
-    safehavenCode: null
-  });
-  const [isLoadingBankCodes, setIsLoadingBankCodes] = useState(false);
   
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -117,67 +111,25 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       haptics.impact();
       
       const bankName = selectedBank?.name || formData.bankName.trim();
-      
-      // Use bank codes from database (bank_comparison table) if available
-      // Otherwise fallback to selected bank's code for Paystack
-      const paystackCode = bankCodes.paystackCode || selectedBank?.code || null;
-      const safehavenCode = bankCodes.safehavenCode || null;
-      
-      // If we don't have codes from database, try to fetch them one more time
-      if (!paystackCode || !safehavenCode) {
-        console.log("⚠️ Missing bank codes, fetching from database...");
-        const codes = await fetchBankCodesFromDatabase(bankName);
-        if (codes.paystackCode || codes.safehavenCode) {
-          setBankCodes(codes);
-          // Use the fetched codes
-          const finalPaystackCode = codes.paystackCode || paystackCode;
-          const finalSafehavenCode = codes.safehavenCode || safehavenCode;
-          
-          // Prepare account data with bank codes from database
-          const accountData = {
-            account_name: formData.accountName.trim(),
-            account_number: formData.accountNumber.trim(),
-            bank_name: bankName,
-            ...(finalPaystackCode && { bank_code: finalPaystackCode }),
-            ...(finalSafehavenCode && { safehaven_bank_code: finalSafehavenCode })
-          };
-          
-          // Log the data being sent for debugging
-          console.log('📤 Adding payout account with data (from bank_comparison):', {
-            account_name: accountData.account_name,
-            account_number: accountData.account_number,
-            bank_name: accountData.bank_name,
-            bank_code: accountData.bank_code || 'N/A',
-            safehaven_bank_code: accountData.safehaven_bank_code || 'N/A',
-            source: 'bank_comparison'
-          });
-          
-          const newAccount = await addPayoutAccount(accountData);
-          
-          haptics.notification(Haptics.NotificationFeedbackType.Success);
-          resetForm();
-          onClose(newAccount);
-          return;
-        }
+      // Payouts use SafeHaven only; bank code comes from selected bank (SafeHaven list).
+      const safehavenCode = selectedBank?.code || null;
+      if (!safehavenCode) {
+        setFormErrors({ general: 'SafeHaven bank code is required for payouts.' });
+        return;
       }
       
-      // Prepare account data with bank codes
       const accountData = {
         account_name: formData.accountName.trim(),
         account_number: formData.accountNumber.trim(),
         bank_name: bankName,
-        ...(paystackCode && { bank_code: paystackCode }),
-        ...(safehavenCode && { safehaven_bank_code: safehavenCode })
+        safehaven_bank_code: safehavenCode,
       };
       
-      // Log the data being sent for debugging
-      console.log('📤 Adding payout account with data:', {
+      console.log('📤 Adding payout account (SafeHaven only):', {
         account_name: accountData.account_name,
         account_number: accountData.account_number,
         bank_name: accountData.bank_name,
-        bank_code: accountData.bank_code || 'N/A',
-        safehaven_bank_code: accountData.safehaven_bank_code || 'N/A',
-        source: bankCodes.paystackCode || bankCodes.safehavenCode ? 'bank_comparison' : 'fallback'
+        safehaven_bank_code: accountData.safehaven_bank_code,
       });
       
       const newAccount = await addPayoutAccount(accountData);
@@ -204,8 +156,9 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
   const validateForm = () => {
     const errors: Record<string, string> = {};
     
-    if (!formData.accountName.trim()) {
-      errors.accountName = 'Account name is required';
+    // Account name must come from resolution (not user input)
+    if (!accountResolved || !formData.accountName.trim()) {
+      errors.accountName = 'Enter a 10-digit account number and select a bank to resolve the account name.';
     }
     
     if (!formData.accountNumber.trim()) {
@@ -218,9 +171,9 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       errors.bankName = 'Bank name is required';
     }
     
-    // Validate that bank_code exists when a bank is selected
+    // Validate SafeHaven bank code exists when a bank is selected
     if (selectedBank && !selectedBank.code) {
-      errors.bankName = 'Selected bank is missing bank code. Please select a different bank.';
+      errors.bankName = 'Selected bank is missing SafeHaven code. Please select a different bank.';
     }
     
     setFormErrors(errors);
@@ -242,7 +195,6 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     setAccountResolved(false);
     setFormErrors({});
     setResolutionError(null);
-    setBankCodes({ paystackCode: null, safehavenCode: null });
   };
   
   const handleClose = () => {
@@ -266,46 +218,7 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     });
   };
 
-  // Function to fetch bank codes from bank_comparison table
-  const fetchBankCodesFromDatabase = async (bankName: string) => {
-    try {
-      setIsLoadingBankCodes(true);
-      
-      const { data: mapping, error } = await supabase
-        .from("bank_comparison")
-        .select("safehaven_code, paystack_code")
-        .ilike("bank_name", bankName)
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error fetching bank codes from bank_comparison:", error);
-        return { paystackCode: null, safehavenCode: null };
-      }
-
-      if (mapping) {
-        console.log("✅ Found bank codes from bank_comparison:", {
-          bankName,
-          paystackCode: mapping.paystack_code,
-          safehavenCode: mapping.safehaven_code
-        });
-        return {
-          paystackCode: mapping.paystack_code || null,
-          safehavenCode: mapping.safehaven_code || null
-        };
-      }
-
-      console.log("⚠️ No bank codes found in bank_comparison for:", bankName);
-      return { paystackCode: null, safehavenCode: null };
-    } catch (error) {
-      console.error("Error in fetchBankCodesFromDatabase:", error);
-      return { paystackCode: null, safehavenCode: null };
-    } finally {
-      setIsLoadingBankCodes(false);
-    }
-  };
-
-  const handleBankSelect = async (bank: Bank) => {
+  const handleBankSelect = async (bank: SafeHavenBankForPayout) => {
     setSelectedBank(bank);
     setFormData(prev => ({ ...prev, bankName: bank.name }));
     setShowBankSelector(false);
@@ -318,15 +231,9 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
       setResolutionError(null);
     }
     
-    // Fetch bank codes from bank_comparison table
-    const codes = await fetchBankCodesFromDatabase(bank.name);
-    setBankCodes(codes);
-    
-    // If account number is already entered, try to resolve account
+    // If account number is already entered, resolve account name via SafeHaven name-enquiry
     if (formData.accountNumber.length === 10) {
-      // Use Paystack code from database if available, otherwise use bank.code
-      const bankCodeToUse = codes.paystackCode || bank.code;
-      handleResolveAccount(formData.accountNumber, bankCodeToUse);
+      handleResolveAccount(formData.accountNumber, bank.code);
     }
   };
 
@@ -349,11 +256,9 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
         setResolutionError(null);
       }
       
-      // If account number is 10 digits and bank is selected, try to resolve
+      // If account number is 10 digits and bank is selected, resolve via SafeHaven name-enquiry
       if (numericText.length === 10 && selectedBank) {
-        // Use Paystack code from database if available, otherwise use bank.code
-        const bankCodeToUse = bankCodes.paystackCode || selectedBank.code;
-        handleResolveAccount(numericText, bankCodeToUse);
+        handleResolveAccount(numericText, selectedBank.code);
       }
     }
   };
@@ -365,18 +270,16 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
     
     haptics.impact(Haptics.ImpactFeedbackStyle.Medium);
     
-    try {
-      const accountDetails = await resolveAccount(accountNumber, bankCode);
-      
-      if (accountDetails) {
-        setFormData(prev => ({
-          ...prev,
-          accountName: accountDetails.account_name
-        }));
-        setAccountResolved(true);
-        haptics.notification(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error) {
+    const result = await resolveAccountName(accountNumber, bankCode);
+    
+    if (result) {
+      setFormData(prev => ({
+        ...prev,
+        accountName: result.accountName,
+      }));
+      setAccountResolved(true);
+      haptics.notification(Haptics.NotificationFeedbackType.Success);
+    } else {
       haptics.notification(Haptics.NotificationFeedbackType.Error);
     }
   };
@@ -507,23 +410,20 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                   formErrors.accountName && styles.inputContainerError,
                   accountResolved && styles.resolvedInput
                 ]}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={isResolving ? "Resolving account name..." : "Enter account holder name"}
-                    placeholderTextColor={colors.textTertiary}
-                    value={formData.accountName}
-                    onChangeText={(text) => {
-                        setFormData({...formData, accountName: text});
-                        if (formErrors.accountName) {
-                          setFormErrors({...formErrors, accountName: ''});
-                        }
-                      // Clear resolved state if user manually edits the name
-                      if (accountResolved && text !== formData.accountName) {
-                        setAccountResolved(false);
-                      }
-                    }}
-                    editable={!isSubmitting && !isResolving}
-                  />
+                  <Text
+                    style={[
+                      styles.input,
+                      styles.accountNameDisplay,
+                      !accountResolved && !isResolving && { color: colors.textTertiary },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {isResolving
+                      ? 'Resolving account name...'
+                      : accountResolved
+                        ? formData.accountName
+                        : 'Enter account number and select bank to resolve'}
+                  </Text>
                   {accountResolved && (
                     <View style={styles.resolvedIcon}>
                       <Check size={16} color={colors.success} />
@@ -535,24 +435,24 @@ export default function AddPayoutAccountModal({ isVisible, onClose }: AddPayoutA
                 )}
                 {accountResolved && (
                   <Text style={styles.hintText}>
-                    Account name resolved. You can edit it if needed.
+                    Account name verified from bank.
                   </Text>
                 )}
               </View>
               
-              {accountResolved && (
+              {/* {accountResolved && (
                 <View style={styles.successContainer}>
                   <Check size={16} color={colors.success} />
                   <Text style={styles.successText}>Account details verified successfully</Text>
                 </View>
-              )}
+              )} */}
               
-              <View style={styles.infoContainer}>
+              {/* <View style={styles.infoContainer}>
                 <AlertTriangle size={16} color={colors.primary} />
                 <Text style={styles.infoText}>
                   Please ensure all details are correct. These details will be used for your payouts.
                 </Text>
-              </View>
+              </View> */}
             </View>
           </KeyboardAvoidingWrapper>
           
@@ -831,6 +731,9 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean, inse
   input: {
     flex: 1,
     fontSize: isSmallScreen ? 14 : 16,
+    color: colors.text,
+  },
+  accountNameDisplay: {
     color: colors.text,
   },
   bankSelector: {

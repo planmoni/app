@@ -15,8 +15,6 @@ declare global {
 const safeHavenClientId = Deno.env.get("EXPO_PUBLIC_SAFEHAVEN_CLIENT_ID") || Deno.env.get("SAFEHAVEN_CLIENT_ID");
 const safeHavenClientAssertion = Deno.env.get("EXPO_PUBLIC_SAFEHAVEN_CLIENT_ASSERTION") || Deno.env.get("SAFEHAVEN_CLIENT_ASSERTION");
 const safeHavenApiUrl = "https://api.safehavenmfb.com";
-const paystackSecretKey = Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY");
-const paystackApiUrl = "https://api.paystack.co";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -486,70 +484,47 @@ serve(async (req: Request) => {
           throw new Error("Incomplete bank account information. Please update your account details.")
         }
 
-        const { safehavenCode, paystackCode } = await resolveBankCodes(
+        const { safehavenCode } = await resolveBankCodes(
           supabase,
           payoutAccount,
           accountSourceTable,
           accountSourceId
         );
 
-        const canUseSafeHaven = !!safehavenCode;
-        const paystackBankCode = payoutAccount.bank_code || paystackCode;
-        const canUsePaystack = !!paystackSecretKey && (!!payoutAccount.paystack_recipient_code || !!paystackBankCode);
-
-        if (!canUseSafeHaven && !canUsePaystack) {
+        if (!safehavenCode) {
           throw new Error(
-            `Unable to determine SafeHaven or Paystack bank codes for ${bankName}. Please update bank_comparison mappings.`
+            `No SafeHaven bank code for ${bankName}. Please update the payout account with SafeHaven bank code.`
           );
         }
 
-        let safeHavenToken: any = null;
-        if (canUseSafeHaven) {
-          const { data: tokenRecord, error: tokenError } = await supabase
+        const { data: tokenRecord, error: tokenError } = await supabase
           .from("safehaven_tokens")
           .select("access_token, expires_at, refresh_token")
           .eq("user_id", userId)
           .single();
 
-          if (tokenError || !tokenRecord) {
+        if (tokenError || !tokenRecord) {
           throw new Error("SafeHaven token not found. User needs to authenticate with SafeHaven first.");
         }
 
-          const expiresAt = new Date(tokenRecord.expires_at);
+        const expiresAt = new Date(tokenRecord.expires_at);
         const now = new Date();
-          const bufferTime = 5 * 60 * 1000;
-          const needsRefresh = isNaN(expiresAt.getTime()) || expiresAt.getTime() - now.getTime() < bufferTime;
-        
-          safeHavenToken = tokenRecord;
-        
+        const bufferTime = 5 * 60 * 1000;
+        const needsRefresh = isNaN(expiresAt.getTime()) || expiresAt.getTime() - now.getTime() < bufferTime;
+        let accessToken = tokenRecord.access_token;
         if (needsRefresh) {
           console.log("SafeHaven token expired or expiring soon, attempting refresh...");
-            safeHavenToken.access_token = await refreshOrCreateSafeHavenToken(userId, tokenRecord, supabase);
-          }
+          accessToken = await refreshOrCreateSafeHavenToken(userId, tokenRecord, supabase);
         }
 
-        let transferResult;
-        if (canUseSafeHaven) {
-          transferResult = await initiateSafeHavenEmergencyTransfer(
+        const transferResult = await initiateSafeHavenEmergencyTransfer(
           withdrawal,
           payoutAccount,
-            safeHavenToken!.access_token,
+          accessToken,
           netAmount,
-            plan.name,
-            safehavenCode!
-          );
-        } else {
-          transferResult = await initiatePaystackEmergencyTransfer(
-            withdrawal,
-            payoutAccount,
-            paystackBankCode!,
-            netAmount,
-            plan.name,
-            accountSourceTable,
-            accountSourceId,
-            supabase
-          );
-        }
+          plan.name,
+          safehavenCode
+        );
 
         const transferMetadata = buildTransferMetadata(transferResult);
 
@@ -1057,7 +1032,6 @@ type BankTableName = "payout_accounts" | "bank_accounts" | null;
 
 type BankCodeResolution = {
   safehavenCode: string | null;
-  paystackCode: string | null;
 };
 
 async function resolveBankCodes(
@@ -1067,173 +1041,32 @@ async function resolveBankCodes(
   accountId: string | null
 ): Promise<BankCodeResolution> {
   let safehavenCode = payoutAccount.safehaven_bank_code || null;
-  let paystackCode = payoutAccount.bank_code || null;
 
-  if ((!safehavenCode || !paystackCode) && payoutAccount.bank_name) {
+  if (!safehavenCode && payoutAccount.bank_name) {
     const { data: mapping } = await supabaseClient
       .from("bank_comparison")
-      .select("safehaven_code, paystack_code")
+      .select("safehaven_code")
       .ilike("bank_name", payoutAccount.bank_name)
       .limit(1)
       .maybeSingle();
 
-    if (mapping) {
-      const updates: Record<string, any> = {};
-
-      if (!safehavenCode && mapping.safehaven_code) {
-        safehavenCode = mapping.safehaven_code;
-        payoutAccount.safehaven_bank_code = safehavenCode;
-        updates.safehaven_bank_code = safehavenCode;
-      }
-
-      if (!paystackCode && mapping.paystack_code) {
-        paystackCode = mapping.paystack_code;
-        payoutAccount.bank_code = paystackCode;
-        updates.bank_code = paystackCode;
-      }
-
-      if (tableName && accountId && Object.keys(updates).length > 0) {
-        updates.updated_at = new Date().toISOString();
+    if (mapping?.safehaven_code) {
+      safehavenCode = mapping.safehaven_code;
+      payoutAccount.safehaven_bank_code = safehavenCode;
+      if (tableName && accountId) {
         await supabaseClient
           .from(tableName)
-          .update(updates)
+          .update({
+            safehaven_bank_code: safehavenCode,
+            updated_at: new Date().toISOString()
+          })
           .eq("id", accountId)
           .catch(() => null);
       }
     }
   }
 
-  return { safehavenCode, paystackCode };
-}
-
-async function ensurePaystackRecipient(
-  supabaseClient: any,
-  payoutAccount: any,
-  paystackBankCode: string,
-  tableName: BankTableName,
-  accountId: string | null
-): Promise<string> {
-  if (!paystackSecretKey) {
-    throw new Error("Paystack secret key is not configured.");
-  }
-
-  if (payoutAccount.paystack_recipient_code) {
-    return payoutAccount.paystack_recipient_code;
-  }
-
-  if (!paystackBankCode) {
-    throw new Error(`Paystack bank code not found for ${payoutAccount.bank_name}`);
-  }
-
-  const recipientResponse = await fetch(`${paystackApiUrl}/transferrecipient`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${paystackSecretKey}`,
-      "Content-Type": "application/json",
-      accept: "application/json"
-    },
-    body: JSON.stringify({
-      type: "nuban",
-      name: payoutAccount.account_name,
-      account_number: payoutAccount.account_number,
-      bank_code: paystackBankCode,
-      currency: "NGN"
-    })
-  });
-
-  const recipientData = await recipientResponse.json();
-
-  if (!recipientResponse.ok || !recipientData?.status) {
-    throw new Error(`Failed to create Paystack recipient: ${recipientData?.message || "Unknown error"}`);
-  }
-
-  const recipientCode = recipientData?.data?.recipient_code;
-  if (!recipientCode) {
-    throw new Error("Paystack did not return recipient code.");
-  }
-
-  payoutAccount.paystack_recipient_code = recipientCode;
-
-  if (tableName && accountId) {
-    await supabaseClient
-      .from(tableName)
-      .update({
-        paystack_recipient_code: recipientCode,
-        bank_code: payoutAccount.bank_code || paystackBankCode,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", accountId)
-      .catch(() => null);
-  }
-
-  return recipientCode;
-}
-
-function normalizePaystackStatus(status?: string): string {
-  const normalized = status?.toLowerCase();
-  if (normalized === "success") return "Completed";
-  if (normalized === "failed") return "Failed";
-  return "processing";
-}
-
-async function initiatePaystackEmergencyTransfer(
-  withdrawal: any,
-  payoutAccount: any,
-  paystackBankCode: string,
-  netAmount: number,
-  planName: string,
-  tableName: BankTableName,
-  accountId: string | null,
-  supabaseClient: any
-) {
-  if (!paystackSecretKey) {
-    throw new Error("Paystack secret key is not configured.");
-  }
-
-  console.log(`Using Paystack transfer for emergency withdrawal ${withdrawal.id}`);
-
-  const recipientCode = await ensurePaystackRecipient(
-    supabaseClient,
-    payoutAccount,
-    paystackBankCode,
-    tableName,
-    accountId
-  );
-
-  const transferResponse = await fetch(`${paystackApiUrl}/transfer`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${paystackSecretKey}`,
-      "Content-Type": "application/json",
-      accept: "application/json"
-    },
-    body: JSON.stringify({
-      source: "balance",
-      amount: Math.round(netAmount * 100),
-      recipient: recipientCode,
-      reason: `Emergency withdrawal: ${planName}`,
-      reference: withdrawal.reference
-    })
-  });
-
-  const transferData = await transferResponse.json();
-
-  if (!transferResponse.ok || !transferData?.status) {
-    throw new Error(`Paystack transfer failed: ${transferData?.message || "Unknown error"}`);
-  }
-
-  const result = transferData.data;
-
-  return {
-    provider: "paystack",
-    id: result.id,
-    reference: result.reference,
-    paymentReference: result.reference,
-    transfer_code: result.transfer_code,
-    sessionId: null,
-    status: normalizePaystackStatus(result.status),
-    rawResponse: transferData
-  };
+  return { safehavenCode };
 }
 
 function buildTransferMetadata(transferResult: any): Record<string, any> {
@@ -1244,14 +1077,9 @@ function buildTransferMetadata(transferResult: any): Record<string, any> {
     response: transferResult.rawResponse || transferResult
   };
 
-  if (transferResult.provider === "safehaven") {
-    metadata.safehaven_transfer_id = transferResult.id || transferResult._id;
-    metadata.safehaven_reference = transferResult.reference || transferResult.paymentReference;
-    metadata.session_id = transferResult.sessionId;
-  } else if (transferResult.provider === "paystack") {
-    metadata.paystack_transfer_id = transferResult.id;
-    metadata.paystack_reference = transferResult.reference;
-  }
+  metadata.safehaven_transfer_id = transferResult.id || transferResult._id;
+  metadata.safehaven_reference = transferResult.reference || transferResult.paymentReference;
+  metadata.session_id = transferResult.sessionId;
 
   return metadata;
 }
