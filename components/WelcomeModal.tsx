@@ -317,7 +317,7 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
     handleClose();
     // Add a small delay to ensure modal closes before navigation
     setTimeout(() => {
-      router.push('/(auth)/onboarding/first-name');
+      router.push('/(auth)/onboarding/country-select');
     }, 300);
   };
 
@@ -571,8 +571,8 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   slideTitle: {
     marginTop: 60,
     fontWeight: '700',
-    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1.5,
-    lineHeight: Platform.OS === 'ios' ? responsive.titleSize * 1.1 : responsive.titleSize * 1.5,
+    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1,
+    lineHeight: Platform.OS === 'ios' ? responsive.titleSize * 1.1 : responsive.titleSize * 1.4,
     letterSpacing: -0.9,
     maxWidth: '90%',
     color: isDark ? colors.text : colors.text,

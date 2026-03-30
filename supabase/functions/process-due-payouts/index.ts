@@ -671,7 +671,7 @@ async function resolveBankCodes(payoutAccount: any): Promise<BankCodeResolution>
       user_ids: [
         userId
       ],
-      notification_type: 'payout_pending',
+      notification_type: 'payout_ready',
       title: 'Payout Initiated! 💰',
       body: `Your ₦${plan.payout_amount.toLocaleString()} payout from "${plan.name}" has been initiated and should arrive in your account shortly.`,
       data: {

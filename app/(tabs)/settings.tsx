@@ -432,7 +432,7 @@ export default function SettingsScreen() {
             <View style={styles.authButtonsContainer}>
               <Pressable
                 style={[styles.signUpButton, { backgroundColor: colors.primary }]}
-                onPress={() => router.push('/(auth)/onboarding/first-name')}
+                onPress={() => router.push('/(auth)/onboarding/country-select')}
               >
                 <Text style={styles.signUpButtonText}>Sign Up</Text>
               </Pressable>

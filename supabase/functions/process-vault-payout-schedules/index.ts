@@ -32,18 +32,58 @@ Deno.serve(async (req: Request) => {
 
     const { data: due, error } = await supabase
       .from("vault_payout_schedules")
-      .select("id, status, next_payout_date, budget_plan_id, payout_account_id")
+      .select("id, user_id, status, next_payout_date, budget_plan_id, payout_account_id, payout_amount")
       .eq("status", "active")
       .not("next_payout_date", "is", null)
       .lte("next_payout_date", today);
 
     if (error) throw error;
 
+    let pushedCount = 0;
+    for (const schedule of due ?? []) {
+      try {
+        await supabase.from("events").insert({
+          user_id: schedule.user_id,
+          type: "vault_payout_due",
+          title: "Vault payout due",
+          description: `Your vault schedule payout of ₦${Number(schedule.payout_amount || 0).toLocaleString()} is due.`,
+          status: "unread",
+          payout_plan_id: null,
+          transaction_id: null,
+        } as any);
+
+        await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${supabaseServiceKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_ids: [schedule.user_id],
+            notification_type: "vault_updates",
+            title: "Vault payout due",
+            body: `Your vault payout of ₦${Number(schedule.payout_amount || 0).toLocaleString()} is due now.`,
+            data: {
+              type: "vault_payout_completed",
+              vault_schedule_id: schedule.id,
+              budget_plan_id: schedule.budget_plan_id,
+              route: "/(tabs)?activeBalanceTab=plans",
+              action: "view_vault",
+            },
+          }),
+        });
+        pushedCount += 1;
+      } catch (pushErr) {
+        console.error("Failed to push vault schedule notification", schedule.id, pushErr);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         date: today,
         dueCount: due?.length ?? 0,
+        pushedCount,
         note: "Stub: bank transfer execution not implemented. Extend this to process each row.",
         scheduleIds: (due ?? []).map((r) => r.id),
       }),

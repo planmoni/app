@@ -163,7 +163,20 @@ export async function savePushTokenToDatabase(expoPushToken: string, userId: str
     
     console.log('Push token saved/updated in database');
 
-    // Also store/update the token in user_fcm_tokens so server-side push function can find it
+    // Canonical storage on profiles for server-side push sender.
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({
+        fcm_token: expoPushToken,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (profileError) {
+      console.error('Error saving token to profiles.fcm_token:', profileError);
+    }
+
+    // Legacy compatibility during migration window.
     const platform =
       Platform.OS === 'ios'
         ? 'ios'
@@ -200,41 +213,11 @@ export async function savePushTokenToDatabase(expoPushToken: string, userId: str
 // Setup notification listeners
 export function setupNotificationListeners() {
   const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
-    console.log('Notification received in foreground:', notification);
-    
-    // Check if it's an Intercom notification
-    const data = notification.request.content.data;
-    if (data?.intercom) {
-      console.log('📬 Intercom notification received in foreground');
-      // Intercom will handle displaying the notification
-    }
-  });
-
-  const responseSubscription = Notifications.addNotificationResponseReceivedListener(async response => {
-    console.log('Notification tapped:', response);
-    const { data } = response.notification.request.content;
-    
-    // Handle Intercom notification tap
-    if (data?.intercom) {
-      console.log('📬 Intercom notification tapped, opening Intercom...');
-      try {
-        const { intercomInstant } = await import('@/lib/IntercomInstant');
-        await intercomInstant.open();
-      } catch (error) {
-        console.error('Failed to open Intercom:', error);
-      }
-      return;
-    }
-    
-    // Handle other notification types
-    if (data?.type === 'deposit_successful') {
-      console.log('Navigate to wallet screen');
-    }
+    console.log('Notification received in foreground:', notification.request.content.title);
   });
 
   return () => {
     foregroundSubscription.remove();
-    responseSubscription.remove();
   };
 }
 
@@ -325,7 +308,7 @@ export async function initializeNotifications(userId: string) {
       return null;
     }
 
-    // Set up listeners for local notifications (works without FCM)
+    // Foreground-only diagnostics listener.
     const cleanup = setupNotificationListeners();
 
     // Register push token for admin panel

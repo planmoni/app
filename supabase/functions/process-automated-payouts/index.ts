@@ -621,6 +621,17 @@ serve(async (req) => {
               status: "unread",
               payout_plan_id: plan.id
             })
+          await sendPush(plan.user_id, {
+            notification_type: 'payout_ready',
+            title: 'Payout completed',
+            body: `₦${actualPayoutAmount.toLocaleString()} from "${plan.name}" has been sent successfully.`,
+            data: {
+              type: 'payout_completed',
+              plan_id: plan.id,
+              route: `/view-payout/${plan.id}`,
+              action: 'view_plan',
+            },
+          })
           
         } else {
           // If transfer is pending, create a processing notification
@@ -634,6 +645,17 @@ serve(async (req) => {
               status: "unread",
               payout_plan_id: plan.id
             })
+          await sendPush(plan.user_id, {
+            notification_type: 'payout_ready',
+            title: 'Payout initiated',
+            body: `₦${actualPayoutAmount.toLocaleString()} from "${plan.name}" is being processed.`,
+            data: {
+              type: 'payout_scheduled',
+              plan_id: plan.id,
+              route: `/view-payout/${plan.id}`,
+              action: 'view_plan',
+            },
+          })
         }
 
         console.log(`Successfully initiated SafeHaven transfer for plan ${plan.id}`)
@@ -722,6 +744,17 @@ serve(async (req) => {
             status: "unread",
             payout_plan_id: plan.id
           })
+        await sendPush(plan.user_id, {
+          notification_type: 'payout_failed',
+          title: 'Payout failed',
+          body: `Your payout from "${plan.name}" failed to process. Tap to review.`,
+          data: {
+            type: 'disbursement_failed',
+            plan_id: plan.id,
+            route: `/view-payout/${plan.id}`,
+            action: 'view_plan',
+          },
+        })
 
 
         results.push({
@@ -761,3 +794,26 @@ serve(async (req) => {
     )
   }
 })
+
+async function sendPush(userId: string, payload: {
+  notification_type: string;
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+}) {
+  try {
+    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_ids: [userId],
+        ...payload,
+      }),
+    });
+  } catch (error) {
+    console.error('Failed to send payout push notification:', error);
+  }
+}

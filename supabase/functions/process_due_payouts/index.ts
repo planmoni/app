@@ -1100,7 +1100,7 @@ async function createNotification(userId: string, plan: any, transferResult: any
   try {
     const pushNotificationPayload = {
       user_ids: [userId],
-      notification_type: 'payout_pending',
+      notification_type: 'payout_ready',
       title: 'Payout Initiated! 💰',
       body: `Your ₦${plan.payout_amount.toLocaleString()} payout from "${plan.name}" has been initiated and should arrive in your account shortly.`,
       data: {

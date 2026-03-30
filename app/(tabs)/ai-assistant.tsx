@@ -107,7 +107,7 @@ function wordsToNumber(words: string): number | null {
 
 export default function AIAssistantScreen() {
   const { colors, isDark } = useTheme();
-  const { session } = useAuth();
+  const { session, isLoading: authLoading } = useAuth();
   const { balance, lockedBalance } = useBalance();
   const availableBalance = balance - (lockedBalance || 0);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1722,6 +1722,50 @@ export default function AIAssistantScreen() {
       flex: 1,
       backgroundColor: colors.background,
     },
+    authGateContainer: {
+      flex: 1,
+      paddingHorizontal: 28,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    authGateTitle: {
+      fontSize: 22,
+      fontWeight: '700',
+      textAlign: 'center',
+      marginTop: 24,
+    },
+    authGateSubtitle: {
+      fontSize: 15,
+      lineHeight: 22,
+      textAlign: 'center',
+      marginTop: 12,
+    },
+    authGatePrimary: {
+      marginTop: 28,
+      width: '100%',
+      maxWidth: 360,
+      paddingVertical: 15,
+      borderRadius: 14,
+      alignItems: 'center',
+    },
+    authGatePrimaryText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    authGateSecondary: {
+      marginTop: 12,
+      width: '100%',
+      maxWidth: 360,
+      paddingVertical: 15,
+      borderRadius: 14,
+      borderWidth: 2,
+      alignItems: 'center',
+    },
+    authGateSecondaryText: {
+      fontSize: 16,
+      fontWeight: '600',
+    },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2109,6 +2153,40 @@ export default function AIAssistantScreen() {
     // Replace with your navigation logic
     if (router) router.push('/add-funds');
   };
+
+  if (authLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]} edges={['top']}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  if (!session?.user?.id) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.authGateContainer}>
+          <Sparkles size={52} color={colors.primary} />
+          <Text style={[styles.authGateTitle, { color: colors.text }]}>Sign in to use Planmoni AI</Text>
+          <Text style={[styles.authGateSubtitle, { color: colors.textSecondary }]}>
+            Create an account or sign in to chat with your assistant and build payout plans.
+          </Text>
+          <Pressable
+            style={[styles.authGatePrimary, { backgroundColor: colors.primary }]}
+            onPress={() => router.push('/(auth)/onboarding/country-select')}
+          >
+            <Text style={styles.authGatePrimaryText}>Sign up</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.authGateSecondary, { borderColor: isDark ? '#fff' : colors.primary }]}
+            onPress={() => router.push('/(auth)/login')}
+          >
+            <Text style={[styles.authGateSecondaryText, { color: isDark ? '#fff' : colors.primary }]}>Sign in</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

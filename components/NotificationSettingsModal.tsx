@@ -39,14 +39,16 @@ export default function NotificationSettingsModal({
   });
   
   // State for push notification settings (separate from email)
-  const [pushEnabled, setPushEnabled] = useState(true);
-  const [payoutAlerts, setPayoutAlerts] = useState(true);
-  const [securityAlerts, setSecurityAlerts] = useState(true);
   const [pushPreferences, setPushPreferences] = useState({
-    payouts: true,
-    deposits: true,
+    enabled: true,
+    payout_updates: true,
+    deposit_updates: true,
+    vault_updates: true,
+    daily_digest: true,
+    plan_reminders: true,
+    streaks: true,
+    re_engagement: true,
     security: true,
-    general: true,
   });
   const [isPushLoading, setIsPushLoading] = useState(false);
   const [isPushSaving, setIsPushSaving] = useState(false);
@@ -71,7 +73,7 @@ export default function NotificationSettingsModal({
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("notification_preferences")
+        .select("push_notifications")
         .eq("id", session.user.id)
         .single();
 
@@ -80,8 +82,8 @@ export default function NotificationSettingsModal({
         return;
       }
 
-      if (data?.notification_preferences) {
-        setPushPreferences(data.notification_preferences);
+      if (data?.push_notifications) {
+        setPushPreferences((prev) => ({ ...prev, ...data.push_notifications }));
       }
     } catch (error) {
       console.error("Error loading push preferences:", error);
@@ -105,7 +107,7 @@ export default function NotificationSettingsModal({
       const { error } = await supabase
         .from("profiles")
         .update({
-          notification_preferences: newPreferences,
+          push_notifications: newPreferences,
           updated_at: new Date().toISOString(),
         })
         .eq("id", session.user.id);
@@ -185,16 +187,6 @@ export default function NotificationSettingsModal({
     }));
   };
 
-  const handleTogglePush = (
-    setter: React.Dispatch<React.SetStateAction<boolean>>
-  ) => {
-    if (Platform.OS !== "web") {
-      haptics.selection();
-    }
-
-    setter((prev) => !prev);
-  };
-
   const handleSaveChanges = async () => {
     if (Platform.OS !== "web") {
       haptics.mediumImpact();
@@ -256,6 +248,7 @@ export default function NotificationSettingsModal({
             </Text>
 
             <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Push Notifications</Text>
               <View style={styles.settingItem}>
                 <View style={styles.settingInfo}>
                   <View style={styles.settingIconContainer}>
@@ -267,10 +260,10 @@ export default function NotificationSettingsModal({
                   </View>
                 </View>
                 <Switch
-                  value={pushEnabled}
-                  onValueChange={() => handleTogglePush(setPushEnabled)}
+                  value={pushPreferences.enabled}
+                  onValueChange={(value) => handlePushPreferenceChange('enabled', value)}
                   trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
-                  thumbColor={pushEnabled ? '#1E3A8A' : colors.backgroundTertiary}
+                  thumbColor={pushPreferences.enabled ? '#1E3A8A' : colors.backgroundTertiary}
                 />
               </View>
 
@@ -287,11 +280,11 @@ export default function NotificationSettingsModal({
                   </View>
                 </View>
                 <Switch
-                  value={payoutAlerts}
-                  onValueChange={() => handleTogglePush(setPayoutAlerts)}
+                  value={pushPreferences.payout_updates}
+                  onValueChange={(value) => handlePushPreferenceChange('payout_updates', value)}
                   trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
-                  thumbColor={payoutAlerts ? '#1E3A8A' : colors.backgroundTertiary}
-                  disabled={!pushEnabled}
+                  thumbColor={pushPreferences.payout_updates ? '#1E3A8A' : colors.backgroundTertiary}
+                  disabled={!pushPreferences.enabled}
                 />
               </View>
 
@@ -308,16 +301,133 @@ export default function NotificationSettingsModal({
                   </View>
                 </View>
                 <Switch
-                  value={securityAlerts}
-                  onValueChange={() => handleTogglePush(setSecurityAlerts)}
+                  value={pushPreferences.security}
+                  onValueChange={(value) => handlePushPreferenceChange('security', value)}
                   trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
-                  thumbColor={securityAlerts ? '#1E3A8A' : colors.backgroundTertiary}
-                  disabled={!pushEnabled}
+                  thumbColor={pushPreferences.security ? '#1E3A8A' : colors.backgroundTertiary}
+                  disabled={!pushPreferences.enabled}
                 />
               </View>
-              
-              
-            
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Alert Settings</Text>
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Wallet size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Deposit Alerts</Text>
+                    <Text style={styles.settingDescription}>Notify me when funds hit my wallet</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={pushPreferences.deposit_updates}
+                  onValueChange={(value) => handlePushPreferenceChange('deposit_updates', value)}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
+                  thumbColor={pushPreferences.deposit_updates ? '#1E3A8A' : colors.backgroundTertiary}
+                  disabled={!pushPreferences.enabled}
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Shield size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Vault Alerts</Text>
+                    <Text style={styles.settingDescription}>Vault schedules, due payouts, and low balance</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={pushPreferences.vault_updates}
+                  onValueChange={(value) => handlePushPreferenceChange('vault_updates', value)}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
+                  thumbColor={pushPreferences.vault_updates ? '#1E3A8A' : colors.backgroundTertiary}
+                  disabled={!pushPreferences.enabled}
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Calendar size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Daily Digest</Text>
+                    <Text style={styles.settingDescription}>Daily summary of plans and next payouts</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={pushPreferences.daily_digest}
+                  onValueChange={(value) => handlePushPreferenceChange('daily_digest', value)}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
+                  thumbColor={pushPreferences.daily_digest ? '#1E3A8A' : colors.backgroundTertiary}
+                  disabled={!pushPreferences.enabled}
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Clock size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Plan Reminders</Text>
+                    <Text style={styles.settingDescription}>Reminders before plan milestones and endings</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={pushPreferences.plan_reminders}
+                  onValueChange={(value) => handlePushPreferenceChange('plan_reminders', value)}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
+                  thumbColor={pushPreferences.plan_reminders ? '#1E3A8A' : colors.backgroundTertiary}
+                  disabled={!pushPreferences.enabled}
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Calendar size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Streak Nudges</Text>
+                    <Text style={styles.settingDescription}>Weekly consistency and streak nudges</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={pushPreferences.streaks}
+                  onValueChange={(value) => handlePushPreferenceChange('streaks', value)}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
+                  thumbColor={pushPreferences.streaks ? '#1E3A8A' : colors.backgroundTertiary}
+                  disabled={!pushPreferences.enabled}
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.settingIconContainer}>
+                    <Megaphone size={isSmallScreen ? 16 : 20} color={colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Re-engagement Alerts</Text>
+                    <Text style={styles.settingDescription}>Occasional reminders when you've been away</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={pushPreferences.re_engagement}
+                  onValueChange={(value) => handlePushPreferenceChange('re_engagement', value)}
+                  trackColor={{ false: colors.borderSecondary, true: '#D1EAAE' }}
+                  thumbColor={pushPreferences.re_engagement ? '#1E3A8A' : colors.backgroundTertiary}
+                  disabled={!pushPreferences.enabled}
+                />
+              </View>
+            </View>
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Email Notifications</Text>
 
@@ -392,7 +502,6 @@ export default function NotificationSettingsModal({
                 </View>
                 <ChevronRight size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
               </Pressable>
-            </View>
             </View>
 
             <View style={styles.section}>
@@ -588,6 +697,7 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
     marginRight: 12,
   },
   settingIconContainer: {
@@ -604,11 +714,13 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
     fontWeight: '500',
     color: colors.text,
     marginBottom: 2,
+    flexShrink: 1,
   },
   settingDescription: {
     fontSize: isSmallScreen ? 12 : 14,
     color: colors.textSecondary,
-    maxWidth: '95%',
+    flexShrink: 1,
+    maxWidth: '90%',
   },
   summaryOptions: {
     flexDirection: 'row',

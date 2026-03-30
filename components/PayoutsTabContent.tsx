@@ -18,6 +18,8 @@ type PayoutsTabContentProps = {
   setShowAddByCodeModal: (value: boolean) => void;
   setShowNewPlanInfoModal: (value: boolean) => void;
   setShowHowItWorksModal: (value: boolean) => void;
+  isUserAuthenticated?: boolean;
+  onShowWelcomeModal?: () => void;
   isRefreshing?: boolean;
   onRefresh?: () => void;
 };
@@ -36,6 +38,8 @@ export default function PayoutsTabContent({
   setShowAddByCodeModal,
   setShowNewPlanInfoModal,
   setShowHowItWorksModal,
+  isUserAuthenticated = true,
+  onShowWelcomeModal,
   isRefreshing = false,
   onRefresh,
 }: PayoutsTabContentProps) {
@@ -86,6 +90,8 @@ export default function PayoutsTabContent({
           onShowAddByCodeModal={() => setShowAddByCodeModal(true)}
           onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}
           onShowHowItWorks={() => setShowHowItWorksModal(true)}
+          isUserAuthenticated={isUserAuthenticated}
+          onShowWelcomeModal={onShowWelcomeModal}
         />
         <View style={styles.bottomPadding} />
       </ScrollView>

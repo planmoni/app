@@ -52,7 +52,7 @@ export default function LoginEmailScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Pressable onPress={() => router.push('/(auth)/onboarding/first-name')} style={styles.signUpButton}>
+        <Pressable onPress={() => router.push('/(auth)/onboarding/country-select')} style={styles.signUpButton}>
           <Text style={styles.signUpText}>Sign up instead</Text>
         </Pressable>
       </View>
@@ -98,7 +98,7 @@ export default function LoginEmailScreen() {
 
             <View style={styles.signUpLinkContainer}>
               <Text style={styles.signUpLinkText}>Don't have a Planmoni account yet?</Text>
-              <Pressable onPress={() => router.push('/(auth)/onboarding/first-name')}>
+              <Pressable onPress={() => router.push('/(auth)/onboarding/country-select')}>
                 <Text style={styles.signUpLinkButton}>Click here to Set One Up</Text>
               </Pressable>
             </View>

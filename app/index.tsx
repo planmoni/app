@@ -162,7 +162,7 @@ export default function WelcomeScreen() {
   });
 
   const handleGetStarted = () => {
-    router.push('/(auth)/onboarding/first-name');
+    router.push('/(auth)/onboarding/country-select');
   };
 
   const handleSignIn = () => {

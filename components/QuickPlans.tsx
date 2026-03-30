@@ -1,5 +1,13 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Platform,
+  LayoutChangeEvent,
+  useWindowDimensions,
+} from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
@@ -11,10 +19,35 @@ type QuickPlansProps = {
   onRequireAuth?: () => boolean;
 };
 
+/** Horizontal gap between the 4 columns (3 gaps per row). */
+const GRID_GAP = 10;
+/**
+ * Home tab page uses paddingHorizontal 16; QuickPlans card uses padding 16 each side.
+ * Extra buffer covers devices where content width is slightly below windowWidth − 64 so we
+ * do not over-size cells (which would wrap at 3 columns with empty space on the right).
+ */
+const FALLBACK_HORIZONTAL_INSETS = 32 + 32 + 16;
+
 export default function QuickPlans({ onRequireAuth }: QuickPlansProps) {
-  const { colors, isDark  } = useTheme();
+  const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
+  const { width: windowWidth } = useWindowDimensions();
+  const [gridWidth, setGridWidth] = useState(0);
+
+  const onGridLayout = useCallback((e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w <= 0) return;
+    setGridWidth((prev) => (Math.abs(prev - w) < 0.5 ? prev : w));
+  }, []);
+
+  const { itemWidth, iconBoxSize } = useMemo(() => {
+    const measured = gridWidth > 0 ? gridWidth : Math.max(0, windowWidth - FALLBACK_HORIZONTAL_INSETS);
+    // Floor so 4 cells + 3 gaps never exceed measured width (avoids wrap on Android Yoga).
+    const cell = Math.max(0, Math.floor((measured - 3 * GRID_GAP) / 4));
+    const icon = Math.min(56, Math.max(36, cell - 6));
+    return { itemWidth: cell, iconBoxSize: icon };
+  }, [gridWidth, windowWidth]);
 
   const categories = [
     { id: 'food', name: 'Food' },
@@ -33,34 +66,59 @@ export default function QuickPlans({ onRequireAuth }: QuickPlansProps) {
     <View style={styles.container}>
       <Text style={styles.title}>Quick Vault Setup</Text>
       <View style={styles.card}>
-        <View style={styles.grid}>
-          {categories.map((category) => {
+        <View style={styles.grid} onLayout={onGridLayout}>
+          {categories.map((category, index) => {
             const IconComponent = getCategoryIcon(category.id);
+            const marginRight = index % 4 === 3 ? 0 : GRID_GAP;
+            const marginBottom = index < 4 ? GRID_GAP : 0;
             return (
-              <Pressable
+              <View
                 key={category.id}
-                style={styles.item}
-                onPress={() => {
-                  if (onRequireAuth && !onRequireAuth()) return;
-                  haptics.impact();
-                  router.push({
-                    pathname: '/expense-planner/create/plan-details',
-                    params: {
-                      planTypes: JSON.stringify(['one_time']),
-                      preselectedCategoryId: category.id,
-                    },
-                  });
-                }}
+                style={[
+                  styles.cell,
+                  {
+                    width: itemWidth,
+                    marginRight,
+                    marginBottom,
+                  },
+                ]}
               >
-                <View style={styles.iconContainer}>
-                  {IconComponent && (
-                    <IconComponent size={24} color= {isDark? colors.text : colors.primary} />
-                  )}
-                </View>
-                <Text style={styles.label} numberOfLines={1}>
-                  {category.name}
-                </Text>
-              </Pressable>
+                <Pressable
+                  style={styles.pressableFill}
+                  onPress={() => {
+                    if (onRequireAuth && !onRequireAuth()) return;
+                    haptics.impact();
+                    router.push({
+                      pathname: '/expense-planner/create/plan-details',
+                      params: {
+                        planTypes: JSON.stringify(['one_time']),
+                        preselectedCategoryId: category.id,
+                      },
+                    });
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.iconContainer,
+                      {
+                        width: iconBoxSize,
+                        height: iconBoxSize,
+                        borderRadius: iconBoxSize * 0.22,
+                      },
+                    ]}
+                  >
+                    {IconComponent && (
+                      <IconComponent
+                        size={Math.min(24, Math.round(iconBoxSize * 0.45))}
+                        color={isDark ? colors.text : colors.primary}
+                      />
+                    )}
+                  </View>
+                  <Text style={[styles.label, { maxWidth: itemWidth }]} numberOfLines={1}>
+                    {category.name}
+                  </Text>
+                </Pressable>
+              </View>
             );
           })}
         </View>
@@ -95,18 +153,20 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 12,
+      width: '100%',
+      alignSelf: 'stretch',
+      alignContent: 'flex-start',
     },
-    item: {
-      width: '22%',
-      minWidth: 70,
+    /** Outer cell: fixed width + margins replace gap (Android-safe). */
+    cell: {
+      flexShrink: 0,
+      flexGrow: 0,
+    },
+    pressableFill: {
+      width: '100%',
       alignItems: 'center',
-      marginBottom: 8,
     },
     iconContainer: {
-      width: 56,
-      height: 56,
-      borderRadius: 12,
       backgroundColor: colors.card,
       justifyContent: 'center',
       alignItems: 'center',

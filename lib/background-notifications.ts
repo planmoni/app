@@ -66,16 +66,16 @@ class BackgroundNotificationService {
       // Handle app state changes (using subscription pattern for React Native 0.65+)
       this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
 
-      // Subscribe to notifications table to schedule local notifications when app is open
+      // Subscribe to events table to schedule local notifications when app is open
       // Server-side push notifications also work when the app is closed
       this.notificationsChannel = supabase
-        .channel(`notifications:${userId}`)
+        .channel(`events:${userId}`)
         .on(
           'postgres_changes',
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'notifications',
+            table: 'events',
             filter: `user_id=eq.${userId}`,
           },
           async (payload: any) => {
@@ -132,7 +132,7 @@ class BackgroundNotificationService {
   private async handleNewNotification(notification: any): Promise<void> {
     try {
       // Skip if already read
-      if (notification.is_read) {
+      if (notification.status && notification.status !== 'unread') {
         return;
       }
 
@@ -147,11 +147,12 @@ class BackgroundNotificationService {
         if (shouldShow) {
           await inAppNotificationService.scheduleLocalNotification(
             notification.title,
-            notification.message,
+            notification.description || '',
             {
               ...notification.data,
               notificationId: notification.id,
               type: notification.type,
+              route: notification?.metadata?.route || notification?.route,
             }
           );
           console.log('✅ Local notification scheduled via expo-notifications:', notification.title);
