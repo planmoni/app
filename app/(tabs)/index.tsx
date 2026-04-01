@@ -281,7 +281,7 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
-  const { expensePlans } = useExpensePlans();
+  const { expensePlans, fetchExpensePlans } = useExpensePlans();
   const [activeBalanceTab, setActiveBalanceTab] = useState<'home' | 'plans' | 'payouts'>('home');
   const { width: screenWidth } = useWindowDimensions();
   const tabScrollViewRef = useRef<ScrollView>(null);
@@ -904,6 +904,8 @@ export default function HomeScreen() {
       const results = await Promise.allSettled([
         // Refresh wallet balance
         refreshWallet(),
+        // Refresh vault plans
+        fetchExpensePlans(),
         // Refresh payout plans
         fetchPayoutPlans(),
         // Refresh transactions
@@ -915,7 +917,7 @@ export default function HomeScreen() {
       // Log any failures but don't block the refresh
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
-          const operationNames = ['wallet', 'payout plans', 'transactions', 'KYC progress'];
+          const operationNames = ['wallet', 'vault plans', 'payout plans', 'transactions', 'KYC progress'];
           console.warn(`Refresh failed for ${operationNames[index]}:`, result.reason);
         }
       });
@@ -932,7 +934,7 @@ export default function HomeScreen() {
       }
       setIsRefreshing(false);
     }
-  }, [refreshWallet, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
+  }, [refreshWallet, fetchExpensePlans, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
 
   const handleHelpPress = useCallback(async () => {
     try {
