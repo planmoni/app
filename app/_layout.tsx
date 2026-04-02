@@ -34,6 +34,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeNotifications, setupTokenRefresh } from '@/lib/notifications';
 import { initializeMessaging } from '@/lib/firebase';
 import { initAppsFlyer } from '@/lib/appsflyer';
+import { getRouteFromNotificationData } from '@/lib/notificationRouting';
+import * as Notifications from 'expo-notifications';
 import * as SystemUI from 'expo-system-ui';
 import * as Updates from 'expo-updates';
 // Conditionally import NavigationBar to handle cases where native module isn't available
@@ -251,8 +253,8 @@ function RootLayoutNav() {
         .from('profiles')
         .update({ last_seen_at: new Date().toISOString() })
         .eq('id', userId)
-        .then(({ error }) => {
-          if (error) console.warn('Failed to update last_seen_at:', error?.message);
+        .then((result: { error: { message?: string } | null }) => {
+          if (result.error) console.warn('Failed to update last_seen_at:', result.error.message);
         });
     };
 
@@ -318,87 +320,53 @@ function RootLayoutNav() {
     return () => sub.remove();
   }, []);
 
-  // Handle notifications when app is opened from background/closed state
+  // Handle notification taps from background/cold start in one place.
   useEffect(() => {
+    const handleTapData = async (data: any) => {
+      if (!data) return;
+      if (data?.intercom) {
+        setTimeout(() => {
+          const { intercomInstant } = require('@/lib/IntercomInstant');
+          intercomInstant.open().catch((error: any) => {
+            console.error('Failed to open Intercom from notification:', error);
+          });
+        }, 500);
+        return;
+      }
+
+      const route = getRouteFromNotificationData(data);
+      setTimeout(() => {
+        const { router } = require('expo-router');
+        router.push(route as any);
+      }, 500);
+    };
+
     const checkInitialNotification = async () => {
       try {
-        const Notifications = await import('expo-notifications');
         const response = await Notifications.getLastNotificationResponseAsync();
         if (response) {
-          const data = response.notification.request.content.data;
-          
-          // Handle Intercom notifications
-          if (data?.intercom) {
-            console.log('📬 App opened from Intercom notification');
-            setTimeout(() => {
-              const { intercomInstant } = require('@/lib/IntercomInstant');
-              intercomInstant.open().catch((error: any) => {
-                console.error('Failed to open Intercom from notification:', error);
-              });
-            }, 1000);
-            return;
-          }
-
-          // Handle event/notification navigation (prefer explicit route, then type + plan_id, then type map)
-          const notificationType = data?.type ?? data?.eventType ?? data?.notificationType;
-          const planId = data?.plan_id;
-
-          if (data?.route) {
-            console.log('🔔 App opened from notification, navigating to:', data.route);
-            setTimeout(() => {
-              const { router } = require('expo-router');
-              router.push(data.route as any);
-            }, 1000);
-          } else if (planId && ['payout_ready', 'payout_failed', 'plan_expiry_reminder', 'mid_plan'].includes(notificationType)) {
-            const route = `/view-payout/${planId}`;
-            console.log('🔔 App opened from notification, navigating to:', route);
-            setTimeout(() => {
-              const { router } = require('expo-router');
-              router.push(route as any);
-            }, 1000);
-          } else if (notificationType) {
-            const routeMap: Record<string, string> = {
-              payout_completed: '/all-payouts',
-              payout_scheduled: '/all-payouts',
-              disbursement_failed: '/all-payouts',
-              deposit_successful: '/(tabs)/',
-              deposit_failed: '/(tabs)/',
-              transaction_completed: '/transactions',
-              transaction_failed: '/transactions',
-              security_alert: '/profile',
-              login_alert: '/profile',
-              suspicious_activity: '/profile',
-              payout: '/all-payouts',
-              transaction: '/transactions',
-              security: '/profile',
-              payout_ready: '/all-payouts',
-              payout_failed: '/all-payouts',
-              plan_expiry_reminder: '/all-payouts',
-              daily_digest: '/(tabs)/',
-              re_engagement: '/(tabs)/',
-              no_plan_yet: '/create-payout/amount',
-              deposit_no_plan: '/create-payout/amount',
-              streak: '/(tabs)/',
-            };
-            const route = routeMap[notificationType] || '/(tabs)/';
-            console.log('🔔 App opened from notification, navigating to:', route);
-            setTimeout(() => {
-              const { router } = require('expo-router');
-              router.push(route as any);
-            }, 1000);
-          }
+          await handleTapData(response.notification.request.content.data);
         }
       } catch (error) {
         console.warn('Failed to check initial notification:', error);
       }
     };
 
+    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      handleTapData(response.notification.request.content.data).catch((error) => {
+        console.warn('Failed to handle notification response:', error);
+      });
+    });
+
     // Check for initial notification after a short delay to ensure app is ready
     const timer = setTimeout(() => {
       checkInitialNotification();
     }, 500);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      responseSub.remove();
+    };
   }, []);
 
   // Initialize IntercomInstant for instant access

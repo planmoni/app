@@ -110,7 +110,7 @@ export default function LoginPasswordScreen() {
         <Pressable 
           onPress={() => {
             haptics.lightImpact();
-            if (!submitting) router.push('/(auth)/signup');
+            if (!submitting) router.push('/(auth)/onboarding/country-select');
           }} 
           style={styles.signUpButton}
           disabled={submitting}

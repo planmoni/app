@@ -69,6 +69,7 @@ import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { updateNextPayoutWidget } from '@/lib/widgetStorage';
+import { setWelcomeModalOpener } from '@/lib/welcomeModalOpener';
 // import { intercomInstant } from '@/lib/IntercomInstant';
 import NotificationIcon from '@/components/NotificationIcon';
 import { supabase } from '@/lib/supabase';
@@ -268,7 +269,7 @@ function BalanceActionsModal({
 
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
-  const { session } = useAuth();
+  const { session, isLoading: authLoading } = useAuth();
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { updateLastActiveOnInteraction } = useAppLock();
@@ -280,7 +281,7 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
-  const { expensePlans } = useExpensePlans();
+  const { expensePlans, fetchExpensePlans } = useExpensePlans();
   const [activeBalanceTab, setActiveBalanceTab] = useState<'home' | 'plans' | 'payouts'>('home');
   const { width: screenWidth } = useWindowDimensions();
   const tabScrollViewRef = useRef<ScrollView>(null);
@@ -350,8 +351,8 @@ export default function HomeScreen() {
   const [imagesReady, setImagesReady] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [hasShownWelcomeModal, setHasShownWelcomeModal] = useState(false);
+  const welcomeAutoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
-  const [showWelcomeModalForUnauth, setShowWelcomeModalForUnauth] = useState(false);
   const [isBalanceCardExpanded, setIsBalanceCardExpanded] = useState(false);
   const balanceCardAnimation = useRef(new Animated.Value(0)).current;
   const [showClaimAccountModal, setShowClaimAccountModal] = useState(false);
@@ -386,6 +387,32 @@ export default function HomeScreen() {
     }
     return true;
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    setWelcomeModalOpener(() => {
+      setShowWelcomeModal(true);
+    });
+    return () => setWelcomeModalOpener(null);
+  }, []);
+
+  // Show welcome modal once auth has resolved and the user is signed out
+  useEffect(() => {
+    if (authLoading) return;
+    if (session?.user?.id) {
+      setShowWelcomeModal(false);
+      return;
+    }
+    welcomeAutoTimerRef.current = setTimeout(() => {
+      welcomeAutoTimerRef.current = null;
+      setShowWelcomeModal(true);
+    }, 400);
+    return () => {
+      if (welcomeAutoTimerRef.current) {
+        clearTimeout(welcomeAutoTimerRef.current);
+        welcomeAutoTimerRef.current = null;
+      }
+    };
+  }, [authLoading, session?.user?.id]);
 
   // Lazy load heavy modals
   const [TransactionModalComponent, setTransactionModalComponent] = useState<React.ComponentType<any> | null>(null);
@@ -877,6 +904,8 @@ export default function HomeScreen() {
       const results = await Promise.allSettled([
         // Refresh wallet balance
         refreshWallet(),
+        // Refresh vault plans
+        fetchExpensePlans(),
         // Refresh payout plans
         fetchPayoutPlans(),
         // Refresh transactions
@@ -888,7 +917,7 @@ export default function HomeScreen() {
       // Log any failures but don't block the refresh
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
-          const operationNames = ['wallet', 'payout plans', 'transactions', 'KYC progress'];
+          const operationNames = ['wallet', 'vault plans', 'payout plans', 'transactions', 'KYC progress'];
           console.warn(`Refresh failed for ${operationNames[index]}:`, result.reason);
         }
       });
@@ -905,7 +934,7 @@ export default function HomeScreen() {
       }
       setIsRefreshing(false);
     }
-  }, [refreshWallet, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
+  }, [refreshWallet, fetchExpensePlans, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
 
   const handleHelpPress = useCallback(async () => {
     try {
@@ -1782,6 +1811,8 @@ export default function HomeScreen() {
             setShowAddByCodeModal={setShowAddByCodeModal}
             setShowNewPlanInfoModal={setShowNewPlanInfoModal}
             setShowHowItWorksModal={setShowHowItWorksModal}
+            isUserAuthenticated={isAuthenticated}
+            onShowWelcomeModal={() => setShowWelcomeModal(true)}
             isRefreshing={isRefreshing}
             onRefresh={handleRefresh}
           />
@@ -2034,6 +2065,10 @@ export default function HomeScreen() {
         <WelcomeModalComponent
           isVisible={showWelcomeModal}
           onClose={() => {
+            if (welcomeAutoTimerRef.current) {
+              clearTimeout(welcomeAutoTimerRef.current);
+              welcomeAutoTimerRef.current = null;
+            }
             setShowWelcomeModal(false);
             setHasShownWelcomeModal(true);
           }}
@@ -2051,12 +2086,6 @@ export default function HomeScreen() {
       )}
 
       {/* Welcome Modal for Unauthenticated Users */}
-      {showWelcomeModalForUnauth && WelcomeModalComponent && (
-        <WelcomeModalComponent
-          isVisible={showWelcomeModalForUnauth}
-          onClose={() => setShowWelcomeModalForUnauth(false)}
-        />
-      )}
     </SafeAreaView>
   );
 }

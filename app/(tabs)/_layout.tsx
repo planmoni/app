@@ -16,52 +16,10 @@ function TabLayoutContent() {
   const { session } = useAuth();
   const { isBottomNavVisible } = useBottomNav();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-  const [WelcomeModalComponent, setWelcomeModalComponent] = useState<React.ComponentType<any> | null>(null);
   const channelRef = useRef<any>(null);
-  const welcomeModalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Lazy load WelcomeModal when needed
-  useEffect(() => {
-    if (showWelcomeModal && !WelcomeModalComponent) {
-      import('@/components/WelcomeModal').then(module => {
-        setWelcomeModalComponent(() => module.default);
-      });
-    }
-  }, [showWelcomeModal, WelcomeModalComponent]);
 
   // Track route changes for persistence
   useRouteTracking();
-
-  // Show WelcomeModal 5 seconds after mount when unauthenticated
-  useEffect(() => {
-    if (!session?.user?.id) {
-      // Clear any existing timer
-      if (welcomeModalTimerRef.current) {
-        clearTimeout(welcomeModalTimerRef.current);
-        welcomeModalTimerRef.current = null;
-      }
-
-      // Set timer to show modal after 5 seconds
-      welcomeModalTimerRef.current = setTimeout(() => {
-        setShowWelcomeModal(true);
-      }, 5000);
-
-      return () => {
-        if (welcomeModalTimerRef.current) {
-          clearTimeout(welcomeModalTimerRef.current);
-          welcomeModalTimerRef.current = null;
-        }
-      };
-    } else {
-      // If user becomes authenticated, hide the modal and clear timer
-      setShowWelcomeModal(false);
-      if (welcomeModalTimerRef.current) {
-        clearTimeout(welcomeModalTimerRef.current);
-        welcomeModalTimerRef.current = null;
-      }
-    }
-  }, [session?.user?.id]);
 
   useEffect(() => {
     // Check if Supabase is properly configured
@@ -194,12 +152,6 @@ function TabLayoutContent() {
         }}
       />
     </Tabs>
-      {showWelcomeModal && WelcomeModalComponent && (
-        <WelcomeModalComponent
-          isVisible={showWelcomeModal}
-          onClose={() => setShowWelcomeModal(false)}
-        />
-      )}
     </>
   );
 }

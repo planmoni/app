@@ -132,38 +132,64 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 // Save push token to database following the admin push notifications guide
 export async function savePushTokenToDatabase(expoPushToken: string, userId: string) {
   try {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+
+    const ownerUserId = authUser?.id ?? userId;
+    if (!ownerUserId) {
+      console.warn('Skipping push token save: no authenticated user');
+      return false;
+    }
+
     const deviceInfo = {
       platform: Platform.OS,
       version: Platform.Version,
       model: Device.modelName,
     };
 
-    // Use upsert to handle duplicate token constraint gracefully
-    // The unique constraint is on expo_push_token, so we use upsert to update if exists
+    const tokenPayload = {
+      user_id: ownerUserId,
+      expo_push_token: expoPushToken,
+      device_info: deviceInfo,
+      is_active: true,
+      last_used: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Important:
+    // Avoid upsert conflict updates here to prevent RLS failures in client-auth context.
+    // If a duplicate token exists elsewhere, we treat it as non-fatal and continue with
+    // canonical token storage on profiles for sender compatibility.
     const { error } = await supabase
       .from('user_push_tokens')
-      .upsert(
-        {
-          user_id: userId,
-          expo_push_token: expoPushToken,
-          device_info: deviceInfo,
-          is_active: true,
-          last_used: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'expo_push_token',
-        }
-      );
+      .insert(tokenPayload);
 
     if (error) {
-      console.error('Error upserting push token:', error);
-      throw error;
+      if (error.code === '23505') {
+        console.warn('Push token already exists in user_push_tokens; continuing');
+      } else {
+        console.error('Error inserting push token:', error);
+        throw error;
+      }
     }
     
-    console.log('Push token saved/updated in database');
+    console.log('Push token stored in database');
 
-    // Also store/update the token in user_fcm_tokens so server-side push function can find it
+    // Canonical storage on profiles for server-side push sender.
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({
+        fcm_token: expoPushToken,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', ownerUserId);
+
+    if (profileError) {
+      console.error('Error saving token to profiles.fcm_token:', profileError);
+    }
+
+    // Legacy compatibility during migration window.
     const platform =
       Platform.OS === 'ios'
         ? 'ios'
@@ -175,7 +201,7 @@ export async function savePushTokenToDatabase(expoPushToken: string, userId: str
       .from('user_fcm_tokens')
       .upsert(
         {
-          user_id: userId,
+          user_id: ownerUserId,
           fcm_token: expoPushToken,
           platform,
         },
@@ -200,41 +226,11 @@ export async function savePushTokenToDatabase(expoPushToken: string, userId: str
 // Setup notification listeners
 export function setupNotificationListeners() {
   const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
-    console.log('Notification received in foreground:', notification);
-    
-    // Check if it's an Intercom notification
-    const data = notification.request.content.data;
-    if (data?.intercom) {
-      console.log('📬 Intercom notification received in foreground');
-      // Intercom will handle displaying the notification
-    }
-  });
-
-  const responseSubscription = Notifications.addNotificationResponseReceivedListener(async response => {
-    console.log('Notification tapped:', response);
-    const { data } = response.notification.request.content;
-    
-    // Handle Intercom notification tap
-    if (data?.intercom) {
-      console.log('📬 Intercom notification tapped, opening Intercom...');
-      try {
-        const { intercomInstant } = await import('@/lib/IntercomInstant');
-        await intercomInstant.open();
-      } catch (error) {
-        console.error('Failed to open Intercom:', error);
-      }
-      return;
-    }
-    
-    // Handle other notification types
-    if (data?.type === 'deposit_successful') {
-      console.log('Navigate to wallet screen');
-    }
+    console.log('Notification received in foreground:', notification.request.content.title);
   });
 
   return () => {
     foregroundSubscription.remove();
-    responseSubscription.remove();
   };
 }
 
@@ -325,7 +321,7 @@ export async function initializeNotifications(userId: string) {
       return null;
     }
 
-    // Set up listeners for local notifications (works without FCM)
+    // Foreground-only diagnostics listener.
     const cleanup = setupNotificationListeners();
 
     // Register push token for admin panel

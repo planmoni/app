@@ -835,16 +835,26 @@ async function updateUserBalance(userId: string, transferData: SafeHavenTransfer
                   
                   // Send push notification for successful deposit
                   try {
-                    await supabase.rpc('send_push_notification', {
-                      p_user_id: userId,
-                      p_title: 'Funds Received',
-                      p_body: `₦${walletAmount.toLocaleString()} has been added to your wallet`,
-                      p_data: {
-                        type: 'deposit_successful',
-                        transaction_reference: paymentRef,
-                        amount: walletAmount,
-                        source: 'SafeHaven'
-                      }
+                    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`, {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        user_ids: [userId],
+                        notification_type: 'deposit_received',
+                        title: 'Funds Received',
+                        body: `₦${walletAmount.toLocaleString()} has been added to your wallet`,
+                        data: {
+                          type: 'deposit_successful',
+                          transaction_reference: paymentRef,
+                          amount: walletAmount,
+                          source: 'SafeHaven',
+                          route: '/(tabs)/',
+                          action: 'view_balance',
+                        }
+                      }),
                     });
                     console.log('Push notification sent for deposit');
                   } catch (pushError) {

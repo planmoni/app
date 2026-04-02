@@ -15,6 +15,7 @@ import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { logAnalyticsEvent } from '@/lib/firebase';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { router } from 'expo-router';
 import { calculatePlanInsights, generateInsightMessages } from '@/lib/insights/planInsights';
 import { Target, AlertCircle, Percent } from 'lucide-react-native';
 
@@ -22,7 +23,7 @@ import { Target, AlertCircle, Percent } from 'lucide-react-native';
 export default function InsightsScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
-  const { requireAuth, isAuthenticated } = useRequireAuth();
+  const { isAuthenticated } = useRequireAuth();
   const { metrics, trends, vaultStats, isLoading, error, refreshInsights } = useInsightsData();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
   const { expensePlans } = useExpensePlans();
@@ -223,7 +224,7 @@ export default function InsightsScreen() {
           <Text style={styles.headerTitle}>Insights</Text>
           {!isAuthenticated && (
             <Pressable 
-              onPress={() => requireAuth(() => {}, '/(tabs)/insights')} 
+              onPress={() => router.push('/(auth)/onboarding/country-select')} 
               style={styles.loginButton}
             >
               <Text style={styles.loginButtonText}>Login</Text>
@@ -244,7 +245,7 @@ export default function InsightsScreen() {
           <Text style={styles.headerTitle}>Insights</Text>
           {!isAuthenticated && (
             <Pressable 
-              onPress={() => requireAuth(() => {}, '/(tabs)/insights')} 
+              onPress={() => router.push('/(auth)/onboarding/country-select')} 
               style={styles.loginButton}
             >
               <Text style={styles.loginButtonText}>Login</Text>
@@ -269,7 +270,7 @@ export default function InsightsScreen() {
         <Text style={styles.headerTitle}>Insights</Text>
         {!isAuthenticated && (
           <Pressable 
-            onPress={() => requireAuth(() => {}, '/(tabs)/insights')} 
+            onPress={() => router.push('/(auth)/onboarding/country-select')} 
             style={[styles.loginButton, { borderColor: isDark ? '#fff' : colors.primary }]}
           >
             <Text style={[styles.loginButtonText, { color: isDark ? '#fff' : colors.primary }]}>Login</Text>

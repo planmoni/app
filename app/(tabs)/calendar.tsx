@@ -10,7 +10,7 @@ import { useCalendarEvents, CalendarEvent } from '@/hooks/useCalendarEvents';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { requestWelcomeModal } from '@/lib/welcomeModalOpener';
 
 type ViewType = 'month' | 'week' | 'list';
 
@@ -22,7 +22,6 @@ export default function CalendarScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { session } = useAuth();
-  const { requireAuth, isAuthenticated } = useRequireAuth();
   const { events, isLoading, error, refreshEvents } = useCalendarEvents();
   const [activeView, setActiveView] = useState<ViewType>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -47,7 +46,8 @@ export default function CalendarScreen() {
   }, [width]); 
 
   const handleCreatePayout = () => {
-    if (!requireAuth(() => {}, '/create-payout/amount')) {
+    if (!session?.user?.id) {
+      requestWelcomeModal();
       return;
     }
     router.push('/create-payout/amount');

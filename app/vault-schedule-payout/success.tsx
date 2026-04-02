@@ -7,6 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import React, { useEffect, useRef } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
 import { formatDisplayDate, formatPayoutFrequency } from '@/lib/formatters';
+import { replaceToVaultsHomeTab } from '@/lib/replaceToVaultsHomeTab';
 import { Building2, X } from 'lucide-react-native';
 
 export default function VaultScheduleSuccessScreen() {
@@ -25,7 +26,6 @@ export default function VaultScheduleSuccessScreen() {
   const startDate = (params.startDate as string) || '';
   const bankName = (params.bankName as string) || '';
   const accountNumber = (params.accountNumber as string) || '';
-  const vaultPlanId = params.vaultPlanId as string | undefined;
   const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string, 10) : undefined;
 
   const formatAmount = (amount: string) => {
@@ -47,11 +47,7 @@ export default function VaultScheduleSuccessScreen() {
 
   const handleBackToVault = () => {
     haptics.mediumImpact();
-    if (vaultPlanId) {
-      router.replace({ pathname: '/spend/[planId]', params: { planId: vaultPlanId } });
-    } else {
-      router.replace('/(tabs)');
-    }
+    replaceToVaultsHomeTab();
   };
 
   const styles = createStyles(colors, isSmallScreen, isMediumScreen);

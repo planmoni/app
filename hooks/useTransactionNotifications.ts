@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { inAppNotificationService } from '@/lib/in-app-notifications';
 import { supabase } from '@/lib/supabase';
 
 export function useTransactionNotifications() {
@@ -24,18 +23,14 @@ export function useTransactionNotifications() {
           const transaction = payload.new as any;
 
           if (transaction.type === 'credit' && transaction.status === 'completed') {
-            await inAppNotificationService.createNotification(
-              user.id,
-              'Deposit Successful',
-              `₦${Number(transaction.amount).toLocaleString()} has been added to your wallet.`,
-              'transaction',
-              {
-                transactionId: transaction.id,
-                amount: transaction.amount,
-                route: '/(tabs)/',
-              },
-              true
-            );
+            await supabase.from('events').insert({
+              user_id: user.id,
+              type: 'deposit_successful',
+              title: 'Deposit Successful',
+              description: `₦${Number(transaction.amount).toLocaleString()} has been added to your wallet.`,
+              status: 'unread',
+              transaction_id: transaction.id,
+            } as any);
           }
         }
       )

@@ -558,6 +558,8 @@ async function handleDirectPaySuccess(data: any) {
       console.error('❌ Failed to update mono_directpay_payments:', updateErr);
     }
 
+    await sendDepositPush(userId, amountNaira, reference, 'mono_directpay');
+
     console.log('✅ Direct Pay processed: ₦' + amountNaira + ' for user', userId, result?.already_processed ? '(already_processed)' : '');
   } catch (err) {
     console.error('❌ handleDirectPaySuccess:', err);
@@ -669,10 +671,45 @@ async function handleDebitSuccessful(data: any) {
       debitDataWithEventId
     );
 
+    await sendDepositPush(userId, amountInNaira, reference, 'mono_directdebit');
+
     console.log(`✅ Successfully processed DirectDebit: ₦${amountInNaira} for user ${userId}`);
   } catch (error) {
     console.error('❌ Error handling DirectDebit success:', error);
     throw error;
+  }
+}
+
+async function sendDepositPush(
+  userId: string,
+  amountInNaira: number,
+  reference: string,
+  source: string,
+) {
+  try {
+    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push-notification`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_ids: [userId],
+        notification_type: 'deposit_received',
+        title: 'Funds Received',
+        body: `₦${amountInNaira.toLocaleString()} has been added to your wallet`,
+        data: {
+          type: 'deposit_successful',
+          transaction_reference: reference,
+          amount: amountInNaira,
+          source,
+          route: '/(tabs)/',
+          action: 'view_balance',
+        }
+      }),
+    });
+  } catch (error) {
+    console.warn('Failed to send Mono deposit push:', error);
   }
 }
 

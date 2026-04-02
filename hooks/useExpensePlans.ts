@@ -628,7 +628,9 @@ export function useExpensePlans() {
             {
               event: '*',
               schema: 'public',
-              table: 'expense_plans',
+              // Vault plans are stored in budget_plans.
+              // Subscribing to expense_plans prevents live updates on create/fund.
+              table: 'budget_plans',
               filter: `user_id=eq.${session.user.id}`,
             },
             async (payload: any) => {

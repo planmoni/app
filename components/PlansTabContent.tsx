@@ -7,6 +7,7 @@ import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useTheme } from '@/contexts/ThemeContext';
+import { isBudgetStarted } from '@/lib/expensePlanUtils';
 
 type NextMaturingBudget = {
   plan: any;
@@ -63,13 +64,30 @@ export default function PlansTabContent({
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const { isDark } = useTheme();
-  const totalCreatedBudget = expensePlans?.reduce((sum, plan) => {
+  // Exclude started vaults that are already fully spent (balance <= 0),
+  // and non-active plans, from summary totals.
+  const plansForTotals = React.useMemo(() => {
+    return (expensePlans ?? []).filter((plan) => {
+      if (plan?.status && plan.status !== 'active') return false;
+      const currentBalance = (plan as any)?.current_balance || 0;
+      const started = isBudgetStarted(plan?.start_date);
+      if (started && currentBalance <= 0) return false;
+      return true;
+    });
+  }, [expensePlans]);
+
+  const totalCreatedBudget = plansForTotals.reduce((sum, plan) => {
     const amount = plan?.total_budget || 0;
     return sum + (typeof amount === 'number' ? amount : 0);
-  }, 0) ?? 0;
+  }, 0);
+
+  const fundedBalanceForTotals = plansForTotals.reduce((sum, plan) => {
+    const currentBalance = (plan as any)?.current_balance || 0;
+    return sum + (typeof currentBalance === 'number' ? currentBalance : 0);
+  }, 0);
 
   const fundedPercentage =
-    totalCreatedBudget > 0 ? (expensePlansFundedBalance / totalCreatedBudget) * 100 : 0;
+    totalCreatedBudget > 0 ? (fundedBalanceForTotals / totalCreatedBudget) * 100 : 0;
 
   const handleViewAllOngoing = () => {
     if (onRequireAuth && !onRequireAuth()) return;
@@ -113,7 +131,7 @@ export default function PlansTabContent({
                 />
               </View>
               <Text style={styles.availableToSpendProgressText}>
-                 Funded {formatBalance(expensePlansFundedBalance)} / {formatBalance(totalCreatedBudget)} of Total Plans
+                 Funded {formatBalance(fundedBalanceForTotals)} / {formatBalance(totalCreatedBudget)} of Total Plans
               </Text>
             </View>
           </View>

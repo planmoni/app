@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { inAppNotificationService } from '@/lib/in-app-notifications';
 import { supabase } from '@/lib/supabase';
 
 export function usePayoutNotifications() {
@@ -24,47 +23,36 @@ export function usePayoutNotifications() {
           const newPlan = payload.new as any;
 
           if (oldPlan.status !== 'completed' && newPlan.status === 'completed') {
-            await inAppNotificationService.createNotification(
-              user.id,
-              'Payout Completed',
-              `Your payout of ₦${Number(newPlan.amount).toLocaleString()} has been successfully sent.`,
-              'payout',
-              {
-                payoutId: newPlan.id,
-                amount: newPlan.amount,
-                route: '/all-payouts',
-              },
-              true
-            );
+            await supabase.from('events').insert({
+              user_id: user.id,
+              type: 'payout_completed',
+              title: 'Payout Completed',
+              description: `Your payout of ₦${Number(newPlan.amount).toLocaleString()} has been successfully sent.`,
+              status: 'unread',
+              payout_plan_id: newPlan.id,
+            } as any);
           }
 
           if (oldPlan.status !== 'failed' && newPlan.status === 'failed') {
-            await inAppNotificationService.createNotification(
-              user.id,
-              'Payout Failed',
-              `Your payout of ₦${Number(newPlan.amount).toLocaleString()} could not be processed. Please try again.`,
-              'security',
-              {
-                payoutId: newPlan.id,
-                amount: newPlan.amount,
-                route: '/all-payouts',
-              },
-              true
-            );
+            await supabase.from('events').insert({
+              user_id: user.id,
+              type: 'disbursement_failed',
+              title: 'Payout Failed',
+              description: `Your payout of ₦${Number(newPlan.amount).toLocaleString()} could not be processed. Please try again.`,
+              status: 'unread',
+              payout_plan_id: newPlan.id,
+            } as any);
           }
 
           if (oldPlan.is_paused === false && newPlan.is_paused === true) {
-            await inAppNotificationService.createNotification(
-              user.id,
-              'Payout Paused',
-              `Your payout plan has been paused. You can resume it anytime from your payout settings.`,
-              'system',
-              {
-                payoutId: newPlan.id,
-                route: '/all-payouts',
-              },
-              true
-            );
+            await supabase.from('events').insert({
+              user_id: user.id,
+              type: 'payout_paused',
+              title: 'Payout Paused',
+              description: 'Your payout plan has been paused. You can resume it anytime from your payout settings.',
+              status: 'unread',
+              payout_plan_id: newPlan.id,
+            } as any);
           }
         }
       )

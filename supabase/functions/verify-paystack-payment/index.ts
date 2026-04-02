@@ -166,6 +166,7 @@ serve(async (req) => {
       }
 
       console.log(`Successfully processed plan deposit: ₦${amountInNaira} for plan ${planId}`);
+      await sendDepositPushNotification(supabaseUrl, user.id, amountInNaira, reference, true);
 
       return new Response(
         JSON.stringify({
@@ -247,6 +248,7 @@ serve(async (req) => {
       }
 
       console.log(`Successfully processed deposit: ₦${amountInNaira} for user ${user.id}`);
+      await sendDepositPushNotification(supabaseUrl, user.id, amountInNaira, reference, false);
 
       return new Response(
         JSON.stringify({
@@ -271,4 +273,40 @@ serve(async (req) => {
     );
   }
 });
+
+async function sendDepositPushNotification(
+  supabaseUrl: string,
+  userId: string,
+  amountInNaira: number,
+  reference: string,
+  isPlanDeposit: boolean,
+) {
+  try {
+    const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!serviceRole) return;
+
+    await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceRole}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_ids: [userId],
+        notification_type: 'deposit_received',
+        title: isPlanDeposit ? 'Vault funded successfully' : 'Funds received',
+        body: `₦${amountInNaira.toLocaleString()} has been added to your ${isPlanDeposit ? 'vault' : 'wallet'}.`,
+        data: {
+          type: 'deposit_successful',
+          amount: amountInNaira,
+          reference,
+          route: '/(tabs)/',
+          action: 'view_balance',
+        },
+      }),
+    });
+  } catch (error) {
+    console.warn('Failed to send deposit push notification:', error);
+  }
+}
 
