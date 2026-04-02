@@ -199,6 +199,87 @@ async function processDuePayouts() {
   }
 }
 
+// Create a SafeHaven token for users who do not yet have a token row,
+// then persist it in safehaven_tokens so subsequent runs can refresh normally.
+async function createAndStoreSafeHavenToken(
+  userId: string,
+  existingRefreshToken: string | null = null
+): Promise<{ access_token: string; refresh_token: string | null; expires_at: string }> {
+  const newTokenResponse = await fetch(`${safeHavenApiUrl}/oauth2/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      grant_type: "client_credentials",
+      client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+      client_assertion: safeHavenClientAssertion,
+      client_id: safeHavenClientId
+    })
+  });
+
+  if (!newTokenResponse.ok) {
+    const errorText = await newTokenResponse.text();
+    throw new Error(`Failed to create SafeHaven token: ${newTokenResponse.status} ${newTokenResponse.statusText} - ${errorText}`);
+  }
+
+  const tokenData: any = await newTokenResponse.json();
+  if (!tokenData?.access_token) {
+    throw new Error("Failed to create SafeHaven token: No access token in response");
+  }
+
+  const expiresIn = typeof tokenData.expires_in === "number" ? tokenData.expires_in : 3600;
+  const expiresAtDate = new Date(Date.now() + expiresIn * 1000);
+  const refreshToken = tokenData.refresh_token || existingRefreshToken || null;
+
+  const tokenRecord = {
+    user_id: userId,
+    access_token: tokenData.access_token,
+    refresh_token: refreshToken,
+    token_type: tokenData.token_type || "Bearer",
+    expires_in: expiresIn,
+    expires_at: expiresAtDate.toISOString(),
+    ibs_client_id: tokenData.ibs_client_id || safeHavenClientId || "unknown_client",
+    ibs_user_id: tokenData.ibs_user_id || userId,
+    client_id: tokenData.client_id || safeHavenClientId || "unknown_client",
+    updated_at: new Date().toISOString()
+  };
+
+  const { data: existingRow, error: existingRowError } = await supabase
+    .from("safehaven_tokens")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existingRowError) {
+    throw new Error(`Failed to check existing SafeHaven token row: ${existingRowError.message}`);
+  }
+
+  if (existingRow?.id) {
+    const { error: updateError } = await supabase
+      .from("safehaven_tokens")
+      .update(tokenRecord)
+      .eq("user_id", userId);
+    if (updateError) {
+      throw new Error(`Failed to update SafeHaven token row: ${updateError.message}`);
+    }
+  } else {
+    const { error: insertError } = await supabase
+      .from("safehaven_tokens")
+      .insert({
+        ...tokenRecord,
+        created_at: new Date().toISOString()
+      });
+    if (insertError) {
+      throw new Error(`Failed to insert SafeHaven token row: ${insertError.message}`);
+    }
+  }
+
+  return {
+    access_token: tokenData.access_token,
+    refresh_token: refreshToken,
+    expires_at: expiresAtDate.toISOString()
+  };
+}
+
 /**
  * Process a single payout plan
  * 
@@ -467,13 +548,23 @@ async function processSinglePayout(plan: any) {
       .from("safehaven_tokens")
       .select("access_token, expires_at, refresh_token")
       .eq("user_id", plan.user_id)
-      .single();
+      .maybeSingle();
 
-    if (tokenError || !tokenRecord) {
-      throw new Error("SafeHaven token not found. User needs to authenticate with SafeHaven first.");
+    if (tokenError) {
+      throw new Error(`Failed to fetch SafeHaven token: ${tokenError.message}`);
     }
 
-    safeHavenToken = tokenRecord;
+    if (!tokenRecord) {
+      console.log("No SafeHaven token row found for user. Bootstrapping via client_credentials...");
+      const bootstrappedToken = await createAndStoreSafeHavenToken(plan.user_id);
+      safeHavenToken = {
+        access_token: bootstrappedToken.access_token,
+        refresh_token: bootstrappedToken.refresh_token,
+        expires_at: bootstrappedToken.expires_at
+      };
+    } else {
+      safeHavenToken = tokenRecord;
+    }
 
     const expiresAt = new Date(safeHavenToken.expires_at);
     const now = new Date();
@@ -1262,13 +1353,22 @@ async function processScheduledEmergencyWithdrawal(withdrawal: any) {
     .from("safehaven_tokens")
     .select("access_token, expires_at, refresh_token")
     .eq("user_id", withdrawal.user_id)
-    .single();
+    .maybeSingle();
 
-  if (tokenError || !tokenData) {
-    throw new Error("SafeHaven token not found. User must authenticate with SafeHaven for emergency withdrawals.");
+  if (tokenError) {
+    throw new Error(`Failed to fetch SafeHaven token: ${tokenError.message}`);
   }
 
   let safeHavenToken = tokenData;
+  if (!safeHavenToken) {
+    console.log("No SafeHaven token row found for user emergency withdrawal. Bootstrapping via client_credentials...");
+    const bootstrappedToken = await createAndStoreSafeHavenToken(withdrawal.user_id);
+    safeHavenToken = {
+      access_token: bootstrappedToken.access_token,
+      refresh_token: bootstrappedToken.refresh_token,
+      expires_at: bootstrappedToken.expires_at
+    };
+  }
   const expiresAt = new Date(safeHavenToken.expires_at);
   const now = new Date();
   const bufferTime = 5 * 60 * 1000; // 5 minutes
