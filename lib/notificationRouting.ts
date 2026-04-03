@@ -27,6 +27,8 @@ const TYPE_ROUTE_MAP: Record<string, string> = {
   vault_payout_completed: '/(tabs)?activeBalanceTab=plans',
   vault_low_balance: '/(tabs)?activeBalanceTab=plans',
   vault_unfunded_reminder: '/(tabs)?activeBalanceTab=plans',
+  vault_abandon_reminder: '/expense-planner',
+  payout_abandon_reminder: '/create-payout/amount',
 };
 
 const PLAN_SCOPED_TYPES = new Set([

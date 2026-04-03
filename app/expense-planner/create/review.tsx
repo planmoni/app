@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -12,6 +12,8 @@ import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { PlanType } from '@/lib/planTypeMapping';
 import { CATEGORIES } from './plan-details';
 import { getBankIconLogo } from '@/lib/bankIcons';
+import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
+import { LifecycleEventName } from '@/lib/lifecycleEvents';
 
 interface Bucket {
   id: string;
@@ -43,6 +45,13 @@ export default function ReviewScreen() {
   const planTypesParam = params.planTypes as string | undefined;
   const spendingPermission = (params.spendingPermission as 'open' | 'restricted') || 'open';
   const lockType = (params.lockType as 'none' | 'instant' | '24h_delay' | 'pin_required') || 'none';
+
+  useEffect(() => {
+    void trackLifecycleEvent(LifecycleEventName.VAULT_FLOW_STEP_CONFIRM, {
+      screen: 'review',
+      planName: planName ?? undefined,
+    });
+  }, [planName]);
   const pin = (params.pin as string) || '';
   const alertAt70Percent = (params.alertAt70Percent as string) === 'true';
   const alertRiskFailure = (params.alertRiskFailure as string) === 'true';

@@ -20,6 +20,8 @@ import FloatingButton from '@/components/FloatingButton';
 import { Platform } from 'react-native';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { getPlanTypeForCategory, PlanType } from '@/lib/planTypeMapping';
+import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
+import { LifecycleEventName } from '@/lib/lifecycleEvents';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PADDING = 20;
@@ -722,6 +724,10 @@ export default function PlanDetailsScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [currentPlanId, setCurrentPlanId] = useState<string | undefined>(planId);
   const initializedRef = useRef(false);
+
+  useEffect(() => {
+    void trackLifecycleEvent(LifecycleEventName.VAULT_FLOW_STARTED, { screen: 'plan-details' });
+  }, []);
 
   // Preselect category if provided from Quick Plans
   useEffect(() => {

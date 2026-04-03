@@ -11,6 +11,8 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { Platform } from 'react-native';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
+import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
+import { LifecycleEventName } from '@/lib/lifecycleEvents';
 
 export default function TargetAmountScreen() {
   const { colors } = useTheme();
@@ -33,6 +35,13 @@ export default function TargetAmountScreen() {
     }, 300);
     return () => clearTimeout(timeout);
   }, []);
+
+  useEffect(() => {
+    void trackLifecycleEvent(LifecycleEventName.VAULT_FLOW_STEP_DETAILS, {
+      screen: 'target-amount',
+      planName: planName ?? undefined,
+    });
+  }, [planName]);
 
   const formatAmount = (value: string) => {
     let cleanValue = value.replace(/[^0-9.]/g, '');

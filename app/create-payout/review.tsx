@@ -20,6 +20,8 @@ import PinVerificationModal from '@/components/PinVerificationModal';
 import { supabase } from '@/lib/supabase';
 import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee-calculator';
 import type { PayoutFeeResult } from '@/lib/payout-fee-calculator';
+import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
+import { LifecycleEventName } from '@/lib/lifecycleEvents';
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -33,6 +35,10 @@ export default function ReviewScreen() {
   const [showFeesBreakdownModal, setShowFeesBreakdownModal] = useState(false);
   const { banks } = useBanks();
   const { verifyPayoutPin, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin } = usePin();
+
+  useEffect(() => {
+    void trackLifecycleEvent(LifecycleEventName.PAYOUT_PLAN_FLOW_STEP_DETAILS, { screen: 'review' });
+  }, []);
   
   // Get values from route params
   const totalAmount = params.totalAmount as string;

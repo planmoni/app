@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -9,6 +9,8 @@ import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import ExpensePlanCard from '@/components/expense-planner/ExpensePlanCard';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
+import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
+import { LifecycleEventName } from '@/lib/lifecycleEvents';
 
 export default function ExpensePlannerOverviewScreen() {
   const { colors, isDark } = useTheme();
@@ -16,6 +18,10 @@ export default function ExpensePlannerOverviewScreen() {
   const haptics = useHaptics();
   const { expensePlans, isLoading, fetchExpensePlans } = useExpensePlans();
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    void trackLifecycleEvent(LifecycleEventName.VAULT_FLOW_OPENED, { source: 'expense_planner_list' });
+  }, []);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

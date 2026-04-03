@@ -10,6 +10,8 @@ import { useHaptics } from '@/hooks/useHaptics';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import Button from '@/components/Button';
 import { replaceToVaultsHomeTab } from '@/lib/replaceToVaultsHomeTab';
+import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
+import { LifecycleEventName } from '@/lib/lifecycleEvents';
 
 export default function ExpensePlanSuccessScreen() {
   const { colors, isDark } = useTheme();
@@ -30,6 +32,14 @@ export default function ExpensePlanSuccessScreen() {
     
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    void trackLifecycleEvent(LifecycleEventName.VAULT_FLOW_COMPLETED, {
+      screen: 'success',
+      planName: planName ?? undefined,
+      planId: planId ?? undefined,
+    });
+  }, [planName, planId]);
 
   const formatDateForDisplay = (dateString: string) => {
     if (!dateString) return '';

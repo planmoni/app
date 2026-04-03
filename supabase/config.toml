@@ -10,6 +10,10 @@ verify_jwt = true
 [functions.retry-pending-mono-directpay]
 verify_jwt = false
 
+# Hourly pg_cron + service role JWT (see NOTIFICATIONS_RUNBOOK)
+[functions.process-lifecycle-retargeting]
+verify_jwt = true
+
 [functions.send-push-notification]
 enabled = true
 verify_jwt = true

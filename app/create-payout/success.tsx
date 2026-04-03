@@ -11,6 +11,8 @@ import { useFeedback } from '@/contexts/FeedbackContext';
 import { formatDisplayDate, formatPayoutFrequency } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { Building2, X } from 'lucide-react-native';
+import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
+import { LifecycleEventName } from '@/lib/lifecycleEvents';
 
 export default function SuccessScreen() {
   const { colors } = useTheme();
@@ -52,6 +54,13 @@ export default function SuccessScreen() {
       mountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    void trackLifecycleEvent(LifecycleEventName.PAYOUT_PLAN_FLOW_COMPLETED, {
+      screen: 'success',
+      planId: planId ?? undefined,
+    });
+  }, [planId]);
 
   // Show feedback modal after a short delay (only if still on this screen)
   useEffect(() => {

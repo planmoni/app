@@ -10,6 +10,8 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
+import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
+import { LifecycleEventName } from '@/lib/lifecycleEvents';
 
 export default function AmountScreen() {
   const { colors } = useTheme();
@@ -36,6 +38,10 @@ export default function AmountScreen() {
       amountInputRef.current?.focus();
     }, 300); // Delay allows the UI to settle before focusing
     return () => clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    void trackLifecycleEvent(LifecycleEventName.PAYOUT_PLAN_FLOW_STARTED, { screen: 'amount' });
   }, []);
 
   const handleContinue = () => {

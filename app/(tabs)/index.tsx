@@ -68,6 +68,8 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
+import { LifecycleEventName } from '@/lib/lifecycleEvents';
 import { updateNextPayoutWidget } from '@/lib/widgetStorage';
 import { setWelcomeModalOpener } from '@/lib/welcomeModalOpener';
 // import { intercomInstant } from '@/lib/IntercomInstant';
@@ -418,6 +420,11 @@ export default function HomeScreen() {
   const [TransactionModalComponent, setTransactionModalComponent] = useState<React.ComponentType<any> | null>(null);
   const [ClaimAccountModalComponent, setClaimAccountModalComponent] = useState<React.ComponentType<any> | null>(null);
   const [WelcomeModalComponent, setWelcomeModalComponent] = useState<React.ComponentType<any> | null>(null);
+
+  useEffect(() => {
+    if (activeBalanceTab !== 'plans' || !session?.user?.id) return;
+    void trackLifecycleEvent(LifecycleEventName.VAULT_FLOW_OPENED, { source: 'home_balance_tab' });
+  }, [activeBalanceTab, session?.user?.id]);
 
   // Pre-load WelcomeModal immediately for faster launch (especially for unauthenticated users)
   useEffect(() => {
