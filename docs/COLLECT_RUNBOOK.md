@@ -47,11 +47,20 @@ Optional / legacy: `stripe-connect-start` (not used by the app).
 
 ## FX and fees (operations)
 
+Collect settlement converts the **invoice currency → NGN** using `collect_fx_rates` where `quote_currency = 'NGN'` and `base_currency` matches the invoice (e.g. `USD`, `EUR`). Checkout links remain USD-only and use the USD row.
+
 Update USD→NGN rate (example):
 
 ```sql
 insert into collect_fx_rates (base_currency, quote_currency, rate, valid_from)
 values ('USD', 'NGN', 1550, now());
+```
+
+For non-USD invoices, add a row per currency you allow in the app (example EUR):
+
+```sql
+insert into collect_fx_rates (base_currency, quote_currency, rate, valid_from)
+values ('EUR', 'NGN', 1680, now());
 ```
 
 Update Planmoni fee (% of NGN subtotal after Stripe fee + flat ₦):

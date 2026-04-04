@@ -1,7 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { computeNgnSettlement, getStripe, loadFxAndFee } from "../_shared/collectStripe.ts";
+import {
+  computeNgnSettlement,
+  getStripe,
+  loadFxAndFee,
+  loadFxAndFeeForInvoiceCurrency,
+  majorFromStripeMinor,
+} from "../_shared/collectStripe.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -183,14 +189,15 @@ async function handleInvoicePaid(
     expand: ["balance_transaction"],
   }, acct);
 
+  const invCur = (invoice.currency ?? "usd").toLowerCase();
   const bt = charge.balance_transaction as Stripe.BalanceTransaction;
-  const usdGross = (invoice.amount_paid ?? 0) / 100;
-  const usdStripeFee = bt ? bt.fee / 100 : 0;
+  const grossMajor = majorFromStripeMinor(invoice.amount_paid ?? 0, invCur);
+  const feeMajor = bt ? majorFromStripeMinor(bt.fee, invCur) : 0;
 
-  const { rate, feePercent, feeFlat } = await loadFxAndFee(supabase);
+  const { rate, feePercent, feeFlat } = await loadFxAndFeeForInvoiceCurrency(supabase, invCur);
   const { usdNet, planmoniFeeNgn, ngnCredited } = computeNgnSettlement(
-    usdGross,
-    usdStripeFee,
+    grossMajor,
+    feeMajor,
     rate,
     feePercent,
     feeFlat,
@@ -198,8 +205,9 @@ async function handleInvoicePaid(
 
   const meta = {
     stripe_invoice_id: invoice.id,
-    usd_gross: usdGross,
-    usd_stripe_fee: usdStripeFee,
+    invoice_currency: invCur,
+    usd_gross: grossMajor,
+    usd_stripe_fee: feeMajor,
     usd_net: usdNet,
     fx_rate: rate,
     planmoni_fee_ngn: planmoniFeeNgn,

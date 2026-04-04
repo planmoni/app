@@ -16,6 +16,7 @@ export type CollectInvoiceRow = {
   client_name: string | null;
   description: string;
   amount_usd: number;
+  currency: string | null;
   status: string;
   hosted_invoice_url: string | null;
   created_at: string;
@@ -69,7 +70,7 @@ export function useCollectData(userId: string | undefined): CollectDataSnapshot 
           .limit(50),
         supabase
           .from('collect_invoices')
-          .select('id, client_email, client_name, description, amount_usd, status, hosted_invoice_url, created_at')
+          .select('id, client_email, client_name, description, amount_usd, currency, status, hosted_invoice_url, created_at')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(50),

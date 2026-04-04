@@ -31,6 +31,15 @@ function formatUsd(amount: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 }
 
+function formatInvoiceTotal(amount: number, currency: string | null | undefined) {
+  const c = (currency ?? 'usd').toUpperCase();
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: c }).format(amount);
+  } catch {
+    return `${c} ${amount.toFixed(2)}`;
+  }
+}
+
 export default function CollectTabContent({
   screenWidth,
   styles: tabStyles,
@@ -145,14 +154,9 @@ export default function CollectTabContent({
           end={{ x: 1, y: 1 }}
           style={localStyles.card}
         >
-          <Text style={localStyles.cardTitle}>All payments (Collect)</Text>
+          <Text style={localStyles.cardTitle}>All collected payments</Text>
           <Text style={localStyles.ngnAmt}>{formatBalance(summary.totalNgn)}</Text>
-          <Text style={localStyles.usdAmt}>{formatUsd(summary.totalUsd)}</Text>
-          {fxRate != null && (
-            <Text style={localStyles.rateHint}>
-              $1/₦{fxRate.toLocaleString('en-NG', { maximumFractionDigits: 2 })} (reference rate)
-            </Text>
-          )}
+          {/* <Text style={localStyles.usdAmt}>{formatUsd(summary.totalUsd)}</Text> */}
           <View style={localStyles.rowBtn}>
             <Pressable style={localStyles.outlineBtn} onPress={onNewLink}>
               <Text style={localStyles.outlineBtnText}>Link</Text>
@@ -242,7 +246,7 @@ export default function CollectTabContent({
                   {inv.description}
                 </Text>
                 <Text style={{ color: colors.primary, marginTop: 8, fontSize: 18, fontWeight: '700' }}>
-                  {formatUsd(inv.amount_usd)}
+                  {formatInvoiceTotal(inv.amount_usd, inv.currency)}
                 </Text>
                 <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>{inv.client_email}</Text>
                 {inv.hosted_invoice_url ? (
