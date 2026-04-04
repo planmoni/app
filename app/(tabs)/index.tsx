@@ -92,7 +92,9 @@ import { useIntercom } from '@/hooks/useIntercom';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 // import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 import PlansTabContent from '@/components/PlansTabContent';
+import CollectTabContent from '@/components/CollectTabContent';
 import PayoutsTabContent from '@/components/PayoutsTabContent';
+import { useCollectData } from '@/hooks/useCollectData';
 
 interface Banner {
   id: string;
@@ -284,14 +286,15 @@ export default function HomeScreen() {
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
   const { expensePlans, fetchExpensePlans } = useExpensePlans();
-  const [activeBalanceTab, setActiveBalanceTab] = useState<'home' | 'plans' | 'payouts'>('home');
+  const collectData = useCollectData(session?.user?.id);
+  const [activeBalanceTab, setActiveBalanceTab] = useState<'home' | 'plans' | 'collect' | 'payouts'>('home');
   const { width: screenWidth } = useWindowDimensions();
   const tabScrollViewRef = useRef<ScrollView>(null);
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification, selection } = useHaptics();
   
   // Tab labels + state; horizontal pager position is synced in useLayoutEffect / useEffect below
-  const handleTabChange = useCallback((tab: 'home' | 'plans' | 'payouts') => {
+  const handleTabChange = useCallback((tab: 'home' | 'plans' | 'collect' | 'payouts') => {
     impact();
     setActiveBalanceTab(tab);
   }, [impact]);
@@ -299,8 +302,9 @@ export default function HomeScreen() {
   // Handle scroll end to update active tab (swipe between Home / Vaults / Payouts)
   const handleScrollEnd = useCallback((event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
-    const tabIndex = Math.min(2, Math.max(0, Math.round(offsetX / screenWidth)));
-    const newTab = tabIndex === 0 ? 'home' : tabIndex === 1 ? 'plans' : 'payouts';
+    const tabIndex = Math.min(3, Math.max(0, Math.round(offsetX / screenWidth)));
+    const newTab =
+      tabIndex === 0 ? 'home' : tabIndex === 1 ? 'plans' : tabIndex === 2 ? 'collect' : 'payouts';
     setActiveBalanceTab((prev) => {
       if (newTab !== prev) {
         selection();
@@ -316,7 +320,13 @@ export default function HomeScreen() {
     (animated: boolean) => {
       if (!screenWidth) return;
       const tabIndex =
-        activeBalanceTab === 'home' ? 0 : activeBalanceTab === 'plans' ? 1 : 2;
+        activeBalanceTab === 'home'
+          ? 0
+          : activeBalanceTab === 'plans'
+            ? 1
+            : activeBalanceTab === 'collect'
+              ? 2
+              : 3;
       tabScrollViewRef.current?.scrollTo({
         x: tabIndex * screenWidth,
         animated,
@@ -696,8 +706,8 @@ export default function HomeScreen() {
   useEffect(() => {
     const raw = params.balanceTab ?? globalSearchParams.balanceTab;
     const tab = Array.isArray(raw) ? raw[0] : raw;
-    if (tab !== 'plans' && tab !== 'payouts' && tab !== 'home') return;
-    setActiveBalanceTab(tab as 'home' | 'plans' | 'payouts');
+    if (tab !== 'plans' && tab !== 'payouts' && tab !== 'home' && tab !== 'collect') return;
+    setActiveBalanceTab(tab as 'home' | 'plans' | 'collect' | 'payouts');
     requestAnimationFrame(() => {
       router.setParams({ balanceTab: undefined });
     });
@@ -919,12 +929,13 @@ export default function HomeScreen() {
         fetchTransactions(),
         // Refresh KYC progress
         loadProgress(),
+        collectData.refresh(),
       ]);
 
       // Log any failures but don't block the refresh
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
-          const operationNames = ['wallet', 'vault plans', 'payout plans', 'transactions', 'KYC progress'];
+          const operationNames = ['wallet', 'vault plans', 'payout plans', 'transactions', 'KYC progress', 'collect'];
           console.warn(`Refresh failed for ${operationNames[index]}:`, result.reason);
         }
       });
@@ -941,7 +952,7 @@ export default function HomeScreen() {
       }
       setIsRefreshing(false);
     }
-  }, [refreshWallet, fetchExpensePlans, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
+  }, [refreshWallet, fetchExpensePlans, fetchPayoutPlans, fetchTransactions, loadProgress, collectData, impact]);
 
   const handleHelpPress = useCallback(async () => {
     try {
@@ -1620,6 +1631,16 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
         <Pressable
+          onPress={() => handleTabChange('collect')}
+        >
+          <Text style={[
+            styles.tabText,
+            activeBalanceTab === 'collect' && styles.activeTabText
+          ]}>
+            Collect
+          </Text>
+        </Pressable>
+        <Pressable
           onPress={() => handleTabChange('payouts')}
         >
           <Text style={[
@@ -1646,7 +1667,7 @@ export default function HomeScreen() {
           snapToAlignment="start"
           scrollEnabled
           style={[styles.tabContentScrollView, { width: screenWidth }]}
-          contentContainerStyle={{ width: screenWidth * 3 }}
+          contentContainerStyle={{ width: screenWidth * 4 }}
         >
           {/* Home Tab Content */}
           <View style={[styles.tabPage, { width: screenWidth }]}>
@@ -1798,6 +1819,18 @@ export default function HomeScreen() {
             ongoingBudgets={ongoingBudgets}
             nextMaturingBudget={nextMaturingBudget}
             getNextMaturingBudgetCategoryIcons={getNextMaturingBudgetCategoryIcons}
+            isRefreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            onRequireAuth={ensureAuthenticatedOrWelcome}
+          />
+
+          <CollectTabContent
+            screenWidth={screenWidth}
+            styles={styles}
+            colors={colors}
+            router={router}
+            formatBalance={formatBalance}
+            collect={collectData}
             isRefreshing={isRefreshing}
             onRefresh={handleRefresh}
             onRequireAuth={ensureAuthenticatedOrWelcome}

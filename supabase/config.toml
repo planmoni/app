@@ -2,6 +2,18 @@
 [functions.mono-webhook]
 verify_jwt = false
 
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.stripe-connect-start]
+verify_jwt = true
+
+[functions.stripe-collect-create-link]
+verify_jwt = true
+
+[functions.stripe-collect-create-invoice]
+verify_jwt = true
+
 # Verify-and-credit: called from the app with the user's session JWT
 [functions.mono-directpay-verify-and-credit]
 verify_jwt = true
