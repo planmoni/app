@@ -279,10 +279,12 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
+						DevelopmentTeam = "3RWJY54M59";
+						ProvisioningStyle = Automatic;
 					};
 					XX9176C0F7475A4CD83BAFXX = {
 						CreatedOnToolsVersion = 14.3;
-						DevelopmentTeam = undefined;
+						DevelopmentTeam = "3RWJY54M59";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -569,6 +571,9 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
+				DEVELOPMENT_TEAM = "3RWJY54M59";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Debug;
 		};
@@ -599,6 +604,9 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
+				DEVELOPMENT_TEAM = "3RWJY54M59";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Release;
 		};
@@ -786,6 +794,8 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				DEVELOPMENT_TEAM = "3RWJY54M59";
+				CODE_SIGN_IDENTITY = "Apple Development";
 			};
 			name = Debug;
 		};
@@ -827,6 +837,8 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				DEVELOPMENT_TEAM = "3RWJY54M59";
+				CODE_SIGN_IDENTITY = "Apple Development";
 			};
 			name = Release;
 		};

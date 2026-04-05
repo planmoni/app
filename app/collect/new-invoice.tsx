@@ -14,8 +14,9 @@ import {
   FlatList,
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus, Trash2, ChevronDown, X, Calendar } from 'lucide-react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { ArrowLeft, Plus, Trash2, ChevronDown, X, Calendar as CalendarIcon } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { invokeCollectEdgeFunction } from '@/lib/collectEdge';
 import {
@@ -182,10 +183,18 @@ export default function NewCollectInvoiceScreen() {
   const surface = isDark ? 'rgba(255,255,255,0.06)' : '#fff';
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={styles.screenHeader}>
+        <Pressable onPress={() => router.back()} style={styles.screenHeaderBack} hitSlop={8}>
+          <ArrowLeft size={24} color={colors.text} />
+        </Pressable>
+        <Text style={[styles.screenHeaderTitle, { color: colors.text }]}>New invoice</Text>
+        <View style={styles.screenHeaderSpacer} />
+      </View>
+      <KeyboardAvoidingView
+        style={styles.root}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.scroll, { paddingBottom: 24 + insets.bottom }]}
@@ -232,7 +241,7 @@ export default function NewCollectInvoiceScreen() {
           style={[styles.currencyBtn, { borderColor: border, backgroundColor: surface }]}
         >
           <View style={{ marginRight: 10 }}>
-            <Calendar size={20} color={colors.textSecondary} />
+            <CalendarIcon size={20} color={colors.textSecondary} />
           </View>
           <Text style={[styles.currencyBtnText, { color: colors.text }]} numberOfLines={1}>
             {dueDate.toLocaleDateString(undefined, {
@@ -411,11 +420,32 @@ export default function NewCollectInvoiceScreen() {
           />
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: { flex: 1 },
+  screenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  screenHeaderBack: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  screenHeaderTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  screenHeaderSpacer: { width: 40 },
   root: { flex: 1 },
   scroll: { paddingHorizontal: 20, paddingTop: 12 },
   sectionLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 10, marginTop: 4 },

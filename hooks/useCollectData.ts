@@ -5,6 +5,7 @@ export type CollectLinkRow = {
   id: string;
   description: string;
   amount_usd: number;
+  currency: string | null;
   status: string;
   checkout_url: string | null;
   created_at: string;
@@ -64,7 +65,7 @@ export function useCollectData(userId: string | undefined): CollectDataSnapshot 
       const [linksRes, invRes, setRes, rateRes] = await Promise.all([
         supabase
           .from('collect_links')
-          .select('id, description, amount_usd, status, checkout_url, created_at')
+          .select('id, description, amount_usd, currency, status, checkout_url, created_at')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(50),

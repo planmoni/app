@@ -19,12 +19,10 @@ type CollectTabContentProps = {
   screenWidth: number;
   styles: any;
   colors: any;
-  router: any;
   formatBalance: (amount: number) => string;
   collect: CollectDataSnapshot;
   isRefreshing: boolean;
   onRefresh: () => void | Promise<void>;
-  onRequireAuth?: () => boolean;
 };
 
 function formatUsd(amount: number) {
@@ -44,12 +42,10 @@ export default function CollectTabContent({
   screenWidth,
   styles: tabStyles,
   colors,
-  router,
   formatBalance,
   collect,
   isRefreshing,
   onRefresh,
-  onRequireAuth,
 }: CollectTabContentProps) {
   const { isDark } = useTheme();
   const haptics = useHaptics();
@@ -65,18 +61,6 @@ export default function CollectTabContent({
   const openInvoices = invoices.filter((i) => i.status === 'open' || i.status === 'draft');
   const recentSettlements = settlements.slice(0, 6);
 
-  const onNewLink = () => {
-    if (onRequireAuth && !onRequireAuth()) return;
-    haptics.impact();
-    router.push('/collect/new-link');
-  };
-
-  const onNewInvoice = () => {
-    if (onRequireAuth && !onRequireAuth()) return;
-    haptics.impact();
-    router.push('/collect/new-invoice');
-  };
-
   const localStyles = StyleSheet.create({
     card: {
       borderRadius: 16,
@@ -89,24 +73,6 @@ export default function CollectTabContent({
     ngnAmt: { color: '#fff', fontSize: 28, fontWeight: '700' },
     usdAmt: { color: 'rgba(255,255,255,0.9)', fontSize: 16, marginTop: 4 },
     rateHint: { color: 'rgba(255,255,255,0.65)', fontSize: 12, marginTop: 8, alignSelf: 'flex-end' },
-    rowBtn: { flexDirection: 'row', gap: 12, marginTop: 18 },
-    outlineBtn: {
-      flex: 1,
-      borderWidth: 1.5,
-      borderColor: 'rgba(255,255,255,0.9)',
-      borderRadius: 12,
-      paddingVertical: 12,
-      alignItems: 'center',
-    },
-    solidBtn: {
-      flex: 1,
-      backgroundColor: '#fff',
-      borderRadius: 12,
-      paddingVertical: 12,
-      alignItems: 'center',
-    },
-    outlineBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-    solidBtnText: { color: colors.primary, fontWeight: '600', fontSize: 15 },
     sectionHead: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -157,14 +123,6 @@ export default function CollectTabContent({
           <Text style={localStyles.cardTitle}>All collected payments</Text>
           <Text style={localStyles.ngnAmt}>{formatBalance(summary.totalNgn)}</Text>
           {/* <Text style={localStyles.usdAmt}>{formatUsd(summary.totalUsd)}</Text> */}
-          <View style={localStyles.rowBtn}>
-            <Pressable style={localStyles.outlineBtn} onPress={onNewLink}>
-              <Text style={localStyles.outlineBtnText}>Link</Text>
-            </Pressable>
-            <Pressable style={localStyles.solidBtn} onPress={onNewInvoice}>
-              <Text style={localStyles.solidBtnText}>New Invoice</Text>
-            </Pressable>
-          </View>
         </LinearGradient>
 
         <View style={localStyles.sectionHead}>
@@ -209,7 +167,7 @@ export default function CollectTabContent({
                   {l.description || 'Payment link'}
                 </Text>
                 <Text style={{ color: colors.primary, marginTop: 8, fontSize: 18, fontWeight: '700' }}>
-                  {formatUsd(l.amount_usd)}
+                  {formatInvoiceTotal(l.amount_usd, l.currency)}
                 </Text>
                 {l.checkout_url ? (
                   <Pressable

@@ -30,6 +30,9 @@ import {
   ArrowDown,
   ArrowRight,
   Send,
+  Link2,
+  FileText,
+  ChevronRight,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -50,7 +53,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -271,13 +274,158 @@ function BalanceActionsModal({
   );
 }
 
+interface CollectCreateMenuModalProps {
+  isVisible: boolean;
+  onClose: () => void;
+  onNewPaymentLink: () => void;
+  onNewInvoice: () => void;
+  colors: any;
+  isDark: boolean;
+  textSizeMultiplier: number;
+}
+
+function CollectCreateMenuModal({
+  isVisible,
+  onClose,
+  onNewPaymentLink,
+  onNewInvoice,
+  colors,
+  isDark,
+  textSizeMultiplier,
+}: CollectCreateMenuModalProps) {
+  const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [modalVisible, setModalVisible] = useState(false);
+
+  useEffect(() => {
+    if (isVisible) {
+      setModalVisible(true);
+      slideAnim.setValue(Dimensions.get('window').height);
+      fadeAnim.setValue(0);
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else if (modalVisible) {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: Dimensions.get('window').height,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setModalVisible(false);
+      });
+    }
+  }, [isVisible, modalVisible]);
+
+  if (!modalVisible) return null;
+
+  const modalStyles = StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.45)',
+      justifyContent: 'flex-end',
+    },
+    modalContainer: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      paddingTop: 12,
+      paddingBottom: Platform.OS === 'ios' ? 36 : 20,
+      paddingHorizontal: 20,
+      maxHeight: Dimensions.get('window').height * 0.42,
+    },
+    handle: {
+      width: 40,
+      height: 4,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.15)',
+      borderRadius: 2,
+      alignSelf: 'center',
+      marginBottom: 16,
+    },
+    sectionLabel: {
+      fontSize: getScaledFontSize(12, textSizeMultiplier),
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginBottom: 14,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 14,
+    },
+    rowBorder: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+    },
+    rowLabel: {
+      flex: 1,
+      fontSize: getScaledFontSize(17, textSizeMultiplier),
+      fontWeight: '600',
+      color: colors.text,
+    },
+  });
+
+  return (
+    <Modal visible={modalVisible} transparent animationType="none" onRequestClose={onClose}>
+      <View style={modalStyles.overlay}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+        <Animated.View
+          style={[
+            modalStyles.modalContainer,
+            {
+              transform: [{ translateY: slideAnim }],
+              opacity: fadeAnim,
+            },
+          ]}
+        >
+          <View style={modalStyles.handle} />
+          <Text style={modalStyles.sectionLabel}>Create</Text>
+          <Pressable
+            onPress={onNewPaymentLink}
+            style={[modalStyles.row, modalStyles.rowBorder]}
+          >
+            <View style={{ width: 40, alignItems: 'center' }}>
+              <Link2 size={22} color={colors.primary} />
+            </View>
+            <Text style={modalStyles.rowLabel}>New payment link</Text>
+            <ChevronRight size={20} color={colors.textSecondary} />
+          </Pressable>
+          <Pressable onPress={onNewInvoice} style={modalStyles.row}>
+            <View style={{ width: 40, alignItems: 'center' }}>
+              <FileText size={22} color={colors.primary} />
+            </View>
+            <Text style={modalStyles.rowLabel}>New invoice</Text>
+            <ChevronRight size={20} color={colors.textSecondary} />
+          </Pressable>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
   const { session, isLoading: authLoading } = useAuth();
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { updateLastActiveOnInteraction } = useAppLock();
-  const insets = useSafeAreaInsets();
   const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress, currentTier } = useKYCProgress();
@@ -290,6 +438,7 @@ export default function HomeScreen() {
   const [activeBalanceTab, setActiveBalanceTab] = useState<'home' | 'plans' | 'collect' | 'payouts'>('home');
   const { width: screenWidth } = useWindowDimensions();
   const tabScrollViewRef = useRef<ScrollView>(null);
+  const [showCollectCreateMenu, setShowCollectCreateMenu] = useState(false);
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification, selection } = useHaptics();
   
@@ -399,6 +548,22 @@ export default function HomeScreen() {
     }
     return true;
   }, [isAuthenticated]);
+
+  const openCollectCreateSheet = useCallback(() => {
+    if (!ensureAuthenticatedOrWelcome()) return;
+    impact();
+    setShowCollectCreateMenu(true);
+  }, [ensureAuthenticatedOrWelcome, impact]);
+
+  const onCollectMenuNewLink = useCallback(() => {
+    setShowCollectCreateMenu(false);
+    router.push('/collect/new-link');
+  }, [router]);
+
+  const onCollectMenuNewInvoice = useCallback(() => {
+    setShowCollectCreateMenu(false);
+    router.push('/collect/new-invoice');
+  }, [router]);
 
   useEffect(() => {
     setWelcomeModalOpener(() => {
@@ -1828,12 +1993,10 @@ export default function HomeScreen() {
             screenWidth={screenWidth}
             styles={styles}
             colors={colors}
-            router={router}
             formatBalance={formatBalance}
             collect={collectData}
             isRefreshing={isRefreshing}
             onRefresh={handleRefresh}
-            onRequireAuth={ensureAuthenticatedOrWelcome}
           />
 
           {/* Payouts Tab Content */}
@@ -1925,6 +2088,22 @@ export default function HomeScreen() {
           <Plus size={24} color="#fff" />
         </Pressable>
       )}
+
+      {activeBalanceTab === 'collect' && (
+        <Pressable style={styles.floatingAddButton} onPress={openCollectCreateSheet}>
+          <Plus size={24} color="#fff" />
+        </Pressable>
+      )}
+
+      <CollectCreateMenuModal
+        isVisible={showCollectCreateMenu}
+        onClose={() => setShowCollectCreateMenu(false)}
+        onNewPaymentLink={onCollectMenuNewLink}
+        onNewInvoice={onCollectMenuNewInvoice}
+        colors={colors}
+        isDark={isDark}
+        textSizeMultiplier={textSizeMultiplier}
+      />
 
       {/* Transaction Modal - Lazy loaded */}
       {selectedTransaction && isTransactionModalVisible && TransactionModalComponent && (

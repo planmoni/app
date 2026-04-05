@@ -4,8 +4,7 @@ export default function CollectLayout() {
   return (
     <Stack
       screenOptions={{
-        headerShown: true,
-        headerBackTitle: 'Back',
+        headerShown: false,
       }}
     >
       <Stack.Screen name="new-link" options={{ title: 'New payment link' }} />
