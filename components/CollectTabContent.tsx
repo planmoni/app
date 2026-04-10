@@ -7,8 +7,10 @@ import {
   RefreshControl,
   StyleSheet,
   Linking,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link2, FileText, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -65,12 +67,21 @@ export default function CollectTabContent({
     card: {
       borderRadius: 16,
       padding: 20,
-      marginHorizontal: 16,
-      marginTop: 12,
+      marginHorizontal: 0,
       marginBottom: 8,
     },
-    cardTitle: { color: 'rgba(255,255,255,0.85)', fontSize: 14, marginBottom: 8 },
-    ngnAmt: { color: '#fff', fontSize: 28, fontWeight: '700' },
+    cardTitle: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: colors.textTertiary,
+      marginBottom: 4,
+    },
+    ngnAmt: {
+      color: '#fff',
+      fontSize: Platform.OS === 'ios' ? 32 : 28,
+      fontWeight: '700',
+      marginBottom: 4,
+    },
     usdAmt: { color: 'rgba(255,255,255,0.9)', fontSize: 16, marginTop: 4 },
     rateHint: { color: 'rgba(255,255,255,0.65)', fontSize: 12, marginTop: 8, alignSelf: 'flex-end' },
     sectionHead: {
@@ -102,6 +113,51 @@ export default function CollectTabContent({
     },
     badgeText: { fontSize: 11, color: '#16a34a', fontWeight: '600' },
     hint: { paddingHorizontal: 16, color: colors.textSecondary, fontSize: 13, marginBottom: 8 },
+    emptyStateCard: {
+      marginHorizontal: 16,
+      marginBottom: 16,
+      padding: 16,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+      backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+    },
+    emptyStateIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 10,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+    },
+    emptyStateTitle: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: '600',
+      marginBottom: 4,
+    },
+    emptyStateText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    emptyStateCta: {
+      marginTop: 12,
+      alignSelf: 'flex-start',
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      backgroundColor: colors.primary,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    emptyStateCtaText: {
+      color: '#fff',
+      fontSize: 13,
+      fontWeight: '600',
+    },
   });
 
   return (
@@ -125,38 +181,58 @@ export default function CollectTabContent({
           {/* <Text style={localStyles.usdAmt}>{formatUsd(summary.totalUsd)}</Text> */}
         </LinearGradient>
 
-        <View style={localStyles.sectionHead}>
-          <Text style={localStyles.sectionTitle}>Recent</Text>
-        </View>
-        {recentSettlements.length === 0 ? (
-          <Text style={localStyles.hint}>No Collect payments yet. Share a link or send an invoice.</Text>
-        ) : (
-          recentSettlements.map((s) => (
-            <View
-              key={s.id}
-              style={{
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderBottomWidth: StyleSheet.hairlineWidth,
-                borderBottomColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
-              }}
-            >
-              <Text style={{ color: colors.text, fontSize: 17, fontWeight: '600' }}>
-                {formatBalance(s.ngn_credited)}
-              </Text>
-              <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
-                {formatUsd(s.usd_gross)} · {new Date(s.created_at).toLocaleString()}
-              </Text>
+        {recentSettlements.length > 0 && (
+          <>
+            <View style={localStyles.sectionHead}>
+              <Text style={localStyles.sectionTitle}>Recent</Text>
             </View>
-          ))
+            {recentSettlements.map((s) => (
+              <View
+                key={s.id}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+                  borderBottomColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+                }}
+              >
+                <Text style={{ color: colors.text, fontSize: 17, fontWeight: '600' }}>
+                  {formatBalance(s.ngn_credited)}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+                  {formatUsd(s.usd_gross)} · {new Date(s.created_at).toLocaleString()}
+                </Text>
+              </View>
+            ))}
+          </>
         )}
 
         <View style={localStyles.sectionHead}>
           <Text style={localStyles.sectionTitle}>Active Links</Text>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 16, paddingBottom: 8 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8 }}
+        >
           {activeLinks.length === 0 ? (
-            <Text style={[localStyles.hint, { marginLeft: 0 }]}>No active payment links.</Text>
+            <View style={[localStyles.emptyStateCard, { marginLeft: 0, width: screenWidth - 64 }]}>
+              <View style={localStyles.emptyStateIconWrap}>
+                <Link2 size={18} color={colors.primary} />
+              </View>
+              <Text style={localStyles.emptyStateTitle}>No active link yet</Text>
+              <Text style={localStyles.emptyStateText}>Create a payment link and start collecting immediately.</Text>
+              <Pressable
+                style={localStyles.emptyStateCta}
+                onPress={() => {
+                  haptics.selection();
+                  router.push('/collect/new-link');
+                }}
+              >
+                <Text style={localStyles.emptyStateCtaText}>Create new link</Text>
+                <ChevronRight size={14} color="#fff" />
+              </Pressable>
+            </View>
           ) : (
             activeLinks.map((l) => (
               <View key={l.id} style={localStyles.miniCard}>
@@ -191,9 +267,29 @@ export default function CollectTabContent({
         <View style={localStyles.sectionHead}>
           <Text style={localStyles.sectionTitle}>Your invoices</Text>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingLeft: 16, paddingBottom: 24 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+        >
           {openInvoices.length === 0 && invoices.filter((i) => i.status === 'paid').length === 0 ? (
-            <Text style={[localStyles.hint, { marginLeft: 0 }]}>No invoices yet.</Text>
+            <View style={[localStyles.emptyStateCard, { marginLeft: 0, width: screenWidth - 64 }]}>
+              <View style={localStyles.emptyStateIconWrap}>
+                <FileText size={18} color={colors.primary} />
+              </View>
+              <Text style={localStyles.emptyStateTitle}>No invoice yet</Text>
+              <Text style={localStyles.emptyStateText}>Create an invoice to request and track payments from clients.</Text>
+              <Pressable
+                style={localStyles.emptyStateCta}
+                onPress={() => {
+                  haptics.selection();
+                  router.push('/collect/new-invoice');
+                }}
+              >
+                <Text style={localStyles.emptyStateCtaText}>Create new invoice</Text>
+                <ChevronRight size={14} color="#fff" />
+              </Pressable>
+            </View>
           ) : (
             [...openInvoices, ...invoices.filter((i) => i.status === 'paid').slice(0, 5)].map((inv) => (
               <View key={inv.id} style={localStyles.miniCard}>

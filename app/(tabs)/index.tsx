@@ -86,6 +86,7 @@ import AISuggestionCard from '@/components/AISuggestionCard';
 import OnTrackCard from '@/components/OnTrackCard';
 import ActiveSpendingPlansCard from '@/components/ActiveBudgetsCard';
 import QuickPlans from '@/components/QuickPlans';
+import QuickActions from '@/components/QuickActions';
 import DailySpendGuidance from '@/components/DailySpendGuidance';
 import { getCategoryIcon, getCategoryById } from '@/lib/expenseCategories';
 import { getBudgetDuration, isBudgetStarted } from '@/lib/expensePlanUtils';
@@ -1471,6 +1472,41 @@ export default function HomeScreen() {
     logAnalyticsEvent('create_payout_click_start');
   };
 
+  const handleCreateNewVault = () => {
+    impact();
+    if (!ensureAuthenticatedOrWelcome()) {
+      return;
+    }
+
+    router.push({
+      pathname: '/expense-planner/create/plan-details',
+      params: {
+        planTypes: JSON.stringify(['one_time']),
+      },
+    });
+    logAnalyticsEvent('quick_action_create_new_vault');
+  };
+
+  const handleCollectPayments = () => {
+    impact();
+    if (!ensureAuthenticatedOrWelcome()) {
+      return;
+    }
+
+    handleTabChange('collect');
+    logAnalyticsEvent('quick_action_collect_payments');
+  };
+
+  const handleCreatePayoutPlan = () => {
+    impact();
+    if (!ensureAuthenticatedOrWelcome()) {
+      return;
+    }
+
+    router.push('/create-payout/amount');
+    logAnalyticsEvent('quick_action_create_payout_plan');
+  };
+
   const handleAISuggestionPress = (suggestion: any) => {
     // Check authentication first
     if (!requireAuth(() => {}, '/create-payout/frequency-selection')) {
@@ -1933,7 +1969,12 @@ export default function HomeScreen() {
                 payoutPlans={payoutPlans}
               />
               <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
-              
+
+              {/* <QuickActions
+                onCreateNewVault={handleCreateNewVault}
+                onCollectPayments={handleCollectPayments}
+                onCreatePayoutPlan={handleCreatePayoutPlan}
+              /> */}
 
               <ImageCarousel images={carouselImages} />
 
