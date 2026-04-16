@@ -170,12 +170,9 @@ export function useCreatePayout() {
         // Set to the last day of the next month
         nextPayoutDate.setMonth(startDateObj.getMonth() + 1);
         nextPayoutDate.setDate(0); // Setting to 0 gets the last day of the previous month
-      } else if (frequency === "quarterly") {
-        nextPayoutDate.setMonth(startDateObj.getMonth() + 3);
-      } else if (frequency === "biannual") {
-        nextPayoutDate.setMonth(startDateObj.getMonth() + 6);
-      } else if (frequency === "annually") {
-        nextPayoutDate.setFullYear(startDateObj.getFullYear() + 1);
+      } else if (frequency === "quarterly" || frequency === "biannual" || frequency === "annually") {
+        // startDate is already the first payout date (see create-payout review / schedule).
+        // Do not add another quarter / half-year / year here or next_payout_date lands one full interval too late.
       }
 
       const nextPayoutDateStr = nextPayoutDate.toISOString();

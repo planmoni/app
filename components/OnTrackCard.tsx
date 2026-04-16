@@ -200,6 +200,37 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
           // Add remaining payouts months
           planLastDate.setMonth(startDate.getMonth() + plan.completed_payouts + (remainingPayouts - 1));
           break;
+        case 'weekly_specific':
+          if (plan.next_payout_date) {
+            const nextDate = new Date(plan.next_payout_date);
+            planLastDate = new Date(nextDate);
+            planLastDate.setDate(nextDate.getDate() + (remainingPayouts - 1) * 7);
+          } else {
+            planLastDate.setDate(
+              startDate.getDate() + plan.completed_payouts * 7 + (remainingPayouts - 1) * 7,
+            );
+          }
+          break;
+        case 'end_of_month':
+          planLastDate.setMonth(
+            startDate.getMonth() + plan.completed_payouts + (remainingPayouts - 1),
+          );
+          break;
+        case 'quarterly':
+          planLastDate.setMonth(
+            startDate.getMonth() + (plan.completed_payouts + (remainingPayouts - 1)) * 3,
+          );
+          break;
+        case 'biannual':
+          planLastDate.setMonth(
+            startDate.getMonth() + (plan.completed_payouts + (remainingPayouts - 1)) * 6,
+          );
+          break;
+        case 'annually':
+          planLastDate.setFullYear(
+            startDate.getFullYear() + plan.completed_payouts + (remainingPayouts - 1),
+          );
+          break;
         }
       }
       
