@@ -137,9 +137,10 @@ export function useCreatePayout() {
         netPayoutAmount = result.netPayoutAmount;
         perPayoutForPlan = result.perPayoutAmount;
       }
-      // Fee is taken from the amount: user only needs totalAmount (fees are deducted from it)
-      if (balance < totalAmount) {
-        throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${balance.toLocaleString()} available.`);
+      // Fee is taken from the amount: user only needs totalAmount (fees are deducted from it).
+      // Use availableBalance (balance − lockedBalance) so already-locked funds are excluded.
+      if (availableBalance < totalAmount) {
+        throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${availableBalance.toLocaleString()} available.`);
       }
 
       // All frequency values are now supported in the database
@@ -310,7 +311,7 @@ export function useCreatePayout() {
             plan_id: payoutPlan.id,
             stage: 'after_fee',
             context: {
-              fee: { feePercentage, feeAmount, netPayoutAmount, feeFrequency },
+              fee: { feePercentage: PLAN_CREATION_FEE_PERCENT, feeAmount, netPayoutAmount, frequency },
               feeChargeResult,
               wallet: walletAfterFee
             }

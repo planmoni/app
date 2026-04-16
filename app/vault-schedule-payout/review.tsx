@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -48,6 +48,11 @@ export default function VaultScheduleReviewScreen() {
   const [feeBreakdown, setFeeBreakdown] = useState<PayoutFeeResult | null>(null);
   const [showFeesBreakdownModal, setShowFeesBreakdownModal] = useState(false);
   const { verifyPayoutPin, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin } = usePin();
+
+  // Stable idempotency key for this screen session — prevents duplicates on double-tap or retry
+  const idempotencyKeyRef = useRef<string>(
+    `vps_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+  );
 
   const totalAmount = params.totalAmount as string;
   const frequency = params.frequency as string;
@@ -213,6 +218,7 @@ export default function VaultScheduleReviewScreen() {
         payoutHour,
         payoutMinute,
         metadata: {
+          idempotency_key: idempotencyKeyRef.current,
           customDates,
           customDateAmounts,
           customDateTimes,
@@ -248,6 +254,9 @@ export default function VaultScheduleReviewScreen() {
     showToast,
     forwardParams,
     haptics,
+    customDates,
+    customDateAmounts,
+    customDateTimes,
   ]);
 
   const handleStartPlan = useCallback(async () => {

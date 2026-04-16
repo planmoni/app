@@ -14,6 +14,7 @@ type CreateVaultScheduleArgs = {
   dayOfWeek: number | null;
   payoutHour: number;
   payoutMinute: number;
+  /** Optional `idempotency_key` in metadata enables safe RPC retries (same key returns the first schedule). */
   metadata?: Record<string, unknown>;
 };
 
