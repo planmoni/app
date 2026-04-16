@@ -1016,6 +1016,32 @@ export default function ScheduleScreen() {
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(selectedHour, 0, 0, 0);
       startDate = tomorrow.toISOString().split('T')[0];
+    } else if ((selectedSchedule || '') === 'biweekly') {
+      const firstPayoutDate = new Date();
+      firstPayoutDate.setDate(firstPayoutDate.getDate() + 14);
+      startDate = firstPayoutDate.toISOString().split('T')[0];
+    } else if ((selectedSchedule || '') === 'end_of_month') {
+      const today = new Date();
+      const month = today.getMonth();
+      const year = today.getFullYear();
+      const endOfCurrentMonth = new Date(year, month + 1, 0);
+      const firstPayoutDate =
+        today.getDate() >= endOfCurrentMonth.getDate()
+          ? new Date(year, month + 2, 0)
+          : endOfCurrentMonth;
+      startDate = firstPayoutDate.toISOString().split('T')[0];
+    } else if ((selectedSchedule || '') === 'quarterly') {
+      const firstPayoutDate = new Date();
+      firstPayoutDate.setMonth(firstPayoutDate.getMonth() + 3);
+      startDate = firstPayoutDate.toISOString().split('T')[0];
+    } else if ((selectedSchedule || '') === 'biannual') {
+      const firstPayoutDate = new Date();
+      firstPayoutDate.setMonth(firstPayoutDate.getMonth() + 6);
+      startDate = firstPayoutDate.toISOString().split('T')[0];
+    } else if ((selectedSchedule || '') === 'annually') {
+      const firstPayoutDate = new Date();
+      firstPayoutDate.setFullYear(firstPayoutDate.getFullYear() + 1);
+      startDate = firstPayoutDate.toISOString().split('T')[0];
     } else {
       startDate = new Date().toISOString().split('T')[0];
     }

@@ -124,6 +124,8 @@ export default function ReviewScreen() {
     }
   }, [feeDepsKey]);
 
+  const firstPayoutDate = getFirstPayoutDate();
+
   const handleConfirmPayout = useCallback(async () => {
     // SECURITY: Prevent multiple simultaneous submissions
     if (isLoading) {
@@ -139,7 +141,7 @@ export default function ReviewScreen() {
       console.log('- Frequency:', frequency);
       console.log('- Day of week:', dayOfWeek);
       console.log('- Duration:', parseInt(duration));
-      console.log('- Start date:', startDate);
+      console.log('- Start date:', firstPayoutDate);
       console.log('- Bank account ID:', bankAccountId || null);
       console.log('- Payout account ID:', payoutAccountId || null);
       console.log('- Custom dates:', customDates);
@@ -158,7 +160,7 @@ export default function ReviewScreen() {
         frequency: frequency as any,
         dayOfWeek: dayOfWeek,
         duration: parseInt(duration),
-        startDate,
+        startDate: firstPayoutDate,
         bankAccountId: bankAccountId || null,
         payoutAccountId: payoutAccountId || null,
         customDates,
@@ -176,7 +178,7 @@ export default function ReviewScreen() {
         haptics.error();
       }
     }
-  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, startDate, bankAccountId, payoutAccountId, customDates, customDateAmounts, customDateTimes, emergencyWithdrawal, haptics, createPayout, isLoading, purpose, purposeOther]);
+  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, firstPayoutDate, bankAccountId, payoutAccountId, customDates, customDateAmounts, customDateTimes, emergencyWithdrawal, haptics, createPayout, isLoading, purpose, purposeOther]);
 
   const handleStartPlan = useCallback(async () => {
     if (hasInsufficientBalance) {
@@ -271,6 +273,65 @@ export default function ReviewScreen() {
     }
     return '9:00 AM'; // Default time
   }, [payoutHour, payoutMinute]);
+
+  function getFirstPayoutDate() {
+    if (frequency === 'custom' && customDates.length > 0) {
+      return customDates[0];
+    }
+
+    if (frequency === 'weekly_specific' && typeof dayOfWeek === 'number') {
+      const today = new Date();
+      const currentDay = today.getDay();
+      const daysToAdd = (dayOfWeek - currentDay + 7) % 7;
+      const first = new Date(today);
+      first.setDate(today.getDate() + daysToAdd);
+      return first.toISOString().split('T')[0];
+    }
+
+    if (frequency === 'daily') {
+      const next = new Date();
+      next.setDate(next.getDate() + 1);
+      return next.toISOString().split('T')[0];
+    }
+
+    if (frequency === 'biweekly') {
+      const next = new Date();
+      next.setDate(next.getDate() + 14);
+      return next.toISOString().split('T')[0];
+    }
+
+    if (frequency === 'end_of_month') {
+      const today = new Date();
+      const month = today.getMonth();
+      const year = today.getFullYear();
+      const endOfCurrentMonth = new Date(year, month + 1, 0);
+      const first =
+        today.getDate() >= endOfCurrentMonth.getDate()
+          ? new Date(year, month + 2, 0)
+          : endOfCurrentMonth;
+      return first.toISOString().split('T')[0];
+    }
+
+    if (frequency === 'quarterly') {
+      const next = new Date();
+      next.setMonth(next.getMonth() + 3);
+      return next.toISOString().split('T')[0];
+    }
+
+    if (frequency === 'biannual') {
+      const next = new Date();
+      next.setMonth(next.getMonth() + 6);
+      return next.toISOString().split('T')[0];
+    }
+
+    if (frequency === 'annually') {
+      const next = new Date();
+      next.setFullYear(next.getFullYear() + 1);
+      return next.toISOString().split('T')[0];
+    }
+
+    return startDate;
+  }
 
   function getNextPayoutDate(startDate: string, frequency: string, customDates: string[] = [], dayOfWeek?: number): string {
     if (frequency === 'custom' && customDates.length > 0) {
@@ -539,7 +600,7 @@ export default function ReviewScreen() {
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Duration</Text>
                   <Text style={styles.detailValue}>{getDurationDisplay()}</Text>
-                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(startDate)} at {getPayoutTimeDisplay()}</Text>
+                  <Text style={styles.detailSubtext}>First payout on {formatDisplayDate(firstPayoutDate)} at {getPayoutTimeDisplay()}</Text>
                 </View>
                 <Pressable 
                   style={styles.editButton} 
