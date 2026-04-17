@@ -191,6 +191,57 @@ export default function VaultScheduleReviewScreen() {
     });
   }, [payoutHour, payoutMinute]);
 
+  const getInitialNextPayoutDate = useCallback(
+    (startDateValue: string, freq: string, customDateList: string[] = [], selectedDayOfWeek?: number) => {
+      if (freq === 'custom' && customDateList.length > 0) {
+        const firstCustom = [...customDateList].sort()[0];
+        return firstCustom;
+      }
+
+      const start = new Date(startDateValue);
+      const next = new Date(start);
+
+      if (freq === 'weekly_specific' && typeof selectedDayOfWeek === 'number') {
+        const currentDay = start.getDay();
+        let daysToAdd = (selectedDayOfWeek - currentDay + 7) % 7;
+        // For recurring schedules, if today matches selected weekday, push to next week.
+        if (daysToAdd === 0) daysToAdd = 7;
+        next.setDate(start.getDate() + daysToAdd);
+        return formatDisplayDate(next.toISOString());
+      }
+
+      switch (freq) {
+        case 'daily':
+          next.setDate(start.getDate() + 1);
+          break;
+        case 'weekly':
+          next.setDate(start.getDate() + 7);
+          break;
+        case 'biweekly':
+          next.setDate(start.getDate() + 14);
+          break;
+        case 'monthly':
+        case 'end_of_month':
+          next.setMonth(start.getMonth() + 1);
+          break;
+        case 'quarterly':
+          next.setMonth(start.getMonth() + 3);
+          break;
+        case 'biannual':
+          next.setMonth(start.getMonth() + 6);
+          break;
+        case 'annually':
+          next.setFullYear(start.getFullYear() + 1);
+          break;
+        default:
+          next.setDate(start.getDate() + 7);
+      }
+
+      return formatDisplayDate(next.toISOString());
+    },
+    []
+  );
+
   const handleConfirm = useCallback(async () => {
     if (isLoading) return;
     if (!payoutAccountId) {
@@ -203,6 +254,12 @@ export default function VaultScheduleReviewScreen() {
     }
 
     const startDateOnly = (startDate || '').split('T')[0];
+    const initialNextPayoutDate = getInitialNextPayoutDate(
+      startDateOnly,
+      frequency,
+      customDates as string[],
+      typeof dayOfWeek === 'number' ? dayOfWeek : undefined
+    );
     try {
       if (Platform.OS !== 'web') haptics.mediumImpact();
       const result = await createVaultPayoutSchedule({
@@ -212,7 +269,7 @@ export default function VaultScheduleReviewScreen() {
         frequency,
         duration: parseInt(duration, 10),
         startDate: startDateOnly,
-        nextPayoutDate: startDateOnly,
+        nextPayoutDate: initialNextPayoutDate,
         dayOfWeek:
           frequency === 'weekly_specific' && typeof dayOfWeek === 'number' ? dayOfWeek : null,
         payoutHour,
@@ -257,6 +314,7 @@ export default function VaultScheduleReviewScreen() {
     customDates,
     customDateAmounts,
     customDateTimes,
+    getInitialNextPayoutDate,
   ]);
 
   const handleStartPlan = useCallback(async () => {
