@@ -57,33 +57,9 @@ const safeHavenApiUrl = "https://api.safehavenmfb.com";
  * race conditions, though each item's processing is independently idempotent.
  */
 async function processDuePayouts() {
-  const startedAt = Date.now();
-  const executionId = `exec_${startedAt}_${Math.random().toString(36).substring(2, 10)}`;
-
-  // Structured summary collected throughout the run — emitted at the end for log-based alerting
-  const summary: {
-    executionId: string;
-    startedAt: string;
-    finishedAt?: string;
-    elapsedMs?: number;
-    payouts: { planId: string; name: string; status: 'success' | 'skipped' | 'failed'; error?: string }[];
-    withdrawals: { id: string; status: 'success' | 'skipped' | 'failed'; error?: string }[];
-    totals: {
-      payouts_found: number; payouts_success: number; payouts_skipped: number; payouts_failed: number;
-      withdrawals_found: number; withdrawals_success: number; withdrawals_skipped: number; withdrawals_failed: number;
-    };
-  } = {
-    executionId,
-    startedAt: new Date(startedAt).toISOString(),
-    payouts: [],
-    withdrawals: [],
-    totals: {
-      payouts_found: 0, payouts_success: 0, payouts_skipped: 0, payouts_failed: 0,
-      withdrawals_found: 0, withdrawals_success: 0, withdrawals_skipped: 0, withdrawals_failed: 0,
-    },
-  };
-
-  console.log(`🚀 [${executionId}] Starting automated payout processing...`);
+  console.log("🚀 Starting automated payout processing...");
+  const executionId = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+  console.log(`📋 Execution ID: ${executionId} (for tracking and debugging)`);
   
   try {
     // Get all due payout plans
@@ -139,122 +115,88 @@ async function processDuePayouts() {
     
     const totalPayouts = duePlans?.length || 0;
     const totalWithdrawals = scheduledWithdrawals?.length || 0;
-
-    summary.totals.payouts_found = totalPayouts;
-    summary.totals.withdrawals_found = totalWithdrawals;
-
+    
     if (totalPayouts === 0 && totalWithdrawals === 0) {
-      console.log(`[${executionId}] ✅ No due payouts or scheduled withdrawals found`);
-      summary.finishedAt = new Date().toISOString();
-      summary.elapsedMs = Date.now() - startedAt;
-      console.log("EXECUTION_SUMMARY", JSON.stringify(summary));
-      return buildResult(summary);
+      console.log("✅ No due payouts or scheduled withdrawals found");
+      return {
+        processed: 0,
+        success: 0,
+        failed: 0,
+        withdrawals_processed: 0,
+        withdrawals_success: 0,
+        withdrawals_failed: 0
+      };
     }
-
-    console.log(`[${executionId}] 📋 Found ${totalPayouts} due payout plans and ${totalWithdrawals} scheduled emergency withdrawals`);
-
-    // ── Payout plans ──────────────────────────────────────────────────────────
-    for (const plan of duePlans ?? []) {
-      const planStart = Date.now();
-      console.log(`[${executionId}] ⏳ Payout plan: ${plan.name} (${plan.plan_id})`);
-      try {
-        await processSinglePayout(plan);
-        summary.totals.payouts_success++;
-        summary.payouts.push({ planId: plan.plan_id, name: plan.name, status: 'success' });
-        console.log(`[${executionId}] ✅ Payout done: ${plan.name} in ${Date.now() - planStart}ms`);
-      } catch (error: any) {
-        const msg: string = error?.message ?? String(error);
-        const isSkip = /already|duplicate|skipping/i.test(msg);
-        if (isSkip) {
-          summary.totals.payouts_skipped++;
-          summary.payouts.push({ planId: plan.plan_id, name: plan.name, status: 'skipped', error: msg });
-          console.log(`[${executionId}] ℹ️ Skipped payout: ${plan.name} — ${msg}`);
-        } else {
-          summary.totals.payouts_failed++;
-          summary.payouts.push({ planId: plan.plan_id, name: plan.name, status: 'failed', error: msg });
-          console.error(`[${executionId}] ❌ Failed payout: ${plan.name} — ${msg}`);
-          await logPayoutFailure(plan, error);
+    
+    console.log(`📋 Found ${totalPayouts} due payout plans and ${totalWithdrawals} scheduled emergency withdrawals`);
+    
+    let successCount = 0;
+    let failureCount = 0;
+    let withdrawalSuccessCount = 0;
+    let withdrawalFailureCount = 0;
+    
+    // Process each due payout plan
+    // NOTE: Processing is sequential to avoid race conditions, but each payout
+    // is independently idempotent, so concurrent execution is safe
+    if (duePlans && duePlans.length > 0) {
+      for (const plan of duePlans) {
+        try {
+          console.log(`⏳ Processing payout for plan: ${plan.name} (${plan.plan_id}) [${executionId}]`);
+          await processSinglePayout(plan);
+          successCount++;
+          console.log(`✅ Successfully processed payout for plan: ${plan.name} [${executionId}]`);
+        } catch (error: any) {
+          // IDEMPOTENCY: Some errors are expected (e.g., already processed)
+          if (error.message?.includes("already") || error.message?.includes("duplicate") || error.message?.includes("skipping")) {
+            console.log(`ℹ️ Skipping payout for plan: ${plan.name} - ${error.message} [${executionId}]`);
+            // Don't count as failure for idempotency-related skips
+          } else {
+            console.error(`❌ Failed to process payout for plan: ${plan.name}`, error);
+            failureCount++;
+            // Log the failure
+            await logPayoutFailure(plan, error);
+          }
         }
       }
     }
-
-    // ── Emergency withdrawals ─────────────────────────────────────────────────
-    for (const withdrawal of scheduledWithdrawals ?? []) {
-      const wStart = Date.now();
-      console.log(`[${executionId}] ⏳ Emergency withdrawal: ${withdrawal.id}`);
-      try {
-        await processScheduledEmergencyWithdrawal(withdrawal);
-        summary.totals.withdrawals_success++;
-        summary.withdrawals.push({ id: withdrawal.id, status: 'success' });
-        console.log(`[${executionId}] ✅ Withdrawal done: ${withdrawal.id} in ${Date.now() - wStart}ms`);
-      } catch (error: any) {
-        const msg: string = error?.message ?? String(error);
-        const isSkip = /already|duplicate|skipping/i.test(msg);
-        if (isSkip) {
-          summary.totals.withdrawals_skipped++;
-          summary.withdrawals.push({ id: withdrawal.id, status: 'skipped', error: msg });
-          console.log(`[${executionId}] ℹ️ Skipped withdrawal: ${withdrawal.id} — ${msg}`);
-        } else {
-          summary.totals.withdrawals_failed++;
-          summary.withdrawals.push({ id: withdrawal.id, status: 'failed', error: msg });
-          console.error(`[${executionId}] ❌ Failed withdrawal: ${withdrawal.id} — ${msg}`);
-          await logEmergencyWithdrawalFailure(withdrawal, error);
+    
+    // Process each scheduled emergency withdrawal
+    // NOTE: Processing is sequential to avoid race conditions, but each withdrawal
+    // is independently idempotent, so concurrent execution is safe
+    if (scheduledWithdrawals && scheduledWithdrawals.length > 0) {
+      for (const withdrawal of scheduledWithdrawals) {
+        try {
+          console.log(`⏳ Processing scheduled emergency withdrawal: ${withdrawal.id} [${executionId}]`);
+          await processScheduledEmergencyWithdrawal(withdrawal);
+          withdrawalSuccessCount++;
+          console.log(`✅ Successfully processed emergency withdrawal: ${withdrawal.id} [${executionId}]`);
+        } catch (error: any) {
+          // IDEMPOTENCY: Some errors are expected (e.g., already processed)
+          if (error.message?.includes("already") || error.message?.includes("duplicate") || error.message?.includes("skipping")) {
+            console.log(`ℹ️ Skipping emergency withdrawal: ${withdrawal.id} - ${error.message} [${executionId}]`);
+            // Don't count as failure for idempotency-related skips
+          } else {
+            console.error(`❌ Failed to process emergency withdrawal: ${withdrawal.id}`, error);
+            withdrawalFailureCount++;
+            await logEmergencyWithdrawalFailure(withdrawal, error);
+          }
         }
       }
     }
-
-    summary.finishedAt = new Date().toISOString();
-    summary.elapsedMs = Date.now() - startedAt;
-
-    // Emit one structured line that log-aggregation tools (Datadog, Logflare, etc.)
-    // can parse and alert on (e.g. totals.payouts_failed > 0)
-    console.log("EXECUTION_SUMMARY", JSON.stringify(summary));
-
-    const result = buildResult(summary);
-    console.log(
-      `[${executionId}] 🏁 Done in ${summary.elapsedMs}ms — ` +
-      `Payouts: ${result.success}✓ ${result.skipped}⏭ ${result.failed}✗ | ` +
-      `Withdrawals: ${result.withdrawals_success}✓ ${result.withdrawals_skipped}⏭ ${result.withdrawals_failed}✗`
-    );
-    return result;
-
+    
+    console.log(`🏁 Processing completed. Payouts - Success: ${successCount}, Failed: ${failureCount}. Withdrawals - Success: ${withdrawalSuccessCount}, Failed: ${withdrawalFailureCount}`);
+    return {
+      processed: totalPayouts,
+      success: successCount,
+      failed: failureCount,
+      withdrawals_processed: totalWithdrawals,
+      withdrawals_success: withdrawalSuccessCount,
+      withdrawals_failed: withdrawalFailureCount
+    };
   } catch (error: any) {
-    summary.finishedAt = new Date().toISOString();
-    summary.elapsedMs = Date.now() - startedAt;
-    console.error(`[${executionId}] 💥 Critical error:`, error?.message ?? error);
-    console.log("EXECUTION_SUMMARY", JSON.stringify({ ...summary, criticalError: error?.message }));
+    console.error("💥 Critical error in payout processing:", error);
     throw error;
   }
-}
-
-function buildResult(summary: typeof processDuePayoutsResult) {
-  return {
-    executionId: summary.executionId,
-    elapsedMs: summary.elapsedMs,
-    processed: summary.totals.payouts_found,
-    success: summary.totals.payouts_success,
-    skipped: summary.totals.payouts_skipped,
-    failed: summary.totals.payouts_failed,
-    withdrawals_processed: summary.totals.withdrawals_found,
-    withdrawals_success: summary.totals.withdrawals_success,
-    withdrawals_skipped: summary.totals.withdrawals_skipped,
-    withdrawals_failed: summary.totals.withdrawals_failed,
-  };
-}
-
-// Type helper so TypeScript is happy with the summary shape passed to buildResult
-type processDuePayoutsResult = Awaited<ReturnType<typeof processDuePayoutsShape>>;
-function processDuePayoutsShape() {
-  return Promise.resolve({
-    executionId: '', startedAt: '', finishedAt: '' as string | undefined,
-    elapsedMs: 0 as number | undefined,
-    payouts: [] as { planId: string; name: string; status: 'success' | 'skipped' | 'failed'; error?: string }[],
-    withdrawals: [] as { id: string; status: 'success' | 'skipped' | 'failed'; error?: string }[],
-    totals: {
-      payouts_found: 0, payouts_success: 0, payouts_skipped: 0, payouts_failed: 0,
-      withdrawals_found: 0, withdrawals_success: 0, withdrawals_skipped: 0, withdrawals_failed: 0,
-    },
-  });
 }
 
 /**
@@ -733,23 +675,22 @@ async function processSinglePayout(plan: any) {
     }
 
     if (transactionId) {
-      // Use resolveTransactionStatus so SafeHaven "Completed"+"00" → our "completed"
-      // (was incorrectly mapped to "success" before)
-      const txStatus = resolveTransactionStatus(transferResult);
+      const success = isTransferSuccess(transferResult);
+      const txStatus = success ? 'success' : 'pending';
       const txMeta: Record<string, any> = {
         provider: transferResult.provider,
         transfer_code: transferResult.transfer_code || transferResult.reference,
         transfer_status: transferResult.status,
         response: transferResult.rawResponse || transferResult,
         payout_plan_id: plan.plan_id,
-        automated_payout_id: payoutId,
+        automated_payout_id: plan.plan_id,
         safehaven_transfer_id: transferResult.id || transferResult._id,
         safehaven_transfer_code: transferResult.reference || transferResult.paymentReference,
         safehaven_transfer_status: transferResult.status || 'Pending',
         safehaven_transfer_session_id: transferResult.sessionId
       };
 
-      const { error: txUpdateErr } = await supabase
+      await supabase
         .from('transactions')
         .update({
           status: txStatus,
@@ -758,12 +699,6 @@ async function processSinglePayout(plan: any) {
           updated_at: new Date().toISOString()
         })
         .eq('id', transactionId);
-
-      if (txUpdateErr) {
-        console.error(`❌ Failed to update transaction ${transactionId} to ${txStatus}:`, txUpdateErr);
-      } else {
-        console.log(`✅ Transaction ${transactionId} → status: ${txStatus}`);
-      }
     }
   } catch (txUpdateErr) {
     console.error('Failed to update transaction status after transfer:', txUpdateErr);
@@ -816,45 +751,18 @@ async function processSinglePayout(plan: any) {
 }
 
 /**
- * Determine whether a SafeHaven transfer response represents a confirmed
- * completion.  SafeHaven signals success with:
- *   statusCode: 200, responseCode: "00", data.status: "Completed" | "Success"
- *
- * We deliberately check all three conditions so a partial/malformed response
- * is never treated as successful.
+ * Initiate transfer via SafeHaven
  */
 function isTransferSuccess(transferResult: any): boolean {
   try {
     const raw = transferResult?.rawResponse || {};
+    const code = raw?.responseCode;
     const statusCode = raw?.statusCode;
-    const responseCode = raw?.responseCode;
     const dataStatus = raw?.data?.status || transferResult?.status;
-    return (
-      statusCode === 200 &&
-      responseCode === '00' &&
-      (dataStatus === 'Completed' || dataStatus === 'Success')
-    );
+    return (statusCode === 200 && code === '00' && (dataStatus === 'Completed' || dataStatus === 'Success'));
   } catch (_) {
     return false;
   }
-}
-
-/**
- * Map our internal transaction status from a SafeHaven transfer result.
- *
- * SafeHaven "Completed" + responseCode "00"  →  our "completed"
- * SafeHaven "Failed"                          →  our "failed"
- * Anything else (Pending, Processing, …)      →  our "pending"
- *
- * NOTE: "success" was previously used here but is not a valid status in our
- * transactions table — "completed" is the correct terminal success value.
- */
-function resolveTransactionStatus(transferResult: any): string {
-  if (isTransferSuccess(transferResult)) return 'completed';
-  const raw = transferResult?.rawResponse || {};
-  const dataStatus = raw?.data?.status || transferResult?.status;
-  if (dataStatus === 'Failed') return 'failed';
-  return 'pending';
 }
 
 function computeNextPayoutDateWithTime(
@@ -903,6 +811,36 @@ function computeNextPayoutDateWithTime(
       }
       setTime(target);
       return target;
+    }
+    if (frequency === 'daily') {
+      next.setDate(start.getDate() + newCompletedCount);
+      setTime(next);
+      return next;
+    }
+    if (frequency === 'biweekly') {
+      next.setDate(start.getDate() + (newCompletedCount * 14));
+      setTime(next);
+      return next;
+    }
+    if (frequency === 'monthly' || frequency === 'end_of_month') {
+      next.setMonth(start.getMonth() + newCompletedCount);
+      setTime(next);
+      return next;
+    }
+    if (frequency === 'quarterly') {
+      next.setMonth(start.getMonth() + (newCompletedCount * 3));
+      setTime(next);
+      return next;
+    }
+    if (frequency === 'biannual') {
+      next.setMonth(start.getMonth() + (newCompletedCount * 6));
+      setTime(next);
+      return next;
+    }
+    if (frequency === 'annually') {
+      next.setFullYear(start.getFullYear() + newCompletedCount);
+      setTime(next);
+      return next;
     }
     return null;
   } catch (_) {
@@ -1065,36 +1003,24 @@ async function resolveBankCodes(payoutAccount: any): Promise<BankCodeResolution>
 }
 
 /**
- * Update automated payout record with transfer details.
- *
- * Status mapping (aligned with resolveTransactionStatus):
- *   isTransferSuccess → "completed"
- *   rawResponse.data.status === "Failed" → "failed"
- *   everything else → "processing"
+ * Update automated payout record with transfer details
  */
 async function updateAutomatedPayout(payoutId: string, transferResult: any) {
-  const success = isTransferSuccess(transferResult);
-  const rawStatus = transferResult?.rawResponse?.data?.status || transferResult?.status || '';
-  const isFailed = rawStatus === 'Failed';
-
-  const automatedPayoutStatus = success ? 'completed' : isFailed ? 'failed' : 'processing';
-
+  const isCompleted = transferResult.status === "Completed";
   const metadata: Record<string, any> = {
     provider: transferResult.provider,
     transfer_code: transferResult.transfer_code || transferResult.reference,
     transfer_status: transferResult.status,
     response: transferResult.rawResponse || transferResult,
-    automated_payout_id: payoutId,
-    safehaven_response_code: transferResult?.rawResponse?.responseCode,
-    safehaven_status_code: transferResult?.rawResponse?.statusCode
+    automated_payout_id: payoutId
   };
 
   const updatePayload: Record<string, any> = {
-    status: automatedPayoutStatus,
+    status: isCompleted ? "completed" : transferResult.status === "Failed" ? "failed" : "processing",
     transfer_reference: transferResult.reference,
     transfer_code: transferResult.transfer_code || transferResult.reference,
     payment_reference: transferResult.paymentReference || transferResult.reference,
-    completed_at: success ? new Date().toISOString() : null,
+    completed_at: isCompleted ? new Date().toISOString() : null,
     transferred_at: new Date().toISOString(),
     metadata
   };
@@ -1104,16 +1030,7 @@ async function updateAutomatedPayout(payoutId: string, transferResult: any) {
     updatePayload.session_id = transferResult.sessionId;
   }
 
-  const { error } = await supabase
-    .from("automated_payouts")
-    .update(updatePayload)
-    .eq("id", payoutId);
-
-  if (error) {
-    console.error(`❌ Failed to update automated_payout ${payoutId}:`, error);
-  } else {
-    console.log(`✅ automated_payout ${payoutId} → status: ${automatedPayoutStatus}`);
-  }
+  await supabase.from("automated_payouts").update(updatePayload).eq("id", payoutId);
 }
 
 /**
@@ -1392,50 +1309,6 @@ async function processScheduledEmergencyWithdrawal(withdrawal: any) {
     accessToken = await refreshOrCreateSafeHavenToken(withdrawal.user_id, safeHavenToken);
   }
 
-  // CRITICAL ORDER: Debit wallet BEFORE initiating transfer and BEFORE marking completed.
-  // If we set status=completed first and then crash before debiting, the wallet is never
-  // reduced even though the bank received the funds. Use withdrawalCheck.metadata (fresh
-  // from DB) rather than the stale withdrawal object to detect previous debit attempts.
-  const walletAlreadyDebited = withdrawalCheck.metadata?.wallet_debited === true;
-
-  if (!walletAlreadyDebited) {
-    const { error: reduceError } = await supabase.rpc("transfer_funds", {
-      arg_user_id: withdrawal.user_id,
-      arg_amount: withdrawal.withdrawal_amount
-    });
-
-    if (reduceError) {
-      console.error("Error reducing wallet balance:", reduceError);
-      // Rollback to scheduled so the next cron run can retry
-      await supabase
-        .from("emergency_withdrawals")
-        .update({ 
-          status: "scheduled",
-          processed_at: null
-        })
-        .eq("id", withdrawal.id);
-      throw new Error(`Failed to reduce wallet balance: ${reduceError.message}`);
-    }
-
-    // Persist idempotency marker so a retry after this point skips the debit
-    await supabase
-      .from("emergency_withdrawals")
-      .update({
-        metadata: {
-          ...(withdrawalCheck.metadata || {}),
-          wallet_debited: true,
-          wallet_debited_at: new Date().toISOString(),
-          wallet_debited_amount: withdrawal.withdrawal_amount
-        }
-      })
-      .eq("id", withdrawal.id);
-
-    console.log(`✅ Wallet balance debited for emergency withdrawal: ₦${withdrawal.withdrawal_amount}`);
-  } else {
-    console.log(`✅ Wallet balance already debited for emergency withdrawal ${withdrawal.id} (idempotency check passed)`);
-  }
-
-  // Initiate transfer only after wallet has been safely debited
   const transferResult = await initiateSafeHavenEmergencyTransfer(
     withdrawal,
     payoutAccount,
@@ -1445,15 +1318,13 @@ async function processScheduledEmergencyWithdrawal(withdrawal: any) {
     safehavenCode
   );
 
-  // Mark completed only after the transfer has been accepted by SafeHaven
+  // Update withdrawal status to completed
   const withdrawalMetadata: Record<string, any> = {
     provider: transferResult.provider,
     transfer_code: transferResult.transfer_code || transferResult.reference,
     transfer_status: transferResult.status,
     response: transferResult.rawResponse || transferResult,
-    processed_via: "scheduled_cron",
-    wallet_debited: true,
-    wallet_debited_amount: withdrawal.withdrawal_amount
+    processed_via: "scheduled_cron"
   };
 
   withdrawalMetadata.safehaven_transfer_id = transferResult.id || transferResult._id;
@@ -1472,6 +1343,47 @@ async function processScheduledEmergencyWithdrawal(withdrawal: any) {
 
   if (completeError) {
     console.error("Error updating withdrawal to completed:", completeError);
+  }
+
+  // TRANSACTIONAL: Reduce both balance and locked_balance since money is being withdrawn from the system
+  // IDEMPOTENCY: Check if wallet was already debited for this withdrawal
+  const walletAlreadyDebited = withdrawal.metadata?.wallet_debited === true;
+  
+  if (!walletAlreadyDebited) {
+    const { error: reduceError } = await supabase.rpc("transfer_funds", {
+      arg_user_id: withdrawal.user_id,
+      arg_amount: withdrawal.withdrawal_amount
+    });
+
+    if (reduceError) {
+      console.error("Error reducing wallet balance:", reduceError);
+      // Rollback withdrawal status on error
+      await supabase
+        .from("emergency_withdrawals")
+        .update({ 
+          status: "scheduled",
+          processed_at: null
+        })
+        .eq("id", withdrawal.id);
+      throw new Error(`Failed to reduce wallet balance: ${reduceError.message}`);
+    }
+    
+    // Mark wallet as debited in metadata (idempotency marker)
+    await supabase
+      .from("emergency_withdrawals")
+      .update({
+        metadata: {
+          ...(withdrawal.metadata || {}),
+          wallet_debited: true,
+          wallet_debited_at: new Date().toISOString(),
+          wallet_debited_amount: withdrawal.withdrawal_amount
+        }
+      })
+      .eq("id", withdrawal.id);
+    
+    console.log(`✅ Wallet balance debited for emergency withdrawal: ₦${withdrawal.withdrawal_amount}`);
+  } else {
+    console.log(`✅ Wallet balance already debited for emergency withdrawal ${withdrawal.id} (idempotency check passed)`);
   }
 
   // Create transaction record for emergency withdrawal
@@ -1884,32 +1796,36 @@ async function logPayoutFailure(plan: any, error: any) {
 
 /**
  * Main serve handler
- *
- * Returns a rich result object so callers (cron, manual triggers, monitoring)
- * can inspect per-execution counts and detect silent failures (e.g. failed > 0).
  */
 serve(async (req: Request) => {
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return new Response("Method not allowed", {
+      status: 405
+    });
   }
-
+  
   try {
     const result = await processDuePayouts();
-    const hasFailures = (result.failed ?? 0) > 0 || (result.withdrawals_failed ?? 0) > 0;
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Payout processing completed",
-        has_failures: hasFailures,
-        result,
-      }),
-      { headers: { "Content-Type": "application/json" }, status: 200 }
-    );
+    return new Response(JSON.stringify({
+      success: true,
+      message: "Payout processing completed",
+      result
+    }), {
+      headers: {
+        "Content-Type": "application/json"
+      },
+      status: 200
+    });
   } catch (error: any) {
     console.error("💥 Function execution failed:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error?.message || "Unknown error occurred" }),
-      { headers: { "Content-Type": "application/json" }, status: 500 }
-    );
+    return new Response(JSON.stringify({
+      success: false,
+      error: error?.message || "Unknown error occurred"
+    }), {
+      headers: {
+        "Content-Type": "application/json"
+      },
+      status: 500
+    });
   }
 });
