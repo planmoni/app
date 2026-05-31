@@ -286,10 +286,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const sessionId = session?.access_token;
     
     // Deactivate the session before signing out (fail silently if it doesn't work)
-    if (sessionId && userId) {
+    if (userId) {
       try {
         const { ActiveSessionService } = await import('@/lib/active-session-service');
-        await ActiveSessionService.deactivateSession(sessionId, userId);
+        await ActiveSessionService.deactivateSession(sessionId ?? '', userId);
       } catch (error) {
         // Silently fail - session might already be invalid
         console.log('Note: Could not deactivate session (may already be invalid)');

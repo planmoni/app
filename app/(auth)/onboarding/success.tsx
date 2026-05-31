@@ -33,12 +33,18 @@ export default function SuccessScreen() {
 
   const handleCreatePayout = () => {
     haptics.mediumImpact();
-    router.replace('/create-payout/amount');
+    router.replace({
+      pathname: '/enable-notifications',
+      params: { next: '/create-payout/amount' },
+    });
   };
 
   const handleGoToDashboard = () => {
     haptics.lightImpact();
-    router.replace('/(tabs)');
+    router.replace({
+      pathname: '/enable-notifications',
+      params: { next: '/(tabs)' },
+    });
   };
 
   const styles = createStyles(colors);

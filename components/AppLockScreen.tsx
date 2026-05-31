@@ -11,6 +11,8 @@ import { useHaptics } from '@/hooks/useHaptics';
 import PinDisplay from '@/components/PinDisplay';
 import PinKeypad from '@/components/PinKeypad';
 
+const MAX_BIOMETRIC_RETRIES = 3;
+
 export default function AppLockScreen() {
   const { colors, isDark } = useTheme();
   const { hasAppLockPin, verifyAppLockPin, biometricEnabled, checkBiometricSupport } = usePin();
@@ -30,6 +32,8 @@ export default function AppLockScreen() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [biometricSupport, setBiometricSupport] = useState<any>(null);
   const [showBiometricOption, setShowBiometricOption] = useState(false);
+  const [showPinEntry, setShowPinEntry] = useState(false);
+  const [biometricAttempts, setBiometricAttempts] = useState(0);
   const [isUnlocked, setIsUnlocked] = useState(false);
   
   // Shake animation for incorrect PIN
@@ -90,26 +94,32 @@ export default function AppLockScreen() {
 
   useEffect(() => {
     checkBiometrics();
-    
-    // Auto-trigger biometric if enabled, but only after a delay
-    if (biometricEnabled && hasAppLockPin) {
-      const timer = setTimeout(() => {
-        handleBiometricUnlock();
-      }, 2000);
-      
-      return () => clearTimeout(timer);
-    }
   }, [biometricEnabled, hasAppLockPin]);
 
   const checkBiometrics = async () => {
     try {
       const support = await checkBiometricSupport();
+      const canUseBiometric = biometricEnabled && support.isAvailable && support.isEnrolled;
       setBiometricSupport(support);
-      setShowBiometricOption(biometricEnabled && support.isAvailable && support.isEnrolled);
+      setShowBiometricOption(canUseBiometric);
+      setShowPinEntry(!canUseBiometric);
     } catch (error) {
       console.error('Error checking biometric support:', error);
+      setShowBiometricOption(false);
+      setShowPinEntry(true);
     }
   };
+
+  useEffect(() => {
+    if (!showBiometricOption || showPinEntry || isVerifying || isUnlocked) return;
+    if (biometricAttempts >= MAX_BIOMETRIC_RETRIES) return;
+
+    const timer = setTimeout(() => {
+      handleBiometricUnlock(true);
+    }, biometricAttempts === 0 ? 600 : 300);
+
+    return () => clearTimeout(timer);
+  }, [showBiometricOption, showPinEntry, biometricAttempts, isVerifying, isUnlocked]);
 
   const handlePinChange = (digit: string) => {
     if (pin.length < 4 && !isVerifying) {
@@ -173,7 +183,7 @@ export default function AppLockScreen() {
     }
   };
 
-  const handleBiometricUnlock = async () => {
+  const handleBiometricUnlock = async (isAutoRetry: boolean = false) => {
     if (!biometricEnabled) {
       Alert.alert('Biometrics Disabled', 'Please enable biometric authentication in Security Center to use this feature.');
       return;
@@ -200,12 +210,30 @@ export default function AppLockScreen() {
         }, 500);
       } else {
         haptics.error();
-        // Do not show modal when biometric fails - user can retry or use PIN
+        const nextAttempt = biometricAttempts + 1;
+        setBiometricAttempts(nextAttempt);
+
+        if (nextAttempt >= MAX_BIOMETRIC_RETRIES) {
+          setShowPinEntry(true);
+          setError('Biometric verification failed. Enter your PIN to continue.');
+        } else if (!isAutoRetry) {
+          const left = MAX_BIOMETRIC_RETRIES - nextAttempt;
+          setError(`Biometric failed. ${left} ${left === 1 ? 'attempt' : 'attempts'} left.`);
+        }
       }
     } catch (error) {
       console.error('AppLockScreen - Biometric unlock error:', error);
       haptics.error();
-      // Do not show modal when biometric fails - user can retry or use PIN
+      const nextAttempt = biometricAttempts + 1;
+      setBiometricAttempts(nextAttempt);
+
+      if (nextAttempt >= MAX_BIOMETRIC_RETRIES) {
+        setShowPinEntry(true);
+        setError('Biometric verification failed. Enter your PIN to continue.');
+      } else if (!isAutoRetry) {
+        const left = MAX_BIOMETRIC_RETRIES - nextAttempt;
+        setError(`Biometric failed. ${left} ${left === 1 ? 'attempt' : 'attempts'} left.`);
+      }
     } finally {
       setIsVerifying(false);
     }
@@ -231,6 +259,9 @@ export default function AppLockScreen() {
   };
 
   const styles = getStyles(isDark, colors, isSmallScreen, showBiometricOption, insets);
+  const biometricLabel = biometricSupport
+    ? BiometricService.getBiometricTypeLabel(biometricSupport.supportedTypes)
+    : 'biometrics';
 
   return (
     <View 
@@ -274,7 +305,9 @@ export default function AppLockScreen() {
               <Text style={styles.lockIconText}>🔒</Text>
             </View>
 
-            <Text style={styles.instruction}>Enter your PIN to continue</Text>
+            <Text style={styles.instruction}>
+              {showPinEntry ? 'Enter your PIN to continue' : `Authenticating with ${biometricLabel}...`}
+            </Text>
 
             {error && (
               <View style={styles.errorContainer}>
@@ -282,31 +315,54 @@ export default function AppLockScreen() {
               </View>
             )}
 
-            <Animated.View style={{ transform: [{ translateX: shakeAnimation }] }}>
-              <PinDisplay 
-                length={4}
-                value={pin}
-              />
-            </Animated.View>
+            {showPinEntry ? (
+              <>
+                <Animated.View style={{ transform: [{ translateX: shakeAnimation }] }}>
+                  <PinDisplay 
+                    length={4}
+                    value={pin}
+                  />
+                </Animated.View>
 
-            <View 
-              collapsable={false}
-              removeClippedSubviews={false}
-              style={{ width: '100%', alignItems: 'center' }}
-            >
-              <PinKeypad 
-                onKeyPress={isVerifying ? () => {} : handlePinChange}
-                onDelete={isVerifying ? () => {} : handleDelete}
-                disabled={isVerifying}
-              />
-            </View>
+                <View 
+                  collapsable={false}
+                  removeClippedSubviews={false}
+                  style={{ width: '100%', alignItems: 'center' }}
+                >
+                  <PinKeypad 
+                    onKeyPress={isVerifying ? () => {} : handlePinChange}
+                    onDelete={isVerifying ? () => {} : handleDelete}
+                    disabled={isVerifying}
+                  />
+                </View>
+              </>
+            ) : (
+              <View style={styles.biometricFirstContainer}>
+                <View style={styles.biometricBadge}>
+                  <Text style={styles.biometricBadgeText}>
+                    {biometricAttempts > 0
+                      ? `Retry ${Math.min(biometricAttempts + 1, MAX_BIOMETRIC_RETRIES)} of ${MAX_BIOMETRIC_RETRIES}`
+                      : 'Attempt 1 of 3'}
+                  </Text>
+                </View>
+                <Pressable
+                  style={styles.biometricPrimaryButton}
+                  onPress={() => handleBiometricUnlock(false)}
+                  disabled={isVerifying}
+                >
+                  <Text style={styles.biometricPrimaryButtonText}>
+                    {isVerifying ? `Checking ${biometricLabel}...` : `Try ${biometricLabel} again`}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
 
             {/* Buttons Row - Biometric and Forgot PIN in same row */}
-            <View style={[styles.buttonsRow, !showBiometricOption && styles.buttonsRowSingle]}>
-              {showBiometricOption && (
+            <View style={[styles.buttonsRow, (!showBiometricOption || !showPinEntry) && styles.buttonsRowSingle]}>
+              {showBiometricOption && showPinEntry && (
                 <Pressable 
                   style={styles.biometricButton}
-                  onPress={handleBiometricUnlock}
+                  onPress={() => handleBiometricUnlock(false)}
                   disabled={isVerifying}
                   {...(Platform.OS === 'ios' && {
                     // Prevent keyboard trigger on iOS
@@ -322,7 +378,7 @@ export default function AppLockScreen() {
               <Pressable 
                 style={({ pressed }) => [
                   styles.forgotPinButton,
-                  !showBiometricOption && styles.forgotPinButtonSingle,
+                  (!showBiometricOption || !showPinEntry) && styles.forgotPinButtonSingle,
                   pressed && styles.forgotPinButtonPressed,
                   isVerifying && styles.forgotPinButtonDisabled
                 ]}
@@ -440,6 +496,42 @@ const getStyles = (isDark: boolean, colors: any, isSmallScreen: boolean, showBio
   errorText: {
     color: colors.error,
     fontSize: isSmallScreen ? 12 : 14,
+    textAlign: 'center',
+  },
+  biometricFirstContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  biometricBadge: {
+    backgroundColor: colors.primary + '14',
+    borderColor: colors.primary + '35',
+    borderWidth: 1,
+    borderRadius: 9999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  biometricBadgeText: {
+    color: colors.primary,
+    fontSize: isSmallScreen ? 12 : 13,
+    fontWeight: '600',
+  },
+  biometricPrimaryButton: {
+    width: '100%',
+    paddingVertical: isSmallScreen ? 12 : 14,
+    paddingHorizontal: 18,
+    borderRadius: 9999,
+    backgroundColor: colors.primary + '20',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  biometricPrimaryButtonText: {
+    color: colors.primary,
+    fontSize: isSmallScreen ? 13 : 15,
+    fontWeight: '600',
     textAlign: 'center',
   },
   buttonsRow: {

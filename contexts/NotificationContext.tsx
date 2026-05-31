@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import * as Notifications from 'expo-notifications';
 import { inAppNotificationService, InAppNotification } from '@/lib/in-app-notifications';
 import { backgroundNotificationService } from '@/lib/background-notifications';
 import { useAuth } from './AuthContext';
@@ -29,8 +30,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     const initializeNotifications = async () => {
       console.log('🔔 Initializing notifications for user:', user.id);
-      
-      const hasPermission = await inAppNotificationService.requestPermissions();
+
+      const { status } = await Notifications.getPermissionsAsync();
+      const hasPermission = status === 'granted';
       console.log('🔔 Notification permissions granted:', hasPermission);
 
       if (hasPermission) {

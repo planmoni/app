@@ -178,6 +178,18 @@ export function useSupabaseAuth() {
           setSession(session);
           setError(null);
           await saveSession(session);
+
+          if (event === 'TOKEN_REFRESHED' && session.access_token) {
+            try {
+              const { ActiveSessionService } = await import('@/lib/active-session-service');
+              await ActiveSessionService.syncActiveSessionToken(
+                session.user.id,
+                session.access_token
+              );
+            } catch (error) {
+              console.log('Note: Could not sync active session token after refresh');
+            }
+          }
           
           // Load profile snapshot for new/refreshed session
           const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(session.user.id);
@@ -274,6 +286,18 @@ export function useSupabaseAuth() {
                 if (mounted) {
                   setSession(data.session);
                   await saveSession(data.session);
+
+                  if (data.session.user?.id && data.session.access_token) {
+                    try {
+                      const { ActiveSessionService } = await import('@/lib/active-session-service');
+                      await ActiveSessionService.syncActiveSessionToken(
+                        data.session.user.id,
+                        data.session.access_token
+                      );
+                    } catch (error) {
+                      console.log('Note: Could not sync active session token after proactive refresh');
+                    }
+                  }
                 }
               }
             } catch (error) {
@@ -418,10 +442,10 @@ export function useSupabaseAuth() {
       const sessionId = session?.access_token;
 
       // Deactivate the session before signing out (fail silently)
-      if (sessionId && userId) {
+      if (userId) {
         try {
           const { ActiveSessionService } = await import('@/lib/active-session-service');
-          await ActiveSessionService.deactivateSession(sessionId, userId);
+          await ActiveSessionService.deactivateSession(sessionId ?? '', userId);
         } catch (error) {
           // Silently fail - session might already be invalid
           console.log('Note: Could not deactivate session (may already be invalid)');

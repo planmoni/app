@@ -146,6 +146,30 @@ export class ActiveSessionService {
   }
 
   /**
+   * Deactivate all active login sessions for a user.
+   * Used on logout to ensure the single-device lock is released.
+   */
+  static async deactivateAllActiveSessions(userId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('login_sessions')
+        .update({ is_active: false })
+        .eq('user_id', userId)
+        .eq('is_active', true);
+
+      if (error) {
+        console.error('Error deactivating active sessions for user:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error in deactivateAllActiveSessions:', error);
+      return false;
+    }
+  }
+
+  /**
    * Deactivate a session
    * @param sessionId - The Supabase session ID (access_token) or login_sessions table ID
    * @param userId - Optional user ID for additional validation
@@ -155,42 +179,106 @@ export class ActiveSessionService {
     userId?: string
   ): Promise<boolean> {
     try {
-      // Try to find the session by session_id (Supabase session ID) first
-      let query = supabase
-        .from('login_sessions')
-        .update({ is_active: false })
-        .eq('session_id', sessionId);
-
-      // If userId is provided, add it to the query for additional safety
-      if (userId) {
-        query = query.eq('user_id', userId);
-      }
-
-      const { error } = await query;
-
-      if (error) {
-        // If not found by session_id, try by id (login_sessions table ID)
-        let queryById = supabase
-          .from('login_sessions')
-          .update({ is_active: false })
-          .eq('id', sessionId);
-
-        if (userId) {
-          queryById = queryById.eq('user_id', userId);
-        }
-
-        const { error: errorById } = await queryById;
-
-        if (errorById) {
-          console.error('Error deactivating session:', errorById);
+      if (!userId) {
+        if (!sessionId) {
           return false;
         }
+
+        const { error } = await supabase
+          .from('login_sessions')
+          .update({ is_active: false })
+          .eq('session_id', sessionId)
+          .eq('is_active', true);
+
+        if (error) {
+          console.error('Error deactivating session:', error);
+          return false;
+        }
+
+        return true;
       }
 
-      return true;
+      // Try matching by stored access token (may differ after token refresh)
+      if (sessionId) {
+        const { data: byToken, error: tokenError } = await supabase
+          .from('login_sessions')
+          .update({ is_active: false })
+          .eq('session_id', sessionId)
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .select('id');
+
+        if (tokenError) {
+          console.error('Error deactivating session by token:', tokenError);
+        } else if (byToken && byToken.length > 0) {
+          return true;
+        }
+
+        // Try matching by login_sessions row id
+        const { data: byId, error: idError } = await supabase
+          .from('login_sessions')
+          .update({ is_active: false })
+          .eq('id', sessionId)
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .select('id');
+
+        if (idError) {
+          console.error('Error deactivating session by id:', idError);
+        } else if (byId && byId.length > 0) {
+          return true;
+        }
+      }
+
+      // Token refresh can change access_token without updating login_sessions.
+      // Fall back to the current device fingerprint, then all active sessions.
+      try {
+        const { DeviceInfoService } = await import('@/lib/device-info');
+        const deviceFingerprint = await DeviceInfoService.generateDeviceFingerprint();
+
+        const { data: byDevice, error: deviceError } = await supabase
+          .from('login_sessions')
+          .update({ is_active: false })
+          .eq('user_id', userId)
+          .eq('device_fingerprint', deviceFingerprint)
+          .eq('is_active', true)
+          .select('id');
+
+        if (deviceError) {
+          console.error('Error deactivating session by device:', deviceError);
+        } else if (byDevice && byDevice.length > 0) {
+          return true;
+        }
+      } catch (deviceLookupError) {
+        console.error('Error resolving device fingerprint for logout:', deviceLookupError);
+      }
+
+      return this.deactivateAllActiveSessions(userId);
     } catch (error) {
       console.error('Error in deactivateSession:', error);
       return false;
+    }
+  }
+
+  /**
+   * Keep the active login session in sync when Supabase refreshes the access token.
+   */
+  static async syncActiveSessionToken(
+    userId: string,
+    accessToken: string
+  ): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('login_sessions')
+        .update({ session_id: accessToken })
+        .eq('user_id', userId)
+        .eq('is_active', true);
+
+      if (error) {
+        console.error('Error syncing active session token:', error);
+      }
+    } catch (error) {
+      console.error('Error in syncActiveSessionToken:', error);
     }
   }
 

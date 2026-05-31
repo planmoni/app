@@ -249,8 +249,17 @@ export async function areNotificationsEnabled(): Promise<boolean> {
 
 // Register push token for admin panel and Intercom
 // This should be called whenever the user logs in or the app starts
-export async function registerPushToken(userId: string): Promise<boolean> {
+export async function registerPushToken(userId: string, promptForPermission: boolean = false): Promise<boolean> {
   try {
+    // Avoid surprise OS prompts unless explicitly requested by UI flow.
+    if (!promptForPermission) {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('ℹ️ Push permission not granted yet; skipping token registration');
+        return false;
+      }
+    }
+
     const token = await registerForPushNotificationsAsync();
     if (token) {
       const stored = await savePushTokenToDatabase(token, userId);
@@ -293,12 +302,12 @@ export async function registerPushToken(userId: string): Promise<boolean> {
 // Refresh push token periodically (tokens can expire or change)
 export function setupTokenRefresh(userId: string, intervalMinutes: number = 60): () => void {
   // Refresh immediately
-  registerPushToken(userId).catch(console.error);
+  registerPushToken(userId, false).catch(console.error);
   
   // Set up periodic refresh
   const interval = setInterval(() => {
     console.log('🔄 Refreshing push token...');
-    registerPushToken(userId).catch(console.error);
+    registerPushToken(userId, false).catch(console.error);
   }, intervalMinutes * 60 * 1000);
 
   // Return cleanup function
@@ -312,25 +321,23 @@ export function setupTokenRefresh(userId: string, intervalMinutes: number = 60):
 // Push token registration is optional and only needed for remote push notifications
 export async function initializeNotifications(userId: string) {
   try {
-    // Request permissions and set up Android channels
-    // This is required for local notifications to work
-    const hasPermission = await requestNotificationPermissions();
-    
-    if (!hasPermission) {
-      console.warn('Notification permissions not granted. Local notifications may not work.');
-      return null;
-    }
+    // Do NOT prompt here. Permission is requested from the pre-permission screen.
+    const { status } = await Notifications.getPermissionsAsync();
+    const hasPermission = status === 'granted';
 
     // Foreground-only diagnostics listener.
     const cleanup = setupNotificationListeners();
 
-    // Register push token for admin panel
-    // This will work with Expo Push Notifications even if FCM isn't configured
-    try {
-      await registerPushToken(userId);
-    } catch (error: any) {
-      // Push token failure is not critical - local notifications still work
-      console.log('Push token registration failed (local notifications still work):', error?.message);
+    // If already granted, register token silently. Otherwise wait for explicit user action.
+    if (hasPermission) {
+      try {
+        await registerPushToken(userId, false);
+      } catch (error: any) {
+        // Push token failure is not critical - local notifications still work
+        console.log('Push token registration failed (local notifications still work):', error?.message);
+      }
+    } else {
+      console.log('ℹ️ Notifications not enabled yet. Waiting for explicit consent screen action.');
     }
 
     console.log('Notifications initialized successfully (local notifications ready)');
