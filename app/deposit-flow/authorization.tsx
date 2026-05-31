@@ -73,22 +73,16 @@ export default function AuthorizationScreen() {
                       },
                       {
                         onSuccess: (data) => {
-                          // If mandate URL is provided, open Mono widget for authorization
+                          // If mandate URL is provided, open the same WebView flow as after account linking
                           if (data.mono_url) {
-                            // User needs to authorize via Mono widget
-                            Alert.alert(
-                              'Authorization Required',
-                              'Please authorize the mandate using the Mono widget. After authorization, you can fund your wallet.',
-                              [
-                                { 
-                                  text: 'OK',
-                                  onPress: () => {
-                                    setIsProcessing(false);
-                                    // Navigate back - user will need to retry after authorization
-                                  }
-                                }
-                              ]
-                            );
+                            setIsProcessing(false);
+                            router.push({
+                              pathname: '/deposit-flow/mono-mandate-auth',
+                              params: {
+                                monoUrl: data.mono_url,
+                                bankName: bankAccount.bank_name,
+                              },
+                            });
                           } else if (data.status === 'active') {
                             // Mandate already active, proceed with debit
                             handleExecuteDebit(data.mandate.id, numericAmount);

@@ -21,7 +21,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
  * 1. Pre-flight checks: Verifies payout/withdrawal doesn't already exist before creating
  * 2. Status verification: Checks current status before processing to avoid duplicates
  * 3. Metadata markers: Tracks wallet debits in metadata to prevent double-deduction
- * 4. Database-level exclusion: get_due_payout_plans RPC excludes already-processed plans
+ * 4. Database-level exclusion: get_due_payout_plans RPC defines which plans are due (by next_payout_date);
+ *    the edge function does not second-guess calendar/weekday (avoids false “skipping” vs DB).
  * 5. Row-level locking: Uses status checks in WHERE clauses to prevent race conditions
  * 
  * TRANSACTIONAL SAFETY:
@@ -44,23 +45,78 @@ const safeHavenClientId = Deno.env.get("EXPO_PUBLIC_SAFEHAVEN_CLIENT_ID") || Den
 const safeHavenClientAssertion = Deno.env.get("EXPO_PUBLIC_SAFEHAVEN_CLIENT_ASSERTION") || Deno.env.get("SAFEHAVEN_CLIENT_ASSERTION");
 const safeHavenApiUrl = "https://api.safehavenmfb.com";
 
+/** Shape emitted as one `EXECUTION_SUMMARY` log line for alerting / log tools. */
+type ProcessDuePayoutsRunSummary = {
+  executionId: string;
+  startedAt: string;
+  finishedAt?: string;
+  elapsedMs?: number;
+  payouts: { planId: string; name: string; status: "success" | "skipped" | "failed"; error?: string }[];
+  withdrawals: { id: string; status: "success" | "skipped" | "failed"; error?: string }[];
+  totals: {
+    payouts_found: number;
+    payouts_success: number;
+    payouts_skipped: number;
+    payouts_failed: number;
+    withdrawals_found: number;
+    withdrawals_success: number;
+    withdrawals_skipped: number;
+    withdrawals_failed: number;
+  };
+};
+
+function buildProcessDuePayoutsResult(summary: ProcessDuePayoutsRunSummary) {
+  return {
+    executionId: summary.executionId,
+    elapsedMs: summary.elapsedMs,
+    processed: summary.totals.payouts_found,
+    success: summary.totals.payouts_success,
+    skipped: summary.totals.payouts_skipped,
+    failed: summary.totals.payouts_failed,
+    withdrawals_processed: summary.totals.withdrawals_found,
+    withdrawals_success: summary.totals.withdrawals_success,
+    withdrawals_skipped: summary.totals.withdrawals_skipped,
+    withdrawals_failed: summary.totals.withdrawals_failed,
+  };
+}
+
 /**
  * Main function to process due payouts and scheduled emergency withdrawals
- * 
+ *
  * IDEMPOTENCY: This function is designed to be idempotent. It can be safely called
  * multiple times (e.g., by cron jobs, retries, or concurrent instances) without
  * creating duplicate payouts. Each payout plan and emergency withdrawal is checked
  * for existing processing before being handled.
- * 
+ *
  * TRANSACTIONAL SAFETY: Critical database operations use RPC functions that handle
  * transactions atomically. The function processes items sequentially to avoid
  * race conditions, though each item's processing is independently idempotent.
+ *
+ * Emits `EXECUTION_SUMMARY` JSON (one line) for log aggregation and alerting.
  */
 async function processDuePayouts() {
-  console.log("🚀 Starting automated payout processing...");
-  const executionId = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-  console.log(`📋 Execution ID: ${executionId} (for tracking and debugging)`);
-  
+  const startedAt = Date.now();
+  const executionId = `exec_${startedAt}_${Math.random().toString(36).substring(2, 10)}`;
+
+  const summary: ProcessDuePayoutsRunSummary = {
+    executionId,
+    startedAt: new Date(startedAt).toISOString(),
+    payouts: [],
+    withdrawals: [],
+    totals: {
+      payouts_found: 0,
+      payouts_success: 0,
+      payouts_skipped: 0,
+      payouts_failed: 0,
+      withdrawals_found: 0,
+      withdrawals_success: 0,
+      withdrawals_skipped: 0,
+      withdrawals_failed: 0,
+    },
+  };
+
+  console.log(`🚀 [${executionId}] Starting automated payout processing...`);
+
   try {
     // Get all due payout plans
     // Note: get_due_payout_plans RPC already excludes plans with existing automated_payouts
@@ -70,7 +126,7 @@ async function processDuePayouts() {
       console.error("❌ Error fetching due payout plans:", plansError);
       throw plansError;
     }
-    
+
     // Get scheduled emergency withdrawals that are due for processing
     // IDEMPOTENCY: Only fetch withdrawals in "scheduled" status to avoid processing duplicates
     const { data: scheduledWithdrawals, error: withdrawalsError } = await supabase
@@ -107,94 +163,94 @@ async function processDuePayouts() {
       `)
       .eq("status", "scheduled") // Only get scheduled withdrawals (idempotency)
       .lte("scheduled_processing_time", new Date().toISOString());
-    
+
     if (withdrawalsError) {
       console.error("❌ Error fetching scheduled emergency withdrawals:", withdrawalsError);
       // Don't throw, continue with payouts
     }
-    
+
     const totalPayouts = duePlans?.length || 0;
     const totalWithdrawals = scheduledWithdrawals?.length || 0;
-    
+
+    summary.totals.payouts_found = totalPayouts;
+    summary.totals.withdrawals_found = totalWithdrawals;
+
     if (totalPayouts === 0 && totalWithdrawals === 0) {
-      console.log("✅ No due payouts or scheduled withdrawals found");
-      return {
-        processed: 0,
-        success: 0,
-        failed: 0,
-        withdrawals_processed: 0,
-        withdrawals_success: 0,
-        withdrawals_failed: 0
-      };
+      console.log(`[${executionId}] ✅ No due payouts or scheduled withdrawals found`);
+      summary.finishedAt = new Date().toISOString();
+      summary.elapsedMs = Date.now() - startedAt;
+      console.log("EXECUTION_SUMMARY", JSON.stringify(summary));
+      return buildProcessDuePayoutsResult(summary);
     }
-    
-    console.log(`📋 Found ${totalPayouts} due payout plans and ${totalWithdrawals} scheduled emergency withdrawals`);
-    
-    let successCount = 0;
-    let failureCount = 0;
-    let withdrawalSuccessCount = 0;
-    let withdrawalFailureCount = 0;
-    
-    // Process each due payout plan
-    // NOTE: Processing is sequential to avoid race conditions, but each payout
-    // is independently idempotent, so concurrent execution is safe
-    if (duePlans && duePlans.length > 0) {
-      for (const plan of duePlans) {
-        try {
-          console.log(`⏳ Processing payout for plan: ${plan.name} (${plan.plan_id}) [${executionId}]`);
-          await processSinglePayout(plan);
-          successCount++;
-          console.log(`✅ Successfully processed payout for plan: ${plan.name} [${executionId}]`);
-        } catch (error: any) {
-          // IDEMPOTENCY: Some errors are expected (e.g., already processed)
-          if (error.message?.includes("already") || error.message?.includes("duplicate") || error.message?.includes("skipping")) {
-            console.log(`ℹ️ Skipping payout for plan: ${plan.name} - ${error.message} [${executionId}]`);
-            // Don't count as failure for idempotency-related skips
-          } else {
-            console.error(`❌ Failed to process payout for plan: ${plan.name}`, error);
-            failureCount++;
-            // Log the failure
-            await logPayoutFailure(plan, error);
-          }
+
+    console.log(
+      `[${executionId}] 📋 Found ${totalPayouts} due payout plans and ${totalWithdrawals} scheduled emergency withdrawals`
+    );
+
+    for (const plan of duePlans ?? []) {
+      const planStart = Date.now();
+      console.log(`[${executionId}] ⏳ Payout plan: ${plan.name} (${plan.plan_id})`);
+      try {
+        await processSinglePayout(plan);
+        summary.totals.payouts_success++;
+        summary.payouts.push({ planId: plan.plan_id, name: plan.name, status: "success" });
+        console.log(`[${executionId}] ✅ Payout done: ${plan.name} in ${Date.now() - planStart}ms`);
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        const isSkip = /already|duplicate|skipping/i.test(msg);
+        if (isSkip) {
+          summary.totals.payouts_skipped++;
+          summary.payouts.push({ planId: plan.plan_id, name: plan.name, status: "skipped", error: msg });
+          console.log(`[${executionId}] ℹ️ Skipped payout: ${plan.name} — ${msg}`);
+        } else {
+          summary.totals.payouts_failed++;
+          summary.payouts.push({ planId: plan.plan_id, name: plan.name, status: "failed", error: msg });
+          console.error(`[${executionId}] ❌ Failed payout: ${plan.name} — ${msg}`);
+          await logPayoutFailure(plan, error as any);
         }
       }
     }
-    
-    // Process each scheduled emergency withdrawal
-    // NOTE: Processing is sequential to avoid race conditions, but each withdrawal
-    // is independently idempotent, so concurrent execution is safe
-    if (scheduledWithdrawals && scheduledWithdrawals.length > 0) {
-      for (const withdrawal of scheduledWithdrawals) {
-        try {
-          console.log(`⏳ Processing scheduled emergency withdrawal: ${withdrawal.id} [${executionId}]`);
-          await processScheduledEmergencyWithdrawal(withdrawal);
-          withdrawalSuccessCount++;
-          console.log(`✅ Successfully processed emergency withdrawal: ${withdrawal.id} [${executionId}]`);
-        } catch (error: any) {
-          // IDEMPOTENCY: Some errors are expected (e.g., already processed)
-          if (error.message?.includes("already") || error.message?.includes("duplicate") || error.message?.includes("skipping")) {
-            console.log(`ℹ️ Skipping emergency withdrawal: ${withdrawal.id} - ${error.message} [${executionId}]`);
-            // Don't count as failure for idempotency-related skips
-          } else {
-            console.error(`❌ Failed to process emergency withdrawal: ${withdrawal.id}`, error);
-            withdrawalFailureCount++;
-            await logEmergencyWithdrawalFailure(withdrawal, error);
-          }
+
+    for (const withdrawal of scheduledWithdrawals ?? []) {
+      const wStart = Date.now();
+      console.log(`[${executionId}] ⏳ Emergency withdrawal: ${withdrawal.id}`);
+      try {
+        await processScheduledEmergencyWithdrawal(withdrawal);
+        summary.totals.withdrawals_success++;
+        summary.withdrawals.push({ id: withdrawal.id, status: "success" });
+        console.log(`[${executionId}] ✅ Withdrawal done: ${withdrawal.id} in ${Date.now() - wStart}ms`);
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        const isSkip = /already|duplicate|skipping/i.test(msg);
+        if (isSkip) {
+          summary.totals.withdrawals_skipped++;
+          summary.withdrawals.push({ id: withdrawal.id, status: "skipped", error: msg });
+          console.log(`[${executionId}] ℹ️ Skipped withdrawal: ${withdrawal.id} — ${msg}`);
+        } else {
+          summary.totals.withdrawals_failed++;
+          summary.withdrawals.push({ id: withdrawal.id, status: "failed", error: msg });
+          console.error(`[${executionId}] ❌ Failed withdrawal: ${withdrawal.id} — ${msg}`);
+          await logEmergencyWithdrawalFailure(withdrawal, error as any);
         }
       }
     }
-    
-    console.log(`🏁 Processing completed. Payouts - Success: ${successCount}, Failed: ${failureCount}. Withdrawals - Success: ${withdrawalSuccessCount}, Failed: ${withdrawalFailureCount}`);
-    return {
-      processed: totalPayouts,
-      success: successCount,
-      failed: failureCount,
-      withdrawals_processed: totalWithdrawals,
-      withdrawals_success: withdrawalSuccessCount,
-      withdrawals_failed: withdrawalFailureCount
-    };
-  } catch (error: any) {
-    console.error("💥 Critical error in payout processing:", error);
+
+    summary.finishedAt = new Date().toISOString();
+    summary.elapsedMs = Date.now() - startedAt;
+    console.log("EXECUTION_SUMMARY", JSON.stringify(summary));
+
+    const result = buildProcessDuePayoutsResult(summary);
+    console.log(
+      `[${executionId}] 🏁 Done in ${summary.elapsedMs}ms — Payouts: ${result.success}✓ ${result.skipped}⏭ ${result.failed}✗ | ` +
+        `Withdrawals: ${result.withdrawals_success}✓ ${result.withdrawals_skipped}⏭ ${result.withdrawals_failed}✗`
+    );
+    return result;
+  } catch (error: unknown) {
+    summary.finishedAt = new Date().toISOString();
+    summary.elapsedMs = Date.now() - startedAt;
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[${executionId}] 💥 Critical error:`, message);
+    console.log("EXECUTION_SUMMARY", JSON.stringify({ ...summary, criticalError: message }));
     throw error;
   }
 }
@@ -320,32 +376,9 @@ async function processSinglePayout(plan: any) {
   // IDEMPOTENCY CHECK: Check if automated_payout already exists for this plan + scheduled_date
   // This prevents duplicate processing if the function is called multiple times
   const scheduledDate = plan.next_payout_date || planCheck.next_payout_date;
-  // Due-date/idempotency gating for weekly and weekly_specific
-  try {
-    const today = new Date();
-    const todayDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-    const sched = new Date(scheduledDate);
-    const schedDate = new Date(Date.UTC(sched.getUTCFullYear(), sched.getUTCMonth(), sched.getUTCDate()));
-
-    // If not yet the scheduled day, skip
-    if (todayDate < schedDate) {
-      throw new Error(`skipping: not yet due (today < scheduledDate)`);
-    }
-
-    if (planCheck.frequency === 'weekly_specific') {
-      const meta = planCheck.metadata as { dayOfWeek?: number } | undefined;
-      const targetDow = meta != null && typeof meta.dayOfWeek === 'number' ? meta.dayOfWeek : null;
-      const todayDow = today.getDay();
-      if (targetDow === null || targetDow === undefined) {
-        // Fallback: treat like weekly, but still ensure date due
-        console.log(`weekly_specific without dayOfWeek in metadata; proceeding as weekly for plan ${plan.plan_id}`);
-      } else if (todayDow !== targetDow) {
-        throw new Error(`skipping: weekly_specific not target weekday (today=${todayDow}, target=${targetDow})`);
-      }
-    }
-  } catch (gateErr: any) {
-    throw new Error(gateErr.message || 'skipping: gating check failed');
-  }
+  // Eligibility (daily / weekly / biweekly / custom / weekly_specific, etc.) is decided in
+  // get_due_payout_plans + next_payout_date. Re-applying calendar/weekday checks here caused
+  // false "skipping" (UTC vs local, weekly_specific DOW vs stored next_payout_date).
   const { data: existingPayout, error: existingPayoutError } = await supabase
     .from("automated_payouts")
     .select("id, status, transfer_reference")
@@ -767,7 +800,7 @@ async function processSinglePayout(plan: any) {
 
     if (transactionId) {
       const success = isTransferSuccess(transferResult);
-      const txStatus = success ? 'success' : 'pending';
+      const txStatus = success ? 'completed' : 'pending';
       const txMeta: Record<string, any> = {
         provider: transferResult.provider,
         transfer_code: transferResult.transfer_code || transferResult.reference,
@@ -866,6 +899,7 @@ function computeNextPayoutDateWithTime(
   payoutMinute?: number
 ): Date | null {
   try {
+    const f = (frequency || "").toLowerCase();
     const start = new Date(startDate);
     let next = new Date(start);
 
@@ -883,13 +917,39 @@ function computeNextPayoutDateWithTime(
 
     const setTime = (d: Date) => { d.setHours(useHour, useMinute, 0, 0); };
 
-    if (frequency === 'weekly') {
+    // custom / unknown complex schedules: DB update_payout_plan_progress + custom_payout_dates
+    if (f === "custom") {
+      return null;
+    }
+
+    if (f === "daily") {
+      const anchor = prevNextPayoutDate ? new Date(prevNextPayoutDate) : new Date(startDate);
+      const d = new Date(anchor);
+      d.setDate(d.getDate() + 1);
+      setTime(d);
+      return d;
+    }
+
+    // Aligned with migration 20260228140000: next = (last paid date) + 2 weeks
+    if (f === "biweekly") {
+      if (prevNextPayoutDate) {
+        const d = new Date(prevNextPayoutDate);
+        d.setDate(d.getDate() + 14);
+        setTime(d);
+        return d;
+      }
+      next.setDate(start.getDate() + (newCompletedCount * 14));
+      setTime(next);
+      return next;
+    }
+
+    if (f === "weekly") {
       next.setDate(start.getDate() + (newCompletedCount * 7));
       setTime(next);
       return next;
     }
-    if (frequency === 'weekly_specific') {
-      // Base week offset
+
+    if (f === "weekly_specific") {
       const base = new Date(start);
       base.setDate(start.getDate() + (newCompletedCount * 7));
       let target = new Date(base);
@@ -897,12 +957,52 @@ function computeNextPayoutDateWithTime(
       if (targetDow !== null) {
         const baseDow = base.getDay();
         let delta = (7 + targetDow - baseDow) % 7;
-        if (delta === 0 && newCompletedCount > 0) delta = 7; // move to next week after first
+        if (delta === 0 && newCompletedCount > 0) delta = 7;
         target.setDate(base.getDate() + delta);
       }
       setTime(target);
       return target;
     }
+
+    // Matches calculate_next_payout_date (20260208140000_add_remaining_frequencies_next_payout.sql)
+    if (f === "monthly") {
+      const d = new Date(start);
+      d.setMonth(d.getMonth() + newCompletedCount);
+      setTime(d);
+      return d;
+    }
+
+    if (f === "end_of_month") {
+      const s = new Date(startDate);
+      const firstOfStartMonth = new Date(s.getFullYear(), s.getMonth(), 1);
+      const monthStart = new Date(firstOfStartMonth);
+      monthStart.setMonth(monthStart.getMonth() + newCompletedCount);
+      const lastDay = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+      setTime(lastDay);
+      return lastDay;
+    }
+
+    if (f === "quarterly") {
+      const d = new Date(start);
+      d.setMonth(d.getMonth() + 3 * newCompletedCount);
+      setTime(d);
+      return d;
+    }
+
+    if (f === "biannual") {
+      const d = new Date(start);
+      d.setMonth(d.getMonth() + 6 * newCompletedCount);
+      setTime(d);
+      return d;
+    }
+
+    if (f === "annually" || f === "yearly") {
+      const d = new Date(start);
+      d.setFullYear(d.getFullYear() + newCompletedCount);
+      setTime(d);
+      return d;
+    }
+
     return null;
   } catch (_) {
     return null;
@@ -1067,7 +1167,7 @@ async function resolveBankCodes(payoutAccount: any): Promise<BankCodeResolution>
  * Update automated payout record with transfer details
  */
 async function updateAutomatedPayout(payoutId: string, transferResult: any) {
-  const isCompleted = transferResult.status === "Completed";
+  const isCompleted = isTransferSuccess(transferResult);
   const metadata: Record<string, any> = {
     provider: transferResult.provider,
     transfer_code: transferResult.transfer_code || transferResult.reference,
@@ -1865,7 +1965,7 @@ async function logPayoutFailure(plan: any, error: any) {
 }
 
 /**
- * Main serve handler
+ * Main serve handler — returns per-run counts; `has_failures` for simple monitoring.
  */
 serve(async (req: Request) => {
   if (req.method !== "POST") {
@@ -1876,21 +1976,27 @@ serve(async (req: Request) => {
   
   try {
     const result = await processDuePayouts();
-    return new Response(JSON.stringify({
-      success: true,
-      message: "Payout processing completed",
-      result
-    }), {
-      headers: {
-        "Content-Type": "application/json"
-      },
-      status: 200
-    });
-  } catch (error: any) {
+    const hasFailures = (result.failed ?? 0) > 0 || (result.withdrawals_failed ?? 0) > 0;
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Payout processing completed",
+        has_failures: hasFailures,
+        result,
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json"
+        },
+        status: 200
+      }
+    );
+  } catch (error: unknown) {
     console.error("💥 Function execution failed:", error);
+    const message = error instanceof Error ? error.message : "Unknown error occurred";
     return new Response(JSON.stringify({
       success: false,
-      error: error?.message || "Unknown error occurred"
+      error: message
     }), {
       headers: {
         "Content-Type": "application/json"

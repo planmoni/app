@@ -170,7 +170,7 @@ export default function PaymentMethodsScreen() {
             </View>
           ) : (
             <>
-              {(cardMethods.length > 0 || bankMethods.length > 0) && (
+              {(cardMethods.length > 0 || bankMethods.length > 0 || monoLinkedAccounts.length > 0) && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Saved Payment Methods</Text>
                   
