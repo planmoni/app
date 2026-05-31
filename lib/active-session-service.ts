@@ -17,6 +17,12 @@ export interface ActiveSessionInfo {
 }
 
 export class ActiveSessionService {
+  private static isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value
+    );
+  }
+
   /**
    * Check if user has an active session on a different device
    * @param userId - The user ID to check
@@ -214,19 +220,22 @@ export class ActiveSessionService {
           return true;
         }
 
-        // Try matching by login_sessions row id
-        const { data: byId, error: idError } = await supabase
-          .from('login_sessions')
-          .update({ is_active: false })
-          .eq('id', sessionId)
-          .eq('user_id', userId)
-          .eq('is_active', true)
-          .select('id');
+        // Try matching by login_sessions row id only when the input is a UUID.
+        // Supabase access tokens/JWTs are not UUIDs and will trigger a DB type error.
+        if (this.isUuid(sessionId)) {
+          const { data: byId, error: idError } = await supabase
+            .from('login_sessions')
+            .update({ is_active: false })
+            .eq('id', sessionId)
+            .eq('user_id', userId)
+            .eq('is_active', true)
+            .select('id');
 
-        if (idError) {
-          console.error('Error deactivating session by id:', idError);
-        } else if (byId && byId.length > 0) {
-          return true;
+          if (idError) {
+            console.error('Error deactivating session by id:', idError);
+          } else if (byId && byId.length > 0) {
+            return true;
+          }
         }
       }
 
