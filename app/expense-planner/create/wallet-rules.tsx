@@ -25,8 +25,7 @@ export default function WalletRulesScreen() {
   const planId = params.planId as string | undefined;
   const planName = params.planName as string;
   const targetAmount = params.targetAmount as string;
-  const startDateStr = params.startDate as string;
-  const endDateStr = params.endDate as string;
+  const maturityDateStr = (params.maturityDate as string) || (params.startDate as string);
   const dateType = params.dateType as string;
   const payoutSchedule = params.payoutSchedule as string;
   const requiredPerCycle = params.requiredPerCycle as string;
@@ -79,8 +78,7 @@ export default function WalletRulesScreen() {
         params: {
           planName,
           targetAmount,
-          startDate: startDateStr,
-          endDate: endDateStr || '',
+          maturityDate: maturityDateStr,
           dateType,
           payoutSchedule,
           requiredPerCycle,

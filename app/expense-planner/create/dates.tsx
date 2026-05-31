@@ -28,8 +28,7 @@ export default function DatesScreen() {
   const subCategories = params.subCategories as string | undefined;
   const planTypesParam = params.planTypes as string | undefined;
 
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [maturityDate, setMaturityDate] = useState<Date | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showYearPicker, setShowYearPicker] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
@@ -62,12 +61,16 @@ export default function DatesScreen() {
       date.getFullYear() === today.getFullYear();
   };
 
-  const isPastDate = (date: Date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const getMinimumMaturityDate = () => {
+    const minDate = new Date();
+    minDate.setHours(0, 0, 0, 0);
+    minDate.setDate(minDate.getDate() + 14);
+    return minDate;
+  };
+
+  const isBeforeMinimumMaturityDate = (date: Date) => {
     const normalizedDate = normalizeDate(date);
-    // Treat today as unavailable; start date must be from the next day
-    return normalizedDate <= today;
+    return normalizedDate < getMinimumMaturityDate();
   };
 
   const normalizeDate = (date: Date): Date => {
@@ -76,65 +79,22 @@ export default function DatesScreen() {
     return normalized;
   };
 
-  const isDateInRange = (date: Date) => {
-    if (!startDate || !endDate) return false;
-    const normalizedDate = normalizeDate(date);
-    const normalizedStart = normalizeDate(startDate);
-    const normalizedEnd = normalizeDate(endDate);
-    return normalizedDate >= normalizedStart && normalizedDate <= normalizedEnd;
-  };
-
   const isDateSelected = (date: Date) => {
     const normalizedDate = normalizeDate(date);
-    if (startDate) {
-      const normalizedStart = normalizeDate(startDate);
-      if (normalizedDate.getTime() === normalizedStart.getTime()) return true;
-    }
-    if (endDate) {
-      const normalizedEnd = normalizeDate(endDate);
-      if (normalizedDate.getTime() === normalizedEnd.getTime()) return true;
+    if (maturityDate) {
+      const normalizedMaturity = normalizeDate(maturityDate);
+      if (normalizedDate.getTime() === normalizedMaturity.getTime()) return true;
     }
     return false;
   };
 
   const handleDateSelect = (date: Date) => {
-    if (isPastDate(date)) return;
+    if (isBeforeMinimumMaturityDate(date)) return;
     
     haptics.selection();
     const normalizedDate = normalizeDate(date);
 
-    // If both dates are selected, start a new selection
-    if (startDate && endDate) {
-      setStartDate(normalizedDate);
-      setEndDate(null);
-      return;
-    }
-
-    // If no start date, set it
-    if (!startDate) {
-      setStartDate(normalizedDate);
-      return;
-    }
-
-    // If only start date is set
-    const normalizedStart = normalizeDate(startDate);
-    
-    // Prevent same-day start/end selection
-    if (normalizedDate.getTime() === normalizedStart.getTime()) {
-      Alert.alert('Invalid selection', 'End date must be after start date.');
-      haptics.notification();
-      return;
-    }
-
-    // If date is before start date, set it as new start and clear end
-    if (normalizedDate < normalizedStart) {
-      setStartDate(normalizedDate);
-      setEndDate(null);
-      return;
-    }
-
-    // If date is after start date, set it as end date
-    setEndDate(normalizedDate);
+    setMaturityDate(normalizedDate);
   };
 
   const handlePrevMonth = () => {
@@ -174,17 +134,16 @@ export default function DatesScreen() {
   };
 
   const handleContinue = async () => {
-    const finalStartDate = startDate;
-    const finalEndDate = endDate;
+    const finalMaturityDate = maturityDate;
 
-    if (!finalStartDate || !finalEndDate) {
-      Alert.alert('Missing Dates', 'Please select a start date and an end date.');
+    if (!finalMaturityDate) {
+      Alert.alert('Missing Date', 'Please select a maturity date.');
       haptics.notification();
       return;
     }
 
-    if (finalEndDate <= finalStartDate) {
-      Alert.alert('Invalid Dates', 'End date must be after start date.');
+    if (isBeforeMinimumMaturityDate(finalMaturityDate)) {
+      Alert.alert('Invalid Date', 'Maturity date must be at least 2 weeks from today.');
       haptics.notification();
       return;
     }
@@ -200,8 +159,8 @@ export default function DatesScreen() {
           planId: activePlanId,
           name: planName,
           total_budget: parseFloat(targetAmount),
-          start_date: formatDateForStorage(finalStartDate),
-          end_date: formatDateForStorage(finalEndDate),
+          start_date: formatDateForStorage(finalMaturityDate),
+          end_date: null,
         });
       }
 
@@ -211,8 +170,7 @@ export default function DatesScreen() {
         params: {
           planName,
           targetAmount,
-          startDate: formatDateForStorage(finalStartDate),
-          endDate: formatDateForStorage(finalEndDate),
+          maturityDate: formatDateForStorage(finalMaturityDate),
           planId: activePlanId || '',
           ...(subCategories && { subCategories }),
           ...(planTypesParam && { planTypes: planTypesParam }),
@@ -238,7 +196,7 @@ export default function DatesScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Choose Dates</Text>
+        <Text style={styles.headerTitle}>Choose Maturity Date</Text>
         <Pressable 
           onPress={async () => {
             haptics.selection();
@@ -254,34 +212,21 @@ export default function DatesScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>When should the vault be accessible?</Text>
+        <Text style={styles.title}>When should this vault mature?</Text>
         <Text style={styles.description}>
-          Pick the start and end dates for this vault (at least 2 days).
+          Select the date this vault should become accessible (at least 2 weeks from today).
         </Text>
 
-        {/* Selected Dates Display */}
-        {(startDate || endDate) && (
+        {/* Selected Maturity Date */}
+        {maturityDate && (
           <View style={styles.selectedDatesCard}>
             <View style={styles.dateDisplayRow}>
               <View style={styles.dateDisplayItem}>
-                <Text style={styles.dateDisplayLabel}>Start Date</Text>
+                <Text style={styles.dateDisplayLabel}>Maturity Date</Text>
                 <Text style={styles.dateDisplayValue}>
-                  {startDate ? formatDateForDisplay(startDate) : 'Not selected'}
+                  {formatDateForDisplay(maturityDate)}
                 </Text>
               </View>
-              {endDate && (
-                <>
-                  <View style={styles.dateSeparator}>
-                    <Text style={styles.separatorText}>→</Text>
-                  </View>
-                  <View style={styles.dateDisplayItem}>
-                    <Text style={styles.dateDisplayLabel}>End Date</Text>
-                    <Text style={styles.dateDisplayValue}>
-                      {formatDateForDisplay(endDate)}
-                    </Text>
-                  </View>
-                </>
-              )}
             </View>
           </View>
         )}
@@ -448,10 +393,9 @@ export default function DatesScreen() {
                 {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, index) => {
                   const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), index + 1);
                   const normalizedDate = normalizeDate(date);
-                  const isDisabled = isPastDate(date);
+                  const isDisabled = isBeforeMinimumMaturityDate(date);
                   const isSelected = isDateSelected(date);
                   const isTodayDate = isToday(date);
-                  const inRange = isDateInRange(date);
 
                   return (
                     <Pressable
@@ -460,7 +404,6 @@ export default function DatesScreen() {
                         styles.dayCell,
                         isTodayDate && !isSelected && styles.todayDay,
                         isSelected && styles.selectedDay,
-                        inRange && !isSelected && styles.rangeDay,
                         isDisabled && styles.disabledDay,
                       ]}
                       onPress={() => !isDisabled && handleDateSelect(date)}
@@ -470,7 +413,6 @@ export default function DatesScreen() {
                         styles.dayText,
                         isTodayDate && !isSelected && styles.todayDayText,
                         isSelected && styles.selectedDayText,
-                        inRange && !isSelected && styles.rangeDayText,
                         isDisabled && styles.disabledDayText,
                       ]}>
                         {index + 1}
@@ -483,20 +425,12 @@ export default function DatesScreen() {
           )}
         </View>
 
-        {startDate && endDate && (
-          <View style={styles.durationCard}>
-            <Text style={styles.durationLabel}>Budget Duration</Text>
-            <Text style={styles.durationValue}>
-              {Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1} days
-            </Text>
-          </View>
-        )}
       </ScrollView>
 
       <FloatingButton
         title="Continue"
         onPress={handleContinue}
-        disabled={!startDate || !endDate || isSaving}
+        disabled={!maturityDate || isSaving}
         hapticType="medium"
       />
     </SafeAreaView>
@@ -585,14 +519,6 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
       fontWeight: '600',
       color: colors.text,
     },
-    dateSeparator: {
-      paddingHorizontal: 12,
-    },
-    separatorText: {
-      fontSize: getScaledFontSize(18, textSizeMultiplier),
-      color: colors.textSecondary,
-      fontWeight: '500',
-    },
     calendarCard: {
       backgroundColor: colors.card,
       borderRadius: 16,
@@ -601,23 +527,6 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
       borderWidth: 1,
       borderColor: colors.border,
       marginBottom: 24,
-    },
-    durationCard: {
-      backgroundColor: colors.card,
-      borderRadius: 16,
-      padding: 20,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    durationLabel: {
-      fontSize: getScaledFontSize(14, textSizeMultiplier),
-      color: colors.textSecondary,
-      marginBottom: 8,
-    },
-    durationValue: {
-      fontSize: getScaledFontSize(20, textSizeMultiplier),
-      fontWeight: '700',
-      color: colors.primary,
     },
     calendarHeader: {
       flexDirection: 'row',
@@ -736,9 +645,6 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
     disabledDay: {
       opacity: 0.3,
     },
-    rangeDay: {
-      backgroundColor: colors.primary + '20',
-    },
     dayText: {
       fontSize: getScaledFontSize(14, textSizeMultiplier),
       fontWeight: '500',
@@ -754,9 +660,6 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
     },
     disabledDayText: {
       color: colors.textTertiary,
-    },
-    rangeDayText: {
-      color: colors.primary,
     },
   });
 

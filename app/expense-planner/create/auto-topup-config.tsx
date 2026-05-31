@@ -37,25 +37,24 @@ export default function AutoTopUpConfigScreen() {
   const isEdit = mode === 'edit';
   const planName = params.planName as string;
   const targetAmount = parseFloat((params.targetAmount as string) || '0');
-  const startDateStr = params.startDate as string;
-  const endDateStr = params.endDate as string;
+  const maturityDateStr = (params.maturityDate as string) || (params.startDate as string);
   const dateType = params.dateType as string | undefined;
   const payoutSchedule = params.payoutSchedule as string | undefined;
   const requiredPerCycle = params.requiredPerCycle as string | undefined;
   const subCategories = params.subCategories as string | undefined;
   const planTypesParam = (params.planTypesParam || params.planTypes) as string | undefined;
 
-  // Calculate days until start and auto-select frequency
+  // Calculate days until maturity and auto-select frequency
   const { daysUntilStart, defaultFrequency } = useMemo(() => {
-    if (!startDateStr) return { daysUntilStart: 0, defaultFrequency: 'weekly' as TopUpFrequency };
+    if (!maturityDateStr) return { daysUntilStart: 0, defaultFrequency: 'weekly' as TopUpFrequency };
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const startDate = new Date(startDateStr);
-    startDate.setHours(0, 0, 0, 0);
+    const maturityDate = new Date(maturityDateStr);
+    maturityDate.setHours(0, 0, 0, 0);
 
-    const daysUntil = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const daysUntil = Math.ceil((maturityDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     
     // Auto-select frequency based on days until start
     let frequency: TopUpFrequency;
@@ -70,7 +69,7 @@ export default function AutoTopUpConfigScreen() {
     }
 
     return { daysUntilStart: daysUntil, defaultFrequency: frequency };
-  }, [startDateStr]);
+  }, [maturityDateStr]);
 
   // State for selected frequency
   const [selectedFrequency, setSelectedFrequency] = useState<TopUpFrequency>(defaultFrequency);
@@ -79,22 +78,22 @@ export default function AutoTopUpConfigScreen() {
 
   // Calculate top-up configuration based on selected frequency
   const topUpConfig = useMemo(() => {
-    if (!startDateStr || !targetAmount) return null;
+    if (!maturityDateStr || !targetAmount) return null;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const startDate = new Date(startDateStr);
-    startDate.setHours(0, 0, 0, 0);
+    const maturityDate = new Date(maturityDateStr);
+    maturityDate.setHours(0, 0, 0, 0);
 
     // Calculate top-up start date (tomorrow)
     const topUpStartDate = new Date(today);
     topUpStartDate.setDate(today.getDate() + 1);
     topUpStartDate.setHours(0, 0, 0, 0);
 
-    // Calculate top-up end date (day before budget starts)
-    const topUpEndDate = new Date(startDate);
-    topUpEndDate.setDate(startDate.getDate() - 1);
+    // Calculate top-up end date (day before maturity)
+    const topUpEndDate = new Date(maturityDate);
+    topUpEndDate.setDate(maturityDate.getDate() - 1);
     topUpEndDate.setHours(0, 0, 0, 0);
 
     // Calculate number of cycles based on frequency
@@ -147,7 +146,7 @@ export default function AutoTopUpConfigScreen() {
       daysUntilStart,
       fundingDates,
     };
-  }, [startDateStr, targetAmount, selectedFrequency, daysUntilStart]);
+  }, [maturityDateStr, targetAmount, selectedFrequency, daysUntilStart]);
 
   const formatDateForDisplay = (date: Date) => {
     return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
@@ -235,8 +234,7 @@ export default function AutoTopUpConfigScreen() {
         params: {
           planName,
           targetAmount: targetAmount.toString(),
-          startDate: startDateStr,
-          endDate: endDateStr || '',
+          maturityDate: maturityDateStr,
           planId: planId || '',
           dateType,
           payoutSchedule,

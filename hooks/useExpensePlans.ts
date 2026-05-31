@@ -182,8 +182,8 @@ export function useExpensePlans() {
     name?: string;
     plan_name?: string;
     total_budget?: number;
-    start_date?: string;
-    end_date?: string;
+    start_date?: string | null;
+    end_date?: string | null;
     funding_method?: 'auto' | 'manual';
     payout_schedule?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
     required_per_cycle?: number;
@@ -269,8 +269,8 @@ export function useExpensePlans() {
         name: planData.name || planData.plan_name || 'Untitled Plan',
         plan_name: planData.plan_name || planData.name || 'Untitled Plan',
         total_budget: planData.total_budget,
-        start_date: planData.start_date || null,
-        end_date: planData.end_date || null,
+        start_date: planData.start_date ?? null,
+        end_date: planData.end_date ?? null,
         funding_method: planData.funding_method || 'manual',
         payout_schedule: planData.payout_schedule || 'weekly',
         required_per_cycle: planData.required_per_cycle || 0,
@@ -442,8 +442,8 @@ export function useExpensePlans() {
       name: string;
       target_amount: number;
     }>;
-    start_date?: string;
-    end_date?: string;
+    start_date?: string | null;
+    end_date?: string | null;
   }) => {
     if (!session?.user?.id) {
       throw new Error('User not authenticated');
@@ -466,8 +466,8 @@ export function useExpensePlans() {
           user_id: session.user.id,
           name: planData.name,
           total_budget: planData.total_budget,
-          start_date: planData.start_date || null,
-          end_date: planData.end_date || null,
+          start_date: planData.start_date ?? null,
+          end_date: planData.end_date ?? null,
           status: 'active',
         })
         .select()

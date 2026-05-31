@@ -11,8 +11,7 @@ import { isBudgetStarted } from '@/lib/expensePlanUtils';
 
 type NextMaturingBudget = {
   plan: any;
-  daysUntilStart: number | null;
-  daysUntilEnd: number;
+  daysUntilMaturity: number;
   hasStarted: boolean;
 };
 
@@ -262,14 +261,12 @@ export default function PlansTabContent({
                 <Clock size={12} color= {isDark ? colors.text : colors.primary} />
                 <Text style={[styles.upNextDaysText, { color: isDark ? colors.text : colors.primary }]}>
                   {(() => {
-                    if (!nextMaturingBudget.hasStarted && nextMaturingBudget.daysUntilStart !== null) {
-                      if (nextMaturingBudget.daysUntilStart === 0) return 'Starts today';
-                      if (nextMaturingBudget.daysUntilStart === 1) return 'Starts tomorrow';
-                      return `Starts in ${nextMaturingBudget.daysUntilStart} days`;
+                    if (!nextMaturingBudget.hasStarted) {
+                      if (nextMaturingBudget.daysUntilMaturity === 0) return 'Matures today';
+                      if (nextMaturingBudget.daysUntilMaturity === 1) return 'Matures tomorrow';
+                      return `Matures in ${nextMaturingBudget.daysUntilMaturity} days`;
                     }
-                    if (nextMaturingBudget.daysUntilEnd === 0) return 'Ends today';
-                    if (nextMaturingBudget.daysUntilEnd === 1) return 'Ends tomorrow';
-                    return `Ends in ${nextMaturingBudget.daysUntilEnd} days`;
+                    return 'Matured';
                   })()}
                 </Text>
               </View>

@@ -85,7 +85,7 @@ import ActiveSpendingPlansCard from '@/components/ActiveBudgetsCard';
 import QuickPlans from '@/components/QuickPlans';
 import DailySpendGuidance from '@/components/DailySpendGuidance';
 import { getCategoryIcon, getCategoryById } from '@/lib/expenseCategories';
-import { getBudgetDuration, isBudgetStarted } from '@/lib/expensePlanUtils';
+import { isBudgetStarted } from '@/lib/expensePlanUtils';
 import { formatTransactionType } from '@/lib/formatters';
 // import { intercomService } from '@/lib/intercom';
 import { useIntercom } from '@/hooks/useIntercom';
@@ -1077,31 +1077,24 @@ export default function HomeScreen() {
     today.setHours(0, 0, 0, 0);
 
     const upcomingPlans = expensePlans
-      .filter(p => p.status === 'active' && p.end_date)
-      .map(plan => {
-        const endDate = new Date(plan.end_date!);
-        endDate.setHours(0, 0, 0, 0);
-        const daysUntilEnd = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        
-        let daysUntilStart: number | null = null;
-        if (plan.start_date) {
-          const startDate = new Date(plan.start_date);
-          startDate.setHours(0, 0, 0, 0);
-          daysUntilStart = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        }
-        
-        const duration = getBudgetDuration(plan.start_date, plan.end_date);
+      .filter((p) => p.status === 'active' && p.start_date)
+      .map((plan) => {
+        const maturityDate = new Date(plan.start_date!);
+        maturityDate.setHours(0, 0, 0, 0);
+        const daysUntilMaturity = Math.ceil((maturityDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         const hasStarted = isBudgetStarted(plan.start_date);
-        return { plan, daysUntilEnd, daysUntilStart, endDate, duration, hasStarted };
+        return {
+          plan,
+          daysUntilMaturity,
+          // Keep legacy keys for compatibility with existing consumers/types.
+          daysUntilStart: daysUntilMaturity,
+          daysUntilEnd: daysUntilMaturity,
+          hasStarted,
+        };
       })
-      // Up next should be budgets that haven't started
-      .filter(({ hasStarted, daysUntilStart, daysUntilEnd }) => !hasStarted && (daysUntilStart ?? 0) >= 0 && daysUntilEnd >= 0)
-      .sort((a, b) => {
-        const aStart = a.daysUntilStart ?? Number.MAX_SAFE_INTEGER;
-        const bStart = b.daysUntilStart ?? Number.MAX_SAFE_INTEGER;
-        if (aStart === bStart) return a.daysUntilEnd - b.daysUntilEnd;
-        return aStart - bStart;
-      });
+      // Up next should be vaults that have not matured yet.
+      .filter(({ hasStarted, daysUntilMaturity }) => !hasStarted && daysUntilMaturity >= 0)
+      .sort((a, b) => a.daysUntilMaturity - b.daysUntilMaturity);
 
     return upcomingPlans.length > 0 ? upcomingPlans[0] : null;
   }, [expensePlans]);

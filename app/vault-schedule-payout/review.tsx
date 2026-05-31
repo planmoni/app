@@ -68,6 +68,7 @@ export default function VaultScheduleReviewScreen() {
   const payoutMinute = params.payoutMinute ? parseInt(params.payoutMinute as string, 10) : 0;
   const vaultPlanId = params.vaultPlanId as string;
   const vaultMaxAmount = params.vaultMaxAmount as string;
+  const vaultMaturityDate = (params.vaultMaturityDate as string) || '';
   const customDatesParam = (params.customDates as string) || '';
   const customDateAmountsParam = (params.customDateAmounts as string) || '';
   const customDateTimesParam = (params.customDateTimes as string) || '';
@@ -109,6 +110,7 @@ export default function VaultScheduleReviewScreen() {
       payoutMinute: String(payoutMinute),
       vaultPlanId: vaultPlanId || '',
       vaultMaxAmount: vaultMaxAmount || '',
+      vaultMaturityDate: vaultMaturityDate || '',
     }),
     [
       totalAmount,
@@ -126,6 +128,7 @@ export default function VaultScheduleReviewScreen() {
       payoutMinute,
       vaultPlanId,
       vaultMaxAmount,
+      vaultMaturityDate,
       customDatesParam,
       customDateAmountsParam,
       customDateTimesParam,
@@ -456,7 +459,7 @@ export default function VaultScheduleReviewScreen() {
                   <Text style={styles.detailLabel}>Duration</Text>
                   <Text style={styles.detailValue}>{getDurationDisplay()}</Text>
                   <Text style={styles.detailSubtext}>
-                    First payout on {formatDisplayDate(startDate)} at {getPayoutTimeDisplay()}
+                    First payout (from maturity date) on {formatDisplayDate(startDate)} at {getPayoutTimeDisplay()}
                   </Text>
                 </View>
                 <Pressable

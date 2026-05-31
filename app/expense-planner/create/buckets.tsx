@@ -631,8 +631,7 @@ export default function BucketsScreen() {
       await saveExpenseBuckets(activePlanId, bucketsToSave);
 
       // Get dates from params if they exist (from dates screen)
-      const startDate = params.startDate as string | undefined;
-      const endDate = params.endDate as string | undefined;
+      const maturityDate = (params.maturityDate as string | undefined) || (params.startDate as string | undefined);
 
       router.push({
         pathname: '/expense-planner/create/funding-choice',
@@ -646,8 +645,7 @@ export default function BucketsScreen() {
             name: b.name,
             targetAmount: b.targetAmount.replace(/,/g, ''),
           }))),
-          startDate: startDate || '',
-          endDate: endDate || '',
+          maturityDate: maturityDate || '',
           planId: activePlanId,
         },
       });
@@ -695,7 +693,7 @@ export default function BucketsScreen() {
 
           <BucketAllocationSummary
             totalAllocated={totalAllocated}
-            totalBudget={totalBudget}
+            totalAmount={totalBudget}
           />
 
           <Text style={styles.budgetQuestion}>How much will you be spending on the following?</Text>

@@ -8,7 +8,7 @@ import { getCategoryIcon, getCategoryById, CATEGORIES } from '@/lib/expenseCateg
 import { 
   getDaysRemaining, 
   isBudgetStarted, 
-  formatDateRange, 
+  formatMaturityDate,
   formatDaysRemaining,
   getBudgetDuration,
   getDraftResumeStep
@@ -306,7 +306,7 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
   // Date calculations
   const budgetStarted = isBudgetStarted(plan.start_date);
   const daysRemaining = getDaysRemaining(plan.start_date, plan.end_date);
-  const dateRange = formatDateRange(plan.start_date, plan.end_date);
+  const maturityDateLabel = formatMaturityDate(plan.start_date);
   const daysRemainingText = formatDaysRemaining(daysRemaining);
   
   // Calculate days until start date for better messaging
@@ -330,16 +330,16 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
     if (daysUntilStart === null) return daysRemainingText;
     
     if (daysUntilStart > 1) {
-      return `Starts in ${daysUntilStart} days`;
+      return `Matures in ${daysUntilStart} days`;
     } else if (daysUntilStart === 1) {
-      return 'Starts Tomorrow';
+      return 'Matures Tomorrow';
     } else if (daysUntilStart === 0) {
-      return 'Vault unlocked';
+      return 'Matures Today';
     } else {
       // Budget has started
       const daysSinceStart = Math.abs(daysUntilStart);
       if (daysSinceStart === 1) {
-        return 'Budget spend ongoing';
+        return 'Vault spending ongoing';
       } else {
         return daysRemainingText; // Use the regular days remaining text
       }
@@ -565,10 +565,10 @@ export default function ExpensePlanCard({ plan, onPress, onDelete }: ExpensePlan
       )}
 
       {/* Show dates */}
-      {dateRange && (
+      {maturityDateLabel && (
         <View style={styles.datesRow}>
           <Calendar size={14} color={colors.textSecondary} />
-          <Text style={styles.datesText}>{dateRange}</Text>
+          <Text style={styles.datesText}>Matures on {maturityDateLabel}</Text>
         </View>
       )}
 

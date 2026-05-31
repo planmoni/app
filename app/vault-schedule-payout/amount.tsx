@@ -82,6 +82,7 @@ export default function VaultScheduleAmountScreen() {
         totalAmount: amount,
         vaultPlanId: planId,
         vaultMaxAmount: String(maxVaultAmount),
+        vaultMaturityDate: plan?.start_date || '',
       },
     });
   };

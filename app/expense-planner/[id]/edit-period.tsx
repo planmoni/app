@@ -9,7 +9,6 @@ import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import FloatingButton from '@/components/FloatingButton';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
-import { calculateRequiredContribution, PayoutSchedule } from '@/lib/engines/contributionCalculator';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = [
@@ -29,13 +28,10 @@ export default function EditPeriodScreen() {
   const currentBalance = (plan as any)?.current_balance || 0;
   const planTotalBudget = plan?.total_budget ?? 0;
   const isPartiallyFunded = currentBalance > 0 && planTotalBudget > 0 && currentBalance < planTotalBudget;
-  const [startDate, setStartDate] = useState<Date | null>(
+  const [maturityDate, setMaturityDate] = useState<Date | null>(
     plan?.start_date ? new Date(plan.start_date) : null
   );
-  const [endDate, setEndDate] = useState<Date | null>(
-    plan?.end_date ? new Date(plan.end_date) : null
-  );
-  const [currentMonth, setCurrentMonth] = useState(startDate || new Date());
+  const [currentMonth, setCurrentMonth] = useState(maturityDate || new Date());
   const [isSaving, setIsSaving] = useState(false);
 
   const normalizeDate = (date: Date): Date => {
@@ -44,10 +40,15 @@ export default function EditPeriodScreen() {
     return normalized;
   };
 
-  const isPastDate = (date: Date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return normalizeDate(date) <= today;
+  const getMinimumMaturityDate = () => {
+    const minDate = new Date();
+    minDate.setHours(0, 0, 0, 0);
+    minDate.setDate(minDate.getDate() + 14);
+    return minDate;
+  };
+
+  const isBeforeMinimumMaturityDate = (date: Date) => {
+    return normalizeDate(date) < getMinimumMaturityDate();
   };
 
   const getDaysInMonth = (date: Date) => {
@@ -60,50 +61,21 @@ export default function EditPeriodScreen() {
 
   const isDateSelected = (date: Date) => {
     const normalizedDate = normalizeDate(date);
-    if (startDate) {
-      const normalizedStart = normalizeDate(startDate);
-      if (normalizedDate.getTime() === normalizedStart.getTime()) return true;
-    }
-    if (endDate) {
-      const normalizedEnd = normalizeDate(endDate);
-      if (normalizedDate.getTime() === normalizedEnd.getTime()) return true;
+    if (maturityDate) {
+      const normalizedMaturity = normalizeDate(maturityDate);
+      if (normalizedDate.getTime() === normalizedMaturity.getTime()) return true;
     }
     return false;
   };
 
-  const isDateInRange = (date: Date) => {
-    if (!startDate || !endDate) return false;
-    const normalizedDate = normalizeDate(date);
-    const normalizedStart = normalizeDate(startDate);
-    const normalizedEnd = normalizeDate(endDate);
-    return normalizedDate >= normalizedStart && normalizedDate <= normalizedEnd;
-  };
-
   const handleDateSelect = (date: Date) => {
     if (isPartiallyFunded) return;
-    if (isPastDate(date)) return;
+    if (isBeforeMinimumMaturityDate(date)) return;
     
     haptics.selection();
     const normalizedDate = normalizeDate(date);
 
-    if (!startDate) {
-      setStartDate(normalizedDate);
-      return;
-    }
-
-    if (startDate && !endDate) {
-      if (normalizedDate <= normalizeDate(startDate)) {
-        Alert.alert('Invalid Date', 'End date must be after start date');
-        haptics.notification();
-        return;
-      }
-      setEndDate(normalizedDate);
-      return;
-    }
-
-    // If both dates are selected, start a new selection
-    setStartDate(normalizedDate);
-    setEndDate(null);
+    setMaturityDate(normalizedDate);
   };
 
   const handlePrevMonth = () => {
@@ -131,8 +103,14 @@ export default function EditPeriodScreen() {
   };
 
   const handleDone = async () => {
-    if (!startDate || !endDate) {
-      Alert.alert('Missing Dates', 'Please select both start and end dates');
+    if (!maturityDate) {
+      Alert.alert('Missing Date', 'Please select a maturity date');
+      haptics.notification();
+      return;
+    }
+
+    if (isBeforeMinimumMaturityDate(maturityDate)) {
+      Alert.alert('Invalid Date', 'Maturity date must be at least 2 weeks from today.');
       haptics.notification();
       return;
     }
@@ -143,45 +121,22 @@ export default function EditPeriodScreen() {
       return;
     }
 
-    if (endDate <= startDate) {
-      Alert.alert('Invalid Dates', 'End date must be after start date');
-      haptics.notification();
-      return;
-    }
-
     haptics.mediumImpact();
     setIsSaving(true);
 
     try {
-      // Recalculate required_per_cycle and required_per_day
-      let updates: any = {
-        start_date: formatDateForStorage(startDate),
-        end_date: formatDateForStorage(endDate),
+      const updates: any = {
+        start_date: formatDateForStorage(maturityDate),
+        end_date: null,
       };
-
-      if (plan?.total_budget) {
-        const payoutSchedule = ((plan as any)?.payout_schedule || 'weekly') as PayoutSchedule;
-        const currentBalance = (plan as any)?.current_balance || 0;
-
-        const calculation = calculateRequiredContribution(
-          plan.total_budget,
-          startDate,
-          endDate,
-          payoutSchedule,
-          currentBalance
-        );
-
-        updates.required_per_cycle = calculation.requiredPerCycle;
-        updates.required_per_day = calculation.requiredPerDay;
-      }
 
       await updateExpensePlan(planId, updates);
       await fetchExpensePlans();
       haptics.notification();
       router.back();
     } catch (error: any) {
-      console.error('Error updating period:', error);
-      Alert.alert('Error', error.message || 'Failed to update period');
+      console.error('Error updating maturity date:', error);
+      Alert.alert('Error', error.message || 'Failed to update maturity date');
       haptics.notification();
     } finally {
       setIsSaving(false);
@@ -202,7 +157,7 @@ export default function EditPeriodScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Edit Vault Period</Text>
+        <Text style={styles.headerTitle}>Edit Maturity Date</Text>
         <Pressable
           onPress={() => {
             haptics.lightImpact();
@@ -215,33 +170,20 @@ export default function EditPeriodScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Vault Period</Text>
+        <Text style={styles.title}>Vault Maturity</Text>
         <Text style={styles.description}>
-          Select the start and end dates for this vault
+          Select the date this vault should mature (at least 2 weeks from today)
         </Text>
 
         {/* Selected Dates Display */}
         <View style={styles.selectedDatesCard}>
           <View style={styles.dateDisplayRow}>
             <View style={styles.dateDisplayItem}>
-              <Text style={styles.dateDisplayLabel}>Start Date</Text>
+              <Text style={styles.dateDisplayLabel}>Maturity Date</Text>
               <Text style={styles.dateDisplayValue}>
-                {startDate ? formatDateForDisplay(startDate) : 'Not selected'}
+                {maturityDate ? formatDateForDisplay(maturityDate) : 'Not selected'}
               </Text>
             </View>
-            {endDate && (
-              <>
-                <View style={styles.dateSeparator}>
-                  <Text style={styles.separatorText}>→</Text>
-                </View>
-                <View style={styles.dateDisplayItem}>
-                  <Text style={styles.dateDisplayLabel}>End Date</Text>
-                  <Text style={styles.dateDisplayValue}>
-                    {formatDateForDisplay(endDate)}
-                  </Text>
-                </View>
-              </>
-            )}
           </View>
         </View>
 
@@ -272,15 +214,13 @@ export default function EditPeriodScreen() {
               const day = i + 1;
               const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
               const isSelected = isDateSelected(date);
-              const isInRange = isDateInRange(date);
-              const isPast = isPastDate(date);
+              const isPast = isBeforeMinimumMaturityDate(date);
               
               return (
                 <Pressable
                   key={day}
                   style={[
                     styles.calendarDay,
-                    isInRange && styles.calendarDayInRange,
                     isSelected && styles.calendarDaySelected,
                     isPast && styles.calendarDayPast,
                   ]}
@@ -290,7 +230,6 @@ export default function EditPeriodScreen() {
                   <Text style={[
                     styles.calendarDayText,
                     isSelected && styles.calendarDayTextSelected,
-                    isInRange && styles.calendarDayTextInRange,
                     isPast && styles.calendarDayTextPast,
                   ]}>
                     {day}
@@ -305,7 +244,7 @@ export default function EditPeriodScreen() {
       <FloatingButton
         title="Done"
         onPress={handleDone}
-        disabled={isSaving || isPartiallyFunded || !startDate || !endDate}
+        disabled={isSaving || isPartiallyFunded || !maturityDate}
         hapticType="medium"
       />
     </SafeAreaView>
@@ -393,13 +332,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       fontWeight: '600',
       color: colors.text,
     },
-    dateSeparator: {
-      paddingHorizontal: 12,
-    },
-    separatorText: {
-      fontSize: getScaledFontSize(18, textSizeMultiplier),
-      color: colors.textSecondary,
-    },
     calendarCard: {
       backgroundColor: colors.card,
       borderRadius: 12,
@@ -445,9 +377,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       alignItems: 'center',
       borderRadius: 8,
     },
-    calendarDayInRange: {
-      backgroundColor: colors.primary + '20',
-    },
     calendarDaySelected: {
       backgroundColor: colors.primary,
     },
@@ -461,10 +390,6 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     calendarDayTextSelected: {
       color: '#FFFFFF',
       fontWeight: '600',
-    },
-    calendarDayTextInRange: {
-      color: colors.primary,
-      fontWeight: '500',
     },
     calendarDayTextPast: {
       color: colors.textTertiary,

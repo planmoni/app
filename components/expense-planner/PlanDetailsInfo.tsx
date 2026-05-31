@@ -6,7 +6,7 @@ import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { ExpensePlan } from '@/types/expense-planner';
 import { getCategoryIcon, getCategoryById, CATEGORIES } from '@/lib/expenseCategories';
-import { getBudgetDuration, isBudgetStarted } from '@/lib/expensePlanUtils';
+import { isBudgetStarted } from '@/lib/expensePlanUtils';
 import { router } from 'expo-router';
 
 interface PlanDetailsInfoProps {
@@ -136,11 +136,6 @@ export default function PlanDetailsInfo({
     ? ((currentBalance / planTotalBudget) * 100)
     : 0;
   const remainingToFund = Math.max(0, planTotalBudget - currentBalance);
-
-  // Calculate budget duration
-  const budgetDuration = plan?.start_date && plan?.end_date 
-    ? getBudgetDuration(plan.start_date, plan.end_date) 
-    : null;
 
   // Get funding method (use prop if provided, otherwise check both direct field and metadata)
   const planFundingMethod = fundingMethod || plan?.funding_method || plan?.metadata?.funding_method || 'manual';

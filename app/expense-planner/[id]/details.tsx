@@ -9,7 +9,7 @@ import { getScaledFontSize } from '@/lib/textSize';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { ExpensePlan } from '@/types/expense-planner';
 import { getCategoryById } from '@/lib/expenseCategories';
-import { getBudgetDuration, isBudgetStarted } from '@/lib/expensePlanUtils';
+import { isBudgetStarted } from '@/lib/expensePlanUtils';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useCloseExpensePlanVault } from '@/hooks/useCloseExpensePlanVault';
 
@@ -44,9 +44,6 @@ export default function PlanDetailsPage() {
   }
 
   const budgetStarted = plan?.start_date ? isBudgetStarted(plan.start_date) : false;
-  const budgetDuration = plan?.start_date && plan?.end_date 
-    ? getBudgetDuration(plan.start_date, plan.end_date) 
-    : null;
 
   const currentBalance = (plan as any)?.current_balance ?? 0;
   const planTotalBudget = plan.total_budget ?? 0;
@@ -238,11 +235,11 @@ export default function PlanDetailsPage() {
           </View>
         )}
 
-        {/* Start Date - End Date */}
-        {plan.start_date && plan.end_date && (
+        {/* Maturity Date */}
+        {plan.start_date && (
           <View style={styles.infoCard}>
             <View style={styles.infoCardHeader}>
-              <Text style={styles.infoLabel}>Vault Period</Text>
+              <Text style={styles.infoLabel}>Maturity Date</Text>
               {!budgetStarted && !isPartiallyFunded && (
                 <Pressable
                   onPress={() => {
@@ -259,17 +256,7 @@ export default function PlanDetailsPage() {
               )}
             </View>
             <Text style={styles.infoValue}>
-              {formatDate(plan.start_date)} - {formatDate(plan.end_date)}
-            </Text>
-          </View>
-        )}
-
-        {/* Vault Duration */}
-        {budgetDuration && (
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Duration</Text>
-            <Text style={styles.infoValue}>
-              {budgetDuration} {budgetDuration === 1 ? 'day' : 'days'}
+              {formatDate(plan.start_date)}
             </Text>
           </View>
         )}

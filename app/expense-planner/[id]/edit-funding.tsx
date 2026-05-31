@@ -25,7 +25,7 @@ export default function EditFundingScreen() {
   const startDateStr = (plan as any)?.start_date as string | undefined;
 
   // Matches `app/expense-planner/create/funding-source.tsx` rule:
-  // auto top-up only available when the vault start date is >= 7 days away.
+  // auto top-up only available when the vault maturity date is >= 7 days away.
   const isAutoTopUpDisabled = useMemo(() => {
     if (!startDateStr) return false;
 
@@ -50,7 +50,7 @@ export default function EditFundingScreen() {
     if (fundingMethod === 'auto' && isAutoTopUpDisabled) {
       Alert.alert(
         'Auto Top-Up Unavailable',
-        'Auto top-up is only available when the vault start date is at least 1 week away. Please select manual top-up instead.',
+        'Auto top-up is only available when the vault maturity date is at least 1 week away. Please select manual top-up instead.',
         [{ text: 'OK' }],
       );
       haptics.notification();
@@ -63,7 +63,7 @@ export default function EditFundingScreen() {
     // go through `auto-topup-config` to pick frequency/schedule.
     if (fundingMethod === 'auto') {
       if (!plan.start_date) {
-        Alert.alert('Error', 'Vault start date is missing. Please select a start date first.');
+        Alert.alert('Error', 'Vault maturity date is missing. Please set a maturity date first.');
         return;
       }
 
@@ -75,8 +75,7 @@ export default function EditFundingScreen() {
           planId: planId || plan.id,
           planName: plan.name,
           targetAmount: (plan.total_budget || 0).toString(),
-          startDate: plan.start_date || '',
-          endDate: plan.end_date || '',
+          maturityDate: plan.start_date || '',
         },
       });
       return;
@@ -146,7 +145,7 @@ export default function EditFundingScreen() {
                 haptics.notification();
                 Alert.alert(
                   'Auto Top-Up Unavailable',
-                  'Auto top-up is only available when the vault start date is at least 1 week away. Please select manual top-up instead.',
+                  'Auto top-up is only available when the vault maturity date is at least 1 week away. Please select manual top-up instead.',
                   [{ text: 'OK' }],
                 );
                 return;

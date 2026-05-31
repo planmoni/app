@@ -30,9 +30,7 @@ export default function ReviewScreen() {
   
   const planName = params.planName as string;
   const targetAmount = parseFloat((params.targetAmount as string) || '0');
-  const startDateStr = params.startDate as string;
-  const endDateStr = params.endDate as string;
-  const dateType = params.dateType as 'range' | 'one_time' | 'ongoing';
+  const maturityDateStr = (params.maturityDate as string) || (params.startDate as string);
   const payoutSchedule = params.payoutSchedule as string;
   const requiredPerCycle = params.requiredPerCycle as string;
   const fundingMethod = params.fundingMethod as 'auto' | 'manual';
@@ -182,8 +180,8 @@ export default function ReviewScreen() {
         plan_name: planName,
         name: planName, // Keep name for backward compatibility
         total_budget: targetAmount,
-        start_date: startDateStr || null,
-        end_date: endDateStr || null,
+        start_date: maturityDateStr || null,
+        end_date: null,
         funding_method: fundingMethod,
         payout_schedule: payoutSchedule as any,
         required_per_cycle: requiredPerCycleNumber,
@@ -264,28 +262,16 @@ export default function ReviewScreen() {
         {/* Target & Deadline */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Vault Amount & Dates</Text>
+            <Text style={styles.sectionTitle}>Vault Amount & Maturity</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Target Amount</Text>
             <Text style={styles.infoValue}>₦{targetAmount.toLocaleString('en-US')}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Start Date</Text>
-            <Text style={styles.infoValue}>{formatDate(startDateStr)}</Text>
+            <Text style={styles.infoLabel}>Maturity Date</Text>
+            <Text style={styles.infoValue}>{formatDate(maturityDateStr)}</Text>
           </View>
-          {dateType !== 'ongoing' && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>End Date</Text>
-              <Text style={styles.infoValue}>{formatDate(endDateStr)}</Text>
-            </View>
-          )}
-          {dateType === 'ongoing' && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Type</Text>
-              <Text style={styles.infoValue}>Ongoing</Text>
-            </View>
-          )}
         </View>
 
         {/* Required Contribution */}

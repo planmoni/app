@@ -64,8 +64,7 @@ export default function FundSpendingPlanScreen() {
   const totalAmount = parseFloat((params.totalAmount as string) || '0');
   const planId = params.planId as string | undefined;
   const budgetStructure: 'fixed' = 'fixed';
-  const startDate = params.startDate as string;
-  const endDate = params.endDate as string;
+  const maturityDate = (params.maturityDate as string) || (params.startDate as string);
 
   const [bucketStates, setBucketStates] = useState<SubCategoryBucket[]>([]);
   const [dbBuckets, setDbBuckets] = useState<Array<{ id: string; category_id: string; subcategory_id: string }>>([]);
@@ -177,19 +176,8 @@ export default function FundSpendingPlanScreen() {
     })));
   };
 
-  const calculateUnlockDate = (startDateStr: string, endDateStr: string): string => {
-    if (!startDateStr || !endDateStr) return endDateStr || startDateStr || '';
-    
-    const start = new Date(startDateStr);
-    const end = new Date(endDateStr);
-    
-    // If start_date equals end_date, unlock on that date
-    if (start.toDateString() === end.toDateString()) {
-      return startDateStr;
-    }
-    
-    // If date range, unlock on start_date (funds available from beginning)
-    return startDateStr;
+  const calculateUnlockDate = (maturityDateStr: string): string => {
+    return maturityDateStr || '';
   };
 
   const handleContinue = async () => {
@@ -220,8 +208,8 @@ export default function FundSpendingPlanScreen() {
         console.log('No planId found in fund spending plan screen, creating draft plan...');
         const newDraftPlan = await saveDraftExpensePlan({
           total_budget: totalAmount,
-          start_date: startDate,
-          end_date: endDate,
+          start_date: maturityDate,
+          end_date: null,
         });
         
         if (!newDraftPlan || !newDraftPlan.id) {
@@ -233,7 +221,7 @@ export default function FundSpendingPlanScreen() {
       }
 
       // Calculate unlock date
-      const unlockDate = calculateUnlockDate(startDate, endDate);
+      const unlockDate = calculateUnlockDate(maturityDate);
       
       // Prepare bucket locks for database function
       const bucketLocks = bucketsWithAmounts.map(bucket => {
@@ -273,8 +261,7 @@ export default function FundSpendingPlanScreen() {
             lockedAmount: b.lockedAmount?.replace(/,/g, '') || '0',
           }))),
           planName: params.planName || '',
-          startDate,
-          endDate,
+          maturityDate,
           totalLocked: totalLocked.toString(),
           planId: activePlanId,
         },

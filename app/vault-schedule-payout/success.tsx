@@ -91,7 +91,7 @@ export default function VaultScheduleSuccessScreen() {
 
           <View style={styles.detailsContainer}>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>First payout</Text>
+              <Text style={styles.detailLabel}>First payout (from maturity date)</Text>
               <Text style={styles.detailValue} numberOfLines={2}>
                 {formatDisplayDate(startDate)}
               </Text>

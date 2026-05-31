@@ -32,8 +32,7 @@ export default function NameExpenseScreen() {
   const totalBudget = parseFloat((params.totalBudget as string) || '0');
   const budgetStructure = (params.budgetStructure as 'fixed' | 'estimated') || 'fixed';
   const buckets: Bucket[] = params.buckets ? JSON.parse(params.buckets as string) : [];
-  const startDate = params.startDate as string;
-  const endDate = params.endDate as string;
+  const maturityDate = (params.maturityDate as string) || (params.startDate as string);
   const skipFunding = params.skipFunding === 'true';
   const totalLocked = parseFloat((params.totalLocked as string) || '0');
 
@@ -51,13 +50,12 @@ export default function NameExpenseScreen() {
           console.log('No planId found on name-expense screen, creating draft plan...', {
             totalBudget,
             budgetStructure,
-            startDate,
-            endDate,
+            maturityDate,
           });
           const draftPlan = await saveDraftExpensePlan({
             total_budget: totalBudget,
-            start_date: startDate || undefined,
-            end_date: endDate || undefined,
+            start_date: maturityDate || undefined,
+            end_date: undefined,
           });
           if (draftPlan?.id) {
             console.log('Draft plan created successfully on name-expense screen:', draftPlan.id);
@@ -106,8 +104,8 @@ export default function NameExpenseScreen() {
         const newDraftPlan = await saveDraftExpensePlan({
           name: planName.trim(),
           total_budget: totalBudget,
-          start_date: startDate || undefined,
-          end_date: endDate || undefined,
+          start_date: maturityDate || undefined,
+          end_date: undefined,
         });
         
         if (!newDraftPlan || !newDraftPlan.id) {
@@ -124,16 +122,15 @@ export default function NameExpenseScreen() {
           name: planName.trim(),
           totalBudget,
           budgetStructure,
-          startDate,
-          endDate,
+          maturityDate,
         });
         
         await saveDraftExpensePlan({
           planId,
           name: planName.trim(),
           total_budget: totalBudget,
-          start_date: startDate || undefined,
-          end_date: endDate || undefined,
+          start_date: maturityDate || undefined,
+          end_date: undefined,
         });
         
         console.log('Plan data saved successfully');
@@ -281,17 +278,10 @@ export default function NameExpenseScreen() {
               <Text style={styles.summaryValue}>₦{totalBudget.toLocaleString()}</Text>
             </View>
 
-            {startDate && (
+            {maturityDate && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Start Date</Text>
-                <Text style={styles.summaryValue}>{formatDateForDisplay(startDate)}</Text>
-              </View>
-            )}
-
-            {endDate && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>End Date</Text>
-                <Text style={styles.summaryValue}>{formatDateForDisplay(endDate)}</Text>
+                <Text style={styles.summaryLabel}>Maturity Date</Text>
+                <Text style={styles.summaryValue}>{formatDateForDisplay(maturityDate)}</Text>
               </View>
             )}
 

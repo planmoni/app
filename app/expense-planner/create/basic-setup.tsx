@@ -92,10 +92,16 @@ export default function BasicSetupScreen() {
     return `${year}-${month}-${day}`;
   };
 
-  const isPastDate = (date: Date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+  const getMinimumMaturityDate = () => {
+    const minDate = new Date();
+    minDate.setHours(0, 0, 0, 0);
+    minDate.setDate(minDate.getDate() + 14);
+    return minDate;
+  };
+
+  const isBeforeMinimumMaturityDate = (date: Date) => {
+    const normalizedDate = normalizeDate(date);
+    return normalizedDate < getMinimumMaturityDate();
   };
 
   const normalizeDate = (date: Date): Date => {
@@ -105,7 +111,7 @@ export default function BasicSetupScreen() {
   };
 
   const handleDateSelect = (date: Date) => {
-    if (isPastDate(date)) return;
+    if (isBeforeMinimumMaturityDate(date)) return;
     
     haptics.selection();
     const normalizedDate = normalizeDate(date);
@@ -219,7 +225,7 @@ export default function BasicSetupScreen() {
         return;
       }
       finalStartDate = formatDateForStorage(oneTimeDate);
-      finalEndDate = formatDateForStorage(oneTimeDate);
+      finalEndDate = null;
     } else if (dateType === 'range') {
       if (!startDate) {
         setError('Please select a start date');
@@ -227,7 +233,7 @@ export default function BasicSetupScreen() {
         return;
       }
       finalStartDate = formatDateForStorage(startDate);
-      finalEndDate = endDate ? formatDateForStorage(endDate) : formatDateForStorage(startDate);
+      finalEndDate = null;
     } else if (dateType === 'ongoing') {
       if (!startDate) {
         setError('Please select a start date');
@@ -236,6 +242,12 @@ export default function BasicSetupScreen() {
       }
       finalStartDate = formatDateForStorage(startDate);
       finalEndDate = null; // Ongoing plans have no end date
+    }
+
+    if (!finalStartDate || isBeforeMinimumMaturityDate(new Date(finalStartDate))) {
+      setError('Maturity date must be at least 2 weeks from today');
+      haptics.notification();
+      return;
     }
 
     haptics.mediumImpact();
@@ -275,8 +287,7 @@ export default function BasicSetupScreen() {
           targetAmount: targetAmount.replace(/,/g, ''),
           budgetStructure,
           priority,
-          startDate: finalStartDate,
-          endDate: finalEndDate || '',
+          maturityDate: finalStartDate,
           dateType,
           planId: draftPlan.id,
           ...(subCategories && { subCategories }),
@@ -662,7 +673,7 @@ export default function BasicSetupScreen() {
                     ))}
                     {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, index) => {
                       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), index + 1);
-                      const isDisabled = isPastDate(date);
+                      const isDisabled = isBeforeMinimumMaturityDate(date);
                       const isSelected = isDateSelected(date);
                       const isTodayDate = isToday(date);
 

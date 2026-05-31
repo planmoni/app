@@ -43,11 +43,17 @@ export function calculateDailyAllowance(
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  for (const plan of activePlans) {
-    if (!plan.end_date) continue; // Skip ongoing plans for now
+  const getPlanDeadline = (plan: ExpensePlan): Date | null => {
+    const deadline = plan.end_date || plan.start_date;
+    if (!deadline) return null;
+    const parsed = new Date(deadline);
+    parsed.setHours(0, 0, 0, 0);
+    return parsed;
+  };
 
-    const endDate = new Date(plan.end_date);
-    endDate.setHours(0, 0, 0, 0);
+  for (const plan of activePlans) {
+    const endDate = getPlanDeadline(plan);
+    if (!endDate) continue;
     
     if (endDate <= today) continue; // Skip expired plans
 
@@ -64,10 +70,8 @@ export function calculateDailyAllowance(
   // Calculate flexible plan headroom (plans that are ahead of schedule)
   let flexiblePlanHeadroom = 0;
   for (const plan of activePlans) {
-    if (!plan.end_date) continue;
-
-    const endDate = new Date(plan.end_date);
-    endDate.setHours(0, 0, 0, 0);
+    const endDate = getPlanDeadline(plan);
+    if (!endDate) continue;
     
     if (endDate <= today) continue;
 
@@ -100,9 +104,8 @@ export function calculateDailyAllowance(
   if (overspent && overspentAmount > 0) {
     // Calculate how overspending affects each plan
     for (const plan of activePlans) {
-      if (!plan.end_date) continue;
-
-      const endDate = new Date(plan.end_date);
+      const endDate = getPlanDeadline(plan);
+      if (!endDate) continue;
       const daysUntilDeadline = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       const requiredPerDay = (plan as any).required_per_day || 0;
       
@@ -150,7 +153,7 @@ export function recalculateConsequences(
   const activePlans = plans.filter(plan => 
     plan.status === 'active' &&
     !(plan as any).is_paused &&
-    plan.end_date
+    (plan.end_date || plan.start_date)
   );
 
   const consequences: string[] = [];

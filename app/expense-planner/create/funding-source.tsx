@@ -25,8 +25,7 @@ export default function FundingSourceScreen() {
   const planId = params.planId as string | undefined;
   const planName = params.planName as string;
   const targetAmount = parseFloat((params.targetAmount as string) || '0');
-  const startDateStr = params.startDate as string;
-  const endDateStr = params.endDate as string;
+  const maturityDateStr = (params.maturityDate as string) || (params.startDate as string);
   const dateType = params.dateType as 'range' | 'one_time' | 'ongoing';
   const payoutSchedule = (params.payoutSchedule as PayoutSchedule) || 'weekly';
   const requiredPerCycle = parseFloat((params.requiredPerCycle as string) || '0');
@@ -38,21 +37,21 @@ export default function FundingSourceScreen() {
   const [isSaving, setIsSaving] = useState(false);
   // Hybrid option removed; budgets are either auto or manual
 
-  // Check if start date is less than 1 week away
+  // Check if maturity date is less than 1 week away
   const isAutoTopUpDisabled = useMemo(() => {
-    if (!startDateStr) return false;
+    if (!maturityDateStr) return false;
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const startDate = new Date(startDateStr);
-    startDate.setHours(0, 0, 0, 0);
+    const maturityDate = new Date(maturityDateStr);
+    maturityDate.setHours(0, 0, 0, 0);
     
-    const daysUntil = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const daysUntil = Math.ceil((maturityDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     
     // Disable if less than 7 days away
     return daysUntil < 7;
-  }, [startDateStr]);
+  }, [maturityDateStr]);
 
   // If auto is selected but becomes disabled, switch to manual
   useEffect(() => {
@@ -65,12 +64,14 @@ export default function FundingSourceScreen() {
   const allocationPreview = useMemo(() => {
     if (fundingMethod !== 'auto') return null;
 
-    const start = startDateStr ? new Date(startDateStr) : new Date();
-    const end = endDateStr ? new Date(endDateStr) : start;
-    start.setHours(0,0,0,0);
-    end.setHours(0,0,0,0);
-    const oneDay = 24 * 60 * 60 * 1000;
-    const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / oneDay) + 1);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maturityDate = maturityDateStr ? new Date(maturityDateStr) : new Date();
+    maturityDate.setHours(0, 0, 0, 0);
+    const days = Math.max(
+      1,
+      Math.ceil((maturityDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    );
     const weeks = Math.max(1, Math.ceil(days / 7));
     const months = Math.max(1, Math.ceil(days / 30));
 
@@ -88,7 +89,7 @@ export default function FundingSourceScreen() {
       perWeek,
       perMonth,
     };
-  }, [fundingMethod, startDateStr, endDateStr, targetAmount]);
+  }, [fundingMethod, maturityDateStr, targetAmount]);
 
   const handleContinue = async () => {
     haptics.mediumImpact();
@@ -112,8 +113,7 @@ export default function FundingSourceScreen() {
           params: {
             planName,
             targetAmount: targetAmount.toString(),
-            startDate: startDateStr,
-            endDate: endDateStr || '',
+            maturityDate: maturityDateStr,
             dateType,
             payoutSchedule,
             requiredPerCycle: requiredPerCycle.toString(),
@@ -129,8 +129,7 @@ export default function FundingSourceScreen() {
           params: {
             planName,
             targetAmount: targetAmount.toString(),
-            startDate: startDateStr,
-            endDate: endDateStr || '',
+            maturityDate: maturityDateStr,
             dateType,
             payoutSchedule,
             requiredPerCycle: requiredPerCycle.toString(),
@@ -200,7 +199,7 @@ export default function FundingSourceScreen() {
                 haptics.notification();
                 Alert.alert(
                   'Auto Top-Up Unavailable',
-                  'Auto top-up is only available when the vault start date is at least 1 week away. Please select manual top-up instead.',
+                  'Auto top-up is only available when the vault maturity date is at least 1 week away. Please select manual top-up instead.',
                   [{ text: 'OK' }]
                 );
                 return;
@@ -239,7 +238,7 @@ export default function FundingSourceScreen() {
                   isAutoTopUpDisabled && styles.optionSubtitleDisabled
                 ]}>
                   {isAutoTopUpDisabled 
-                    ? 'Auto top-up requires the vault start date to be at least 1 week away.'
+                    ? 'Auto top-up requires the vault maturity date to be at least 1 week away.'
                     : 'Automatically top-up your vault from your available balance little by little.'}
                 </Text>
               </View>

@@ -58,6 +58,27 @@ export function isBudgetStarted(startDate: string | undefined): boolean {
 }
 
 /**
+ * Alias for maturity checks in the single-date vault model.
+ */
+export function isVaultMatured(maturityDate: string | undefined): boolean {
+  return isBudgetStarted(maturityDate);
+}
+
+/**
+ * Format maturity date as "Dec 12, 2025"
+ */
+export function formatMaturityDate(maturityDate: string | undefined): string | null {
+  if (!maturityDate) {
+    return null;
+  }
+
+  const date = new Date(maturityDate);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
+/**
  * Format date range as "Dec 12, 2025 to Dec 22, 2025"
  */
 export function formatDateRange(startDate: string | undefined, endDate: string | undefined): string | null {
@@ -175,7 +196,7 @@ export function getDraftResumeStep(plan: {
 
   // Step 2: If no dates, check if we need to go to dates or plan-details
   // If we have budget but no dates, we need dates first
-  if (!plan.start_date || !plan.end_date) {
+  if (!plan.start_date) {
     // If we have buckets, it means categories were selected, so go to dates
     // If no buckets, go to plan-details to select categories first
     if (!plan.buckets || plan.buckets.length === 0) {

@@ -374,6 +374,7 @@ export default function FrequencySelectionScreen() {
   const availableBalance = balance - lockedBalance;
   const vaultPlanId = params.vaultPlanId as string | undefined;
   const vaultMaxRaw = params.vaultMaxAmount as string | undefined;
+  const vaultMaturityDate = params.vaultMaturityDate as string | undefined;
   const vaultMaxParsed = vaultMaxRaw
     ? parseFloat(String(vaultMaxRaw).replace(/,/g, ''))
     : NaN;
@@ -829,6 +830,23 @@ export default function FrequencySelectionScreen() {
     return DAYS_OF_WEEK.find(day => day.value === selectedDayOfWeek)?.label || 'Select Day';
   };
 
+  const getVaultScheduleBaseDate = () => {
+    const baseDate = new Date();
+    baseDate.setHours(0, 0, 0, 0);
+
+    if (!isVaultSchedule || !vaultMaturityDate) {
+      return baseDate;
+    }
+
+    const maturity = new Date(vaultMaturityDate);
+    if (isNaN(maturity.getTime())) {
+      return baseDate;
+    }
+
+    maturity.setHours(0, 0, 0, 0);
+    return maturity;
+  };
+
   const getSelectedFrequencyLabel = () => {
     if (selectedFrequency === 'custom') {
       return 'Select dates';
@@ -1064,6 +1082,22 @@ export default function FrequencySelectionScreen() {
         }
         return;
       }
+
+      if (isVaultSchedule && vaultMaturityDate) {
+        const maturity = getVaultScheduleBaseDate();
+        const hasDateBeforeMaturity = customDates.some((dateValue) => {
+          const date = new Date(dateValue);
+          date.setHours(0, 0, 0, 0);
+          return date < maturity;
+        });
+
+        if (hasDateBeforeMaturity) {
+          if (Platform.OS !== 'web') {
+            haptics.error();
+          }
+          return;
+        }
+      }
       
       if (Platform.OS !== 'web') {
         haptics.mediumImpact();
@@ -1102,7 +1136,7 @@ export default function FrequencySelectionScreen() {
           purpose: params.purpose || '',
           purposeOther: params.purposeOther || '',
           ...(isVaultSchedule && vaultPlanId && vaultMaxRaw
-            ? { vaultPlanId, vaultMaxAmount: vaultMaxRaw }
+            ? { vaultPlanId, vaultMaxAmount: vaultMaxRaw, vaultMaturityDate: vaultMaturityDate || '' }
             : {}),
         }
       });
@@ -1133,21 +1167,21 @@ export default function FrequencySelectionScreen() {
 
     // Calculate start date
     let startDate: string;
+    const scheduleBaseDate = getVaultScheduleBaseDate();
     if (selectedFrequency === 'weekly_specific' && typeof selectedDayOfWeek === 'number') {
-      const today = new Date();
-      const currentDay = today.getDay();
+      const currentDay = scheduleBaseDate.getDay();
       let daysToAdd = (selectedDayOfWeek - currentDay + 7) % 7;
       if (daysToAdd === 0) daysToAdd = 0;
-      const firstPayoutDate = new Date(today);
-      firstPayoutDate.setDate(today.getDate() + daysToAdd);
+      const firstPayoutDate = new Date(scheduleBaseDate);
+      firstPayoutDate.setDate(scheduleBaseDate.getDate() + daysToAdd);
       startDate = firstPayoutDate.toISOString().split('T')[0];
     } else if (selectedFrequency === 'daily') {
-      const tomorrow = new Date();
+      const tomorrow = new Date(scheduleBaseDate);
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(selectedHour, selectedMinute, 0, 0);
       startDate = tomorrow.toISOString().split('T')[0];
     } else {
-      startDate = new Date().toISOString().split('T')[0];
+      startDate = scheduleBaseDate.toISOString().split('T')[0];
     }
 
     router.push({
@@ -1172,7 +1206,7 @@ export default function FrequencySelectionScreen() {
         purpose: params.purpose || '',
         purposeOther: params.purposeOther || '',
         ...(isVaultSchedule && vaultPlanId && vaultMaxRaw
-          ? { vaultPlanId, vaultMaxAmount: vaultMaxRaw }
+          ? { vaultPlanId, vaultMaxAmount: vaultMaxRaw, vaultMaturityDate: vaultMaturityDate || '' }
           : {}),
       }
     });

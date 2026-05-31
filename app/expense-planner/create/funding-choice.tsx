@@ -21,8 +21,7 @@ export default function FundingChoiceScreen() {
   const budgetStructure: 'fixed' = 'fixed';
   const buckets = params.buckets ? JSON.parse(params.buckets as string) : [];
   const planName = params.planName as string;
-  const startDate = params.startDate as string;
-  const endDate = params.endDate as string;
+  const maturityDate = (params.maturityDate as string) || (params.startDate as string);
   const planId = params.planId as string | undefined;
 
   const handleFundBudget = () => {
@@ -33,8 +32,7 @@ export default function FundingChoiceScreen() {
         totalBudget,
         buckets: JSON.stringify(buckets),
         planName: planName || '',
-        startDate,
-        endDate,
+        maturityDate,
         planId,
       },
     });
@@ -52,8 +50,8 @@ export default function FundingChoiceScreen() {
         // Create draft plan with all current data
         const draftPlan = await saveDraftExpensePlan({
           total_budget: parseFloat(totalBudget),
-          start_date: startDate || undefined,
-          end_date: endDate || undefined,
+          start_date: maturityDate || undefined,
+          end_date: undefined,
         });
         
         if (!draftPlan || !draftPlan.id) {
@@ -66,8 +64,8 @@ export default function FundingChoiceScreen() {
         await saveDraftExpensePlan({
           planId: activePlanId,
           total_budget: parseFloat(totalBudget),
-          start_date: startDate || undefined,
-          end_date: endDate || undefined,
+          start_date: maturityDate || undefined,
+          end_date: undefined,
         });
       }
 
@@ -90,8 +88,7 @@ export default function FundingChoiceScreen() {
         totalBudget,
         buckets: JSON.stringify(buckets),
         planName: planName || '',
-        startDate,
-        endDate,
+        maturityDate,
           planId: activePlanId,
         skipFunding: 'true',
       },

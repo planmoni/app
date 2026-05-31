@@ -110,23 +110,23 @@ export default function ScheduleWithdrawalScreen() {
       return;
     }
 
-    if (!selectedDate || !plan?.start_date || !plan?.end_date) {
-      Alert.alert('Date Required', 'Please select a payout date within the budget window');
+    if (!selectedDate || !plan?.start_date) {
+      Alert.alert('Date Required', 'Please select a payout date on or after the maturity date');
       haptics.notification();
       return;
     }
 
     const startDate = new Date(plan.start_date);
-    const endDate = new Date(plan.end_date);
+    const endDate = plan.end_date ? new Date(plan.end_date) : null;
     const today = new Date();
     startDate.setHours(0, 0, 0, 0);
-    endDate.setHours(0, 0, 0, 0);
+    if (endDate) endDate.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
 
-    const isOutsideWindow = selectedDate < startDate || selectedDate > endDate;
+    const isOutsideWindow = selectedDate < startDate || (!!endDate && selectedDate > endDate);
     const isToday = selectedDate.getTime() === today.getTime();
     if (isOutsideWindow) {
-      Alert.alert('Invalid Date', 'Selected date is outside the budget window');
+      Alert.alert('Invalid Date', 'Selected date is outside the allowed withdrawal window');
       haptics.notification();
       return;
     }
@@ -167,21 +167,26 @@ export default function ScheduleWithdrawalScreen() {
   const totalAmount = calculateTotalAmount();
 
   const dateOptions = useMemo(() => {
-    if (!budgetStartDate || !budgetEndDate) return [];
+    if (!budgetStartDate) return [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const start = new Date(budgetStartDate);
     start.setHours(0, 0, 0, 0);
-    const end = new Date(budgetEndDate);
-    end.setHours(0, 0, 0, 0);
+    const end = budgetEndDate ? new Date(budgetEndDate) : null;
+    if (end) end.setHours(0, 0, 0, 0);
 
     // First selectable date is the later of start date or tomorrow
     const firstSelectable = new Date(Math.max(start.getTime(), today.getTime() + 24 * 60 * 60 * 1000));
-    if (firstSelectable > end) return [];
+    if (end && firstSelectable > end) return [];
 
     const dates: { date: Date }[] = [];
-    for (let d = new Date(firstSelectable); d <= end; d.setDate(d.getDate() + 1)) {
+    const maxWindowDays = 90;
+    for (
+      let d = new Date(firstSelectable), i = 0;
+      (!end || d <= end) && i < maxWindowDays;
+      d.setDate(d.getDate() + 1), i++
+    ) {
       const day = new Date(d);
       day.setHours(0, 0, 0, 0);
       dates.push({ date: day });
@@ -222,7 +227,7 @@ export default function ScheduleWithdrawalScreen() {
   }, [calendarMonth, budgetStartDate]);
 
   const calendarDays = useMemo(() => {
-    if (!calendarMonthSafe || !budgetStartDate || !budgetEndDate) return [];
+    if (!calendarMonthSafe || !budgetStartDate) return [];
     const days: { key: string; date: Date | null; selectable: boolean; withinWindow: boolean }[] = [];
     const startOfMonth = new Date(calendarMonthSafe);
     startOfMonth.setDate(1);
@@ -238,7 +243,7 @@ export default function ScheduleWithdrawalScreen() {
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
       date.setHours(0, 0, 0, 0);
-      const withinWindow = date >= budgetStartDate && date <= budgetEndDate;
+      const withinWindow = date >= budgetStartDate && (!budgetEndDate || date <= budgetEndDate);
       const selectable = withinWindow && (!!minSelectableDate ? date >= minSelectableDate : true);
       days.push({
         key: `day-${year}-${month}-${day}`,
@@ -257,17 +262,17 @@ export default function ScheduleWithdrawalScreen() {
   };
 
   const handleMonthChange = (direction: 1 | -1) => {
-    if (!calendarMonthSafe || !budgetStartDate || !budgetEndDate) return;
+    if (!calendarMonthSafe || !budgetStartDate) return;
     const newMonth = new Date(calendarMonthSafe);
     newMonth.setMonth(newMonth.getMonth() + direction);
     newMonth.setDate(1);
 
     const startLimit = new Date(budgetStartDate);
     startLimit.setDate(1);
-    const endLimit = new Date(budgetEndDate);
-    endLimit.setDate(1);
+    const endLimit = budgetEndDate ? new Date(budgetEndDate) : null;
+    if (endLimit) endLimit.setDate(1);
 
-    if (newMonth < startLimit || newMonth > endLimit) return;
+    if (newMonth < startLimit || (endLimit && newMonth > endLimit)) return;
     setCalendarMonth(newMonth);
   };
 
@@ -308,22 +313,24 @@ export default function ScheduleWithdrawalScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.sectionTitle}>Schedule withdrawal</Text>
         <Text style={styles.sectionDescription}>
-          Set up automatic withdrawals within your budget window
+          Set up automatic withdrawals from maturity onward
         </Text>
 
-        {budgetStartDate && budgetEndDate && (
+        {budgetStartDate && (
           <View style={styles.budgetWindowCard}>
             <Calendar size={20} color={colors.primary} />
             <View style={styles.budgetWindowInfo}>
-              <Text style={styles.budgetWindowLabel}>Budget Window</Text>
+              <Text style={styles.budgetWindowLabel}>Withdrawal Window</Text>
               <Text style={styles.budgetWindowDates}>
-                {formatDate(budgetStartDate)} - {formatDate(budgetEndDate)}
+                {budgetEndDate
+                  ? `${formatDate(budgetStartDate)} - ${formatDate(budgetEndDate)}`
+                  : `${formatDate(budgetStartDate)} onward`}
               </Text>
             </View>
           </View>
         )}
 
-        {budgetStartDate && budgetEndDate && dateOptions.length > 0 && (
+        {budgetStartDate && dateOptions.length > 0 && (
           <View style={styles.section}>
             <View style={styles.dateHeader}>
               <Text style={styles.sectionTitle}>Select payout date</Text>
@@ -336,7 +343,7 @@ export default function ScheduleWithdrawalScreen() {
               </Pressable>
             </View>
             <Text style={styles.sectionDescription}>
-              Dates outside the budget window are disabled
+              Dates before maturity are disabled
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateList}>
               {displayedDates.map(({ date }) => {

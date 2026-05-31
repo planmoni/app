@@ -25,8 +25,7 @@ export default function StartActionScreen() {
   const planId = params.planId as string | undefined;
   const planName = params.planName as string;
   const targetAmount = params.targetAmount as string;
-  const startDate = params.startDate as string;
-  const endDate = params.endDate as string;
+  const maturityDate = (params.maturityDate as string) || (params.startDate as string);
   const dateType = params.dateType as string;
   const payoutSchedule = params.payoutSchedule as string;
   const requiredPerCycle = params.requiredPerCycle as string;
@@ -63,8 +62,7 @@ export default function StartActionScreen() {
       params: {
         planName,
         targetAmount,
-        startDate,
-        endDate,
+        maturityDate,
         dateType,
         payoutSchedule,
         requiredPerCycle,
