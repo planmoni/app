@@ -122,7 +122,6 @@ export default function SupportModal({ isVisible, onClose }: SupportModalProps) 
                 <Send size={isSmallScreen ? 16 : 20} color="#FFFFFF" />
               </Pressable>
             </View>
-          </Animated.View>
         </PanDismissView>
       </View>
     </Modal>

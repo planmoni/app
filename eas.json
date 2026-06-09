@@ -7,7 +7,9 @@
     "base": {
       "env": {
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
-        "EXPO_PUBLIC_USE_REANIMATED": "true"
+        "EXPO_PUBLIC_NATIVE_MODULES_SYNCED": "true",
+        "EXPO_PUBLIC_USE_REANIMATED": "true",
+        "EXPO_PUBLIC_USE_GESTURE_HANDLER": "true"
       }
     },
     "development": {

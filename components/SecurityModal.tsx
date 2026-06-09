@@ -166,7 +166,6 @@ export default function SecurityModal({ isVisible, onClose }: SecurityModalProps
                 <Text style={styles.saveButtonText}>Save Changes</Text>
               </Pressable>
             </View>
-          </Animated.View>
         </PanDismissView>
       </View>
     </Modal>

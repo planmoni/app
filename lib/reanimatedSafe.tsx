@@ -41,7 +41,11 @@ let interpolate = (
 // intercept. Only load react-native-reanimated when explicitly enabled for a
 // matching native build (set EXPO_PUBLIC_USE_REANIMATED=true in .env after
 // installing a new dev client, or via eas.json for EAS builds).
-if (process.env.EXPO_PUBLIC_USE_REANIMATED === 'true') {
+const nativeModulesEnabled =
+  process.env.EXPO_PUBLIC_NATIVE_MODULES_SYNCED === 'true' ||
+  process.env.EXPO_PUBLIC_USE_REANIMATED === 'true';
+
+if (nativeModulesEnabled) {
   const reanimated = require('react-native-reanimated');
   if (reanimated?.default) {
     Animated = reanimated.default;

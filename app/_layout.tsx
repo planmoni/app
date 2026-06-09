@@ -30,7 +30,7 @@ import { SplashScreen, Stack, usePathname, router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
 import { Text, View, StyleSheet, Platform, AppState, AppStateStatus } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from '@/lib/gestureHandlerSafe';
 import { initializeNotifications, setupTokenRefresh } from '@/lib/notifications';
 import { initializeMessaging } from '@/lib/firebase';
 import { initAppsFlyer } from '@/lib/appsflyer';

@@ -100,7 +100,6 @@ export default function LanguageModal({ isVisible, onClose }: LanguageModalProps
                 <Text style={styles.applyButtonText}>Apply Changes</Text>
               </Pressable>
             </View>
-          </Animated.View>
         </PanDismissView>
       </View>
     </Modal>

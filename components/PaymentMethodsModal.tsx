@@ -1,4 +1,4 @@
-import { Modal, View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Animated, Dimensions, Platform } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Animated, Dimensions, Platform, ScrollView } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { X, CreditCard, Building2, Plus, Trash2, Check, Smartphone, ChevronRight } from 'lucide-react-native';
 import Button from '@/components/Button';
@@ -6,7 +6,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { usePaymentMethods, PaymentMethod } from '@/hooks/usePaymentMethods';
 import { router } from 'expo-router';
-import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface PaymentMethodsModalProps {

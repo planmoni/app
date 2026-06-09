@@ -101,7 +101,6 @@ export default function TermsModal({ isVisible, onClose }: TermsModalProps) {
                 <Text style={styles.acceptButtonText}>I Accept</Text>
               </Pressable>
             </View>
-          </Animated.View>
         </PanDismissView>
       </View>
     </Modal>

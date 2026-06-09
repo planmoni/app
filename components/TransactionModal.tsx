@@ -11,7 +11,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import { useToast } from '@/contexts/ToastContext';
 import { captureRef } from 'react-native-view-shot';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import PanDismissView from '@/components/PanDismissView';
 
 // Planmoni logo as base64 (truncated for brevity)
 const PLANMONI_LOGO_BASE64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABXwAAAFUCAYAAACXwfQTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAEtrSURBVHgB7d3LcxRX1...'; // Use the full string from logo-base64.txt
@@ -58,29 +58,6 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
   
   const receiptViewRef = useRef<View>(null);
   
-  // Gesture handling
-  const onGestureEvent = Animated.event(
-    [{ nativeEvent: { translationY: translateY } }],
-    { useNativeDriver: true }
-  );
-
-  const onHandlerStateChange = (event: any) => {
-    if (event.nativeEvent.state === State.END) {
-      const { translationY, velocityY } = event.nativeEvent;
-      
-      // If swiped down more than 100px or with high velocity, close modal
-      if (translationY > 100 || velocityY > 500) {
-        handleClose();
-      } else {
-        // Snap back to original position
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-        }).start();
-      }
-    }
-  };
-
   useEffect(() => {
     if (isVisible) {
       // Reset translateY
@@ -527,21 +504,18 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
         ]}
         pointerEvents={isVisible ? 'auto' : 'none'}
       >
-        <PanGestureHandler
-          onGestureEvent={onGestureEvent}
-          onHandlerStateChange={onHandlerStateChange}
+        <PanDismissView
+          translateY={translateY}
+          onDismiss={handleClose}
+          threshold={100}
+          style={[
+            styles.modal,
+            {
+              transform: [{ translateY: Animated.add(slideAnim, translateY) }],
+              maxHeight: modalMaxHeight,
+            },
+          ]}
         >
-          <Animated.View
-            style={[
-              styles.modal,
-              {
-                transform: [
-                  { translateY: Animated.add(slideAnim, translateY) }
-                ],
-                maxHeight: modalMaxHeight
-              }
-            ]}
-          >
             {/* Drag indicator for better UX */}
             <View style={styles.dragIndicator} />
 
@@ -649,8 +623,7 @@ export default function TransactionModal({ isVisible, onClose, transaction }: Tr
                   hapticType="warning" />
               </View>
             </ScrollView>
-          </Animated.View>
-        </PanGestureHandler>
+        </PanDismissView>
       </Animated.View>
 
       {/* Format selection modal remains outside */}
