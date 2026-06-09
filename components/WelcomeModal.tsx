@@ -20,14 +20,16 @@ import { useEffect, useState, useRef } from 'react';
 function SlideItem({ 
   slide, 
   index, 
-  width, 
+  width,
+  slideHeight,
   scrollX, 
   styles, 
   isDark 
 }: { 
   slide: any; 
   index: number; 
-  width: number; 
+  width: number;
+  slideHeight: number;
   scrollX: SharedValue<number>; 
   styles: any; 
   isDark: boolean;
@@ -77,12 +79,12 @@ function SlideItem({
     <Animated.View 
       style={[
         styles.slide, 
-        { width },
+        { width, height: slideHeight },
         animatedStyle
       ]}
     >
       {slide.id === '1' ? (
-        <View style={styles.introSlideContent}>
+        <View style={[styles.introSlideContent, { height: slideHeight }]}>
           <Text style={styles.introWelcomeText}>Welcome to</Text>
           <Image
             source={isDark ? require('@/assets/images/logo-dark.png') : require('@/assets/images/logo-light.png')}
@@ -101,7 +103,14 @@ function SlideItem({
           />
         </View>
       ) : (
-        <View style={styles.slideContent}>
+        <View style={[styles.slideContent, { height: slideHeight }]}>
+          <View style={styles.textContainer}>
+            <Text style={styles.slideTitle}>{slide.title}</Text>
+            {slide.description ? (
+              <Text style={styles.slideDescription}>{slide.description}</Text>
+            ) : null}
+          </View>
+
           <View style={styles.imageContainer}>
             {slide.showLogo ? (
               <Image
@@ -109,36 +118,13 @@ function SlideItem({
                 style={styles.logoImage}
                 resizeMode="contain"
               />
-            ) : slide.rawImage ? (
-              <View style={[styles.rawImageFrame, isDark && styles.rawImageFrameDark]}>
-                <Image
-                  source={slide.image}
-                  style={styles.slideImageRaw}
-                  resizeMode="contain"
-                />
-              </View>
             ) : (
-              <View style={[
-                styles.imageBackground,
-                { backgroundColor: slide.accentColor + '20' },
-              ]}>
-                <Image
-                  source={slide.image}
-                  style={styles.slideImage}
-                  resizeMode="contain"
-                />
-              </View>
+              <Image
+                source={slide.image}
+                style={slide.rawImage ? styles.slideImageRaw : styles.slideImage}
+                resizeMode="contain"
+              />
             )}
-          </View>
-
-          <View style={styles.textContainer}>
-            <View style={styles.titleSection}>
-              <Text style={styles.slideTitle}>{slide.title}</Text>
-            </View>
-
-            {slide.description ? (
-              <Text style={styles.slideDescription}>{slide.description}</Text>
-            ) : null}
           </View>
         </View>
       )}
@@ -228,7 +214,7 @@ const SLIDES = [
     id: '2',
     title: 'Secure your money in vaults, access them when due',
     description: '',
-    image: require('@/assets/images/Slide 2.png'),
+    image: require('@/assets/images/slide-2.png'),
     gradient: ['#059669', '#10B981'],
     accentColor: '#34D399',
     rawImage: true,
@@ -237,7 +223,7 @@ const SLIDES = [
     id: '3',
     title: 'Plan your every money move',
     description: '',
-    image: require('@/assets/images/Slide 3.png'),
+    image: require('@/assets/images/slide-3.png'),
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
     rawImage: true,
@@ -246,7 +232,7 @@ const SLIDES = [
     id: '4',
     title: 'Create payouts, control timing',
     description: '',
-    image: require('@/assets/images/Slide 4.png'),
+    image: require('@/assets/images/slide-4.png'),
     gradient: ['#7C3AED', '#A855F7'],
     accentColor: '#C084FC',
     rawImage: true,
@@ -255,7 +241,7 @@ const SLIDES = [
     id: '5',
     title: 'Timely payouts, 24/7/365',
     description: '',
-    image: require('@/assets/images/Slide 5.png'),
+    image: require('@/assets/images/slide-5.png'),
     gradient: ['#EC4899', '#F97316'],
     accentColor: '#F9A8D4',
     rawImage: true,
@@ -264,7 +250,7 @@ const SLIDES = [
     id: '6',
     title: 'Join thousands of users who love Planmoni',
     description: '',
-    image: require('@/assets/images/Slide 6.png'),
+    image: require('@/assets/images/slide-6.png'),
     gradient: ['#0EA5E9', '#2563EB'],
     accentColor: '#7DD3FC',
     rawImage: true,
@@ -352,21 +338,20 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
 
   const isSmallScreen = height < 700;
   const isAndroid = Platform.OS === 'android';
-  
-  const platformMultiplier = isAndroid ? 0.8 : 1.0;
-  const marginMultiplier = isAndroid ? 0.7 : 1.0;
-  
-  const imageHeight = Math.min(modalHeight * 0.4 * platformMultiplier, 215);
-  const verticalPadding = (isSmallScreen ? 16 : 20) * marginMultiplier;
-  const titleSize = (isSmallScreen ? 24 : 30) * platformMultiplier;
-  const descriptionSize = (isSmallScreen ? 13 : 15) * platformMultiplier;
+
+  const verticalPadding = isSmallScreen ? 16 : 20;
+  const titleSize = isSmallScreen ? 24 : 28;
+  const descriptionSize = isSmallScreen ? 13 : 15;
+  const footerHeight = (Platform.OS === 'ios' ? 56 : 50) + verticalPadding * 4.5;
+  const paginationHeight = 44;
+  const slideHeight = modalHeight - footerHeight - paginationHeight;
 
   const styles = createStyles(colors, isDark, {
-    imageHeight,
     verticalPadding,
     titleSize,
     descriptionSize,
     modalHeight,
+    slideHeight,
     width,
     isAndroid,
   });
@@ -404,8 +389,8 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
                 const newIndex = Math.round(event.nativeEvent.contentOffset.x / width);
                 setCurrentIndex(newIndex);
               }}
-              style={styles.slider}
-              contentContainerStyle={styles.sliderContent}
+              style={[styles.slider, { height: slideHeight }]}
+              contentContainerStyle={[styles.sliderContent, { height: slideHeight }]}
             >
               {SLIDES.map((slide, index) => (
                 <SlideItem
@@ -413,6 +398,7 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
                   slide={slide}
                   index={index}
                   width={width}
+                  slideHeight={slideHeight}
                   scrollX={scrollX}
                   styles={styles}
                   isDark={isDark}
@@ -509,66 +495,43 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     height: 35,
   },
   sliderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    marginBottom: responsive.verticalPadding,
+    height: responsive.slideHeight,
   },
   slider: {
-    flex: 1,
+    flexGrow: 0,
   },
   sliderContent: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   slide: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     paddingHorizontal: responsive.verticalPadding,
+    paddingTop: Platform.OS === 'ios' ? 48 : 40,
   },
   slideContent: {
-    flex: 1,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    paddingTop: Platform.OS === 'ios' ? 52 : 44,
-    paddingHorizontal: responsive.verticalPadding,
   },
   imageContainer: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: responsive.verticalPadding,
     flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: responsive.imageHeight,
-  },
-  imageBackground: {
-    borderRadius: 20,
-    padding: responsive.verticalPadding * 0.8,
-  },
-  rawImageFrame: {
-    width: '100%',
-    maxWidth: responsive.width * 0.9,
-    borderRadius: 16,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rawImageFrameDark: {
-    backgroundColor: '#F1F5F9',
-    padding: 8,
   },
   slideImage: {
-    width: responsive.width * 0.88,
-    height: responsive.imageHeight * 1.25,
-    maxHeight: responsive.modalHeight * 0.42,
+    width: responsive.width * 0.86,
+    height: responsive.slideHeight * 0.48,
   },
   slideImageRaw: {
-    width: responsive.width * 0.88,
-    height: responsive.imageHeight * 1.35,
-    maxHeight: responsive.modalHeight * 0.44,
+    width: responsive.width * 0.86,
+    height: responsive.slideHeight * 0.52,
   },
   logoImage: {
-    width: responsive.width * 0.6,
-    height: responsive.imageHeight * 1.5,
+    width: responsive.width * 0.55,
+    height: responsive.slideHeight * 0.4,
   },
   introSlideContent: {
     flex: 1,
@@ -579,41 +542,36 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   introWelcomeText: {
     fontSize: Platform.OS === 'ios' ? 26 : 24,
-    // lineHeight: Platform.OS === 'ios' ? 42 : 38,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: -16,
-    marginTop: 70,
+    marginBottom: 8,
+    marginTop: 24,
     textAlign: 'center',
   },
   introLogo: {
     width: responsive.width * 0.5,
-    height: responsive.imageHeight * 0.44,
-    marginBottom: 1,
+    height: responsive.slideHeight * 0.12,
+    marginBottom: 8,
   },
   introAwardImage: {
     width: responsive.width * 0.44,
-    height: responsive.imageHeight * 0.96,
+    height: responsive.slideHeight * 0.22,
     marginBottom: 10,
   },
   introPartnershipImage: {
     width: responsive.width * 0.5,
-    height: responsive.imageHeight * 0.56,
-    marginTop: 20,
+    height: responsive.slideHeight * 0.14,
+    marginTop: 12,
   },
   textContainer: {
     alignItems: 'center',
-    paddingHorizontal: responsive.verticalPadding,
-  },
-  titleSection: {
-    alignItems: 'center',
-    marginBottom: responsive.verticalPadding * 0.4,
+    paddingHorizontal: responsive.verticalPadding * 0.5,
+    width: '100%',
   },
   slideTitle: {
-    marginTop: 0,
     fontWeight: '700',
-    fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1,
-    lineHeight: Platform.OS === 'ios' ? responsive.titleSize * 1.1 : responsive.titleSize * 1.4,
+    fontSize: responsive.titleSize,
+    lineHeight: responsive.titleSize * 1.25,
     letterSpacing: -0.9,
     maxWidth: '90%',
     color: isDark ? colors.text : colors.text,
