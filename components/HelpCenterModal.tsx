@@ -2,7 +2,7 @@ import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensio
 import { X, Search, MessageSquare, ExternalLink } from 'lucide-react-native';
 import { useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-import { PanGestureHandler } from 'react-native-gesture-handler';
+import PanDismissView from '@/components/PanDismissView';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import { useIntercom } from '@/hooks/useIntercom';
 
@@ -48,29 +48,6 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
     },
   ];
   
-  const handleGestureEvent = Animated.event(
-    [{ nativeEvent: { translationY: translateY } }],
-    { useNativeDriver: true }
-  );
-
-  const handleGestureEnd = (event: any) => {
-    if (event.nativeEvent.translationY > DRAG_DISMISS_THRESHOLD) {
-      Animated.timing(translateY, {
-        toValue: height,
-        duration: 200,
-        useNativeDriver: true,
-      }).start(() => {
-        translateY.setValue(0);
-        onClose();
-      });
-    } else {
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-      }).start();
-    }
-  };
-
   useEffect(() => {
     if (isVisible) {
       translateY.setValue(0);
@@ -87,11 +64,12 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
     >
       <View style={styles.centeredView}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <PanGestureHandler
-          onGestureEvent={handleGestureEvent}
-          onEnded={handleGestureEnd}
+        <PanDismissView
+          translateY={translateY}
+          onDismiss={onClose}
+          threshold={DRAG_DISMISS_THRESHOLD}
+          style={[styles.modalView, { transform: [{ translateY }] }]}
         >
-          <Animated.View style={[styles.modalView, { transform: [{ translateY }] }]}> 
             <View style={styles.header}>
               <Text style={styles.modalTitle}>Help Center</Text>
               <Pressable style={styles.closeButton} onPress={onClose}>
@@ -150,8 +128,7 @@ export default function HelpCenterModal({ isVisible, onClose }: HelpCenterModalP
                 <Text style={styles.closeButtonText}>Close</Text>
               </Pressable>
             </View>
-          </Animated.View>
-        </PanGestureHandler>
+        </PanDismissView>
       </View>
     </Modal>
   );

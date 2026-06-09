@@ -2,7 +2,7 @@ import { Modal, View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensio
 import { X, Check, Globe } from 'lucide-react-native';
 import { useState, useRef } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-import { PanGestureHandler } from 'react-native-gesture-handler';
+import PanDismissView from '@/components/PanDismissView';
 
 interface LanguageModalProps {
   isVisible: boolean;
@@ -39,30 +39,6 @@ export default function LanguageModal({ isVisible, onClose }: LanguageModalProps
   
   const styles = createStyles(colors, isDark, isSmallScreen);
   
-  const handleGestureEvent = Animated.event(
-    [{ nativeEvent: { translationY: translateY } }],
-    { useNativeDriver: true }
-  );
-
-  const handleGestureEnd = (event: any) => {
-    setDragging(false);
-    if (event.nativeEvent.translationY > DRAG_DISMISS_THRESHOLD) {
-      Animated.timing(translateY, {
-        toValue: height,
-        duration: 200,
-        useNativeDriver: true,
-      }).start(() => {
-        translateY.setValue(0);
-        onClose();
-      });
-    } else {
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-      }).start();
-    }
-  };
-
   return (
     <Modal
       visible={isVisible}
@@ -73,12 +49,14 @@ export default function LanguageModal({ isVisible, onClose }: LanguageModalProps
     >
       <View style={styles.centeredView}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <PanGestureHandler
-          onGestureEvent={handleGestureEvent}
-          onBegan={() => setDragging(true)}
-          onEnded={handleGestureEnd}
+        <PanDismissView
+          translateY={translateY}
+          onDismiss={onClose}
+          threshold={DRAG_DISMISS_THRESHOLD}
+          onDragBegin={() => setDragging(true)}
+          onDragEnd={() => setDragging(false)}
+          style={[styles.modalView, { transform: [{ translateY }] }]}
         >
-          <Animated.View style={[styles.modalView, { transform: [{ translateY }] }]}>
             <View style={styles.header}>
               <Text style={styles.modalTitle}>Language Preference</Text>
               <Pressable style={styles.closeButton} onPress={onClose}>
@@ -123,7 +101,7 @@ export default function LanguageModal({ isVisible, onClose }: LanguageModalProps
               </Pressable>
             </View>
           </Animated.View>
-        </PanGestureHandler>
+        </PanDismissView>
       </View>
     </Modal>
   );
