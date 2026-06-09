@@ -109,7 +109,7 @@
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
     },
-    "runtimeVersion": "1.4.0",
+    "runtimeVersion": "1.3.7",
     "extra": {
       "router": {},
       "eas": {

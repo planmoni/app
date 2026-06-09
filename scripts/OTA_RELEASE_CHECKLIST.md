@@ -55,7 +55,7 @@ For native-sensitive `package.json` changes, set `CONFIRM_NATIVE_BUILD=1` only a
 
 TurboModule crashes happen when JS loads `react-native-reanimated` against an old native binary. The app uses `lib/reanimatedSafe.tsx` with fallbacks by default.
 
-After installing a **new** dev client (`runtimeVersion` 1.4.0+), enable native animations locally:
+After installing a **new** dev client with a matching native build, enable native animations locally:
 
 ```bash
 # .env
