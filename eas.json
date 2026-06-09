@@ -36,7 +36,8 @@
         "image": "latest"
       },
       "ios": {
-        "autoIncrement": true
+        "autoIncrement": true,
+        "image": "latest"
       }
     }
   },

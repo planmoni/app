@@ -9,6 +9,7 @@ module.exports = {
     version: "2.0.4",
     scheme: "myapp",
     userInterfaceStyle: "automatic", // Allow system to control theme
+    newArchEnabled: true,
     updates: {
       url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83"
     },
@@ -75,6 +76,11 @@ module.exports = {
       userInterfaceStyle: "automatic",
     },
     "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser",
+      "@sentry/react-native",
       [
         "expo-image-picker",
         {
@@ -96,9 +102,9 @@ module.exports = {
         {
           "android": {
             "minSdkVersion": 24,
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
-            "buildToolsVersion": "35.0.0"
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0"
           },
           "ios": {
             "deploymentTarget": "15.1",

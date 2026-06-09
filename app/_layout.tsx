@@ -424,17 +424,18 @@ function RootLayoutNav() {
           source,
           currentlyRunningUpdate,
           runtimeVersion,
-          updateUrl: Updates.url || 'N/A'
+          channel: Updates.channel || 'N/A',
         });
         
         // Check for available updates
         const update = await Updates.checkForUpdateAsync();
         
         if (update.isAvailable) {
+          const availableManifest = update.manifest as { id?: string; createdAt?: string; runtimeVersion?: string } | undefined;
           console.log('✅ Update available!', {
-            manifest: update.manifest?.id || 'N/A',
-            createdAt: update.manifest?.createdAt || 'N/A',
-            runtimeVersion: update.manifest?.runtimeVersion || 'N/A'
+            manifest: availableManifest?.id || 'N/A',
+            createdAt: availableManifest?.createdAt || 'N/A',
+            runtimeVersion: availableManifest?.runtimeVersion || 'N/A',
           });
           
           // Download the update in the background
