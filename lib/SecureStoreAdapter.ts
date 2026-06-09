@@ -6,7 +6,7 @@ async function getSecureStore(): Promise<typeof import('expo-secure-store') | nu
   if (secureStoreModule === false) return null;
   if (secureStoreModule !== null) return secureStoreModule;
   try {
-    secureStoreModule = await import('expo-secure-store');
+    secureStoreModule = require('expo-secure-store');
     return secureStoreModule;
   } catch (_) {
     secureStoreModule = false;
@@ -20,7 +20,7 @@ async function getAsyncStorage(): Promise<typeof import('@react-native-async-sto
   if (asyncStorageModule === false) return null;
   if (asyncStorageModule !== null) return asyncStorageModule;
   try {
-    const mod = await import('@react-native-async-storage/async-storage');
+    const mod = require('@react-native-async-storage/async-storage');
     asyncStorageModule = mod.default;
     return asyncStorageModule;
   } catch (_) {

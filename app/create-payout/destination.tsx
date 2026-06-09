@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, useWindowDimensions, Image, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import { ArrowLeft, Building2, Plus, Info, Check, X } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Button from '@/components/Button';

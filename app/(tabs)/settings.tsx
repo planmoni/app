@@ -39,7 +39,7 @@ import {
 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
 import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View , Platform } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import HelpCenterModal from '@/components/HelpCenterModal';
 import LanguageModal from '@/components/LanguageModal';

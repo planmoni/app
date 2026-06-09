@@ -80,7 +80,15 @@ module.exports = {
       "expo-font",
       "expo-secure-store",
       "expo-web-browser",
-      "@sentry/react-native",
+      // Configure org + project (and EAS SENTRY_AUTH_TOKEN) before enabling uploads.
+      // See: https://docs.sentry.io/platforms/react-native/manual-setup/
+      [
+        "@sentry/react-native",
+        {
+          // organization: "your-org-slug",
+          // project: "your-project-slug",
+        },
+      ],
       [
         "expo-image-picker",
         {
@@ -97,6 +105,7 @@ module.exports = {
           "intercomRegion": "US"
         }
       ],
+      "@react-native-firebase/app",
       [
         "expo-build-properties",
         {
@@ -108,10 +117,10 @@ module.exports = {
           },
           "ios": {
             "deploymentTarget": "15.1",
-            "useFrameworks": "static"
+            "useFrameworks": "static",
+            "forceStaticLinking": ["RNFBApp", "RNFBMessaging"]
           }
         }
-       
       ],
       [
         "expo-local-authentication",
@@ -119,7 +128,6 @@ module.exports = {
           faceIDPermission: "Planmoni uses Face ID to unlock the app and confirm payouts and withdrawals."
         }
       ],
-      "@react-native-firebase/app",
       "expo-navigation-bar",
       "expo-document-picker",
       "@bacons/apple-targets"

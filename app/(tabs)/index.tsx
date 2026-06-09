@@ -15,8 +15,7 @@ import KYCCard from '@/components/KYCCard';
 import ImageCarousel from '@/components/ImageCarousel';
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
-import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
-import { router, useGlobalSearchParams, useLocalSearchParams } from 'expo-router';
+import { router, useGlobalSearchParams, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
 import {
   HelpCircleIcon,
   Eye,
@@ -379,8 +378,7 @@ export default function HomeScreen() {
   const [hasShownKYCModalThisSession, setHasShownKYCModalThisSession] = useState(false);
   const [showBalanceActionsModal, setShowBalanceActionsModal] = useState(false);
   const { hasAppLockPin } = usePin();
-  const route = useRoute();
-  const scrollY = (route.params as { scrollY?: Animated.Value })?.scrollY || new Animated.Value(0);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   const ensureAuthenticatedOrWelcome = useCallback(() => {
     if (!isAuthenticated) {

@@ -73,6 +73,9 @@ function RootLayoutNav() {
   const [showSplash, setShowSplash] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const hasInitializedRef = useRef(false);
+  const lockAppRef = useRef(lockApp);
+  const initCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const forceInitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Track previous session state to detect transitions
   const previousSessionRef = useRef<typeof session>(null);
@@ -80,6 +83,10 @@ function RootLayoutNav() {
   
   // Track app state for update checks
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+  useEffect(() => {
+    lockAppRef.current = lockApp;
+  }, [lockApp]);
   
   // Track page changes for redirect after unlock
   usePageTracking();
@@ -129,7 +136,7 @@ function RootLayoutNav() {
     // Clear navigation_in_progress when the route actually changed (navigation finished)
     (async () => {
       try {
-        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
         const stored = await AsyncStorage.getItem('navigation_in_progress');
         if (!stored) return;
 
@@ -277,7 +284,7 @@ function RootLayoutNav() {
     if (!session?.user?.id) return;
     const run = async () => {
       try {
-        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
         const countKey = 'planmoni_app_open_count';
         const shownKey = 'planmoni_feedback_second_open_shown';
         const raw = await AsyncStorage.getItem(countKey);
@@ -524,34 +531,56 @@ function RootLayoutNav() {
     }
   }, [fontsLoaded, isLoading, fontError]);
 
-  // Initialize app - wait for fonts, auth, and PIN context to be ready, then add a small delay
+  // Initialize app once; use a force-timeout to avoid infinite splash deadlocks.
   useEffect(() => {
-    // Only run once on initial load
     if (hasInitializedRef.current) return;
 
-    // Wait for fonts to load (or error), auth to finish loading, and PIN context to be ready
+    // Force-complete initialization if something hangs unexpectedly.
+    if (!forceInitTimeoutRef.current) {
+      forceInitTimeoutRef.current = setTimeout(() => {
+        if (!hasInitializedRef.current) {
+          console.warn('⚠️ RootLayoutNav - Startup initialization timed out, forcing app start');
+          hasInitializedRef.current = true;
+          setIsInitializing(false);
+        }
+      }, 12000);
+    }
+
     const fontsReady = fontsLoaded || fontError;
     const authReady = !isLoading;
     const pinReady = !isPinLoading;
 
     if (fontsReady && authReady && pinReady) {
-      // Immediately lock app if PIN is set - do this first so lock screen is ready
+      if (initCompleteTimerRef.current) return;
+
+      // Lock app immediately if PIN is set.
       if (hasAppLockPin && session?.user?.id && !isAppLocked) {
         console.log('🔒 RootLayoutNav - Locking app immediately (PIN is set)');
-        lockApp();
+        lockAppRef.current();
       }
-      
-      // Add a delay to ensure everything is settled before hiding splash
-      // This prevents the welcome screen from flashing before auth redirects to dashboard
-      const timer = setTimeout(() => {
+
+      initCompleteTimerRef.current = setTimeout(() => {
         console.log('✅ App initialization complete - fonts, auth, and PIN context ready');
         setIsInitializing(false);
         hasInitializedRef.current = true;
-      }, 800); // 800ms delay to ensure smooth transition and prevent glitching
-
-      return () => clearTimeout(timer);
+        if (forceInitTimeoutRef.current) {
+          clearTimeout(forceInitTimeoutRef.current);
+          forceInitTimeoutRef.current = null;
+        }
+      }, 800);
     }
-  }, [fontsLoaded, fontError, isLoading, isPinLoading, hasAppLockPin, session?.user?.id, lockApp, isAppLocked]);
+  }, [fontsLoaded, fontError, isLoading, isPinLoading, hasAppLockPin, session?.user?.id, isAppLocked]);
+
+  useEffect(() => {
+    return () => {
+      if (initCompleteTimerRef.current) {
+        clearTimeout(initCompleteTimerRef.current);
+      }
+      if (forceInitTimeoutRef.current) {
+        clearTimeout(forceInitTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Show error screen if there's a critical fatal error during startup
   // Non-fatal errors should not unmount the app; they are handled via the

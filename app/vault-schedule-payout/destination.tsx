@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, useWindowDimensions, Image, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import { ArrowLeft, Building2, Plus, Check, X } from 'lucide-react-native';
 import React, { useState, useEffect, useCallback } from 'react';
 import AddBankAccountModal from '@/components/AddBankAccountModal';

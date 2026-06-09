@@ -75,6 +75,12 @@
     <string>This app uses the microphone to provide a better experience.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Planmoni needs access to your photos to upload document images.</string>
+    <key>NSUserActivityTypes</key>
+    <array>
+      <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
+    </array>
+    <key>RCTNewArchEnabled</key>
+    <true/>
     <key>UIBackgroundModes</key>
     <array>
       <string>remote-notification</string>
