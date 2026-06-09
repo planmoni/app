@@ -351,7 +351,7 @@ async function processSinglePayout(plan: any) {
   // IDEMPOTENCY CHECK: Verify plan is still eligible and not already being processed
   const { data: planCheck, error: planCheckError } = await supabase
     .from("payout_plans")
-    .select("id, user_id, name, status, frequency, metadata, start_date, completed_payouts, duration, next_payout_date, payout_amount, payout_account_id")
+    .select("id, user_id, name, status, frequency, metadata, day_of_week, start_date, completed_payouts, duration, next_payout_date, payout_amount, payout_account_id")
     .eq("id", plan.plan_id)
     .maybeSingle();
 
@@ -777,7 +777,7 @@ async function processSinglePayout(plan: any) {
         transfer_status: transferResult.status,
         response: transferResult.rawResponse || transferResult,
         payout_plan_id: plan.plan_id,
-        automated_payout_id: plan.plan_id
+        automated_payout_id: payoutId,
       };
       const { data: txIdCreated, error: txCreateErr } = await supabase.rpc('create_transaction_record', {
         p_user_id: plan.user_id,
@@ -807,7 +807,7 @@ async function processSinglePayout(plan: any) {
         transfer_status: transferResult.status,
         response: transferResult.rawResponse || transferResult,
         payout_plan_id: plan.plan_id,
-        automated_payout_id: plan.plan_id,
+        automated_payout_id: payoutId,
         safehaven_transfer_id: transferResult.id || transferResult._id,
         safehaven_transfer_code: transferResult.reference || transferResult.paymentReference,
         safehaven_transfer_status: transferResult.status || 'Pending',
@@ -837,30 +837,53 @@ async function processSinglePayout(plan: any) {
     if (success) {
       const currentCompleted = planCheck.completed_payouts || 0;
       const newCompleted = currentCompleted + 1;
-      const meta = planCheck.metadata as Record<string, unknown> | undefined;
-      const dayOfWeek = meta != null && typeof meta.dayOfWeek === 'number' ? meta.dayOfWeek : null;
-      const nextDate = computeNextPayoutDateWithTime(
-        planCheck.frequency,
-        planCheck.start_date,
-        newCompleted,
-        dayOfWeek,
-        planCheck.next_payout_date,
-        meta?.payoutHour as number | undefined,
-        meta?.payoutMinute as number | undefined
-      );
-      if (nextDate) {
+      const duration = planCheck.duration ?? 0;
+
+      // Match update_payout_plan_progress: final payout clears next_payout_date and marks completed.
+      // Without this, computeNextPayoutDateWithTime always returned another week and the plan stayed active.
+      if (newCompleted >= duration && duration > 0) {
         await supabase
           .from('payout_plans')
           .update({
             completed_payouts: newCompleted,
-            next_payout_date: nextDate.toISOString(),
+            next_payout_date: null,
+            status: 'completed',
             updated_at: new Date().toISOString()
           })
           .eq('id', plan.plan_id);
-        console.log(`✅ Updated plan ${plan.plan_id} to next date ${nextDate.toISOString()}`);
+        console.log(`✅ Plan ${plan.plan_id} completed (${newCompleted}/${duration}); next_payout_date cleared`);
       } else {
-        // Fallback to DB function if next date couldn't be computed
-        await updatePayoutPlanProgress(plan.plan_id);
+        const meta = planCheck.metadata as Record<string, unknown> | undefined;
+        const dowCol = planCheck.day_of_week;
+        const dayOfWeek =
+          typeof dowCol === 'number' && dowCol >= 0 && dowCol <= 6
+            ? dowCol
+            : meta != null && typeof meta.dayOfWeek === 'number'
+              ? meta.dayOfWeek
+              : null;
+        const nextDate = computeNextPayoutDateWithTime(
+          planCheck.frequency,
+          planCheck.start_date,
+          newCompleted,
+          dayOfWeek,
+          planCheck.next_payout_date,
+          meta?.payoutHour as number | undefined,
+          meta?.payoutMinute as number | undefined
+        );
+        if (nextDate) {
+          await supabase
+            .from('payout_plans')
+            .update({
+              completed_payouts: newCompleted,
+              next_payout_date: nextDate.toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', plan.plan_id);
+          console.log(`✅ Updated plan ${plan.plan_id} to next date ${nextDate.toISOString()}`);
+        } else {
+          // Fallback to DB function if next date couldn't be computed (e.g. custom)
+          await updatePayoutPlanProgress(plan.plan_id);
+        }
       }
     } else {
       console.log('Transfer not completed; will not advance next_payout_date');
@@ -943,22 +966,34 @@ function computeNextPayoutDateWithTime(
       return next;
     }
 
+    // Match update_payout_plan_progress (20260502120000): anchor from last scheduled payout + 7 when available.
     if (f === "weekly") {
+      if (prevNextPayoutDate) {
+        const d = new Date(prevNextPayoutDate);
+        d.setDate(d.getDate() + 7);
+        setTime(d);
+        return d;
+      }
       next.setDate(start.getDate() + (newCompletedCount * 7));
       setTime(next);
       return next;
     }
 
     if (f === "weekly_specific") {
-      const base = new Date(start);
-      base.setDate(start.getDate() + (newCompletedCount * 7));
-      let target = new Date(base);
-      const targetDow = typeof dayOfWeek === 'number' ? dayOfWeek : null;
+      const targetDow = typeof dayOfWeek === 'number' && dayOfWeek >= 0 && dayOfWeek <= 6 ? dayOfWeek : null;
+      let anchor: Date;
+      if (prevNextPayoutDate) {
+        anchor = new Date(prevNextPayoutDate);
+        anchor.setDate(anchor.getDate() + 7);
+      } else {
+        anchor = new Date(start);
+        anchor.setDate(start.getDate() + (newCompletedCount * 7));
+      }
+      let target = new Date(anchor);
       if (targetDow !== null) {
-        const baseDow = base.getDay();
-        let delta = (7 + targetDow - baseDow) % 7;
-        if (delta === 0 && newCompletedCount > 0) delta = 7;
-        target.setDate(base.getDate() + delta);
+        const anchorDow = target.getDay();
+        const delta = (7 + targetDow - anchorDow) % 7;
+        target.setDate(target.getDate() + delta);
       }
       setTime(target);
       return target;
@@ -1196,8 +1231,8 @@ async function updateAutomatedPayout(payoutId: string, transferResult: any) {
 
 /**
  * Update payout plan progress and next date
- * NOTE: This calls the database RPC function which will handle weekly_specific correctly
- * after the migration 20260125000000_fix_weekly_specific_next_payout_date.sql is applied
+ * Delegates to update_payout_plan_progress (must stay aligned with migrations:
+ * weekly / weekly_specific / biweekly anchor from last scheduled payout date — see 20260502120000).
  */
 async function updatePayoutPlanProgress(planId: string) {
   console.log(`📈 Updating payout plan progress for: ${planId}`);
@@ -1231,7 +1266,8 @@ async function createTransactionRecord(plan: any, transferResult: any) {
     transfer_status: transferResult.status,
     response: transferResult.rawResponse || transferResult,
     payout_plan_id: plan.plan_id,
-    automated_payout_id: plan.plan_id
+    // Caller must set plan.automated_payout_id when this helper is used (same as automated_payouts.id).
+    automated_payout_id: (plan as { automated_payout_id?: string }).automated_payout_id ?? null,
   };
 
   metadata.safehaven_transfer_id = transferResult.id || transferResult._id;

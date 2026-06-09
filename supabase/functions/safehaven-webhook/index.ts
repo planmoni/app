@@ -5,7 +5,8 @@
  * and processing for transfers, virtual accounts, and account updates.
  * 
  * Supported Webhook Types:
- * - transfer: Regular transfer events
+ * - transfer: Regular transfer events (Inwards / Outwards in `data.type`)
+ * - outward.transfer / transfer.outward: Same `data` shape; explicit switch cases (same handler as `transfer`)
  * - virtualAccount.transfer: Virtual account transfer events
  * - account.update: Account balance/status updates
  * - transaction.update: Transaction status updates
@@ -299,40 +300,110 @@ function verifySafeHavenRequest(req: Request): { isValid: boolean; reason?: stri
   }
 }
 
+/** Outward payouts debit Planmoni's pool account — never use debitAccountNumber for user resolution. */
+async function resolveUserIdForOutwardTransfer(
+  transferData: SafeHavenTransferData
+): Promise<{ userId: string | null; via: string }> {
+  if (transferData.client) {
+    const { data: tokenRow, error: tokenErr } = await supabase
+      .from('safehaven_tokens')
+      .select('user_id')
+      .eq('ibs_client_id', transferData.client)
+      .maybeSingle();
+    if (!tokenErr && tokenRow?.user_id) {
+      console.log(`Outward transfer: resolved user via safehaven_tokens (client): ${transferData.client}`);
+      return { userId: tokenRow.user_id, via: 'safehaven_tokens' };
+    }
+  }
+
+  const paymentRef = transferData.paymentReference || (transferData as any).reference || '';
+  if (paymentRef || transferData._id) {
+    let q = supabase.from('automated_payouts').select('user_id').limit(1);
+    if (paymentRef && transferData._id) {
+      q = q.or(`payment_reference.eq.${paymentRef},safehaven_transfer_id.eq.${transferData._id}`);
+    } else if (paymentRef) {
+      q = q.eq('payment_reference', paymentRef);
+    } else {
+      q = q.eq('safehaven_transfer_id', transferData._id);
+    }
+    const { data: apRow, error: apErr } = await q.maybeSingle();
+    if (!apErr && apRow?.user_id) {
+      console.log('Outward transfer: resolved user via automated_payouts');
+      return { userId: apRow.user_id, via: 'automated_payouts' };
+    }
+  }
+
+  // process-due-payouts creates a payout transaction with reference = planned AUTO_* ref (same value SafeHaven sends as paymentReference).
+  const pr = transferData.paymentReference || (transferData as any).reference || '';
+  if (pr) {
+    const { data: txRow, error: txErr } = await supabase
+      .from('transactions')
+      .select('user_id')
+      .eq('reference', pr)
+      .eq('type', 'payout')
+      .limit(1)
+      .maybeSingle();
+    if (!txErr && txRow?.user_id) {
+      console.log('Outward transfer: resolved user via transactions (payout row by payment reference)');
+      return { userId: txRow.user_id, via: 'transactions.payout' };
+    }
+  }
+
+  return { userId: null, via: 'none' };
+}
+
 // Process transfer webhook
 async function processTransferWebhook(transferData: SafeHavenTransferData): Promise<any> {
   console.log('Processing transfer webhook:', transferData._id);
 
   try {
-    // Find user by account number (for Inwards transfers, creditAccountNumber is our account)
-    // For Outwards transfers, we might need to check debitAccountNumber
     const accountNumber = transferData.type === 'Inwards' 
       ? transferData.creditAccountNumber 
       : transferData.debitAccountNumber;
 
-    console.log(`Looking up user by account number: ${accountNumber} (transfer type: ${transferData.type})`);
+    let userId: string;
 
-    // Get user ID from account number
-    const { data: accountData, error: accountError } = await supabase
-      .from('safehaven_accounts')
-      .select('user_id, account_number, account_balance, book_balance')
-      .eq('account_number', accountNumber)
-      .eq('is_deleted', false)
-      .single();
+    if (transferData.type === 'Inwards') {
+      console.log(`Inward transfer: resolving user by credited account: ${accountNumber}`);
 
-    if (accountError || !accountData) {
-      console.error('Could not find account for account number:', accountNumber);
-      // Still log the webhook even if we can't find the user
-      await logDepositWebhook(transferData, null);
-      return { 
-        error: 'Account not found',
-        accountNumber: accountNumber,
-        note: 'Webhook logged but user not found'
-      };
+      const { data: row, error: accountError } = await supabase
+        .from('safehaven_accounts')
+        .select('user_id, account_number, account_balance, book_balance')
+        .eq('account_number', accountNumber)
+        .eq('is_deleted', false)
+        .maybeSingle();
+
+      if (accountError || !row?.user_id) {
+        console.error('Could not find safehaven_accounts for credit account:', accountNumber);
+        await logDepositWebhook(transferData, null);
+        return {
+          error: 'Account not found',
+          accountNumber,
+          note: 'Inward webhook: no safehaven_accounts row for credit account',
+        };
+      }
+
+      userId = row.user_id;
+      console.log(`Found user ${userId} for credit account ${accountNumber}`);
+    } else {
+      console.log(
+        `Outward transfer: skipping debit account ${accountNumber} for user lookup (Planmoni pool); using client / payout refs`
+      );
+
+      const resolved = await resolveUserIdForOutwardTransfer(transferData);
+      if (!resolved.userId) {
+        console.error('Could not resolve user for outward transfer:', transferData._id);
+        await logDepositWebhook(transferData, null);
+        return {
+          error: 'User not found',
+          transferId: transferData._id,
+          note: 'Outward: no safehaven_tokens match for client and no automated_payouts match',
+        };
+      }
+
+      userId = resolved.userId;
+      console.log(`Found user ${userId} for outward transfer (via ${resolved.via})`);
     }
-
-    const userId = accountData.user_id;
-    console.log(`Found user ${userId} for account ${accountNumber}`);
 
     // Log to safehaven_deposit_webhooks table
     await logDepositWebhook(transferData, userId);
@@ -380,100 +451,36 @@ async function processTransferWebhook(transferData: SafeHavenTransferData): Prom
 // Log deposit webhook to safehaven_deposit_webhooks table
 async function logDepositWebhook(transferData: any, userId: string | null): Promise<void> {
   try {
-    // Determine account number based on transfer type
-    const accountNumber = transferData.type === 'Inwards' 
-      ? transferData.creditAccountNumber 
-      : (transferData.debitAccountNumber || transferData.accountNumber);
+    const wireCreditAccount =
+      transferData.type === 'Inwards' ? transferData.creditAccountNumber : null;
 
-    // Find the account in safehaven_accounts to get the user_account_id
-    // NOTE: safehaven_user_accounts is handled in the frontend when sending money (payouts/transfers)
-    // For webhooks, we only need to reference safehaven_accounts
     let userAccountId: string | null = null;
-    if (accountNumber) {
-      // Query safehaven_accounts (the main accounts table)
-      const { data: accountData, error: accountError } = await supabase
-        .from('safehaven_accounts')
-        .select('id')
-        .eq('account_number', accountNumber)
-        .eq('is_deleted', false)
-        .single();
 
-      if (!accountError && accountData) {
-        userAccountId = accountData.id;
-      } else {
-        console.warn(`Could not find safehaven_accounts record for account number: ${accountNumber}`);
-      }
-
-      // COMMENTED OUT: safehaven_user_accounts is handled in frontend for sending money
-      // // First try safehaven_user_accounts (the table referenced by the foreign key)
-      // const { data: userAccountData, error: userAccountError } = await supabase
-      //   .from('safehaven_user_accounts')
-      //   .select('id')
-      //   .eq('account_number', accountNumber)
-      //   .eq('is_deleted', false)
-      //   .single();
-      // 
-      // if (!userAccountError && userAccountData) {
-      //   userAccountId = userAccountData.id;
-      // } else {
-      //   // If not found, try safehaven_accounts (they might be the same table or have a mapping)
-      //   const { data: accountData, error: accountError } = await supabase
-      //     .from('safehaven_accounts')
-      //     .select('id')
-      //     .eq('account_number', accountNumber)
-      //     .eq('is_deleted', false)
-      //     .single();
-      // 
-      //   if (!accountError && accountData) {
-      //     userAccountId = accountData.id;
-      //   } else {
-      //     console.warn(`Could not find safehaven_user_accounts or safehaven_accounts record for account number: ${accountNumber}`);
-      //   }
-      // }
-    }
-
-    // If we have userId but no userAccountId, try to find account by userId
-    if (!userAccountId && userId) {
-      // Query safehaven_accounts by userId
-      const { data: accountData, error: accountError } = await supabase
+    // Prefer resolved user's default SafeHaven account (required for Outwards: debit is Planmoni pool, not searchable by user).
+    if (userId) {
+      const { data: defaultAcct } = await supabase
         .from('safehaven_accounts')
         .select('id')
         .eq('user_id', userId)
         .eq('is_deleted', false)
         .eq('is_default', true)
-        .single();
-
-      if (!accountError && accountData) {
-        userAccountId = accountData.id;
-      }
-
-      // COMMENTED OUT: safehaven_user_accounts is handled in frontend for sending money
-      // // Try safehaven_user_accounts first
-      // const { data: userAccountData, error: userAccountError } = await supabase
-      //   .from('safehaven_user_accounts')
-      //   .select('id')
-      //   .eq('user_id', userId)
-      //   .eq('is_deleted', false)
-      //   .eq('is_default', true)
-      //   .single();
-      // 
-      // if (!userAccountError && userAccountData) {
-      //   userAccountId = userAccountData.id;
-      // } else {
-      //   // Fallback to safehaven_accounts
-      //   const { data: accountData, error: accountError } = await supabase
-      //     .from('safehaven_accounts')
-      //     .select('id')
-      //     .eq('user_id', userId)
-      //     .eq('is_deleted', false)
-      //     .eq('is_default', true)
-      //     .single();
-      // 
-      //   if (!accountError && accountData) {
-      //     userAccountId = accountData.id;
-      //   }
-      // }
+        .maybeSingle();
+      if (defaultAcct?.id) userAccountId = defaultAcct.id;
     }
+
+    // Inwards: link log row to the credited account when we don't have default or for consistency
+    if (!userAccountId && transferData.type === 'Inwards' && wireCreditAccount) {
+      const { data: byCredit } = await supabase
+        .from('safehaven_accounts')
+        .select('id')
+        .eq('account_number', wireCreditAccount)
+        .eq('is_deleted', false)
+        .maybeSingle();
+      if (byCredit?.id) userAccountId = byCredit.id;
+      else console.warn(`Could not find safehaven_accounts for inward credit account: ${wireCreditAccount}`);
+    }
+
+    // Do not look up Outwards by wireDebitAccount — it is the corporate debit, not the end-user's account.
 
     // Determine webhook type
     const webhookType = transferData.virtualAccount ? 'virtualAccount.transfer' : 'transfer';
@@ -499,7 +506,9 @@ async function logDepositWebhook(transferData: any, userId: string | null): Prom
 
     // Skip insert if we can't find the user_account_id (table requires it)
     if (!userAccountId) {
-      console.warn(`Skipping webhook log insert: Could not find safehaven_accounts record for account number: ${accountNumber}`);
+      console.warn(
+        'Skipping webhook log insert: no safehaven_accounts id (user default or inward credit account)'
+      );
       return;
     }
 
@@ -914,28 +923,343 @@ async function updateUserBalance(userId: string, transferData: SafeHavenTransfer
   }
 }
 
+type RefundAfterFailureResult = {
+  metadataPatch: Record<string, unknown>;
+  transactionStatus: 'refunded' | 'failed';
+};
+
+/**
+ * Reverse local wallet debit from process-due-payouts (transfer_funds) when SafeHaven reports
+ * Failed/Reversed. Restores both balance and locked_balance via refund_payout_wallet_debit.
+ */
+async function refundWalletAfterSafehavenPayoutFailure(
+  ap: { id: string; amount: number; status: string; metadata: Record<string, unknown> | null },
+  userId: string,
+  reason: string
+): Promise<RefundAfterFailureResult> {
+  const md: Record<string, unknown> = { ...(ap.metadata || {}) };
+  if (md.wallet_refund_applied === true) {
+    return { metadataPatch: {}, transactionStatus: 'refunded' };
+  }
+
+  const debited = md.wallet_debited === true;
+  const wasDebitedLikely =
+    debited ||
+    ap.status === 'processing' ||
+    ap.status === 'completed' ||
+    (ap.status === 'failed' && md.wallet_refund_skipped !== 'not_debited');
+  if (!wasDebitedLikely) {
+    return {
+      metadataPatch: {
+        wallet_refund_skipped: 'not_debited',
+        safehaven_failure_reason: reason,
+      },
+      transactionStatus: 'failed',
+    };
+  }
+
+  const rawAmt = typeof md.wallet_debited_amount === 'number' ? md.wallet_debited_amount : Number(ap.amount);
+  const amt = Number(rawAmt);
+  if (!Number.isFinite(amt) || amt <= 0) {
+    return {
+      metadataPatch: { wallet_refund_skipped: 'invalid_amount', safehaven_failure_reason: reason },
+      transactionStatus: 'failed',
+    };
+  }
+
+  const { data, error } = await supabase.rpc('refund_payout_wallet_debit', {
+    arg_user_id: userId,
+    arg_amount: amt,
+  });
+
+  if (error || !data || data.success !== true) {
+    return {
+      metadataPatch: {
+        wallet_refund_applied: false,
+        wallet_refund_error: error?.message || data?.error || 'refund_payout_wallet_debit failed',
+        safehaven_failure_reason: reason,
+      },
+      transactionStatus: 'failed',
+    };
+  }
+
+  return {
+    metadataPatch: {
+      wallet_refund_applied: true,
+      wallet_refunded_at: new Date().toISOString(),
+      wallet_refund_amount: amt,
+      wallet_refund_reason: reason,
+      wallet_refund_wallet: data,
+    },
+    transactionStatus: 'refunded',
+  };
+}
+
+/**
+ * When `automated_payouts` row is missing (deleted / never inserted) but the payout `transactions`
+ * row still exists — reconcile webhook status, wallet refund, and tx row only.
+ */
+type PayoutTxRow = {
+  id: string;
+  amount: number;
+  status: string;
+  metadata: Record<string, unknown> | null;
+  payout_plan_id: string | null;
+};
+
+async function reconcileOutwardPayoutViaTransactionOnly(
+  transferData: SafeHavenTransferData,
+  userId: string
+): Promise<void> {
+  const paymentRef = transferData.paymentReference || (transferData as any).reference || '';
+
+  let tx: PayoutTxRow | null = null;
+
+  if (paymentRef) {
+    const { data } = await supabase
+      .from('transactions')
+      .select('id, amount, status, metadata, payout_plan_id')
+      .eq('user_id', userId)
+      .eq('type', 'payout')
+      .eq('reference', paymentRef)
+      .limit(1)
+      .maybeSingle();
+    if (data) tx = data as PayoutTxRow;
+  }
+
+  if (!tx && transferData._id) {
+    const { data } = await supabase
+      .from('transactions')
+      .select('id, amount, status, metadata, payout_plan_id')
+      .eq('user_id', userId)
+      .eq('type', 'payout')
+      .contains('metadata', { safehaven_transfer_id: transferData._id } as Record<string, unknown>)
+      .limit(1)
+      .maybeSingle();
+    if (data) tx = data as PayoutTxRow;
+  }
+
+  if (!tx) {
+    console.log(
+      'reconcileOutwardPayoutViaTransactionOnly: no payout transaction for user',
+      userId,
+      'paymentRef=',
+      paymentRef
+    );
+    return;
+  }
+
+  console.log(
+    'Reconciling outward webhook via transactions only (no automated_payout row). tx:',
+    tx.id
+  );
+
+  const md = (tx.metadata || {}) as Record<string, unknown>;
+
+  const isTerminalFail = transferData.status === 'Failed' || transferData.status === 'Reversed';
+  const isSuccess = transferData.status === 'Completed';
+
+  if (isTerminalFail && (tx.status === 'refunded' || md.wallet_refund_applied === true)) {
+    await supabase
+      .from('transactions')
+      .update({
+        updated_at: new Date().toISOString(),
+        metadata: {
+          ...md,
+          safehaven_webhook_status: transferData.status,
+          safehaven_response_message: transferData.responseMessage || null,
+          reconciled_without_automated_payout: true,
+        },
+      })
+      .eq('id', tx.id);
+    console.log('Transaction-only reconcile: refund already applied; merged webhook metadata only');
+    return;
+  }
+
+  if (isSuccess && tx.status !== 'completed') {
+    const nextMeta = {
+      ...md,
+      safehaven_webhook_status: transferData.status,
+      safehaven_response_message: transferData.responseMessage || null,
+      reconciled_without_automated_payout: true,
+    };
+    await supabase
+      .from('transactions')
+      .update({
+        status: 'completed',
+        updated_at: new Date().toISOString(),
+        metadata: nextMeta,
+      })
+      .eq('id', tx.id);
+    console.log('Transaction-only reconcile: marked payout transaction completed');
+    return;
+  }
+
+  if (!isTerminalFail) {
+    const nextMeta = {
+      ...md,
+      safehaven_webhook_status: transferData.status,
+      safehaven_response_message: transferData.responseMessage || null,
+      reconciled_without_automated_payout: true,
+    };
+    await supabase
+      .from('transactions')
+      .update({
+        updated_at: new Date().toISOString(),
+        metadata: nextMeta,
+      })
+      .eq('id', tx.id);
+    return;
+  }
+
+  // Failed / Reversed: wallet refund uses same RPC; synthetic "ap" from tx (pending → processing so debit is considered likely).
+  const syntheticAp = {
+    id: tx.id,
+    amount: Number(tx.amount),
+    status: tx.status === 'pending' ? 'processing' : tx.status,
+    metadata: md,
+  };
+
+  const refundResult = await refundWalletAfterSafehavenPayoutFailure(
+    syntheticAp,
+    userId,
+    transferData.responseMessage || transferData.status || 'Transfer failed'
+  );
+
+  const txMeta = {
+    ...md,
+    ...refundResult.metadataPatch,
+    safehaven_webhook_status: transferData.status,
+    safehaven_response_message: transferData.responseMessage || null,
+    reconciled_without_automated_payout: true,
+  };
+
+  await supabase
+    .from('transactions')
+    .update({
+      status: refundResult.transactionStatus,
+      updated_at: new Date().toISOString(),
+      metadata: txMeta,
+    })
+    .eq('id', tx.id);
+
+  console.log(
+    'Transaction-only reconcile: updated payout tx status to',
+    refundResult.transactionStatus
+  );
+
+  if (tx.payout_plan_id) {
+    const { data: payoutPlan } = await supabase
+      .from('payout_plans')
+      .select('id, name, payout_amount')
+      .eq('id', tx.payout_plan_id)
+      .maybeSingle();
+
+    if (payoutPlan) {
+      await supabase.from('events').insert({
+        user_id: userId,
+        type: 'disbursement_failed',
+        title: 'Payout Failed',
+        description: `Your scheduled payout from "${payoutPlan.name}" failed to process: ${transferData.responseMessage || 'Unknown error'}`,
+        status: 'unread',
+        payout_plan_id: payoutPlan.id,
+      });
+
+      try {
+        await sendPayoutFailedEmailNotification(
+          userId,
+          Number(tx.amount),
+          paymentRef,
+          null,
+          transferData.responseMessage || 'Transfer failed',
+          payoutPlan.name
+        );
+      } catch (emailError) {
+        console.error('Transaction-only reconcile: failure email error:', emailError);
+      }
+    }
+  }
+}
+
 // Update automated payout from webhook
 async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferData, userId: string): Promise<void> {
   try {
     console.log('Checking for automated payout related to transfer:', transferData._id);
 
-    // Try to find automated payout by transfer ID or payment reference
     const paymentRef = transferData.paymentReference || (transferData as any).reference || '';
-    const { data: automatedPayout, error: payoutError } = await supabase
-      .from('automated_payouts')
-      .select('id, payout_plan_id, status, amount, user_id')
-      .eq('user_id', userId)
-      .or(`safehaven_transfer_id.eq.${transferData._id},payment_reference.eq.${paymentRef}`)
-      .limit(1)
-      .maybeSingle();
 
-    if (payoutError && payoutError.code !== 'PGRST116') {
-      console.error('Error finding automated payout:', payoutError);
-      return;
+    // Same flow as process-due-payouts: payout transactions carry metadata.automated_payout_id; webhook paymentReference matches tx.reference when it is still AUTO_*.
+    let automatedPayout: {
+      id: string;
+      payout_plan_id: string;
+      status: string;
+      amount: number;
+      user_id: string;
+      metadata: Record<string, unknown> | null;
+    } | null = null;
+
+    if (paymentRef) {
+      const { data: txRow } = await supabase
+        .from('transactions')
+        .select('metadata')
+        .eq('user_id', userId)
+        .eq('reference', paymentRef)
+        .eq('type', 'payout')
+        .limit(1)
+        .maybeSingle();
+
+      const apIdRaw =
+        txRow?.metadata &&
+        typeof txRow.metadata === 'object' &&
+        (txRow.metadata as Record<string, unknown>).automated_payout_id;
+      const apId = typeof apIdRaw === 'string' ? apIdRaw : null;
+
+      if (apId) {
+        const { data: byTxMeta, error: byTxMetaErr } = await supabase
+          .from('automated_payouts')
+          .select('id, payout_plan_id, status, amount, user_id, metadata')
+          .eq('id', apId)
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (byTxMetaErr && byTxMetaErr.code !== 'PGRST116') {
+          console.error('Error loading automated_payout from transactions.automated_payout_id:', byTxMetaErr);
+        } else if (byTxMeta) {
+          automatedPayout = byTxMeta;
+          console.log('Found automated payout via transactions.metadata.automated_payout_id');
+        }
+      }
     }
 
     if (!automatedPayout) {
-      console.log('No automated payout found for transfer:', transferData._id);
+      const orParts = [`safehaven_transfer_id.eq.${transferData._id}`];
+      if (paymentRef) {
+        orParts.push(`payment_reference.eq.${paymentRef}`);
+        orParts.push(`transfer_reference.eq.${paymentRef}`);
+      }
+      const { data: apRow, error: payoutError } = await supabase
+        .from('automated_payouts')
+        .select('id, payout_plan_id, status, amount, user_id, metadata')
+        .eq('user_id', userId)
+        .or(orParts.join(','))
+        .limit(1)
+        .maybeSingle();
+
+      if (payoutError && payoutError.code !== 'PGRST116') {
+        console.error('Error finding automated payout:', payoutError);
+        return;
+      }
+      automatedPayout = apRow;
+    }
+
+    if (!automatedPayout) {
+      console.log(
+        'No automated_payouts row for transfer:',
+        transferData._id,
+        'paymentReference=',
+        paymentRef,
+        '— reconciling via transactions only'
+      );
+      await reconcileOutwardPayoutViaTransactionOnly(transferData, userId);
       return;
     }
 
@@ -1019,12 +1343,27 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
         updated_at: new Date().toISOString()
       };
 
+      let refundResult: RefundAfterFailureResult | null = null;
       if (newStatus === 'completed') {
         updateData.completed_at = new Date().toISOString();
         updateData.transferred_at = new Date().toISOString();
       } else if (newStatus === 'failed') {
         updateData.error_message = transferData.responseMessage || 'Transfer failed';
         updateData.completed_at = new Date().toISOString();
+        refundResult = await refundWalletAfterSafehavenPayoutFailure(
+          {
+            id: automatedPayout.id,
+            amount: Number(automatedPayout.amount),
+            status: automatedPayout.status,
+            metadata: (automatedPayout.metadata as Record<string, unknown> | null) ?? null,
+          },
+          userId,
+          transferData.responseMessage || transferData.status || 'Transfer failed'
+        );
+        updateData.metadata = {
+          ...((automatedPayout.metadata as Record<string, unknown> | null) || {}),
+          ...refundResult.metadataPatch,
+        };
       }
 
       // Update automated payout
@@ -1044,18 +1383,35 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
       const paymentRef = transferData.paymentReference || (transferData as any).reference || '';
       const { data: transaction, error: transactionError } = await supabase
         .from('transactions')
-        .select('id, status')
+        .select('id, status, metadata')
         .eq('reference', paymentRef)
         .eq('user_id', userId)
         .limit(1)
         .maybeSingle();
 
       if (!transactionError && transaction) {
+        let txNextStatus: string;
+        if (newStatus === 'completed') {
+          txNextStatus = 'completed';
+        } else if (newStatus === 'failed' && refundResult) {
+          txNextStatus = refundResult.transactionStatus;
+        } else if (newStatus === 'failed') {
+          txNextStatus = 'failed';
+        } else {
+          txNextStatus = 'pending';
+        }
+        const txMeta = {
+          ...((transaction.metadata as Record<string, unknown> | null) || {}),
+          ...(newStatus === 'failed' && refundResult ? refundResult.metadataPatch : {}),
+          safehaven_webhook_status: transferData.status,
+          safehaven_response_message: transferData.responseMessage || null,
+        };
         await supabase
           .from('transactions')
           .update({
-            status: newStatus === 'completed' ? 'completed' : (newStatus === 'failed' ? 'failed' : 'pending'),
-            updated_at: new Date().toISOString()
+            status: txNextStatus,
+            updated_at: new Date().toISOString(),
+            metadata: txMeta,
           })
           .eq('id', transaction.id);
       }
@@ -1157,6 +1513,75 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
           } catch (emailError) {
             console.error('Error sending failure email notification:', emailError);
           }
+        }
+      }
+    }
+
+    // Payout row already failed (e.g. webhook retry or refund added after first failure): apply refund + tx status if still needed.
+    if (
+      newStatus === 'failed' &&
+      automatedPayout.status === 'failed' &&
+      (transferData.status === 'Failed' || transferData.status === 'Reversed')
+    ) {
+      const { data: apLatest, error: apLatestErr } = await supabase
+        .from('automated_payouts')
+        .select('id, amount, status, metadata')
+        .eq('id', automatedPayout.id)
+        .maybeSingle();
+
+      if (apLatestErr || !apLatest) {
+        console.error('safehaven-webhook: could not reload automated_payout for failed refund retry', apLatestErr);
+      } else {
+        const refundRetry = await refundWalletAfterSafehavenPayoutFailure(
+          {
+            id: apLatest.id,
+            amount: Number(apLatest.amount),
+            status: apLatest.status,
+            metadata: (apLatest.metadata as Record<string, unknown> | null) ?? null,
+          },
+          userId,
+          transferData.responseMessage || transferData.status || 'Transfer failed'
+        );
+
+        const mergedApMeta = {
+          ...((apLatest.metadata as Record<string, unknown> | null) || {}),
+          ...refundRetry.metadataPatch,
+        };
+
+        if (Object.keys(refundRetry.metadataPatch).length > 0) {
+          await supabase
+            .from('automated_payouts')
+            .update({
+              metadata: mergedApMeta,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', apLatest.id);
+        }
+
+        const paymentRefRetry = transferData.paymentReference || (transferData as any).reference || '';
+        const { data: transactionRetry, error: transactionRetryError } = await supabase
+          .from('transactions')
+          .select('id, status, metadata')
+          .eq('reference', paymentRefRetry)
+          .eq('user_id', userId)
+          .limit(1)
+          .maybeSingle();
+
+        if (!transactionRetryError && transactionRetry && transactionRetry.status !== 'completed') {
+          const txMetaRetry = {
+            ...((transactionRetry.metadata as Record<string, unknown> | null) || {}),
+            ...refundRetry.metadataPatch,
+            safehaven_webhook_status: transferData.status,
+            safehaven_response_message: transferData.responseMessage || null,
+          };
+          await supabase
+            .from('transactions')
+            .update({
+              status: refundRetry.transactionStatus,
+              updated_at: new Date().toISOString(),
+              metadata: txMetaRetry,
+            })
+            .eq('id', transactionRetry.id);
         }
       }
     }
@@ -1701,6 +2126,11 @@ Deno.serve(async (req) => {
     try {
       switch (webhookType) {
         case 'transfer':
+          result = await processTransferWebhook(webhookData);
+          break;
+        // Same NIP payload as `transfer`; envelope uses eventType / type from SafeHaven payout webhooks
+        case 'outward.transfer':
+        case 'transfer.outward':
           result = await processTransferWebhook(webhookData);
           break;
         case 'virtualAccount.transfer':

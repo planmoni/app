@@ -12,7 +12,7 @@ const readline = require('readline');
 
 const ENV_FILE = '.env.staging';
 const STAGING_FUNCTIONS = [
-  'process_due_payouts',
+  'process-due-payouts',
   'process-automated-payouts',
   'schedule-automated-payouts',
   'safehaven-webhook',
