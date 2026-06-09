@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { ArrowRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { Animated, FadeIn, FadeInDown } from '@/lib/reanimatedSafe';
 import SuccessAnimation from '@/components/SuccessAnimation';
 
 export default function Tier3SuccessScreen() {

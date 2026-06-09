@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import Animated, { useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
+import { Animated, Easing, useAnimatedStyle, withTiming } from '@/lib/reanimatedSafe';
 
 interface ProgressBarProps {
   percentage: number;

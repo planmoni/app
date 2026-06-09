@@ -1,14 +1,16 @@
 import { View, Text, StyleSheet, Image, Pressable, useWindowDimensions, Platform, Modal } from 'react-native';
 import { router } from 'expo-router';
-import Animated, { 
-  useAnimatedScrollHandler,
-  useSharedValue,
-  useAnimatedStyle,
-  interpolate,
+import {
+  Animated,
   Extrapolate,
+  interpolate,
   runOnJS,
   SharedValue,
-} from 'react-native-reanimated';
+  reanimatedAvailable,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from '@/lib/reanimatedSafe';
 import { X } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -37,20 +39,27 @@ function SlideItem({
   ];
 
   const animatedStyle = useAnimatedStyle(() => {
+    if (!reanimatedAvailable) {
+      return {
+        opacity: 1,
+        transform: [{ scale: 1 }, { translateY: 0 }],
+      };
+    }
+
     const scale = interpolate(
       scrollX.value,
       inputRange,
       [0.8, 1, 0.8],
       Extrapolate.CLAMP
     );
-    
+
     const opacity = interpolate(
       scrollX.value,
       inputRange,
       [0.3, 1, 0.3],
       Extrapolate.CLAMP
     );
-    
+
     const translateY = interpolate(
       scrollX.value,
       inputRange,
@@ -93,41 +102,43 @@ function SlideItem({
         </View>
       ) : (
         <View style={styles.slideContent}>
-          <View style={styles.textContainer}>
-            <View style={styles.titleSection}>
-              <Text style={styles.slideTitle}>{slide.title}</Text>
-            </View>
-            
-            {slide.description && (
-              <Text style={styles.slideDescription}>{slide.description}</Text>
-            )}
-          </View>
-
           <View style={styles.imageContainer}>
             {slide.showLogo ? (
-              <Image 
+              <Image
                 source={isDark ? require('@/assets/images/logo-dark.png') : require('@/assets/images/logo-light.png')}
                 style={styles.logoImage}
                 resizeMode="contain"
               />
             ) : slide.rawImage ? (
-              <Image 
-                source={slide.image}
-                style={styles.slideImage}
-                resizeMode="contain"
-              />
+              <View style={[styles.rawImageFrame, isDark && styles.rawImageFrameDark]}>
+                <Image
+                  source={slide.image}
+                  style={styles.slideImageRaw}
+                  resizeMode="contain"
+                />
+              </View>
             ) : (
               <View style={[
                 styles.imageBackground,
-                { backgroundColor: slide.accentColor + '20' }
+                { backgroundColor: slide.accentColor + '20' },
               ]}>
-                <Image 
+                <Image
                   source={slide.image}
                   style={styles.slideImage}
                   resizeMode="contain"
                 />
               </View>
             )}
+          </View>
+
+          <View style={styles.textContainer}>
+            <View style={styles.titleSection}>
+              <Text style={styles.slideTitle}>{slide.title}</Text>
+            </View>
+
+            {slide.description ? (
+              <Text style={styles.slideDescription}>{slide.description}</Text>
+            ) : null}
           </View>
         </View>
       )}
@@ -160,6 +171,10 @@ function PaginationDot({
   ];
 
   const animatedDotStyle = useAnimatedStyle(() => {
+    if (!reanimatedAvailable) {
+      return {};
+    }
+
     const scale = interpolate(
       scrollX.value,
       inputRange,
@@ -180,16 +195,20 @@ function PaginationDot({
     };
   });
 
+  const isActive = index === currentIndex;
+
   return (
     <Animated.View
       style={[
         styles.paginationDot,
         animatedDotStyle,
+        !reanimatedAvailable && {
+          opacity: isActive ? 1 : 0.4,
+          transform: [{ scale: isActive ? 1.2 : 0.8 }],
+        },
         {
-          backgroundColor: index === currentIndex 
-            ? colors.primary
-            : colors.borderSecondary
-        }
+          backgroundColor: isActive ? colors.primary : colors.borderSecondary,
+        },
       ]}
     />
   );
@@ -508,21 +527,44 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   slideContent: {
     flex: 1,
+    width: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
-    maxWidth: 400,
+    justifyContent: 'flex-start',
+    paddingTop: Platform.OS === 'ios' ? 52 : 44,
+    paddingHorizontal: responsive.verticalPadding,
   },
   imageContainer: {
-    marginBottom: responsive.verticalPadding * 0.5,
+    flex: 1,
+    width: '100%',
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: responsive.imageHeight,
   },
   imageBackground: {
     borderRadius: 20,
     padding: responsive.verticalPadding * 0.8,
   },
+  rawImageFrame: {
+    width: '100%',
+    maxWidth: responsive.width * 0.9,
+    borderRadius: 16,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rawImageFrameDark: {
+    backgroundColor: '#F1F5F9',
+    padding: 8,
+  },
   slideImage: {
-    width: responsive.width * 1.55,
-    height: responsive.imageHeight * 1.9,
+    width: responsive.width * 0.88,
+    height: responsive.imageHeight * 1.25,
+    maxHeight: responsive.modalHeight * 0.42,
+  },
+  slideImageRaw: {
+    width: responsive.width * 0.88,
+    height: responsive.imageHeight * 1.35,
+    maxHeight: responsive.modalHeight * 0.44,
   },
   logoImage: {
     width: responsive.width * 0.6,
@@ -564,12 +606,11 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     paddingHorizontal: responsive.verticalPadding,
   },
   titleSection: {
-    marginTop: responsive.verticalPadding * 0.5,
     alignItems: 'center',
-    marginBottom: responsive.verticalPadding * 0.8,
+    marginBottom: responsive.verticalPadding * 0.4,
   },
   slideTitle: {
-    marginTop: 60,
+    marginTop: 0,
     fontWeight: '700',
     fontSize: Platform.OS === 'ios' ? responsive.titleSize : responsive.titleSize * 1,
     lineHeight: Platform.OS === 'ios' ? responsive.titleSize * 1.1 : responsive.titleSize * 1.4,

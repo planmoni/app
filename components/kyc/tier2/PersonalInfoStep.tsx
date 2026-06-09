@@ -12,7 +12,6 @@ import Button from '@/components/Button';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFabKeyboardOffset } from '@/hooks/useFabKeyboardOffset';
 import { BlurView } from 'expo-blur';
-import LocationSearchModal from '@/components/LocationSearchModal';
 import { supabase } from '@/lib/supabase';
 
 interface PersonalInfoStepProps {
@@ -66,6 +65,16 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
   
   // Location search
   const [showLocationSearch, setShowLocationSearch] = useState(false);
+  const [LocationSearchModalComponent, setLocationSearchModalComponent] =
+    useState<React.ComponentType<any> | null>(null);
+
+  useEffect(() => {
+    if (showLocationSearch && !LocationSearchModalComponent) {
+      import('@/components/LocationSearchModal').then((module) => {
+        setLocationSearchModalComponent(() => module.default);
+      });
+    }
+  }, [showLocationSearch, LocationSearchModalComponent]);
   
   // Errors
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -982,11 +991,13 @@ export default function PersonalInfoStep({ onComplete }: PersonalInfoStepProps) 
       </Modal>
 
       {/* Location Search Modal */}
-      <LocationSearchModal
-        visible={showLocationSearch}
-        onClose={() => setShowLocationSearch(false)}
-        onSelectLocation={handleLocationSelect}
-      />
+      {showLocationSearch && LocationSearchModalComponent && (
+        <LocationSearchModalComponent
+          visible={showLocationSearch}
+          onClose={() => setShowLocationSearch(false)}
+          onSelectLocation={handleLocationSelect}
+        />
+      )}
     </View>
   );
 }

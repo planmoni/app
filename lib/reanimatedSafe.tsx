@@ -14,33 +14,66 @@ const AnimatedView = ({ entering, exiting, layout, ...props }: any) => (
 );
 const AnimatedScrollView = (props: any) => <ScrollView {...props} />;
 
+const createAnimatedComponent = (Component: React.ComponentType<any>) => Component;
+
 let reanimatedAvailable = false;
 
-let Animated: any = { View: AnimatedView, ScrollView: AnimatedScrollView };
+let Animated: any = {
+  View: AnimatedView,
+  ScrollView: AnimatedScrollView,
+  createAnimatedComponent,
+};
 let FadeIn: any = enteringStub;
+let FadeInDown: any = enteringStub;
 let FadeOut: any = enteringStub;
 let Layout: any = enteringStub;
+let Easing: any = {
+  linear: (t: number) => t,
+  ease: (t: number) => t,
+  out: (fn: (t: number) => number) => fn,
+};
 let useSharedValue = <T,>(init: T): SharedValue<T> => ({ value: init });
 let useAnimatedScrollHandler = () => () => {};
 let useAnimatedStyle = (factory: () => Record<string, unknown>) => factory();
+let useAnimatedProps = (factory: () => Record<string, unknown>) => factory();
+let useAnimatedReaction = () => {};
+let withTiming: any = (value: unknown) => value;
+let cancelAnimation: any = () => {};
+let runOnJS = <T extends (...args: any[]) => any>(fn: T) => fn;
+let Extrapolate = { CLAMP: 'clamp', EXTEND: 'extend', IDENTITY: 'identity' };
 let interpolate = (
   value: number,
   input: number[],
   output: number[],
-  _extrapolate?: string
+  extrapolate?: string
 ) => {
-  if (input.length < 2 || output.length < 2) return output[0] ?? value;
-  const minIn = input[0];
-  const maxIn = input[input.length - 1];
-  if (maxIn === minIn) return output[0];
-  const t = Math.min(1, Math.max(0, (value - minIn) / (maxIn - minIn)));
-  return output[0] + t * (output[output.length - 1] - output[0]);
+  if (input.length === 0 || output.length === 0) return value;
+  if (input.length !== output.length) return output[0];
+
+  const clamp =
+    extrapolate === 'clamp' ||
+    extrapolate === Extrapolate.CLAMP ||
+    extrapolate === undefined;
+
+  if (value <= input[0]) {
+    return clamp ? output[0] : output[0];
+  }
+  if (value >= input[input.length - 1]) {
+    return clamp ? output[output.length - 1] : output[output.length - 1];
+  }
+
+  for (let i = 0; i < input.length - 1; i++) {
+    if (value >= input[i] && value <= input[i + 1]) {
+      const range = input[i + 1] - input[i];
+      if (range === 0) return output[i];
+      const t = (value - input[i]) / range;
+      return output[i] + t * (output[i + 1] - output[i]);
+    }
+  }
+
+  return output[0];
 };
 
-// TurboModule mismatches throw fatal HostFunction errors that JS try/catch cannot
-// intercept. Only load react-native-reanimated when explicitly enabled for a
-// matching native build (set EXPO_PUBLIC_USE_REANIMATED=true in .env after
-// installing a new dev client, or via eas.json for EAS builds).
 const nativeModulesEnabled =
   process.env.EXPO_PUBLIC_NATIVE_MODULES_SYNCED === 'true' ||
   process.env.EXPO_PUBLIC_USE_REANIMATED === 'true';
@@ -50,24 +83,40 @@ if (nativeModulesEnabled) {
   if (reanimated?.default) {
     Animated = reanimated.default;
     FadeIn = reanimated.FadeIn;
+    FadeInDown = reanimated.FadeInDown;
     FadeOut = reanimated.FadeOut;
     Layout = reanimated.Layout;
+    Easing = reanimated.Easing;
     useSharedValue = reanimated.useSharedValue;
     useAnimatedScrollHandler = reanimated.useAnimatedScrollHandler;
     useAnimatedStyle = reanimated.useAnimatedStyle;
+    useAnimatedProps = reanimated.useAnimatedProps;
+    useAnimatedReaction = reanimated.useAnimatedReaction;
+    withTiming = reanimated.withTiming;
+    cancelAnimation = reanimated.cancelAnimation;
     interpolate = reanimated.interpolate;
+    runOnJS = reanimated.runOnJS;
+    Extrapolate = reanimated.Extrapolate;
     reanimatedAvailable = true;
   }
 }
 
 export {
   Animated,
+  cancelAnimation,
+  Easing,
+  Extrapolate,
   FadeIn,
+  FadeInDown,
   FadeOut,
-  Layout,
   interpolate,
+  Layout,
   reanimatedAvailable,
+  runOnJS,
+  useAnimatedProps,
+  useAnimatedReaction,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withTiming,
 };

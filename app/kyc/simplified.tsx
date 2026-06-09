@@ -19,7 +19,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { supabase } from '@/lib/supabase';
-import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 import { verifyBVNWithFaceMatch, validateBVN } from '@/utils/kyc-verification';
 import { useHaptics } from '@/hooks/useHaptics';
 
@@ -34,6 +33,16 @@ export default function SimplifiedKYCScreen() {
 
   const [currentStep, setCurrentStep] = useState<Step>('liveness');
   const [showLivenessTest, setShowLivenessTest] = useState(false);
+  const [LivenessTestComponent, setLivenessTestComponent] =
+    useState<React.ComponentType<any> | null>(null);
+
+  useEffect(() => {
+    if (showLivenessTest && !LivenessTestComponent) {
+      import('@/components/LivenessTestEnhanced').then((module) => {
+        setLivenessTestComponent(() => module.default);
+      });
+    }
+  }, [showLivenessTest, LivenessTestComponent]);
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const [bvn, setBvn] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -405,11 +414,13 @@ export default function SimplifiedKYCScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <LivenessTestEnhanced
-        isVisible={showLivenessTest}
-        onClose={handleLivenessClose}
-        onComplete={handleLivenessComplete}
-      />
+      {showLivenessTest && LivenessTestComponent && (
+        <LivenessTestComponent
+          isVisible={showLivenessTest}
+          onClose={handleLivenessClose}
+          onComplete={handleLivenessComplete}
+        />
+      )}
     </SafeAreaView>
   );
 }

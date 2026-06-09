@@ -14,7 +14,7 @@ import { Image } from 'react-native';
 // FastImage may not be available in all environments; cast to any for static usage and JSX
 const FastImage: any = FastImageImport;
 import { router } from 'expo-router';
-import { useSharedValue, useAnimatedReaction } from 'react-native-reanimated';
+import { useAnimatedReaction, useSharedValue } from '@/lib/reanimatedSafe';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import PaginationDot from './PaginationDot';

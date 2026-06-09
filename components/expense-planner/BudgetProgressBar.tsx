@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
-import Animated, { useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
+import { Animated, Easing, useAnimatedStyle, withTiming } from '@/lib/reanimatedSafe';
 import { BucketProgressStatus } from '@/types/expense-planner';
 
 interface SpendingPlanProgressBarProps {

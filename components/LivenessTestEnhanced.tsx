@@ -11,13 +11,14 @@ import {
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { X } from "lucide-react-native";
-import Animated, {
-  useSharedValue,
-  useAnimatedProps,
-  withTiming,
+import {
+  Animated,
   cancelAnimation,
   Easing,
-} from "react-native-reanimated";
+  useAnimatedProps,
+  useSharedValue,
+  withTiming,
+} from '@/lib/reanimatedSafe';
 import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";

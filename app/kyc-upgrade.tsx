@@ -10,12 +10,10 @@ import FloatingButton from '@/components/FloatingButton';
 import { useAuth } from '@/contexts/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
 import { Linking } from 'react-native';
-import LocationSearchModal from '@/components/LocationSearchModal';
 import { useKYCData } from '@/hooks/useKYCData';
 import { useKYCProgress, KYCStep } from '@/hooks/useKYCProgress';
 import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
-import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 import { safeHavenService } from '@/lib/safehaven-service';
 
 type IdentityType = 'bvn' | 'nin' | 'passport';
@@ -145,6 +143,26 @@ export default function KYCUpgradeScreen() {
   
   // Location search
   const [showLocationSearch, setShowLocationSearch] = useState(false);
+  const [LocationSearchModalComponent, setLocationSearchModalComponent] =
+    useState<React.ComponentType<any> | null>(null);
+  const [LivenessTestComponent, setLivenessTestComponent] =
+    useState<React.ComponentType<any> | null>(null);
+
+  useEffect(() => {
+    if (showLocationSearch && !LocationSearchModalComponent) {
+      import('@/components/LocationSearchModal').then((module) => {
+        setLocationSearchModalComponent(() => module.default);
+      });
+    }
+  }, [showLocationSearch, LocationSearchModalComponent]);
+
+  useEffect(() => {
+    if (showLivenessTest && !LivenessTestComponent) {
+      import('@/components/LivenessTestEnhanced').then((module) => {
+        setLivenessTestComponent(() => module.default);
+      });
+    }
+  }, [showLivenessTest, LivenessTestComponent]);
   const [addressLat, setAddressLat] = useState('');
   const [addressLon, setAddressLon] = useState('');
   const [addressPlaceId, setAddressPlaceId] = useState('');
@@ -4996,19 +5014,22 @@ export default function KYCUpgradeScreen() {
       
       {renderDatePickerModal()}
       
-      <LocationSearchModal
-        visible={showLocationSearch}
-        onClose={() => setShowLocationSearch(false)}
-        onSelectLocation={handleLocationSelect}
-        placeholder="Search for your address..."
-      />
-      
-      
-      <LivenessTestEnhanced 
-        isVisible={showLivenessTest}
-        onClose={handleLivenessClose}
-        onComplete={handleLivenessComplete}
-      />
+      {showLocationSearch && LocationSearchModalComponent && (
+        <LocationSearchModalComponent
+          visible={showLocationSearch}
+          onClose={() => setShowLocationSearch(false)}
+          onSelectLocation={handleLocationSelect}
+          placeholder="Search for your address..."
+        />
+      )}
+
+      {showLivenessTest && LivenessTestComponent && (
+        <LivenessTestComponent
+          isVisible={showLivenessTest}
+          onClose={handleLivenessClose}
+          onComplete={handleLivenessComplete}
+        />
+      )}
     </SafeAreaView>
   );
 }
