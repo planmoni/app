@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
+import {
+  Animated,
   interpolate,
   SharedValue,
-} from 'react-native-reanimated';
+  useAnimatedStyle,
+} from '@/lib/reanimatedSafe';
 
 interface PaginationDotProps {
   index: number;

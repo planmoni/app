@@ -25,6 +25,14 @@ export function useRealtimeTransactions() {
   const { session } = useAuth();
 
   const fetchTransactions = useCallback(async (limit = 50) => {
+    const userId = session?.user?.id;
+    if (!userId) {
+      setTransactions([]);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
     try {
       setError(null);
       const { data, error: fetchError } = await supabase
@@ -39,7 +47,7 @@ export function useRealtimeTransactions() {
             account_number
           )
         `)
-        .eq('user_id', session!.user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(limit);
 

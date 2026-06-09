@@ -12,7 +12,11 @@ import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import KYCCard from '@/components/KYCCard';
-import ImageCarousel from '@/components/ImageCarousel';
+const ImageCarousel = React.lazy(() =>
+  import('@/components/ImageCarousel').then((module) => ({
+    default: module.default ?? (() => null),
+  }))
+);
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 import { router, useGlobalSearchParams, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
@@ -423,15 +427,6 @@ export default function HomeScreen() {
     if (activeBalanceTab !== 'plans' || !session?.user?.id) return;
     void trackLifecycleEvent(LifecycleEventName.VAULT_FLOW_OPENED, { source: 'home_balance_tab' });
   }, [activeBalanceTab, session?.user?.id]);
-
-  // Pre-load WelcomeModal immediately for faster launch (especially for unauthenticated users)
-  useEffect(() => {
-    if (!WelcomeModalComponent) {
-      import('@/components/WelcomeModal').then(module => {
-        setWelcomeModalComponent(() => module.default);
-      });
-    }
-  }, [WelcomeModalComponent]);
 
   // Load TransactionModal when needed
   useEffect(() => {
@@ -1740,7 +1735,9 @@ export default function HomeScreen() {
               <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
               
 
-              <ImageCarousel images={carouselImages} />
+              <Suspense fallback={<View style={styles.carouselPlaceholder} />}>
+                <ImageCarousel images={carouselImages} />
+              </Suspense>
 
               <QuickPlans onRequireAuth={ensureAuthenticatedOrWelcome} />
 
@@ -2108,6 +2105,10 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   contentContainer: {
     paddingHorizontal: 16,
+  },
+  carouselPlaceholder: {
+    height: 130,
+    marginBottom: 8,
   },
   gradientContainer: {
     paddingHorizontal: 16,

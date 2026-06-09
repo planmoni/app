@@ -13,7 +13,11 @@
     "web": "npx expo start --web",
     "lint": "expo lint",
     "prebuild": "node scripts/preserve-native-assets.js backup && npx expo prebuild --clean && node scripts/preserve-native-assets.js restore",
+    "prebuild:android": "node scripts/preserve-native-assets.js backup && npx expo prebuild --platform android --clean && node scripts/preserve-native-assets.js restore",
     "prebuild:ios": "node scripts/preserve-native-assets.js backup && npx expo prebuild --platform ios --clean && node scripts/preserve-native-assets.js restore && cd ios && pod install",
+    "android:clean": "cd android && ./gradlew clean",
+    "validate:deps": "npx expo install --check && npx expo-doctor",
+    "validate:android-startup": "node scripts/validate-android-startup.js",
     "version:increment": "node scripts/increment-version.js",
     "deploy:staging": "node scripts/deploy-staging.js",
     "deploy:staging:db": "export $(cat .env.staging | grep -v '^#' | xargs) && supabase db push --project-ref $SUPABASE_STAGING_PROJECT_REF",
@@ -97,7 +101,6 @@
     "react-native-web": "^0.21.0",
     "react-native-webview": "13.15.0",
     "react-native-worklets": "0.5.1",
-    "react-native-worklets-core": "^1.6.2",
     "resend": "^4.6.0"
   },
   "devDependencies": {

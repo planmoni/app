@@ -13,7 +13,7 @@ module.exports = {
     updates: {
       url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83"
     },
-    runtimeVersion: "1.3.7",
+    runtimeVersion: "1.4.0",
     android: {
       package: "com.planmoni.app", // ← choose your unique package name
       intentFilters: [

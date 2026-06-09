@@ -6,12 +6,14 @@
   "build": {
     "base": {
       "env": {
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_USE_REANIMATED": "true"
       }
     },
     "development": {
       "extends": "base",
       "developmentClient": true,
+      "channel": "development",
       "distribution": "internal",
       "android": {
         "gradleCommand": ":app:assembleDebug",

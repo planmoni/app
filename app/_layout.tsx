@@ -439,11 +439,22 @@ function RootLayoutNav() {
         
         if (update.isAvailable) {
           const availableManifest = update.manifest as { id?: string; createdAt?: string; runtimeVersion?: string } | undefined;
+          const manifestRuntime = availableManifest?.runtimeVersion;
+
           console.log('✅ Update available!', {
             manifest: availableManifest?.id || 'N/A',
             createdAt: availableManifest?.createdAt || 'N/A',
-            runtimeVersion: availableManifest?.runtimeVersion || 'N/A',
+            runtimeVersion: manifestRuntime || 'N/A',
           });
+
+          if (manifestRuntime && runtimeVersion && manifestRuntime !== runtimeVersion) {
+            console.warn('Skipping OTA download: runtimeVersion mismatch', {
+              app: runtimeVersion,
+              update: manifestRuntime,
+            });
+            isChecking = false;
+            return;
+          }
           
           // Download the update in the background
           const fetchResult = await Updates.fetchUpdateAsync();

@@ -25,18 +25,23 @@ function log(message, color = 'reset') {
 async function checkConfiguration() {
   log('\n📋 Checking EAS Update Configuration...\n', 'cyan');
   
-  // Check app.json
+  const appConfigPath = path.join(__dirname, '..', 'app.config.js');
+  const appConfig = require(appConfigPath);
+  const configRuntime = appConfig?.expo?.runtimeVersion;
+  log('✅ app.config.js (source of truth)', 'green');
+  log(`   Runtime Version: ${configRuntime || 'NOT SET'}`, configRuntime ? 'green' : 'red');
+  log(`   Update URL: ${appConfig?.expo?.updates?.url || 'NOT SET'}`,
+    appConfig?.expo?.updates?.url ? 'green' : 'red');
+
   const appJsonPath = path.join(__dirname, '..', 'app.json');
   if (fs.existsSync(appJsonPath)) {
     const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
-    log('✅ app.json found', 'green');
-    log(`   Runtime Version: ${appJson.expo.runtimeVersion || 'NOT SET'}`, 
-        appJson.expo.runtimeVersion ? 'green' : 'red');
-    log(`   Update URL: ${appJson.expo.updates?.url || 'NOT SET'}`, 
-        appJson.expo.updates?.url ? 'green' : 'red');
-    log(`   Check Automatically: ${appJson.expo.updates?.checkAutomatically || 'NOT SET'}`);
-  } else {
-    log('❌ app.json not found', 'red');
+    const jsonRuntime = appJson.expo?.runtimeVersion;
+    if (jsonRuntime && jsonRuntime !== configRuntime) {
+      log(`   ⚠️  app.json runtimeVersion (${jsonRuntime}) differs from app.config.js (${configRuntime})`, 'yellow');
+    } else if (jsonRuntime) {
+      log(`   app.json runtimeVersion in sync (${jsonRuntime})`, 'green');
+    }
   }
   
   // Check eas.json
@@ -105,7 +110,7 @@ async function main() {
   await checkRecentBuilds();
   
   log('\n💡 Troubleshooting Tips:', 'yellow');
-  log('   1. Ensure runtime version in app.json matches the runtime version of your build', 'yellow');
+  log('   1. Ensure runtime version in app.config.js matches your native build', 'yellow');
   log('   2. Verify updates are published to the same branch/channel as your build', 'yellow');
   log('   3. Users must fully close and restart the app to receive updates', 'yellow');
   log('   4. Check device logs for update check messages', 'yellow');

@@ -1,6 +1,5 @@
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import { router } from 'expo-router';
-import { useAppLock } from '@/contexts/AppLockContext';
 
 // Global navigation token to prevent race conditions
 let globalNavigationToken: string | null = null;
@@ -10,8 +9,6 @@ let globalNavigationToken: string | null = null;
  * This solves the issue where router.push('/(tabs)') triggers biometric authentication
  */
 export function useSafeNavigation() {
-  const { setLastActivePage } = useAppLock();
-
   /**
    * Navigate to home screen without triggering app state changes
    * This method temporarily disables app lock checks during navigation

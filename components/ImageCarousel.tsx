@@ -11,10 +11,11 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import Animated, {
-  useSharedValue,
+import {
+  Animated,
   useAnimatedScrollHandler,
-} from 'react-native-reanimated';
+  useSharedValue,
+} from '@/lib/reanimatedSafe';
 import { useTheme } from '@/contexts/ThemeContext';
 import PaginationDot from './PaginationDot';
 import { supabase } from '@/lib/supabase';

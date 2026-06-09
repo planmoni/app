@@ -21,7 +21,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { Send, Sparkles, ArrowRight, Wallet, TrendingUp, Calendar, Clock, X, AlertTriangle } from 'lucide-react-native';
-import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { getOpenAIChatCompletion, testOpenAIConnection } from '../../lib/openai';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -32,6 +31,8 @@ import { useCreatePayout } from '@/hooks/useCreatePayout';
 import { formatPayoutFrequency, getDayOfWeekName } from '@/lib/formatters';
 import { useBanks } from '@/hooks/useBanks';
 import { getBankIconLogo } from '@/lib/bankIcons';
+
+import { Animated, FadeIn, FadeOut, Layout } from '@/lib/reanimatedSafe';
 
 // Define message types
 type MessageType = 'text' | 'plan' | 'insight';

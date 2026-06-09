@@ -145,15 +145,33 @@ export function useSupabaseAuth() {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Authentication initialization failed';
         console.error('❌ Error during auth initialization:', err);
-        setError(message);
-        // Treat initialization exceptions as fatal startup errors so the layout
-        // can render a blocking fallback. This avoids leaving the app in a
-        // partially-initialized state.
-        try {
-          setAppError(message, true);
-        } catch (e) {
-          // If AppError context is not available for any reason, just log.
-          console.warn('useSupabaseAuth: failed to report fatal app error', e);
+        const isRecoverableAuthError =
+          message.includes('Invalid Refresh Token') ||
+          message.includes('Refresh Token Not Found') ||
+          message.includes('JWT expired') ||
+          message.includes('AuthSessionMissingError') ||
+          message.includes('session missing');
+
+        if (isRecoverableAuthError) {
+          // Expected stale-session path after app reinstalls/device restores.
+          // Clear persisted auth and continue to unauthenticated app state.
+          try {
+            await clearSession();
+          } catch (clearErr) {
+            console.warn('useSupabaseAuth: failed to clear stale session', clearErr);
+          }
+          if (mounted) {
+            setSession(null);
+            setError(null);
+          }
+        } else {
+          setError(message);
+          // Keep fatal fallback for unexpected initialization failures.
+          try {
+            setAppError(message, true);
+          } catch (e) {
+            console.warn('useSupabaseAuth: failed to report fatal app error', e);
+          }
         }
       } finally {
         if (mounted) {
