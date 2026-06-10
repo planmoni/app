@@ -474,15 +474,15 @@ export default function LivenessTestEnhanced({
         {/* Hold Button */}
         {!capturedImage && canUseCamera && (
           <View style={styles.holdButtonContainer}>
-            <Pressable
+            <View
               style={[
                 styles.holdButton,
                 { backgroundColor: isHolding ? colors.accent : colors.primary},
                 isHolding && styles.holdButtonActive
               ]}
-              onPressIn={handleHoldStart}
-              onPressOut={handleHoldEnd}
-              disabled={isHolding && !capturedImage}
+              onTouchStart={handleHoldStart}
+              onTouchEnd={handleHoldEnd}
+              onTouchCancel={handleHoldEnd}
             >
               <Text style={[
                 styles.holdButtonText,
@@ -490,7 +490,7 @@ export default function LivenessTestEnhanced({
               ]}>
                 {isHolding ? 'Keep Holding...' : 'Press & Hold to Capture'}
               </Text>
-            </Pressable>
+            </View>
           </View>
         )}
 
@@ -635,7 +635,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   holdButtonActive: {
     borderColor: colors.primary,
-    transform: [{ scale: 1.05 }],
   },
   holdButtonText: {
     fontSize: 17,

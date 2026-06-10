@@ -68,22 +68,53 @@ if (Platform.OS !== 'web') {
   SecureStore = require('expo-secure-store');
 }
 
+// AsyncStorage fallback for when the keychain is unavailable (e.g. dev builds
+// missing the keychain-access-groups entitlement on iOS).
+let AsyncStorage: any = null;
+try {
+  AsyncStorage = require('@react-native-async-storage/async-storage').default;
+} catch (_) {
+  AsyncStorage = null;
+}
+
+// Once the keychain rejects with an entitlement error, every subsequent call
+// will fail too. Cache that fact so startup doesn't pay for repeated slow,
+// doomed native round-trips.
+let secureStoreBroken = false;
+
+function isEntitlementError(error: any): boolean {
+  const message = String(error?.message || error || '');
+  return message.includes('entitlement') || message.includes('errSecMissingEntitlement');
+}
+
+const FALLBACK_PREFIX = 'secure_fallback_';
+
 /**
  * Save an item to secure storage
  */
 export async function saveItem(key: string, value: string): Promise<void> {
-  try {
-    if (Platform.OS === 'web') {
-      // Use web storage for web platform
-      await webStorage.setItem(key, value);
+  if (Platform.OS === 'web') {
+    await webStorage.setItem(key, value);
+    return;
+  }
+
+  if (!secureStoreBroken) {
+    try {
+      await SecureStore.setItemAsync(key, value);
       return;
+    } catch (error) {
+      if (isEntitlementError(error)) {
+        secureStoreBroken = true;
+        console.warn('SecureStore unavailable (entitlement missing); falling back to AsyncStorage');
+      } else {
+        console.error(`Error saving item to secure storage: ${key}`, error);
+        throw error;
+      }
     }
-    
-    // Use SecureStore for native platforms
-    await SecureStore.setItemAsync(key, value);
-  } catch (error) {
-    console.error(`Error saving item to secure storage: ${key}`, error);
-    throw error;
+  }
+
+  if (AsyncStorage) {
+    await AsyncStorage.setItem(`${FALLBACK_PREFIX}${key}`, value);
   }
 }
 
@@ -91,35 +122,60 @@ export async function saveItem(key: string, value: string): Promise<void> {
  * Get an item from secure storage
  */
 export async function getItem(key: string): Promise<string | null> {
-  try {
-    if (Platform.OS === 'web') {
-      // Use web storage for web platform
-      return await webStorage.getItem(key);
-    }
-    
-    // Use SecureStore for native platforms
-    return await SecureStore.getItemAsync(key);
-  } catch (error) {
-    console.error(`Error getting item from secure storage: ${key}`, error);
-    return null;
+  if (Platform.OS === 'web') {
+    return await webStorage.getItem(key);
   }
+
+  if (!secureStoreBroken) {
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch (error) {
+      if (isEntitlementError(error)) {
+        secureStoreBroken = true;
+        console.warn('SecureStore unavailable (entitlement missing); falling back to AsyncStorage');
+      } else {
+        console.error(`Error getting item from secure storage: ${key}`, error);
+        return null;
+      }
+    }
+  }
+
+  if (AsyncStorage) {
+    try {
+      return await AsyncStorage.getItem(`${FALLBACK_PREFIX}${key}`);
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
 }
 
 /**
  * Delete an item from secure storage
  */
 export async function deleteItem(key: string): Promise<void> {
-  try {
-    if (Platform.OS === 'web') {
-      // Use web storage for web platform
-      await webStorage.deleteItem(key);
-      return;
+  if (Platform.OS === 'web') {
+    await webStorage.deleteItem(key);
+    return;
+  }
+
+  if (!secureStoreBroken) {
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch (error) {
+      if (isEntitlementError(error)) {
+        secureStoreBroken = true;
+        console.warn('SecureStore unavailable (entitlement missing); falling back to AsyncStorage');
+      } else {
+        console.error(`Error deleting item from secure storage: ${key}`, error);
+        throw error;
+      }
     }
-    
-    // Use SecureStore for native platforms
-    await SecureStore.deleteItemAsync(key);
-  } catch (error) {
-    console.error(`Error deleting item from secure storage: ${key}`, error);
-    throw error;
+  }
+
+  if (AsyncStorage) {
+    try {
+      await AsyncStorage.removeItem(`${FALLBACK_PREFIX}${key}`);
+    } catch (_) {}
   }
 }

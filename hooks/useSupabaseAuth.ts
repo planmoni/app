@@ -27,6 +27,16 @@ export function useSupabaseAuth() {
   useEffect(() => {
     let mounted = true;
 
+    // Safety net: if session restore hangs (e.g. a token-refresh network call
+    // that never resolves), release the splash screen anyway. Auth state will
+    // settle in the background via onAuthStateChange.
+    const loadingGuard = setTimeout(() => {
+      if (mounted) {
+        console.warn('⚠️ Auth initialization exceeded 6s, releasing loading state');
+        setIsLoading(false);
+      }
+    }, 6000);
+
     const initializeAuth = async () => {
       try {
         console.log('🔐 Initializing auth session...');
@@ -174,6 +184,7 @@ export function useSupabaseAuth() {
           }
         }
       } finally {
+        clearTimeout(loadingGuard);
         if (mounted) {
           setIsLoading(false);
         }
@@ -355,6 +366,7 @@ export function useSupabaseAuth() {
 
     return () => {
       mounted = false;
+      clearTimeout(loadingGuard);
       subscription.unsubscribe();
       validationCleanup();
     };

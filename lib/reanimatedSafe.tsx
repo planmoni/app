@@ -32,7 +32,11 @@ let Easing: any = {
   ease: (t: number) => t,
   out: (fn: (t: number) => number) => fn,
 };
-let useSharedValue = <T,>(init: T): SharedValue<T> => ({ value: init });
+// Must return a stable object across renders like the real hook; a fresh
+// object each render breaks every useCallback/useEffect that depends on it.
+let useSharedValue = <T,>(init: T): SharedValue<T> => {
+  return React.useRef<SharedValue<T>>({ value: init }).current;
+};
 let useAnimatedScrollHandler = () => () => {};
 let useAnimatedStyle = (factory: () => Record<string, unknown>) => factory();
 let useAnimatedProps = (factory: () => Record<string, unknown>) => factory();

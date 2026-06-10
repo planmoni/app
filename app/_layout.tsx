@@ -554,7 +554,7 @@ function RootLayoutNav() {
           hasInitializedRef.current = true;
           setIsInitializing(false);
         }
-      }, 12000);
+      }, 8000);
     }
 
     const fontsReady = fontsLoaded || fontError;
