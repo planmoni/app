@@ -7,6 +7,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { inAppNotificationService } from '@/lib/in-app-notifications';
 import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee-calculator';
 import { PLAN_CREATION_FEE_PERCENT } from '@/types/payout-fees';
+import { buildCustomDateTimesMap, buildDateTimeISO, parseTimeString, formatTimeString } from '@/lib/payout-time';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
@@ -176,7 +177,16 @@ export function useCreatePayout() {
         // Do not add another quarter / half-year / year here or next_payout_date lands one full interval too late.
       }
 
-      const nextPayoutDateStr = nextPayoutDate.toISOString();
+      let nextPayoutDateStr = nextPayoutDate.toISOString();
+
+      const resolvedCustomDateTimes =
+        dbFrequency === 'custom' && customDates?.length
+          ? buildCustomDateTimesMap(customDates, customDateTimes)
+          : undefined;
+
+      if (resolvedCustomDateTimes && customDates?.length) {
+        nextPayoutDateStr = buildDateTimeISO(customDates[0], resolvedCustomDateTimes[customDates[0]]);
+      }
 
       // Store the original frequency in the description for display purposes
       const enhancedDescription = description || "";
@@ -262,10 +272,7 @@ export function useCreatePayout() {
             status: "active",
             completed_payouts: 0,
             emergency_withdrawal_enabled: emergencyWithdrawalEnabled,
-            next_payout_date:
-              dbFrequency === "custom" && customDates?.length
-                ? customDates[0]
-                : nextPayoutDateStr,
+            next_payout_date: nextPayoutDateStr,
             metadata: metadata,
             fee_percentage: PLAN_CREATION_FEE_PERCENT,
             fee_amount: feeAmount,
@@ -345,13 +352,10 @@ export function useCreatePayout() {
       }
 
       // 📆 Insert custom dates if needed (with per-date amount and time)
-      if (dbFrequency === "custom" && customDates?.length) {
+      if (dbFrequency === "custom" && customDates?.length && resolvedCustomDateTimes) {
         const datesToInsert = customDates.map((date) => {
-          const timeStr = customDateTimes?.[date] || '12:00';
-          const [h, m] = timeStr.split(':').map(Number);
-          const hour = (isNaN(h) ? 12 : h % 24).toString().padStart(2, '0');
-          const minute = (isNaN(m) ? 0 : m % 60).toString().padStart(2, '0');
-          const payoutTime = `${hour}:${minute}:00`;
+          const { hour: h, minute: m } = parseTimeString(resolvedCustomDateTimes[date]);
+          const payoutTime = `${formatTimeString(h, m)}:00`;
 
           const baseRecord: any = {
             payout_plan_id: payoutPlan.id,
@@ -379,24 +383,6 @@ export function useCreatePayout() {
           throw datesError;
         }
 
-        // Set next_payout_date to first date + first time (trigger runs before rows exist, so we set it here)
-        const firstDate = customDates[0];
-        const firstTime = customDateTimes?.[firstDate] || '12:00';
-        const [fh, fm] = firstTime.split(':').map(Number);
-        const firstHour = isNaN(fh) ? 12 : fh % 24;
-        const firstMinute = isNaN(fm) ? 0 : fm % 60;
-        const firstDateTime = new Date(firstDate);
-        firstDateTime.setHours(firstHour, firstMinute, 0, 0);
-        const firstPayoutDateStr = firstDateTime.toISOString();
-
-        const { error: updateError } = await supabase
-          .from("payout_plans")
-          .update({ next_payout_date: firstPayoutDateStr })
-          .eq("id", payoutPlan.id);
-
-        if (updateError) {
-          console.error("Error setting initial next_payout_date for custom plan:", updateError);
-        }
       }
 
       // 📣 Create event (this will be displayed as an in-app notification on the notifications page)

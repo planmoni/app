@@ -22,6 +22,7 @@ import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee
 import type { PayoutFeeResult } from '@/lib/payout-fee-calculator';
 import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
 import { LifecycleEventName } from '@/lib/lifecycleEvents';
+import { buildCustomDateTimesMap } from '@/lib/payout-time';
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -54,7 +55,11 @@ export default function ReviewScreen() {
   const emergencyWithdrawal = params.emergencyWithdrawal !== 'false'; // Default to true
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
   const customDateAmounts = params.customDateAmounts ? JSON.parse(params.customDateAmounts as string) : {};
-  const customDateTimes = params.customDateTimes ? JSON.parse(params.customDateTimes as string) : {};
+  const customDateTimesRaw = params.customDateTimes ? JSON.parse(params.customDateTimes as string) : {};
+  const customDateTimes =
+    frequency === 'custom' && customDates.length > 0
+      ? buildCustomDateTimesMap(customDates, customDateTimesRaw)
+      : customDateTimesRaw;
   const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
   const payoutHour = params.payoutHour ? parseInt(params.payoutHour as string) : undefined;
   const payoutMinute = params.payoutMinute ? parseInt(params.payoutMinute as string) : undefined;
@@ -165,7 +170,12 @@ export default function ReviewScreen() {
         payoutAccountId: payoutAccountId || null,
         customDates,
         customDateAmounts: Object.keys(customDateAmounts).length > 0 ? customDateAmounts : undefined,
-        customDateTimes: Object.keys(customDateTimes).length > 0 ? customDateTimes : undefined,
+        customDateTimes:
+          frequency === 'custom' && customDates.length > 0
+            ? customDateTimes
+            : Object.keys(customDateTimes).length > 0
+              ? customDateTimes
+              : undefined,
         emergencyWithdrawalEnabled: emergencyWithdrawal,
         payoutHour: payoutHour,
         payoutMinute: payoutMinute,

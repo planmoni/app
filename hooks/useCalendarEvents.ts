@@ -175,16 +175,23 @@ export function useCalendarEvents() {
               // For custom frequency, fetch custom payout dates
               const { data: customDates } = await supabase
                 .from('custom_payout_dates')
-                .select('payout_date')
+                .select('payout_date, payout_time')
                 .eq('payout_plan_id', plan.id)
                 .gte('payout_date', today.toISOString().split('T')[0])
                 .order('payout_date', { ascending: true });
               
               if (customDates) {
                 for (const customDate of customDates) {
-                  const date = new Date(customDate.payout_date);
-                  // Apply the payout time
-                  date.setHours(payoutTime.hours, payoutTime.minutes, 0, 0);
+                  const dateParts = String(customDate.payout_date).split('T')[0].split('-').map(Number);
+                  const [y, m, d] = dateParts;
+                  let hours = payoutTime.hours;
+                  let minutes = payoutTime.minutes;
+                  if (customDate.payout_time) {
+                    const timeParts = String(customDate.payout_time).split(':').map(Number);
+                    if (!isNaN(timeParts[0])) hours = timeParts[0] % 24;
+                    if (!isNaN(timeParts[1])) minutes = timeParts[1] % 60;
+                  }
+                  const date = new Date(y, m - 1, d, hours, minutes, 0, 0);
                   scheduledDates.push(date);
                 }
               }

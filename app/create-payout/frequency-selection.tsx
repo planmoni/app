@@ -19,6 +19,7 @@ import {
   STAMP_DUTY_THRESHOLD_NAIRA,
   TRANSACTION_FEE_NAIRA,
 } from '@/types/payout-fees';
+import { buildCustomDateTimesMap } from '@/lib/payout-time';
 
 type FrequencyOption = {
   value: string;
@@ -75,6 +76,13 @@ function TimePicker({ isVisible, onClose, onSelect, selectedHour, selectedMinute
   const { colors } = useTheme();
   const [hour, setHour] = useState(selectedHour);
   const [minute, setMinute] = useState(selectedMinute);
+
+  useEffect(() => {
+    if (isVisible) {
+      setHour(selectedHour);
+      setMinute(selectedMinute);
+    }
+  }, [isVisible, selectedHour, selectedMinute]);
   
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const minutes = Array.from({ length: 60 }, (_, i) => i);
@@ -544,18 +552,18 @@ export default function FrequencySelectionScreen() {
     try {
       const dates = JSON.parse(params.customDates as string);
       if (!Array.isArray(dates)) return;
-      const initial: Record<string, string> = {};
-      if (params.customDateTimes) {
-        const times = JSON.parse(params.customDateTimes as string);
-        if (times && typeof times === 'object') {
-          dates.forEach((d: string) => { initial[d] = times[d] || '12:00'; });
-        } else {
-          dates.forEach((d: string) => { initial[d] = '12:00'; });
-        }
-      } else {
-        dates.forEach((d: string) => { initial[d] = '12:00'; });
-      }
-      setDateTimes(initial);
+      const times =
+        params.customDateTimes && typeof params.customDateTimes === 'string'
+          ? (() => {
+              try {
+                const parsed = JSON.parse(params.customDateTimes);
+                return parsed && typeof parsed === 'object' ? parsed : {};
+              } catch {
+                return {};
+              }
+            })()
+          : {};
+      setDateTimes(buildCustomDateTimesMap(dates, times));
     } catch (e) {
       console.error('Error parsing customDateTimes/customDates:', e);
     }
@@ -1129,7 +1137,7 @@ export default function FrequencySelectionScreen() {
           emergencyWithdrawal: 'true',
           customDates: JSON.stringify(customDates),
           customDateAmounts: JSON.stringify(dateAmounts), // Pass individual amounts
-          customDateTimes: JSON.stringify(dateTimes),
+          customDateTimes: JSON.stringify(buildCustomDateTimesMap(customDates, dateTimes)),
           dayOfWeek: '',
           payoutHour: selectedHour.toString(),
           payoutMinute: selectedMinute.toString(),
