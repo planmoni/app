@@ -185,7 +185,8 @@ export function useCreatePayout() {
           : undefined;
 
       if (resolvedCustomDateTimes && customDates?.length) {
-        nextPayoutDateStr = buildDateTimeISO(customDates[0], resolvedCustomDateTimes[customDates[0]]);
+        const firstCustomDate = [...customDates].sort()[0];
+        nextPayoutDateStr = buildDateTimeISO(firstCustomDate, resolvedCustomDateTimes[firstCustomDate]);
       }
 
       // Store the original frequency in the description for display purposes

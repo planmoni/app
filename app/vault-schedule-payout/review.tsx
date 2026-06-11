@@ -36,6 +36,7 @@ import PinVerificationModal from '@/components/PinVerificationModal';
 import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee-calculator';
 import type { PayoutFeeResult } from '@/lib/payout-fee-calculator';
 import { useCreateVaultPayoutSchedule } from '@/hooks/useCreateVaultPayoutSchedule';
+import { parseTimeString } from '@/lib/payout-time';
 
 export default function VaultScheduleReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -263,6 +264,14 @@ export default function VaultScheduleReviewScreen() {
       customDates as string[],
       typeof dayOfWeek === 'number' ? dayOfWeek : undefined
     );
+    let schedulePayoutHour = payoutHour;
+    let schedulePayoutMinute = payoutMinute;
+    if (frequency === 'custom' && (customDates as string[]).length > 0) {
+      const firstCustomDate = [...(customDates as string[])].sort()[0];
+      const firstTime = parseTimeString(customDateTimes[firstCustomDate]);
+      schedulePayoutHour = firstTime.hour;
+      schedulePayoutMinute = firstTime.minute;
+    }
     try {
       if (Platform.OS !== 'web') haptics.mediumImpact();
       const result = await createVaultPayoutSchedule({
@@ -275,8 +284,8 @@ export default function VaultScheduleReviewScreen() {
         nextPayoutDate: initialNextPayoutDate,
         dayOfWeek:
           frequency === 'weekly_specific' && typeof dayOfWeek === 'number' ? dayOfWeek : null,
-        payoutHour,
-        payoutMinute,
+        payoutHour: schedulePayoutHour,
+        payoutMinute: schedulePayoutMinute,
         metadata: {
           idempotency_key: idempotencyKeyRef.current,
           customDates,

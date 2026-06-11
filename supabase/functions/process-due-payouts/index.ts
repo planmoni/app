@@ -835,32 +835,37 @@ async function processSinglePayout(plan: any) {
   try {
     const success = isTransferSuccess(transferResult);
     if (success) {
-      const currentCompleted = planCheck.completed_payouts || 0;
-      const newCompleted = currentCompleted + 1;
-      const meta = planCheck.metadata as Record<string, unknown> | undefined;
-      const dayOfWeek = meta != null && typeof meta.dayOfWeek === 'number' ? meta.dayOfWeek : null;
-      const nextDate = computeNextPayoutDateWithTime(
-        planCheck.frequency,
-        planCheck.start_date,
-        newCompleted,
-        dayOfWeek,
-        planCheck.next_payout_date,
-        meta?.payoutHour as number | undefined,
-        meta?.payoutMinute as number | undefined
-      );
-      if (nextDate) {
-        await supabase
-          .from('payout_plans')
-          .update({
-            completed_payouts: newCompleted,
-            next_payout_date: nextDate.toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', plan.plan_id);
-        console.log(`✅ Updated plan ${plan.plan_id} to next date ${nextDate.toISOString()}`);
-      } else {
-        // Fallback to DB function if next date couldn't be computed
+      const frequency = (planCheck.frequency || '').toLowerCase();
+      // Custom schedules store per-date times in custom_payout_dates; DB function reads payout_time per row.
+      if (frequency === 'custom') {
         await updatePayoutPlanProgress(plan.plan_id);
+      } else {
+        const currentCompleted = planCheck.completed_payouts || 0;
+        const newCompleted = currentCompleted + 1;
+        const meta = planCheck.metadata as Record<string, unknown> | undefined;
+        const dayOfWeek = meta != null && typeof meta.dayOfWeek === 'number' ? meta.dayOfWeek : null;
+        const nextDate = computeNextPayoutDateWithTime(
+          planCheck.frequency,
+          planCheck.start_date,
+          newCompleted,
+          dayOfWeek,
+          planCheck.next_payout_date,
+          meta?.payoutHour as number | undefined,
+          meta?.payoutMinute as number | undefined
+        );
+        if (nextDate) {
+          await supabase
+            .from('payout_plans')
+            .update({
+              completed_payouts: newCompleted,
+              next_payout_date: nextDate.toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', plan.plan_id);
+          console.log(`✅ Updated plan ${plan.plan_id} to next date ${nextDate.toISOString()}`);
+        } else {
+          await updatePayoutPlanProgress(plan.plan_id);
+        }
       }
     } else {
       console.log('Transfer not completed; will not advance next_payout_date');
