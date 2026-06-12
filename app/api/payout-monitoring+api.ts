@@ -139,11 +139,9 @@ async function getFailedPayouts() {
 }
 
 async function getPendingPayouts() {
-  const today = new Date().toISOString().split("T")[0];
-
   const { data: pendingPayouts, error } = await supabase.rpc(
     "get_due_payout_plans",
-    { check_date: today }
+    { check_at: new Date().toISOString() }
   );
 
   if (error) {
