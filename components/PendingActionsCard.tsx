@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { ChevronRight, X, Mail, Lock, Fingerprint, CircleAlert as AlertCircle, Clock, ShieldCheck } from 'lucide-react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,6 +11,8 @@ import { useOnlineStatus } from './OnlineStatusProvider';
 import OfflineNotice from './OfflineNotice';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { useAppForeground } from '@/hooks/useAppForeground';
+import { withTimeout } from '@/lib/with-timeout';
 import Tier1Icon from '@/assets/kyc/1.svg';
 import Tier2Icon from '@/assets/kyc/2.svg';
 import Tier3Icon from '@/assets/kyc/3.svg';
@@ -36,6 +38,7 @@ export default function PendingActionsCard() {
   const { textSizeMultiplier } = useTextSize();
   const [profileData, setProfileData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pinWaitTimedOut, setPinWaitTimedOut] = useState(false);
   const { session } = useAuth();
   const { isAuthenticated } = useRequireAuth();
   const { hasAppLockPin, isLoading: pinLoading } = usePin();
@@ -43,45 +46,31 @@ export default function PendingActionsCard() {
   const { isOnline } = useOnlineStatus();
   const { progress, currentTier = 0, getTierInfo } = useKYCProgress();
   const [tierInfo, setTierInfo] = useState<any>(null);
+  const foregroundTick = useAppForeground();
 
-  // Load profile data and tier info from database on mount
-  useEffect(() => {
-    if (session?.user?.id) {
-      fetchProfileData();
-      loadTierInfo();
+  const fetchProfileData = useCallback(async () => {
+    if (!session?.user?.id) {
+      setIsLoading(false);
+      return;
     }
-  }, [session?.user?.id, progress]);
 
-  const loadTierInfo = async () => {
-    if (!isOnline) return;
-    try {
-      const info = await getTierInfo();
-      setTierInfo(info);
-    } catch (error) {
-      console.error('Error loading tier info:', error);
-    }
-  };
-
-  // Get tier-specific pending actions - permanently hidden
-  const getTierPendingActions = (): PendingAction[] => {
-    // KYC Tiers are permanently hidden from PendingActionsCard
-    return [];
-  };
-
-  const fetchProfileData = async () => {
     if (!isOnline) {
       setIsLoading(false);
       return;
     }
-    
+
     try {
       setIsLoading(true);
-      // Modify the query to exclude kyc_tier which doesn't exist yet
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
-        .eq('id', session?.user?.id)
-        .single();
+      const result = await withTimeout(
+        supabase
+          .from('profiles')
+          .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
+          .eq('id', session.user.id)
+          .single(),
+        12000,
+        'Profile fetch'
+      );
+      const { data, error } = result as { data: typeof profileData; error: { message?: string } | null };
 
       if (error) throw error;
       setProfileData(data);
@@ -90,6 +79,46 @@ export default function PendingActionsCard() {
     } finally {
       setIsLoading(false);
     }
+  }, [session?.user?.id, isOnline]);
+
+  const loadTierInfo = useCallback(async () => {
+    if (!isOnline) return;
+    try {
+      const info = await getTierInfo();
+      setTierInfo(info);
+    } catch (error) {
+      console.error('Error loading tier info:', error);
+    }
+  }, [getTierInfo, isOnline]);
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      void fetchProfileData();
+      void loadTierInfo();
+    }
+  }, [session?.user?.id, foregroundTick, fetchProfileData, loadTierInfo]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (session?.user?.id) {
+        void fetchProfileData();
+      }
+    }, [session?.user?.id, fetchProfileData])
+  );
+
+  // Don't block the card forever if PIN state is slow to load (e.g. SecureStore hang).
+  useEffect(() => {
+    if (!pinLoading) {
+      setPinWaitTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => setPinWaitTimedOut(true), 6000);
+    return () => clearTimeout(timer);
+  }, [pinLoading]);
+
+  // Get tier-specific pending actions - permanently hidden
+  const getTierPendingActions = (): PendingAction[] => {
+    return [];
   };
 
   // Get standard pending actions (non-KYC)
@@ -123,8 +152,8 @@ export default function PendingActionsCard() {
       });
     }
 
-    // Only check PIN status if PIN loading is complete
-    if (!pinLoading && !hasAppLockPin) {
+    // Only check PIN status if PIN loading is complete (or timed out)
+    if ((!pinLoading || pinWaitTimedOut) && !hasAppLockPin) {
       actions.push({
         id: 'setup-app-lock',
         title: 'Setup App PIN',
@@ -171,7 +200,7 @@ export default function PendingActionsCard() {
         return !!profileData?.email_verified || !!session?.user?.email_confirmed_at;
       case 'setup-app-lock':
         // Only consider PIN setup completed if PIN loading is done and PIN exists
-        return !pinLoading && hasAppLockPin;
+        return (!pinLoading || pinWaitTimedOut) && hasAppLockPin;
       case 'account-verification':
         return !!profileData?.account_verified;
       case 'setup-2fa':
@@ -213,13 +242,15 @@ export default function PendingActionsCard() {
     return null;
   }
 
+  const pinStatePending = pinLoading && !pinWaitTimedOut;
+
   // Don't render if there are no pending actions and data is loaded (including PIN state)
-  if (!isLoading && !pinLoading && filteredActions.length === 0) {
+  if (!isLoading && !pinStatePending && filteredActions.length === 0) {
     return null;
   }
 
   // Show loading state
-  if (isLoading || pinLoading) {
+  if (isLoading || pinStatePending) {
     return (
       <View>
         <Text style={styles.sectionTitle}>Pending Actions</Text>

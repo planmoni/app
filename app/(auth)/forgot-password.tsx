@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import { router, Link } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Mail, ArrowRight, Check } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/contexts/ToastContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -18,7 +18,6 @@ export default function ForgotPasswordScreen() {
   const haptics = useHaptics();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isEmailSent, setIsEmailSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isButtonEnabled, setIsButtonEnabled] = useState(false);
   const emailInputRef = useRef<TextInput>(null);
@@ -53,17 +52,30 @@ export default function ForgotPasswordScreen() {
     setError(null);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
-        redirectTo: 'planmoni://reset-password',
+      const normalizedEmail = email.toLowerCase().trim();
+      const { data, error } = await supabase.functions.invoke('send-otp-email', {
+        body: {
+          email: normalizedEmail,
+          purpose: 'password_recovery',
+        },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw new Error(error.message || 'Failed to send verification code');
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
       haptics.notification(Haptics.NotificationFeedbackType.Success);
-      setIsEmailSent(true);
-      showToast('Password reset email sent successfully', 'success');
+      router.push({
+        pathname: '/(auth)/forgot-password-reset',
+        params: { email: normalizedEmail },
+      });
     } catch (err) {
       haptics.notification(Haptics.NotificationFeedbackType.Error);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to send reset email';
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send verification code';
       setError(errorMessage);
       showToast(errorMessage, 'error');
     } finally {
@@ -72,61 +84,6 @@ export default function ForgotPasswordScreen() {
   };
 
   const styles = createStyles(colors);
-
-  if (isEmailSent) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Pressable 
-            onPress={() => {
-              haptics.lightImpact();
-              router.replace('/(auth)/login');
-            }} 
-            style={styles.backButton}
-          >
-            <ArrowLeft size={24} color={colors.text} />
-          </Pressable>
-        </View>
-
-        <KeyboardAvoidingWrapper contentContainerStyle={styles.contentContainer}>
-          <View style={styles.successContainer}>
-            <View style={styles.successIcon}>
-              <Check size={32} color={colors.success} />
-            </View>
-            <Text style={styles.successTitle}>Check your email</Text>
-            <Text style={styles.successMessage}>
-              We've sent a password reset link to{'\n'}
-              <Text style={styles.emailText}>{email}</Text>
-            </Text>
-            <Text style={styles.successSubtext}>
-              Click the link in the email to reset your password. If you don't see it, check your spam folder.
-            </Text>
-            
-            <View style={styles.successActions}>
-              <Pressable 
-                onPress={() => {
-                  haptics.lightImpact();
-                  setIsEmailSent(false);
-                }}
-              >
-                <Text style={styles.resendText}>Try a different email</Text>
-              </Pressable>
-            </View>
-          </View>
-        </KeyboardAvoidingWrapper>
-
-        <FloatingButton
-          title="Back to Sign In"
-          onPress={() => {
-            haptics.mediumImpact();
-            router.replace('/(auth)/login');
-          }}
-        />
-        
-        <SafeFooter />
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -147,7 +104,7 @@ export default function ForgotPasswordScreen() {
         <View style={styles.content}>
           <Text style={styles.title}>Forgot Password?</Text>
           <Text style={styles.subtitle}>
-            Enter your email address and we'll send you a link to reset your password.
+            Enter your email address and we'll send you a verification code to reset your password.
           </Text>
 
           <View style={styles.formContainer}>
@@ -195,7 +152,7 @@ export default function ForgotPasswordScreen() {
       </KeyboardAvoidingWrapper>
 
       <FloatingButton 
-        title={isLoading ? "Sending..." : "Send Reset Link"}
+        title={isLoading ? "Sending..." : "Send Verification Code"}
         onPress={handleResetPassword}
         disabled={!isButtonEnabled || isLoading}
         loading={isLoading}

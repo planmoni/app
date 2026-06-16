@@ -1,7 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { useAppForeground } from '@/hooks/useAppForeground';
+import { withTimeout } from '@/lib/with-timeout';
+
+const FETCH_TIMEOUT_MS = 12000;
 
 export function useRealtimeWallet() {
   const [balance, setBalance] = useState(0);
@@ -10,6 +14,8 @@ export function useRealtimeWallet() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+  const foregroundTick = useAppForeground();
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   const fetchWalletData = useCallback(async () => {
     if (!session?.user?.id) {
@@ -21,11 +27,15 @@ export function useRealtimeWallet() {
       setIsLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('wallets')
-        .select('balance, locked_balance, available_balance')
-        .eq('user_id', session.user.id)
-        .single();
+      const { data, error: fetchError } = await withTimeout(
+        supabase
+          .from('wallets')
+          .select('balance, locked_balance, available_balance')
+          .eq('user_id', session.user.id)
+          .single(),
+        FETCH_TIMEOUT_MS,
+        'Wallet fetch'
+      );
 
       if (fetchError) {
         console.warn('Failed to fetch wallet data:', fetchError);
@@ -54,11 +64,15 @@ export function useRealtimeWallet() {
     try {
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('wallets')
-        .select('balance, locked_balance, available_balance')
-        .eq('user_id', session.user.id)
-        .single();
+      const { data, error: fetchError } = await withTimeout(
+        supabase
+          .from('wallets')
+          .select('balance, locked_balance, available_balance')
+          .eq('user_id', session.user.id)
+          .single(),
+        FETCH_TIMEOUT_MS,
+        'Wallet refresh'
+      );
 
       if (fetchError) {
         console.warn('Failed to fetch wallet data:', fetchError);
@@ -70,17 +84,16 @@ export function useRealtimeWallet() {
         const walletData = {
           balance: data.balance || 0,
           lockedBalance: data.locked_balance || 0,
-          availableBalance: data.available_balance || 0
+          availableBalance: data.available_balance || 0,
         };
-        
-        // Update state
+
         setBalance(walletData.balance);
         setLockedBalance(walletData.lockedBalance);
         setAvailableBalance(walletData.availableBalance);
-        
+
         return walletData;
       }
-      
+
       return null;
     } catch (err) {
       console.warn('Error fetching wallet data:', err);
@@ -89,85 +102,86 @@ export function useRealtimeWallet() {
     }
   }, [session?.user?.id]);
 
+  const setupRealtimeSubscription = useCallback(() => {
+    if (!session?.user?.id || !isSupabaseConfigured()) {
+      return;
+    }
+
+    if (channelRef.current) {
+      try {
+        supabase.removeChannel(channelRef.current);
+      } catch (_) {
+        // ignore
+      }
+      channelRef.current = null;
+    }
+
+    const channelName = `wallet-changes-${session.user.id}-${Date.now()}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'wallets',
+          filter: `user_id=eq.${session.user.id}`,
+        },
+        (payload: {
+          eventType: string;
+          new?: {
+            balance: number;
+            locked_balance: number;
+            available_balance: number;
+          };
+        }) => {
+          if (payload.eventType === 'UPDATE' && payload.new) {
+            setBalance(payload.new.balance || 0);
+            setLockedBalance(payload.new.locked_balance || 0);
+            setAvailableBalance(payload.new.available_balance || 0);
+            setError(null);
+          }
+        }
+      )
+      .subscribe((status: 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED') => {
+        if (status === 'SUBSCRIBED') {
+          setError(null);
+        }
+      });
+
+    channelRef.current = channel;
+  }, [session?.user?.id]);
+
   useEffect(() => {
     if (!session?.user?.id) {
       setIsLoading(false);
       return;
     }
 
-    let channel: RealtimeChannel | null = null;
+    void fetchWalletData();
 
-    const setupRealtimeSubscription = () => {
-      try {
-        // Check if Supabase is configured before attempting subscription
-        if (!isSupabaseConfigured()) {
-          console.log('Supabase not configured, skipping realtime subscription');
-          return;
-        }
-
-        // Set up real-time subscription without retry logic
-        // Server-side push notifications handle delivery when app is closed
-        // This subscription is only for real-time UI updates when app is open
-        const channelName = `wallet-changes-${session.user.id}`;
-        channel = supabase
-          .channel(channelName)
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'wallets',
-              filter: `user_id=eq.${session.user.id}`,
-            },
-            (payload: {
-              eventType: string;
-              new?: {
-                balance: number;
-                locked_balance: number;
-                available_balance: number;
-              };
-            }) => {
-              if (payload.eventType === 'UPDATE' && payload.new) {
-                setBalance(payload.new.balance || 0);
-                setLockedBalance(payload.new.locked_balance || 0);
-                setAvailableBalance(payload.new.available_balance || 0);
-              }
-            }
-          )
-          .subscribe((status: 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED') => {
-            switch (status) {
-              case 'SUBSCRIBED':
-                setError(null);
-                break;
-              case 'CHANNEL_ERROR':
-                break;
-              case 'TIMED_OUT':
-                break;
-              case 'CLOSED':
-                break;
-            }
-          });
-      } catch (err) {
-        console.warn('Failed to setup wallet subscription:', err);
-        // Don't set error state, just log warning
-      }
-    };
-
-    // Fetch initial data
-    fetchWalletData();
-
-    // Set up realtime subscription with a small delay to avoid race conditions
     const subscriptionTimer = setTimeout(() => {
       setupRealtimeSubscription();
-    }, 1000);
+    }, 500);
 
     return () => {
       clearTimeout(subscriptionTimer);
-      if (channel) {
-        supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
-  }, [session?.user?.id, fetchWalletData]);
+  }, [session?.user?.id, fetchWalletData, setupRealtimeSubscription]);
+
+  // Refetch wallet + reconnect realtime when app returns to foreground.
+  useEffect(() => {
+    if (!session?.user?.id || foregroundTick === 0) {
+      return;
+    }
+
+    void fetchWalletData();
+    setupRealtimeSubscription();
+  }, [foregroundTick, session?.user?.id, fetchWalletData, setupRealtimeSubscription]);
 
   return {
     balance,

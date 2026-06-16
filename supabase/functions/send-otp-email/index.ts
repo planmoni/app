@@ -15,7 +15,7 @@ serve(async (req) => {
 
   try {
     // Get request data
-    const { email } = await req.json();
+    const { email, purpose } = await req.json();
 
     if (!email) {
       return new Response(
@@ -36,6 +36,11 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const normalizedEmail = email.toLowerCase().trim();
+    const isPasswordRecovery = purpose === "password_recovery";
+
+    // Replace any existing OTP for this email
+    await supabase.from("otps").delete().eq("email", normalizedEmail);
 
     // Generate OTP code (6 digits)
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -48,7 +53,7 @@ serve(async (req) => {
     const { error: insertError } = await supabase
       .from('otps')
       .insert({
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         otp_code: otpCode,
         expires_at: expiresAt.toISOString(),
         is_used: false
@@ -73,6 +78,14 @@ serve(async (req) => {
       );
     }
 
+    const emailSubject = isPasswordRecovery
+      ? "Reset your Planmoni password"
+      : "Your Planmoni Verification Code";
+    const emailTitle = isPasswordRecovery ? "Password Reset Code" : "Your Verification Code";
+    const emailIntro = isPasswordRecovery
+      ? "<p>We received a request to reset your Planmoni password. Use this code to continue:</p>"
+      : "<p>Your verification code is:</p>";
+
     // Send email using Resend API directly
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -82,8 +95,8 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         from: "Planmoni <verification@planmoni.com>",
-        to: email.toLowerCase(),
-        subject: "Your Planmoni Verification Code",
+        to: normalizedEmail,
+        subject: emailSubject,
         html: `
           <!DOCTYPE html>
           <html>
@@ -98,11 +111,11 @@ serve(async (req) => {
           </head>
           <body>
             <div class="header">
-              <h2>Your Verification Code</h2>
+              <h2>${emailTitle}</h2>
             </div>
             <div class="content">
               <p>Hello,</p>
-              <p>Your verification code is:</p>
+              ${emailIntro}
               <div class="code">${otpCode}</div>
               <p>This code will expire in 10 minutes.</p>
               <p>If you did not request this code, please ignore this email.</p>
@@ -121,20 +134,13 @@ serve(async (req) => {
     
     if (!emailResponse.ok) {
       console.error("Error sending email:", emailData);
-      // We'll still return success since the OTP was generated and stored
-      // This allows testing to continue even if email sending fails
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: "OTP generated successfully but email delivery may be delayed",
-          expiresInMinutes: 10,
-          debug: { emailError: emailData }
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Failed to send verification email. Please try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
     
-    console.log(`OTP email sent successfully to ${email}`);
+    console.log(`OTP email sent successfully to ${normalizedEmail}`);
     
     return new Response(
       JSON.stringify({ 

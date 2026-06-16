@@ -4,6 +4,7 @@ import { saveItem, getItem, deleteItem, BIOMETRIC_ENABLED_KEY } from '@/lib/secu
 import { BiometricService } from '@/lib/biometrics';
 import { UserScopedStorage, createUserScopedStorage } from '@/lib/user-scoped-storage';
 import { useAuth } from '@/contexts/AuthContext';
+import { withTimeout } from '@/lib/with-timeout';
 
 // Storage keys (will be scoped by user ID)
 const APP_LOCK_PIN_KEY = 'app_lock_pin';
@@ -96,7 +97,9 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log(`🔐 PinContext - Loading PIN state for user: ${userId}`);
       setIsLoading(true);
-      
+
+      await withTimeout(
+        (async () => {
       // Check if PINs exist using user-scoped storage (each user has their own PIN)
       // Wrap in try-catch for each operation to prevent crashes
       let appLockPin: string | null = null;
@@ -157,6 +160,10 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
       setBiometricEnabled(biometric === 'true');
       setPayoutBiometricEnabled(payoutBiometric === 'true');
       setEmergencyBiometricEnabled(emergencyBiometric === 'true');
+        })(),
+        8000,
+        'PIN state load'
+      );
     } catch (error) {
       console.error(`❌ PinContext - Error loading PIN state for user ${userId}:`, error);
       // Don't crash - set safe defaults
