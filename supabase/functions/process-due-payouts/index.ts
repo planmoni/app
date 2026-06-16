@@ -121,7 +121,9 @@ async function processDuePayouts() {
     // Get all due payout plans
     // Note: get_due_payout_plans RPC already excludes plans with existing automated_payouts
     // This provides database-level idempotency
-    const { data: duePlans, error: plansError } = await supabase.rpc("get_due_payout_plans");
+    const { data: duePlans, error: plansError } = await supabase.rpc("get_due_payout_plans", {
+      check_at: new Date().toISOString(),
+    });
     if (plansError) {
       console.error("❌ Error fetching due payout plans:", plansError);
       throw plansError;

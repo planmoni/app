@@ -105,9 +105,10 @@ $$;
 COMMENT ON FUNCTION update_payout_plan_progress(uuid) IS
   'Updates payout plan progress and next_payout_date. Custom: next date and payout_time from the next custom_payout_dates row. Biweekly: last payout date + 2 weeks.';
 
-DROP FUNCTION IF EXISTS get_due_payout_plans(date);
+DROP FUNCTION IF EXISTS public.get_due_payout_plans(date);
+DROP FUNCTION IF EXISTS public.get_due_payout_plans(timestamptz);
 
-CREATE OR REPLACE FUNCTION get_due_payout_plans(check_at timestamptz DEFAULT now())
+CREATE OR REPLACE FUNCTION public.get_due_payout_plans(check_at timestamptz)
 RETURNS TABLE(
   plan_id uuid,
   user_id uuid,
@@ -148,7 +149,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_due_payout_plans(timestamptz) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_due_payout_plans(timestamptz) TO authenticated, service_role;
 
-COMMENT ON FUNCTION get_due_payout_plans(timestamptz) IS
-  'Returns active payout plans whose next_payout_date (timestamptz) is due at or before check_at (default now()).';
+COMMENT ON FUNCTION public.get_due_payout_plans(timestamptz) IS
+  'Returns active payout plans whose next_payout_date (timestamptz) is due at or before check_at.';
