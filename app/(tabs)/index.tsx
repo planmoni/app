@@ -19,6 +19,7 @@ const ImageCarousel = React.lazy(() =>
 );
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
+import { useAppForeground } from '@/hooks/useAppForeground';
 import { router, useGlobalSearchParams, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
 import {
   HelpCircleIcon,
@@ -292,6 +293,7 @@ export default function HomeScreen() {
   const tabScrollViewRef = useRef<ScrollView>(null);
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification, selection } = useHaptics();
+  const foregroundTick = useAppForeground();
   
   // Tab labels + state; horizontal pager position is synced in useLayoutEffect / useEffect below
   const handleTabChange = useCallback((tab: 'home' | 'plans' | 'payouts') => {
@@ -935,6 +937,14 @@ export default function HomeScreen() {
       setIsRefreshing(false);
     }
   }, [refreshWallet, fetchExpensePlans, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
+
+  // Refresh dashboard data when app returns from background.
+  useEffect(() => {
+    if (!session?.user?.id || foregroundTick === 0) {
+      return;
+    }
+    void handleRefresh();
+  }, [foregroundTick, session?.user?.id, handleRefresh]);
 
   const handleHelpPress = useCallback(async () => {
     try {

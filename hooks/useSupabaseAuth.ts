@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { 
@@ -372,6 +373,41 @@ export function useSupabaseAuth() {
     };
   }, []);
 
+  // Refresh auth session when app returns to foreground (fixes stale JWT after background).
+  useEffect(() => {
+    let appState = AppState.currentState;
+
+    const refreshOnForeground = async () => {
+      try {
+        const { data: { session: current } } = await supabase.auth.getSession();
+        if (!current) {
+          return;
+        }
+        const { data, error } = await supabase.auth.refreshSession();
+        if (error) {
+          console.warn('Session refresh on resume failed:', error.message);
+          return;
+        }
+        if (data.session?.user?.id) {
+          setSession(data.session);
+          await saveSession(data.session);
+        }
+      } catch (err) {
+        console.warn('Session refresh on resume error:', err);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      const wasBackground = appState.match(/inactive|background/);
+      appState = nextState;
+      if (wasBackground && nextState === 'active') {
+        void refreshOnForeground();
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   const signIn = async (email: string, password: string): Promise<AuthResult> => {
     try {
       // Don't set isLoading here - it causes black screen in _layout.tsx
@@ -445,14 +481,23 @@ export function useSupabaseAuth() {
 
   const resetPassword = async (email: string): Promise<AuthResult> => {
     try {
-      // Don't set isLoading here - it causes black screen in _layout.tsx
       setError(null);
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      const { data, error } = await supabase.functions.invoke('send-otp-email', {
+        body: {
+          email: email.toLowerCase().trim(),
+          purpose: 'password_recovery',
+        },
+      });
 
       if (error) {
         setError(error.message);
         return { success: false, error: error.message };
+      }
+
+      if (data?.error) {
+        setError(data.error);
+        return { success: false, error: data.error };
       }
 
       return { success: true };
