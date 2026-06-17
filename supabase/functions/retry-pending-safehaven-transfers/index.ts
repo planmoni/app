@@ -52,6 +52,38 @@ interface PendingTransaction {
   status: string;
 }
 
+type SkipReason =
+  | "no_payment_reference_or_session_id"
+  | "no_safehaven_token"
+  | "transfer_still_pending"
+  | "safehaven_400_other"
+  | "safehaven_http_error"
+  | "already_transitioned_completed"
+  | "already_transitioned_failed";
+
+function logSkip(
+  tx: PendingTransaction,
+  reason: SkipReason,
+  detail?: string
+) {
+  const parts = [
+    `⏭️ SKIP transaction ${tx.id}`,
+    `reason=${reason}`,
+    `type=${tx.type ?? "unknown"}`,
+    `amount=${tx.amount}`,
+    `plan=${tx.payout_plan_id ?? "none"}`,
+    `ref=${tx.reference ?? "none"}`,
+  ];
+  if (detail) parts.push(`detail=${detail}`);
+  console.log(parts.join(" | "));
+}
+
+function logTxContext(tx: PendingTransaction, paymentReference: string | null, sessionId: string | null) {
+  console.log(
+    `🔍 Checking transaction ${tx.id} | type=${tx.type} | ref=${paymentReference ?? "none"} | sessionId=${sessionId ?? "none"} | plan=${tx.payout_plan_id ?? "none"}`
+  );
+}
+
 function getSessionIdFromMetadata(metadata: Record<string, any> | null): string | null {
   if (!metadata || typeof metadata !== "object") return null;
   const v = metadata.safehaven_transfer_session_id || metadata.session_id || metadata.sessionId;
@@ -95,7 +127,7 @@ async function applyCompleted(tx: PendingTransaction): Promise<boolean> {
     throw error;
   }
   if (!transitionedRows || transitionedRows.length === 0) {
-    console.log(`ℹ️ Transaction ${tx.id} already transitioned; skipping duplicate completion flow`);
+    logSkip(tx, "already_transitioned_completed", "row no longer pending (webhook or prior retry run)");
     return false;
   }
 
@@ -124,7 +156,7 @@ async function applyFailedStatusOnly(tx: PendingTransaction, reason: string): Pr
     throw error;
   }
   if (!transitionedRows || transitionedRows.length === 0) {
-    console.log(`ℹ️ Transaction ${tx.id} already transitioned; skipping duplicate failure flow`);
+    logSkip(tx, "already_transitioned_failed", "row no longer pending (webhook or prior retry run)");
     return false;
   }
 
@@ -276,9 +308,12 @@ serve(async (req: Request) => {
 
   try {
     const txs = await getPendingTransactions();
+    console.log(`🚀 retry-pending-safehaven-transfers: found ${txs.length} pending transaction(s)`);
+
     if (txs.length === 0) {
+      console.log("✅ No pending transactions to check");
       return new Response(
-        JSON.stringify({ ok: true, processed: 0, completed: 0, failed: 0, skipped: 0 }),
+        JSON.stringify({ ok: true, processed: 0, completed: 0, failed: 0, skipped: 0, skip_reasons: {} }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -286,25 +321,47 @@ serve(async (req: Request) => {
     let completed = 0;
     let failed = 0;
     let skipped = 0;
+    const skipReasons: Record<SkipReason, number> = {
+      no_payment_reference_or_session_id: 0,
+      no_safehaven_token: 0,
+      transfer_still_pending: 0,
+      safehaven_400_other: 0,
+      safehaven_http_error: 0,
+      already_transitioned_completed: 0,
+      already_transitioned_failed: 0,
+    };
+
+    const bumpSkip = (reason: SkipReason) => {
+      skipped++;
+      skipReasons[reason]++;
+    };
 
     for (const tx of txs) {
       const paymentReference = getPaymentReferenceFromTransaction(tx);
       const sessionId = getSessionIdFromMetadata(tx.metadata);
+      logTxContext(tx, paymentReference, sessionId);
 
       if (!paymentReference && !sessionId) {
-        skipped++;
-        console.log(`ℹ️ Skipping transaction ${tx.id}: no payment reference/session id`);
+        bumpSkip("no_payment_reference_or_session_id");
+        logSkip(
+          tx,
+          "no_payment_reference_or_session_id",
+          "need transactions.reference or metadata.safehaven_transfer_session_id / session_id / sessionId / safehaven_transfer_code"
+        );
         continue;
       }
 
       const token = await getSafeHavenToken(tx.user_id);
       if (!token) {
-        skipped++;
-        console.warn(`No SafeHaven token for user ${tx.user_id}, skip transaction ${tx.id}`);
+        bumpSkip("no_safehaven_token");
+        logSkip(tx, "no_safehaven_token", `could not obtain token for user ${tx.user_id}`);
         continue;
       }
 
       const result = await fetchTransferStatus(token, sessionId, paymentReference);
+      console.log(
+        `📡 SafeHaven status for tx ${tx.id}: http=${result.statusCode} providerStatus=${result.data?.status ?? "n/a"} responseCode=${result.data?.responseCode ?? "n/a"} message=${result.message ?? "n/a"}`
+      );
 
       if (result.statusCode === 200 || result.statusCode === 201) {
         const status = (result.data?.status || "").trim();
@@ -312,11 +369,18 @@ serve(async (req: Request) => {
         if (status === "Completed" || code === "00") {
           const applied = await applyCompleted(tx);
           if (applied) completed++;
+          else bumpSkip("already_transitioned_completed");
         } else if (status === "Failed" || status === "Reversed") {
           const applied = await applyFailedStatusOnly(tx, result.message || status || "Transfer failed");
           if (applied) failed++;
+          else bumpSkip("already_transitioned_failed");
         } else {
-          skipped++;
+          bumpSkip("transfer_still_pending");
+          logSkip(
+            tx,
+            "transfer_still_pending",
+            `SafeHaven returned ${result.statusCode} but status="${status || "empty"}" responseCode="${code || "empty"}" — not final (will retry on next run)`
+          );
         }
         continue;
       }
@@ -326,22 +390,36 @@ serve(async (req: Request) => {
         if (msg.includes("unable to locate record") || msg.includes("unable to locate")) {
           const applied = await applyFailedStatusOnly(tx, result.message || "Unable to locate record");
           if (applied) failed++;
+          else bumpSkip("already_transitioned_failed");
         } else {
-          skipped++;
+          bumpSkip("safehaven_400_other");
+          logSkip(tx, "safehaven_400_other", result.message || "HTTP 400 without unable-to-locate message");
         }
       } else {
-        skipped++;
+        bumpSkip("safehaven_http_error");
+        logSkip(
+          tx,
+          "safehaven_http_error",
+          `HTTP ${result.statusCode}: ${result.message ?? "no message"}`
+        );
       }
     }
 
+    const summary = {
+      ok: true,
+      processed: txs.length,
+      completed,
+      failed,
+      skipped,
+      skip_reasons: skipReasons,
+    };
+    console.log("EXECUTION_SUMMARY", JSON.stringify(summary));
+    console.log(
+      `🏁 Done — completed=${completed} failed=${failed} skipped=${skipped} | skip breakdown: ${JSON.stringify(skipReasons)}`
+    );
+
     return new Response(
-      JSON.stringify({
-        ok: true,
-        processed: txs.length,
-        completed,
-        failed,
-        skipped,
-      }),
+      JSON.stringify(summary),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {

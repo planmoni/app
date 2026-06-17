@@ -55,7 +55,7 @@ deploy_functions() {
     
     # List of functions to deploy
     FUNCTIONS=(
-        "process_due_payouts"
+        "process-due-payouts"
         "process-automated-payouts"
         "schedule-automated-payouts"
         "safehaven-webhook"

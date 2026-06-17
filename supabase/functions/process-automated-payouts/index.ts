@@ -498,39 +498,37 @@ serve(async (req) => {
             case "daily":
               nextDate.setDate(startDate.getDate() + newCompletedPayouts)
               break
-            case "weekly":
-              nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
-              break
-            case "weekly_specific":
-              // Get day_of_week from plan.day_of_week or metadata
-              // day_of_week: 0=Sunday, 1=Monday, ..., 6=Saturday
-              const dayOfWeek = plan.day_of_week ?? (plan.metadata as any)?.dayOfWeek
-              
-              if (dayOfWeek !== null && dayOfWeek !== undefined && dayOfWeek >= 0 && dayOfWeek <= 6) {
-                // Calculate the next payout date for weekly_specific
-                // Strategy: Find the next occurrence of the target day of week
-                // starting from start_date + (completed_payouts * 7 days)
-                
-                // Start from the week where the next payout should occur
-                // newCompletedPayouts is the count AFTER this payout is processed
-                const baseDate = new Date(startDate)
-                baseDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
-                
-                // Get the day of week for the base date
-                const baseDayOfWeek = baseDate.getDay()
-                
-                // Calculate days to add to reach the target day of week (0 = already on target day)
-                const daysToAdd = (dayOfWeek - baseDayOfWeek + 7) % 7
-                // When 0, baseDate is already the next occurrence (e.g. next Monday). Do NOT add 7.
-                nextDate.setDate(baseDate.getDate() + daysToAdd)
-                
-                console.log(`Weekly_specific plan ${plan.id}: day_of_week=${dayOfWeek}, start_date=${startDate.toISOString()}, completed_payouts=${newCompletedPayouts}, baseDate=${baseDate.toISOString()}, baseDayOfWeek=${baseDayOfWeek}, daysToAdd=${daysToAdd}, nextDate=${nextDate.toISOString()}`)
+            case "weekly": {
+              if (plan.next_payout_date) {
+                nextDate = new Date(plan.next_payout_date)
+                nextDate.setDate(nextDate.getDate() + 7)
               } else {
-                // Fallback to regular weekly if day_of_week is missing or invalid
-                console.warn(`Plan ${plan.id} has weekly_specific frequency but invalid day_of_week (${dayOfWeek}). Falling back to weekly calculation.`)
                 nextDate.setDate(startDate.getDate() + (newCompletedPayouts * 7))
               }
               break
+            }
+            case "weekly_specific": {
+              const dayOfWeek = plan.day_of_week ?? (plan.metadata as any)?.dayOfWeek
+              let anchor: Date
+              if (plan.next_payout_date) {
+                anchor = new Date(plan.next_payout_date)
+                anchor.setDate(anchor.getDate() + 7)
+              } else {
+                anchor = new Date(startDate)
+                anchor.setDate(startDate.getDate() + (newCompletedPayouts * 7))
+              }
+              nextDate = new Date(anchor)
+
+              if (dayOfWeek !== null && dayOfWeek !== undefined && dayOfWeek >= 0 && dayOfWeek <= 6) {
+                const anchorDow = nextDate.getDay()
+                const daysToAdd = (dayOfWeek - anchorDow + 7) % 7
+                nextDate.setDate(nextDate.getDate() + daysToAdd)
+                console.log(`Weekly_specific plan ${plan.id}: day_of_week=${dayOfWeek}, anchor=${anchor.toISOString()}, daysToAdd=${daysToAdd}, nextDate=${nextDate.toISOString()}`)
+              } else {
+                console.warn(`Plan ${plan.id} has weekly_specific frequency but invalid day_of_week (${dayOfWeek}). Falling back to weekly (+7 from last scheduled).`)
+              }
+              break
+            }
             case "biweekly": {
               // Advance from the date we just paid + 2 weeks (not from start_date), so the next
               // payout is always 2 weeks after the last one regardless of initial next_payout_date.
@@ -557,6 +555,7 @@ serve(async (req) => {
               nextDate.setMonth(startDate.getMonth() + (newCompletedPayouts * 6))
               break
             case "annually":
+            case "yearly":
               nextDate.setFullYear(startDate.getFullYear() + newCompletedPayouts)
               break
             case "custom": {

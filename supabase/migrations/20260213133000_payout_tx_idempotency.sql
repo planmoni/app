@@ -83,7 +83,7 @@ BEGIN
     user_id, type, amount, status, source, destination, reference, payout_plan_id, description, metadata
   ) VALUES (
     p_user_id, 'payout', p_amount, 'pending', 'Wallet', 'Bank Transfer', p_reference, p_plan_id,
-    'Automated payout (pre-created idempotently)', COALESCE(p_metadata, '{}'::jsonb)
+    'Automated payout', COALESCE(p_metadata, '{}'::jsonb)
   ) RETURNING id INTO v_tx_id;
 
   RETURN jsonb_build_object(
