@@ -4,8 +4,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAppForeground } from '@/hooks/useAppForeground';
 import { withTimeout } from '@/lib/with-timeout';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const FETCH_TIMEOUT_MS = 12000;
+const WALLET_CACHE_KEY_PREFIX = 'cache_wallet_';
 
 export function useRealtimeWallet() {
   const [balance, setBalance] = useState(0);
@@ -16,6 +18,7 @@ export function useRealtimeWallet() {
   const { session } = useAuth();
   const foregroundTick = useAppForeground();
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const hasCachedDataRef = useRef(false);
 
   const fetchWalletData = useCallback(async () => {
     if (!session?.user?.id) {
@@ -24,7 +27,9 @@ export function useRealtimeWallet() {
     }
 
     try {
-      setIsLoading(true);
+      if (!hasCachedDataRef.current) {
+        setIsLoading(true);
+      }
       setError(null);
 
       const { data, error: fetchError } = await withTimeout(
@@ -47,6 +52,10 @@ export function useRealtimeWallet() {
         setBalance(data.balance || 0);
         setLockedBalance(data.locked_balance || 0);
         setAvailableBalance(data.available_balance || 0);
+        AsyncStorage.setItem(
+          `${WALLET_CACHE_KEY_PREFIX}${session.user.id}`,
+          JSON.stringify(data)
+        ).catch(() => {});
       }
     } catch (err) {
       console.warn('Error fetching wallet data:', err);
@@ -90,6 +99,10 @@ export function useRealtimeWallet() {
         setBalance(walletData.balance);
         setLockedBalance(walletData.lockedBalance);
         setAvailableBalance(walletData.availableBalance);
+        AsyncStorage.setItem(
+          `${WALLET_CACHE_KEY_PREFIX}${session.user.id}`,
+          JSON.stringify(data)
+        ).catch(() => {});
 
         return walletData;
       }
@@ -154,18 +167,42 @@ export function useRealtimeWallet() {
 
   useEffect(() => {
     if (!session?.user?.id) {
+      hasCachedDataRef.current = false;
       setIsLoading(false);
       return;
     }
 
-    void fetchWalletData();
+    let isMounted = true;
+    let subscriptionTimer: ReturnType<typeof setTimeout>;
 
-    const subscriptionTimer = setTimeout(() => {
-      setupRealtimeSubscription();
-    }, 500);
+    const init = async () => {
+      // Show cached data instantly while we fetch fresh
+      try {
+        const cached = await AsyncStorage.getItem(`${WALLET_CACHE_KEY_PREFIX}${session.user.id}`);
+        if (cached && isMounted) {
+          const d = JSON.parse(cached);
+          setBalance(d.balance || 0);
+          setLockedBalance(d.locked_balance || 0);
+          setAvailableBalance(d.available_balance || 0);
+          setIsLoading(false);
+          hasCachedDataRef.current = true;
+        }
+      } catch (_) {}
+
+      if (!isMounted) return;
+
+      void fetchWalletData();
+
+      subscriptionTimer = setTimeout(() => {
+        if (isMounted) setupRealtimeSubscription();
+      }, 500);
+    };
+
+    init();
 
     return () => {
-      clearTimeout(subscriptionTimer);
+      isMounted = false;
+      clearTimeout(subscriptionTimer!);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;

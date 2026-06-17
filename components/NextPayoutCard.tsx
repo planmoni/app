@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Image, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -14,14 +14,14 @@ import { supabase } from '@/lib/supabase';
 
 interface NextPayoutCardProps {
   nextPayout: any;
+  customDateAmounts?: Record<string, Record<string, number>>;
 }
 
-export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
+export default function NextPayoutCard({ nextPayout, customDateAmounts = {} }: NextPayoutCardProps) {
   const { colors, isDark } = useTheme();
   const { showBalances } = useBalance();
   const { textSizeMultiplier } = useTextSize();
   const { isAuthenticated } = useRequireAuth();
-  const [nextPayoutAmount, setNextPayoutAmount] = useState<number | null>(null);
   const [sharedPlanBankDisplay, setSharedPlanBankDisplay] = useState<{
     bank_name: string;
     account_number_last4: string;
@@ -32,49 +32,18 @@ export default function NextPayoutCard({ nextPayout }: NextPayoutCardProps) {
     return showBalances ? `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '*********';
   };
 
-  // Fetch custom payout amount for the next payout date if it's a custom plan
-  useEffect(() => {
-    const fetchNextPayoutAmount = async () => {
-      if (!nextPayout || nextPayout.frequency !== 'custom' || !nextPayout.next_payout_date) {
-        setNextPayoutAmount(null);
-        return;
-      }
-
-      try {
-        const nextDateString = new Date(nextPayout.next_payout_date).toISOString().split('T')[0];
-        const { data, error } = await supabase
-          .from('custom_payout_dates')
-          .select('amount')
-          .eq('payout_plan_id', nextPayout.id)
-          .eq('payout_date', nextDateString)
-          .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 rows gracefully
-
-        if (error) {
-          // Only log non-PGRST116 errors (PGRST116 is expected when no rows found)
-          if (error.code !== 'PGRST116') {
-            console.error('Error fetching next payout amount:', error);
-          }
-          // Fallback to plan's payout_amount
-          setNextPayoutAmount(nextPayout.payout_amount);
-          return;
-        }
-
-        if (data && data.amount !== null && data.amount !== undefined) {
-          const amount = parseFloat(data.amount.toString());
-          setNextPayoutAmount(amount > 0 ? amount : nextPayout.payout_amount);
-        } else {
-          // If no custom amount found, use plan's payout_amount
-          setNextPayoutAmount(nextPayout.payout_amount);
-        }
-      } catch (error) {
-        // Only log unexpected errors
-        console.error('Unexpected error fetching next payout amount:', error);
-        setNextPayoutAmount(nextPayout.payout_amount);
-      }
-    };
-
-    fetchNextPayoutAmount();
-  }, [nextPayout?.id, nextPayout?.frequency, nextPayout?.next_payout_date, nextPayout?.payout_amount]);
+  // Derive the display amount from pre-fetched customDateAmounts — no network request needed
+  const nextPayoutAmount = useMemo(() => {
+    if (!nextPayout) return null;
+    if (nextPayout.frequency !== 'custom' || !nextPayout.next_payout_date) {
+      return nextPayout.payout_amount as number;
+    }
+    const nextDateString = new Date(nextPayout.next_payout_date).toISOString().split('T')[0];
+    const customAmount = customDateAmounts?.[nextPayout.id]?.[nextDateString];
+    return customAmount !== undefined && customAmount > 0
+      ? customAmount
+      : (nextPayout.payout_amount as number);
+  }, [nextPayout, customDateAmounts]);
 
   // For recipient/paired view: plan may not include payout_accounts/bank_accounts (RLS). Fetch display via RPC.
   useEffect(() => {

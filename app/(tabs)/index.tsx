@@ -97,6 +97,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth';
 // import LivenessTestEnhanced from '@/components/LivenessTestEnhanced';
 import PlansTabContent from '@/components/PlansTabContent';
 import PayoutsTabContent from '@/components/PayoutsTabContent';
+import SkeletonBox from '@/components/SkeletonBox';
 
 interface Banner {
   id: string;
@@ -853,6 +854,35 @@ export default function HomeScreen() {
   const activePlans = useMemo(() => {
     return payoutPlans.filter(plan => plan.status === 'active');
   }, [payoutPlans]);
+
+  // Fetch custom payout date amounts once for all custom plans, shared across children
+  const [customDateAmounts, setCustomDateAmounts] = useState<Record<string, Record<string, number>>>({});
+  useEffect(() => {
+    const customPlanIds = activePlans
+      .filter(p => p.frequency === 'custom')
+      .map(p => p.id);
+
+    if (customPlanIds.length === 0) {
+      setCustomDateAmounts({});
+      return;
+    }
+
+    supabase
+      .from('custom_payout_dates')
+      .select('payout_plan_id, payout_date, amount')
+      .in('payout_plan_id', customPlanIds)
+      .order('payout_date', { ascending: true })
+      .then(({ data, error }: { data: any[] | null; error: any }) => {
+        if (error || !data) return;
+        const result: Record<string, Record<string, number>> = {};
+        data.forEach((item: any) => {
+          if (!result[item.payout_plan_id]) result[item.payout_plan_id] = {};
+          result[item.payout_plan_id][item.payout_date] =
+            parseFloat(item.amount?.toString() || '0') || 0;
+        });
+        setCustomDateAmounts(result);
+      });
+  }, [activePlans]);
 
   const payoutsTotalAmount = useMemo(() => {
     if (!activePlans || activePlans.length === 0) return 0;
@@ -1698,7 +1728,11 @@ export default function HomeScreen() {
                     <MoreVertical size={20} color={'#fff'} />
                   </Pressable> */}
                 </View>
-                <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
+                {balanceLoading ? (
+                  <SkeletonBox width={180} height={38} borderRadius={8} style={{ marginVertical: 4 }} />
+                ) : (
+                  <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
+                )}
                 <View style={styles.lockedSection}>
                   {/* <View style={styles.lockedLabelContainer}>
                     <Clock size={16} color={colors.textTertiary} />
@@ -1742,7 +1776,12 @@ export default function HomeScreen() {
               <OnTrackCard 
                 payoutPlans={payoutPlans}
               />
-              <MostRecentPayoutsCard onTransactionPress={handleTransactionPress} />
+              <MostRecentPayoutsCard
+                transactions={transactions}
+                payoutPlans={payoutPlans}
+                isLoading={transactionsLoading}
+                onTransactionPress={handleTransactionPress}
+              />
               
 
               <Suspense fallback={<View style={styles.carouselPlaceholder} />}>
@@ -1812,6 +1851,8 @@ export default function HomeScreen() {
             activePlans={activePlans}
             payoutsTotalPaid={payoutsTotalPaid}
             payoutsTotalAmount={payoutsTotalAmount}
+            isLoading={payoutPlansLoading}
+            customDateAmounts={customDateAmounts}
             onRequireAuth={ensureAuthenticatedOrWelcome}
             setShowAddByCodeModal={setShowAddByCodeModal}
             setShowNewPlanInfoModal={setShowNewPlanInfoModal}

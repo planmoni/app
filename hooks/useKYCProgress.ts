@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { withTimeout } from '@/lib/with-timeout';
+
+const FETCH_TIMEOUT_MS = 12000;
 
 export type KYCStep = 'liveness_verification' | 'personal' | 'bvn_verification' | 'id_face_match' | 'documents_verification' | 'address_details' | 'review';
 
@@ -72,11 +75,15 @@ export const useKYCProgress = () => {
       setError(null);
 
       // Query kyc_progress table directly
-      const { data, error: fetchError } = await supabase
-        .from('kyc_progress')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .maybeSingle(); // Use maybeSingle to avoid error if no record exists
+      const { data, error: fetchError } = await withTimeout(
+        supabase
+          .from('kyc_progress')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .maybeSingle(),
+        FETCH_TIMEOUT_MS,
+        'KYC progress fetch'
+      ) as { data: any; error: any };
 
       if (data) {
         // Record exists, use it
@@ -116,11 +123,15 @@ export const useKYCProgress = () => {
           // If upsert fails with duplicate key, try to fetch the existing record
           if (createError.code === '23505') {
             console.log('[KYC] Duplicate key detected, fetching existing record');
-            const { data: existingData, error: fetchExistingError } = await supabase
-              .from('kyc_progress')
-              .select('*')
-              .eq('user_id', session.user.id)
-              .single();
+            const { data: existingData, error: fetchExistingError } = await withTimeout(
+              supabase
+                .from('kyc_progress')
+                .select('*')
+                .eq('user_id', session.user.id)
+                .single(),
+              FETCH_TIMEOUT_MS,
+              'KYC progress fetch (retry)'
+            ) as { data: any; error: any };
             
             if (fetchExistingError) {
               throw fetchExistingError;

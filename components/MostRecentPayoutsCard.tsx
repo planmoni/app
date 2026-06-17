@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Dimensions, Image, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
-import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { Transaction } from '@/hooks/useRealtimeTransactions';
+import { PayoutPlan } from '@/hooks/useRealtimePayoutPlans';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { formatCurrency } from '@/lib/formatters';
 import TransactionModal from '@/components/TransactionModal';
@@ -11,6 +11,7 @@ import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
+import SkeletonBox from '@/components/SkeletonBox';
 
 interface RecentTransaction {
   id: string;
@@ -25,15 +26,16 @@ interface RecentTransaction {
 }
 
 interface MostRecentPayoutsCardProps {
+  transactions: Transaction[];
+  payoutPlans: PayoutPlan[];
+  isLoading?: boolean;
   onTransactionPress?: (transaction: any) => void;
 }
 
-export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecentPayoutsCardProps) {
+export default function MostRecentPayoutsCard({ transactions, payoutPlans, isLoading = false, onTransactionPress }: MostRecentPayoutsCardProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { isAuthenticated } = useRequireAuth();
-  const { transactions } = useRealtimeTransactions();
-  const { payoutPlans } = useRealtimePayoutPlans();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
   const slideAnimation = useRef(new Animated.Value(0)).current;
@@ -231,7 +233,31 @@ export default function MostRecentPayoutsCard({ onTransactionPress }: MostRecent
     return null;
   }
 
-  // Don't render if no recent payouts
+  // Show skeleton while first load is in progress
+  if (isLoading && recentTransactions.length === 0) {
+    return (
+      <View style={{ marginTop: Platform.OS === 'ios' ? 5 : 1, marginBottom: Platform.OS === 'ios' ? 10 : 8 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <SkeletonBox width={90} height={13} borderRadius={6} />
+          <SkeletonBox width={130} height={13} borderRadius={6} />
+        </View>
+        <View style={{
+          backgroundColor: isDark ? colors.card : '#FFFFFF',
+          borderRadius: 16,
+          paddingHorizontal: 15,
+          paddingVertical: 15,
+          borderWidth: 0.5,
+          borderColor: colors.border,
+          gap: 12,
+        }}>
+          <SkeletonBox width={160} height={Platform.OS === 'ios' ? 28 : 22} borderRadius={6} />
+          <SkeletonBox width="55%" height={13} borderRadius={6} />
+        </View>
+      </View>
+    );
+  }
+
+  // Don't render if no recent transactions
   if (recentTransactions.length === 0) {
     return null;
   }

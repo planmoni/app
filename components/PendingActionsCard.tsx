@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
+import SkeletonBox from '@/components/SkeletonBox';
 import { ChevronRight, X, Mail, Lock, Fingerprint, CircleAlert as AlertCircle, Clock, ShieldCheck } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -249,15 +250,40 @@ export default function PendingActionsCard() {
     return null;
   }
 
-  // Show loading state
+  // Show skeleton loading state
   if (isLoading || pinStatePending) {
+    const cardWidth = Platform.OS === 'ios' ? 300 : 250;
     return (
       <View>
-        <Text style={styles.sectionTitle}>Pending Actions</Text>
-        <View style={styles.container}>
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading pending actions...</Text>
-          </View>
+        <SkeletonBox width={120} height={Platform.OS === 'ios' ? 15 : 13} borderRadius={6} style={{ marginBottom: 20, marginTop: 1 }} />
+        <View style={[styles.container, { flexDirection: 'row', gap: 12 }]}>
+          {[0, 1].map((i) => (
+            <View
+              key={i}
+              style={{
+                width: cardWidth,
+                height: 110,
+                borderRadius: 12,
+                padding: 16,
+                backgroundColor: isDark ? colors.card : '#fff',
+                borderWidth: 0.5,
+                borderColor: colors.border,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <SkeletonBox
+                width={Platform.OS === 'ios' ? 48 : 40}
+                height={Platform.OS === 'ios' ? 48 : 40}
+                borderRadius={Platform.OS === 'ios' ? 24 : 20}
+              />
+              <View style={{ flex: 1, gap: 8 }}>
+                <SkeletonBox width="75%" height={13} borderRadius={6} />
+                <SkeletonBox width="55%" height={12} borderRadius={6} />
+              </View>
+            </View>
+          ))}
         </View>
       </View>
     );

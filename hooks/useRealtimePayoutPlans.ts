@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const PAYOUT_PLANS_CACHE_KEY_PREFIX = 'cache_payout_plans_';
 
 export type PayoutPlan = {
   id: string;
@@ -44,10 +47,14 @@ export function useRealtimePayoutPlans() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+  const hasCachedDataRef = useRef(false);
 
   const fetchPayoutPlans = useCallback(async () => {
     if (!session?.user?.id) return;
     try {
+      if (!hasCachedDataRef.current) {
+        setIsLoading(true);
+      }
       setError(null);
       const select = `
         *,
@@ -62,27 +69,42 @@ export function useRealtimePayoutPlans() {
           account_name
         )
       `;
-      const { data: ownedData, error: ownedError } = await supabase
-        .from('payout_plans')
-        .select(select)
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false });
+
+      // Fetch owned plans and pairings in parallel (P4 fix)
+      const [ownedResult, pairingResult] = await Promise.all([
+        supabase
+          .from('payout_plans')
+          .select(select)
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('payout_plan_pairings')
+          .select('payout_plan_id')
+          .eq('paired_user_id', session.user.id),
+      ]);
+
+      const { data: ownedData, error: ownedError } = ownedResult;
+      const { data: pairingRows, error: pairingError } = pairingResult;
 
       if (ownedError) throw ownedError;
       const owned: PayoutPlan[] = (ownedData || []).map((p: any) => ({ ...p, is_paired: false }));
 
-      const { data: pairingRows, error: pairingError } = await supabase
-        .from('payout_plan_pairings')
-        .select('payout_plan_id')
-        .eq('paired_user_id', session.user.id);
-
       if (pairingError) {
         setPayoutPlans(owned);
+        AsyncStorage.setItem(
+          `${PAYOUT_PLANS_CACHE_KEY_PREFIX}${session.user.id}`,
+          JSON.stringify(owned)
+        ).catch(() => {});
         return;
       }
+
       const pairedIds = (pairingRows || []).map((r: { payout_plan_id: string }) => r.payout_plan_id).filter(Boolean);
       if (pairedIds.length === 0) {
         setPayoutPlans(owned);
+        AsyncStorage.setItem(
+          `${PAYOUT_PLANS_CACHE_KEY_PREFIX}${session.user.id}`,
+          JSON.stringify(owned)
+        ).catch(() => {});
         return;
       }
 
@@ -94,8 +116,13 @@ export function useRealtimePayoutPlans() {
 
       if (pairedError) {
         setPayoutPlans(owned);
+        AsyncStorage.setItem(
+          `${PAYOUT_PLANS_CACHE_KEY_PREFIX}${session.user.id}`,
+          JSON.stringify(owned)
+        ).catch(() => {});
         return;
       }
+
       const paired: PayoutPlan[] = (pairedData || []).map((p: any) => ({ ...p, is_paired: true }));
       const merged = [...owned];
       for (const p of paired) {
@@ -103,6 +130,10 @@ export function useRealtimePayoutPlans() {
       }
       merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setPayoutPlans(merged);
+      AsyncStorage.setItem(
+        `${PAYOUT_PLANS_CACHE_KEY_PREFIX}${session.user.id}`,
+        JSON.stringify(merged)
+      ).catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch payout plans');
     } finally {
@@ -112,6 +143,7 @@ export function useRealtimePayoutPlans() {
 
   useEffect(() => {
     if (!session?.user?.id) {
+      hasCachedDataRef.current = false;
       setPayoutPlans([]);
       setIsLoading(false);
       setError(null);
@@ -123,7 +155,17 @@ export function useRealtimePayoutPlans() {
 
     const setupRealtimeSubscription = async () => {
       try {
-        // Initial fetch
+        // Show cached data instantly while we fetch fresh
+        try {
+          const cached = await AsyncStorage.getItem(`${PAYOUT_PLANS_CACHE_KEY_PREFIX}${session.user.id}`);
+          if (cached && isMounted) {
+            setPayoutPlans(JSON.parse(cached));
+            setIsLoading(false);
+            hasCachedDataRef.current = true;
+          }
+        } catch (_) {}
+
+        // Initial fresh fetch
         await fetchPayoutPlans();
 
         if (!isMounted) return;

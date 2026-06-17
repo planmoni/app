@@ -14,6 +14,8 @@ type PayoutsTabContentProps = {
   activePlans: any[];
   payoutsTotalPaid: number;
   payoutsTotalAmount: number;
+  isLoading?: boolean;
+  customDateAmounts?: Record<string, Record<string, number>>;
   onRequireAuth?: () => boolean;
   setShowAddByCodeModal: (value: boolean) => void;
   setShowNewPlanInfoModal: (value: boolean) => void;
@@ -34,6 +36,8 @@ export default function PayoutsTabContent({
   activePlans,
   payoutsTotalPaid,
   payoutsTotalAmount,
+  isLoading = false,
+  customDateAmounts = {},
   onRequireAuth,
   setShowAddByCodeModal,
   setShowNewPlanInfoModal,
@@ -82,10 +86,12 @@ export default function PayoutsTabContent({
         </View>
       </View>
 
-      <NextPayoutCard nextPayout={nextPayout} />
+      <NextPayoutCard nextPayout={nextPayout} customDateAmounts={customDateAmounts} />
 
         <PayoutPlansSection
           activePlans={activePlans}
+          isLoading={isLoading}
+          customDateAmounts={customDateAmounts}
           onRequireAuth={onRequireAuth}
           onShowAddByCodeModal={() => setShowAddByCodeModal(true)}
           onShowNewPlanInfo={() => setShowNewPlanInfoModal(true)}

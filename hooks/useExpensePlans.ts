@@ -3,12 +3,18 @@ import { ExpensePlan, ExpenseBucket, ExpenseBucketLockedFunds, BudgetStructure }
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { withTimeout } from '@/lib/with-timeout';
+
+const EXPENSE_PLANS_CACHE_KEY_PREFIX = 'cache_expense_plans_';
+const FETCH_TIMEOUT_MS = 12000;
 
 export function useExpensePlans() {
   const { session } = useAuth();
   const [expensePlans, setExpensePlans] = useState<ExpensePlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const hasCachedDataRef = useRef(false);
 
   /**
    * Calculate funding status for a plan based on current_balance and total_budget
@@ -49,15 +55,21 @@ export function useExpensePlans() {
     }
 
     try {
-      setIsLoading(true);
+      if (!hasCachedDataRef.current) {
+        setIsLoading(true);
+      }
       setError(null);
       
       // Fetch all budget plans
-      const { data: plans, error: fetchError } = await supabase
-        .from('budget_plans')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false });
+      const { data: plans, error: fetchError } = await withTimeout(
+        supabase
+          .from('budget_plans')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false }),
+        FETCH_TIMEOUT_MS,
+        'Expense plans fetch'
+      ) as { data: any[] | null; error: any };
       
       if (fetchError) throw fetchError;
       
@@ -113,6 +125,10 @@ export function useExpensePlans() {
 
       // Set expense plans (all plans stay, no expiry)
       setExpensePlans(enhancedPlans);
+      AsyncStorage.setItem(
+        `${EXPENSE_PLANS_CACHE_KEY_PREFIX}${session.user.id}`,
+        JSON.stringify(enhancedPlans)
+      ).catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch expense plans'));
       console.error('Error fetching expense plans:', err);
@@ -605,6 +621,7 @@ export function useExpensePlans() {
 
   useEffect(() => {
     if (!session?.user?.id) {
+      hasCachedDataRef.current = false;
       setIsLoading(false);
       return;
     }
@@ -614,7 +631,17 @@ export function useExpensePlans() {
 
     const setupRealtimeSubscription = async () => {
       try {
-        // Initial fetch
+        // Show cached data instantly while we fetch fresh
+        try {
+          const cached = await AsyncStorage.getItem(`${EXPENSE_PLANS_CACHE_KEY_PREFIX}${session.user.id}`);
+          if (cached && isMounted) {
+            setExpensePlans(JSON.parse(cached));
+            setIsLoading(false);
+            hasCachedDataRef.current = true;
+          }
+        } catch (_) {}
+
+        // Initial fresh fetch
         await fetchExpensePlans();
 
         if (!isMounted) return;

@@ -1,7 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { withTimeout } from '@/lib/with-timeout';
+
+const TRANSACTIONS_CACHE_KEY_PREFIX = 'cache_transactions_';
+const FETCH_TIMEOUT_MS = 12000;
 
 export type Transaction = {
   id: string;
@@ -23,6 +28,7 @@ export function useRealtimeTransactions() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+  const hasCachedDataRef = useRef(false);
 
   const fetchTransactions = useCallback(async (limit = 50) => {
     const userId = session?.user?.id;
@@ -34,22 +40,29 @@ export function useRealtimeTransactions() {
     }
 
     try {
+      if (!hasCachedDataRef.current) {
+        setIsLoading(true);
+      }
       setError(null);
-      const { data, error: fetchError } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          payout_plans (
-            name
-          ),
-          bank_accounts (
-            bank_name,
-            account_number
-          )
-        `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(limit);
+      const { data, error: fetchError } = await withTimeout(
+        supabase
+          .from('transactions')
+          .select(`
+            *,
+            payout_plans (
+              name
+            ),
+            bank_accounts (
+              bank_name,
+              account_number
+            )
+          `)
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(limit),
+        FETCH_TIMEOUT_MS,
+        'Transactions fetch'
+      ) as { data: any[] | null; error: any };
 
       if (fetchError) {
         throw fetchError;
@@ -57,6 +70,10 @@ export function useRealtimeTransactions() {
 
       if (data) {
         setTransactions(data as Transaction[]);
+        AsyncStorage.setItem(
+          `${TRANSACTIONS_CACHE_KEY_PREFIX}${userId}`,
+          JSON.stringify(data)
+        ).catch(() => {});
       }
     } catch (err: any) {
       console.error('Error fetching transactions:', err);
@@ -68,6 +85,7 @@ export function useRealtimeTransactions() {
 
   useEffect(() => {
     if (!session?.user?.id) {
+      hasCachedDataRef.current = false;
       setTransactions([]);
       setIsLoading(false);
       setError(null);
@@ -79,7 +97,17 @@ export function useRealtimeTransactions() {
 
     const setupRealtimeSubscription = async () => {
       try {
-        // Initial fetch
+        // Show cached data instantly while we fetch fresh
+        try {
+          const cached = await AsyncStorage.getItem(`${TRANSACTIONS_CACHE_KEY_PREFIX}${session.user.id}`);
+          if (cached && isMounted) {
+            setTransactions(JSON.parse(cached));
+            setIsLoading(false);
+            hasCachedDataRef.current = true;
+          }
+        } catch (_) {}
+
+        // Initial fresh fetch
         await fetchTransactions();
 
         if (!isMounted) return;

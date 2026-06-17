@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { Plus } from 'lucide-react-native';
+import SkeletonBox from '@/components/SkeletonBox';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBalance } from '@/contexts/BalanceContext';
 import { formatPayoutFrequency, formatPayoutDateTime, formatDisplayDate } from '@/lib/formatters';
@@ -10,10 +11,11 @@ import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { supabase } from '@/lib/supabase';
 
 interface PayoutPlansSectionProps {
   activePlans: any[];
+  isLoading?: boolean;
+  customDateAmounts?: Record<string, Record<string, number>>;
   onShowAddByCodeModal?: () => void;
   onShowNewPlanInfo?: () => void;
   onShowHowItWorks?: () => void;
@@ -21,46 +23,11 @@ interface PayoutPlansSectionProps {
   isUserAuthenticated?: boolean;
 }
 
-function PayoutPlansSection({ activePlans, onShowAddByCodeModal, onShowNewPlanInfo, onShowHowItWorks, onShowWelcomeModal, isUserAuthenticated = true }: PayoutPlansSectionProps) {
+function PayoutPlansSection({ activePlans, isLoading = false, customDateAmounts = {}, onShowAddByCodeModal, onShowNewPlanInfo, onShowHowItWorks, onShowWelcomeModal, isUserAuthenticated = true }: PayoutPlansSectionProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { showBalances, balance, availableBalance } = useBalance();
-  const [customDateAmounts, setCustomDateAmounts] = useState<Record<string, Record<string, number>>>({});
-
-  // Fetch custom payout dates with amounts
-  useEffect(() => {
-    const fetchCustomAmounts = async () => {
-      const customPlans = activePlans.filter(plan => plan.frequency === 'custom');
-      if (customPlans.length === 0) return;
-
-      try {
-        const planIds = customPlans.map(plan => plan.id);
-        const { data, error } = await supabase
-          .from('custom_payout_dates')
-          .select('payout_plan_id, payout_date, amount')
-          .in('payout_plan_id', planIds)
-          .order('payout_date', { ascending: true });
-
-        if (error) throw error;
-
-        // Group by plan_id: { planId: { date: amount } }
-        const amountsByPlan: Record<string, Record<string, number>> = {};
-        data?.forEach(item => {
-          if (!amountsByPlan[item.payout_plan_id]) {
-            amountsByPlan[item.payout_plan_id] = {};
-          }
-          amountsByPlan[item.payout_plan_id][item.payout_date] = parseFloat(item.amount?.toString() || '0') || 0;
-        });
-
-        setCustomDateAmounts(amountsByPlan);
-      } catch (error) {
-        console.error('Error fetching custom payout amounts:', error);
-      }
-    };
-
-    fetchCustomAmounts();
-  }, [activePlans]);
 
   const formatBalance = useCallback((amount: number) => {
     return showBalances ? `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '*********';
@@ -137,7 +104,36 @@ function PayoutPlansSection({ activePlans, onShowAddByCodeModal, onShowNewPlanIn
         </Pressable>
       </View>
       
-      {activePlans.length > 0 ? (
+      {isLoading && activePlans.length === 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.payoutPlansContainer}
+          scrollEnabled={false}
+        >
+          {[0, 1].map((i) => (
+            <View
+              key={i}
+              style={[
+                styles.payoutPlanCard,
+                { gap: 10 },
+              ]}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <SkeletonBox width="55%" height={13} borderRadius={6} />
+                <SkeletonBox width={56} height={24} borderRadius={12} />
+              </View>
+              <SkeletonBox width="70%" height={Platform.OS === 'ios' ? 20 : 17} borderRadius={6} />
+              <SkeletonBox width="50%" height={13} borderRadius={6} />
+              <SkeletonBox width="100%" height={Platform.OS === 'ios' ? 6 : 4} borderRadius={3} style={{ marginTop: 4 }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <SkeletonBox width="40%" height={12} borderRadius={6} />
+                <SkeletonBox width="20%" height={12} borderRadius={6} />
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      ) : activePlans.length > 0 ? (
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}

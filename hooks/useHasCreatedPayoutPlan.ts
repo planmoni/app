@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { withTimeout } from '@/lib/with-timeout';
+
+const FETCH_TIMEOUT_MS = 12000;
 
 export function useHasCreatedPayoutPlan() {
   const [hasCreatedPayoutPlan, setHasCreatedPayoutPlan] = useState<boolean>(false);
@@ -22,12 +25,16 @@ export function useHasCreatedPayoutPlan() {
 
       // Only consider users who have existing payout transactions.
       // This prevents showing the "first payout schedule" modal when the user already has payout history.
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('id')
-        .eq('user_id', session?.user?.id)
-        .eq('type', 'payout')
-        .limit(1);
+      const { data, error } = await withTimeout(
+        supabase
+          .from('transactions')
+          .select('id')
+          .eq('user_id', session?.user?.id)
+          .eq('type', 'payout')
+          .limit(1),
+        FETCH_TIMEOUT_MS,
+        'Payout plan check'
+      );
 
       if (error) {
         console.error('Error checking payout transaction history:', error);
