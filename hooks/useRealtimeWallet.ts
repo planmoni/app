@@ -6,7 +6,7 @@ import { useAppForeground } from '@/hooks/useAppForeground';
 import { withRetryOnTimeout } from '@/lib/with-timeout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const FETCH_TIMEOUT_MS = 20000;
+const FETCH_TIMEOUT_MS = 15000;
 const WALLET_CACHE_KEY_PREFIX = 'cache_wallet_';
 
 export function useRealtimeWallet() {

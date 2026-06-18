@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPayoutDateTime } from '@/lib/formatters';
+import { withRetryOnTimeout } from '@/lib/with-timeout';
+
+const FETCH_TIMEOUT_MS = 15000;
 
 export type Metric = {
   title: string;
@@ -87,23 +90,38 @@ export function useInsightsData() {
       setIsLoading(true);
       setError(null);
 
-      // Fetch transactions data
-      const { data: transactions, error: transactionsError } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', session?.user?.id)
-        .order('created_at', { ascending: false });
+      // Fetch transactions and payout plans in parallel with timeout + retry.
+      const [transactionsResult, plansResult] = await Promise.allSettled([
+        withRetryOnTimeout(
+          () =>
+            supabase
+              .from('transactions')
+              .select('*')
+              .eq('user_id', session?.user?.id)
+              .order('created_at', { ascending: false }),
+          FETCH_TIMEOUT_MS,
+          'Insights transactions'
+        ) as Promise<{ data: any[] | null; error: any }>,
+        withRetryOnTimeout(
+          () =>
+            supabase
+              .from('payout_plans')
+              .select('*')
+              .eq('user_id', session?.user?.id)
+              .order('created_at', { ascending: false }),
+          FETCH_TIMEOUT_MS,
+          'Insights payout plans'
+        ) as Promise<{ data: any[] | null; error: any }>,
+      ]);
 
-      if (transactionsError) throw transactionsError;
+      if (transactionsResult.status === 'rejected') throw transactionsResult.reason;
+      if (plansResult.status === 'rejected') throw plansResult.reason;
 
-      // Fetch payout plans data
-      const { data: payoutPlans, error: plansError } = await supabase
-        .from('payout_plans')
-        .select('*')
-        .eq('user_id', session?.user?.id)
-        .order('created_at', { ascending: false });
+      const transactions = transactionsResult.value.data;
+      const payoutPlans = plansResult.value.data;
 
-      if (plansError) throw plansError;
+      if (transactionsResult.value.error) throw transactionsResult.value.error;
+      if (plansResult.value.error) throw plansResult.value.error;
 
       // Calculate metrics
       const totalPayouts = transactions

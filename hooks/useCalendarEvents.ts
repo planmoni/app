@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { withRetryOnTimeout } from '@/lib/with-timeout';
+
+const FETCH_TIMEOUT_MS = 15000;
 
 export type CalendarEvent = {
   id: string;
@@ -49,47 +52,55 @@ export function useCalendarEvents() {
         duration,
         frequency
       `;
-      const { data: ownedPlans, error: ownedError } = await supabase
-        .from('payout_plans')
-        .select(selectPlan)
-        .eq('user_id', session.user.id);
 
-      if (ownedError) throw ownedError;
+      // Fire all top-level queries in parallel with timeout + retry so a stale
+      // connection on app resume doesn't cause an immediate failure and empty page.
+      const [plansResult, pairingsResult, transactionsResult] = await Promise.allSettled([
+        withRetryOnTimeout(
+          () => supabase.from('payout_plans').select(selectPlan).eq('user_id', session.user.id),
+          FETCH_TIMEOUT_MS,
+          'Calendar payout plans'
+        ) as Promise<{ data: any[] | null; error: any }>,
+        withRetryOnTimeout(
+          () => supabase.from('payout_plan_pairings').select('payout_plan_id').eq('paired_user_id', session.user.id),
+          FETCH_TIMEOUT_MS,
+          'Calendar pairings'
+        ) as Promise<{ data: any[] | null; error: any }>,
+        withRetryOnTimeout(
+          () =>
+            supabase
+              .from('transactions')
+              .select(`id, type, amount, status, created_at, payout_plan_id, payout_plans ( name )`)
+              .eq('type', 'payout')
+              .order('created_at', { ascending: false }),
+          FETCH_TIMEOUT_MS,
+          'Calendar transactions'
+        ) as Promise<{ data: any[] | null; error: any }>,
+      ]);
 
-      const { data: pairingRows } = await supabase
-        .from('payout_plan_pairings')
-        .select('payout_plan_id')
-        .eq('paired_user_id', session.user.id);
+      const ownedPlans =
+        plansResult.status === 'fulfilled' && !plansResult.value.error ? plansResult.value.data || [] : [];
+      const pairingRows =
+        pairingsResult.status === 'fulfilled' ? pairingsResult.value.data || [] : [];
+      const transactions =
+        transactionsResult.status === 'fulfilled' && !transactionsResult.value.error
+          ? transactionsResult.value.data || []
+          : [];
 
-      const pairedIds = (pairingRows || []).map((r: { payout_plan_id: string }) => r.payout_plan_id).filter(Boolean);
+      if (plansResult.status === 'rejected') throw plansResult.reason;
+      if (transactionsResult.status === 'rejected') throw transactionsResult.reason;
+
+      const pairedIds = pairingRows.map((r: { payout_plan_id: string }) => r.payout_plan_id).filter(Boolean);
       let pairedPlans: any[] = [];
       if (pairedIds.length > 0) {
-        const { data: pairedData } = await supabase
-          .from('payout_plans')
-          .select(selectPlan)
-          .in('id', pairedIds);
+        const { data: pairedData } = await withRetryOnTimeout(
+          () => supabase.from('payout_plans').select(selectPlan).in('id', pairedIds),
+          FETCH_TIMEOUT_MS,
+          'Calendar paired plans'
+        ) as { data: any[] | null; error: any };
         pairedPlans = pairedData || [];
       }
-      const payoutPlans = [...(ownedPlans || []), ...pairedPlans];
-
-      // Fetch payout transactions (RLS returns own + paired plan payouts)
-      const { data: transactions, error: transactionsError } = await supabase
-        .from('transactions')
-        .select(`
-          id,
-          type,
-          amount,
-          status,
-          created_at,
-          payout_plan_id,
-          payout_plans (
-            name
-          )
-        `)
-        .eq('type', 'payout')
-        .order('created_at', { ascending: false });
-
-      if (transactionsError) throw transactionsError;
+      const payoutPlans = [...ownedPlans, ...pairedPlans];
 
       const calendarEvents: CalendarEvent[] = [];
 
@@ -173,12 +184,17 @@ export function useCalendarEvents() {
             
             if (plan.frequency === 'custom') {
               // For custom frequency, fetch custom payout dates
-              const { data: customDates } = await supabase
-                .from('custom_payout_dates')
-                .select('payout_date, payout_time')
-                .eq('payout_plan_id', plan.id)
-                .gte('payout_date', today.toISOString().split('T')[0])
-                .order('payout_date', { ascending: true });
+              const { data: customDates } = await withRetryOnTimeout(
+                () =>
+                  supabase
+                    .from('custom_payout_dates')
+                    .select('payout_date, payout_time')
+                    .eq('payout_plan_id', plan.id)
+                    .gte('payout_date', today.toISOString().split('T')[0])
+                    .order('payout_date', { ascending: true }),
+                FETCH_TIMEOUT_MS,
+                'Calendar custom dates'
+              ) as { data: any[] | null; error: any };
               
               if (customDates) {
                 for (const customDate of customDates) {

@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { withTimeout } from '@/lib/with-timeout';
 
 const TRANSACTIONS_CACHE_KEY_PREFIX = 'cache_transactions_';
-const FETCH_TIMEOUT_MS = 20000;
+const FETCH_TIMEOUT_MS = 15000;
 
 export type Transaction = {
   id: string;

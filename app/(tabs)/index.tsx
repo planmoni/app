@@ -72,6 +72,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
 import { logAnalyticsEvent } from '@/lib/firebase';
+import { reconnectSupabase } from '@/lib/supabase-reconnect';
 import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
 import { LifecycleEventName } from '@/lib/lifecycleEvents';
 import { updateNextPayoutWidget } from '@/lib/widgetStorage';
@@ -986,8 +987,12 @@ export default function HomeScreen() {
     let cancelled = false;
 
     const staggeredForegroundRefresh = async () => {
-      // Give network ~1s to recover before firing any queries.
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Run the "hard restart" (teardown stale channels + refresh auth token) in
+      // parallel with the 1s network-recovery delay so both happen at the same time.
+      await Promise.allSettled([
+        reconnectSupabase(),
+        new Promise((resolve) => setTimeout(resolve, 1000)),
+      ]);
       if (cancelled) return;
 
       // Tier 1: most critical — payout plans + transactions (user-visible immediately)
