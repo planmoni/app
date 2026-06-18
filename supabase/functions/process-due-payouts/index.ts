@@ -500,8 +500,28 @@ async function processSinglePayout(plan: any) {
   }
 
   const lockedBalance = Number(wallet.locked_balance) || 0;
-  const requiredAmount = Number(plan.payout_amount) || 0;
   const isLastPayout = (plan.completed_payouts + 1) >= plan.duration;
+
+  // For custom-frequency plans the per-date amount lives in custom_payout_dates.amount.
+  // Fall back to plan.payout_amount (the equal-split average) only if no custom amount is set.
+  let requiredAmount = Number(plan.payout_amount) || 0;
+  if ((planCheck.frequency || "").toLowerCase() === "custom") {
+    const scheduledDateOnly = (scheduledDate || "").split("T")[0]; // YYYY-MM-DD
+    const { data: customDateRow, error: customDateError } = await supabase
+      .from("custom_payout_dates")
+      .select("amount")
+      .eq("payout_plan_id", plan.plan_id)
+      .eq("payout_date", scheduledDateOnly)
+      .maybeSingle();
+    if (customDateError) {
+      console.warn(`⚠️ Could not fetch custom_payout_dates for ${scheduledDateOnly}:`, customDateError.message);
+    } else if (customDateRow?.amount && Number(customDateRow.amount) > 0) {
+      requiredAmount = Number(customDateRow.amount);
+      console.log(`📆 Custom per-date amount for ${scheduledDateOnly}: ₦${requiredAmount}`);
+    } else {
+      console.log(`📆 No custom amount for ${scheduledDateOnly}; using plan default ₦${requiredAmount}`);
+    }
+  }
   
   // Determine the actual payout amount
   let actualPayoutAmount = requiredAmount;
@@ -784,7 +804,7 @@ async function processSinglePayout(plan: any) {
       const { data: txIdCreated, error: txCreateErr } = await supabase.rpc('create_transaction_record', {
         p_user_id: plan.user_id,
         p_type: 'payout',
-        p_amount: plan.payout_amount,
+        p_amount: actualPayoutAmount, // use resolved per-date amount, not plan average
         p_status: 'pending',
         p_source: 'Wallet',
         p_destination: 'Bank Transfer',

@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useToast } from '@/contexts/ToastContext';
 import { inAppNotificationService } from '@/lib/in-app-notifications';
-import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee-calculator';
+import { calculatePayoutFees } from '@/lib/payout-fee-calculator';
 import { PLAN_CREATION_FEE_PERCENT } from '@/types/payout-fees';
 import { buildCustomDateTimesMap, buildDateTimeISO, parseTimeString, formatTimeString } from '@/lib/payout-time';
 
@@ -117,27 +117,42 @@ export function useCreatePayout() {
       console.log('- Current Balance:', balance);
       console.log('- Locked Balance:', lockedBalance);
 
-      // 💰 Compute fees (processing + stamp duty + transaction) so we know total required
-      const numPayouts = duration;
-      let feeAmount: number;
-      let netPayoutAmount: number;
-      let perPayoutForPlan: number;
-      if (frequency === 'custom' && customDates?.length) {
-        const perPayoutAmounts = customDates.map((d) => {
-          const raw = customDateAmounts?.[d];
-          const num = typeof raw === 'string' ? parseFloat(raw.replace(/,/g, '')) : Number(raw);
-          return !isNaN(num) ? num : 0;
-        });
-        const result = calculatePayoutFeesCustom(totalAmount, perPayoutAmounts);
-        feeAmount = result.totalFees;
-        netPayoutAmount = result.netPayoutAmount;
-        perPayoutForPlan = result.perPayoutAmount;
-      } else {
-        const result = calculatePayoutFees(totalAmount, numPayouts);
-        feeAmount = result.totalFees;
-        netPayoutAmount = result.netPayoutAmount;
-        perPayoutForPlan = result.perPayoutAmount;
+      // 💰 Compute fees (processing + stamp duty + transaction).
+      // For custom-frequency plans, fees are always calculated on equal-split per payout.
+      // This prevents users from gaming stamp duty by skewing per-date amounts.
+      const numPayouts = frequency === 'custom' && customDates?.length
+        ? customDates.length
+        : duration;
+      const { totalFees, netPayoutAmount, perPayoutAmount: perPayoutForPlan } =
+        calculatePayoutFees(totalAmount, numPayouts);
+      const feeAmount = totalFees;
+
+      // 🔒 Validate custom per-date amounts before any funds are touched
+      if (frequency === 'custom' && customDates?.length && customDateAmounts) {
+        let totalCustom = 0;
+        for (const d of customDates) {
+          const raw = customDateAmounts[d];
+          const num = typeof raw === 'string' ? parseFloat(raw.replace(/,/g, '')) : Number(raw ?? 0);
+          if (isNaN(num) || num < 1) {
+            throw new Error(
+              `Each custom payout date must have an amount of at least ₦1. Check the date: ${d}.`
+            );
+          }
+          if (num > totalAmount) {
+            throw new Error(
+              `Single payout amount (₦${num.toLocaleString()}) cannot exceed the plan total (₦${totalAmount.toLocaleString()}).`
+            );
+          }
+          totalCustom += num;
+        }
+        // Allow up to ₦1 rounding tolerance from the reverse gross-amount calculation in the UI
+        if (totalCustom > netPayoutAmount + 1) {
+          throw new Error(
+            `Total custom payout amounts (₦${totalCustom.toLocaleString('en-NG', { minimumFractionDigits: 2 })}) exceed the net payout amount (₦${netPayoutAmount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}).`
+          );
+        }
       }
+
       // Fee is taken from the amount: user only needs totalAmount (fees are deducted from it).
       // Use availableBalance (balance − lockedBalance) so already-locked funds are excluded.
       if (availableBalance < totalAmount) {

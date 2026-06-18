@@ -241,6 +241,7 @@ export interface Database {
           payout_plan_id: string
           payout_date: string
           payout_time: string | null
+          amount: number | null
           created_at: string
         }
         Insert: {
@@ -248,6 +249,7 @@ export interface Database {
           payout_plan_id: string
           payout_date: string
           payout_time?: string | null
+          amount?: number | null
           created_at?: string
         }
         Update: {
@@ -255,6 +257,7 @@ export interface Database {
           payout_plan_id?: string
           payout_date?: string
           payout_time?: string | null
+          amount?: number | null
           created_at?: string
         }
       }

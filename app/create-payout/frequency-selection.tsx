@@ -11,7 +11,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useWindowDimensions } from 'react-native';
 import { useBalance } from '@/contexts/BalanceContext';
 import { supabase } from '@/lib/supabase';
-import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee-calculator';
+import { calculatePayoutFees } from '@/lib/payout-fee-calculator';
 import type { PayoutFeeResult } from '@/lib/payout-fee-calculator';
 import {
   PLAN_CREATION_FEE_PERCENT,
@@ -431,6 +431,13 @@ export default function FrequencySelectionScreen() {
   const [isEqualSplit, setIsEqualSplit] = useState(true);
   const [showFeesBreakdownModal, setShowFeesBreakdownModal] = useState(false);
   const [feesBreakdownForModal, setFeesBreakdownForModal] = useState<PayoutFeeResult | null>(null);
+  const [showUnallocatedModal, setShowUnallocatedModal] = useState(false);
+  const [pendingProceedData, setPendingProceedData] = useState<{
+    reducedTotal: number;
+    totalAllocated: number;
+    remainder: number;
+    originalTotal: number;
+  } | null>(null);
   
   const isUpdatingDurationRef = useRef(false);
   const lastSelectedFrequencyRef = useRef<string>('');
@@ -908,40 +915,21 @@ export default function FrequencySelectionScreen() {
     }
   }, [activeTab, totalAmount, customDates, isEqualSplit]);
 
-  // When custom amounts are edited (!isEqualSplit), recalc fee and net from per-date amounts
+  // When custom amounts are edited (!isEqualSplit), recalc fee and net.
+  // Fees are always based on equal-split to prevent stamp-duty gaming.
   useEffect(() => {
     if (activeTab !== 'custom' || isEqualSplit || customDates.length === 0 || !totalAmount || totalAmount === '0') return;
     const numericTotal = parseFloat(totalAmount.replace(/,/g, ''));
     if (isNaN(numericTotal) || numericTotal <= 0) return;
-    const perPayoutAmounts = customDates.map(date => {
-      const amountStr = dateAmounts[date] || '0';
-      return parseFloat(amountStr.replace(/,/g, '')) || 0;
-    });
-    const result = calculatePayoutFeesCustom(numericTotal, perPayoutAmounts);
+    const result = calculatePayoutFees(numericTotal, customDates.length);
     setFeeAmount(result.totalFees);
     setNetAmount(result.netPayoutAmount);
-  }, [activeTab, totalAmount, customDates, isEqualSplit, dateAmounts]);
+  }, [activeTab, totalAmount, customDates, isEqualSplit]);
 
-  // When editing per-date amounts (custom, not equal split), treat sum of date amounts as net and recalc gross (totalAmount)
-  useEffect(() => {
-    if (activeTab !== 'custom' || isEqualSplit || customDates.length === 0) return;
-    const perPayoutAmounts = customDates.map((date) => {
-      const amountStr = dateAmounts[date] || '0';
-      return parseFloat(amountStr.replace(/,/g, '')) || 0;
-    });
-    const totalAllocated = perPayoutAmounts.reduce((s, a) => s + a, 0);
-    if (totalAllocated <= 0) return;
-    const N = customDates.length;
-    const transaction = TRANSACTION_FEE_NAIRA * N;
-    const stampCount = perPayoutAmounts.filter((a) => a > STAMP_DUTY_THRESHOLD_NAIRA).length;
-    const stamp = STAMP_DUTY_NAIRA * stampCount;
-    const sum = totalAllocated + transaction + stamp;
-    // totalAmount - processing(totalAmount) = sum, so totalAmount = sum + min(0.015*totalAmount, 500)
-    const totalAmountWithCap = sum + 500;
-    const useCap = 0.015 * totalAmountWithCap >= 500;
-    const newTotalAmount = useCap ? totalAmountWithCap : sum / (1 - PLAN_CREATION_FEE_PERCENT / 100);
-    setTotalAmount(newTotalAmount.toFixed(2));
-  }, [activeTab, isEqualSplit, customDates, dateAmounts]);
+  // NOTE: totalAmount is intentionally NOT recalculated from custom per-date amounts.
+  // The gross total is locked to params.totalAmount (set in the /amount step).
+  // Users distribute the net amount across dates; any unallocated remainder is handled
+  // in handleContinue via an Alert that asks whether to proceed with the reduced total.
 
   const handleSelectDates = () => {
     if (Platform.OS !== 'web') {
@@ -1074,20 +1062,71 @@ export default function FrequencySelectionScreen() {
     return { totalAllocated, remainder };
   };
 
+  // Given a desired NET allocation across N dates, reverse-calculate the gross totalAmount
+  // needed (including processing + transaction + stamp duty fees). Uses equal-split stamp
+  // duty so per-date amounts cannot be skewed to game fees.
+  const calculateReducedTotalAmount = (netAllocated: number, n: number): number => {
+    const transaction = TRANSACTION_FEE_NAIRA * n;
+    const equalSplitPerPayout = n > 0 ? netAllocated / n : 0;
+    const stampCount = equalSplitPerPayout > STAMP_DUTY_THRESHOLD_NAIRA ? n : 0;
+    const stamp = STAMP_DUTY_NAIRA * stampCount;
+    const sum = netAllocated + transaction + stamp;
+    const totalAmountWithCap = sum + 500;
+    const useCap = 0.015 * totalAmountWithCap >= 500;
+    return useCap ? totalAmountWithCap : sum / (1 - PLAN_CREATION_FEE_PERCENT / 100);
+  };
+
+  // Push the custom schedule to the next step with a finalised gross totalAmount.
+  const pushCustomSchedule = (finalTotalAmount: number, totalAllocated: number) => {
+    if (Platform.OS !== 'web') haptics.mediumImpact();
+    const averagePayoutAmount = customDates.length > 0
+      ? (totalAllocated / customDates.length).toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : '0';
+    router.push({
+      pathname: isVaultSchedule ? '/vault-schedule-payout/destination' : '/create-payout/destination',
+      params: {
+        totalAmount: finalTotalAmount.toFixed(2),
+        frequency: 'custom',
+        payoutAmount: averagePayoutAmount,
+        duration: customDates.length.toString(),
+        startDate: customDates[0] || '',
+        bankName: params.bankName || '',
+        accountNumber: params.accountNumber || '',
+        accountName: params.accountName || '',
+        bankAccountId: params.bankAccountId || '',
+        payoutAccountId: params.payoutAccountId || '',
+        emergencyWithdrawal: 'true',
+        customDates: JSON.stringify(customDates),
+        customDateAmounts: JSON.stringify(dateAmounts),
+        customDateTimes: JSON.stringify(buildCustomDateTimesMap(customDates, dateTimes)),
+        dayOfWeek: '',
+        payoutHour: selectedHour.toString(),
+        payoutMinute: selectedMinute.toString(),
+        purpose: params.purpose || '',
+        purposeOther: params.purposeOther || '',
+        ...(isVaultSchedule && vaultPlanId && vaultMaxRaw
+          ? { vaultPlanId, vaultMaxAmount: vaultMaxRaw, vaultMaturityDate: vaultMaturityDate || '' }
+          : {}),
+      },
+    });
+  };
+
   const handleContinue = () => {
     // For custom tab, validate dates are selected
     if (activeTab === 'custom') {
       if (customDates.length === 0) {
-        if (Platform.OS !== 'web') {
-          haptics.error();
-        }
+        if (Platform.OS !== 'web') haptics.error();
         return;
       }
-      const numericTotal = parseFloat(totalAmount.replace(/,/g, '')) || 0;
-      if (numericTotal > scheduleCap) {
-        if (Platform.OS !== 'web') {
-          haptics.error();
-        }
+
+      // Always validate against the ORIGINAL totalAmount from the /amount step.
+      // The gross total is fixed — users cannot increase it by entering custom amounts.
+      const originalTotal = parseFloat((params.totalAmount as string || '0').replace(/,/g, '')) || 0;
+      if (originalTotal > scheduleCap) {
+        if (Platform.OS !== 'web') haptics.error();
         return;
       }
 
@@ -1098,56 +1137,29 @@ export default function FrequencySelectionScreen() {
           date.setHours(0, 0, 0, 0);
           return date < maturity;
         });
-
         if (hasDateBeforeMaturity) {
-          if (Platform.OS !== 'web') {
-            haptics.error();
-          }
+          if (Platform.OS !== 'web') haptics.error();
           return;
         }
       }
-      
-      if (Platform.OS !== 'web') {
-        haptics.mediumImpact();
+
+      const { totalAllocated, remainder } = calculateAllocatedAndRemainder();
+
+      if (remainder > 0.02) {
+        // Show bottom-sheet modal so the user can confirm or go back and adjust
+        if (Platform.OS !== 'web') haptics.selection();
+        setPendingProceedData({
+          reducedTotal: calculateReducedTotalAmount(totalAllocated, customDates.length),
+          totalAllocated,
+          remainder,
+          originalTotal,
+        });
+        setShowUnallocatedModal(true);
+        return;
       }
 
-      // Calculate average payout amount for display (used in review screen)
-      const { totalAllocated } = calculateAllocatedAndRemainder();
-      const averagePayoutAmount = customDates.length > 0 
-        ? (totalAllocated / customDates.length).toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          })
-        : '0';
-      
-      // Use totalAmount state (auto-adjusted when user edited per-date amounts), not params
-      router.push({
-        pathname: isVaultSchedule ? '/vault-schedule-payout/destination' : '/create-payout/destination',
-        params: {
-          totalAmount: totalAmount || params.totalAmount || '',
-          frequency: 'custom',
-          payoutAmount: averagePayoutAmount,
-          duration: customDates.length.toString(),
-          startDate: customDates[0] || '',
-          bankName: params.bankName || '',
-          accountNumber: params.accountNumber || '',
-          accountName: params.accountName || '',
-          bankAccountId: params.bankAccountId || '',
-          payoutAccountId: params.payoutAccountId || '',
-          emergencyWithdrawal: 'true',
-          customDates: JSON.stringify(customDates),
-          customDateAmounts: JSON.stringify(dateAmounts), // Pass individual amounts
-          customDateTimes: JSON.stringify(buildCustomDateTimesMap(customDates, dateTimes)),
-          dayOfWeek: '',
-          payoutHour: selectedHour.toString(),
-          payoutMinute: selectedMinute.toString(),
-          purpose: params.purpose || '',
-          purposeOther: params.purposeOther || '',
-          ...(isVaultSchedule && vaultPlanId && vaultMaxRaw
-            ? { vaultPlanId, vaultMaxAmount: vaultMaxRaw, vaultMaturityDate: vaultMaturityDate || '' }
-            : {}),
-        }
-      });
+      // Fully (or nearly fully) allocated — proceed with original gross total
+      pushCustomSchedule(originalTotal, totalAllocated);
       return;
     }
 
@@ -1223,14 +1235,17 @@ export default function FrequencySelectionScreen() {
   const isContinueDisabled = () => {
     if (activeTab === 'custom') {
       if (customDates.length === 0) return true;
-      // Check if all dates have amounts and total doesn't exceed net amount
-      const { totalAllocated, remainder } = calculateAllocatedAndRemainder();
+      const { remainder } = calculateAllocatedAndRemainder();
       const allDatesHaveAmounts = customDates.every(date => {
         const amount = dateAmounts[date];
-        return amount && !isNaN(parseFloat(amount.replace(/,/g, ''))) && parseFloat(amount.replace(/,/g, '')) > 0;
+        const num = parseFloat((amount || '').replace(/,/g, ''));
+        return amount && !isNaN(num) && num > 0;
       });
-      const numericTotal = parseFloat(totalAmount.replace(/,/g, '')) || 0;
-      const exceedsBalance = numericTotal > scheduleCap;
+      // Cap against the original gross total from the /amount step (never mutated)
+      const originalTotal = parseFloat((params.totalAmount as string || '0').replace(/,/g, '')) || 0;
+      const exceedsBalance = originalTotal > scheduleCap;
+      // remainder < 0 means dates total exceeds net — block. remainder ≥ 0 is fine (remainder
+      // may trigger an alert in handleContinue, but the button itself stays enabled).
       return !allDatesHaveAmounts || remainder < 0 || exceedsBalance;
     }
     if (!selectedFrequency || !selectedDuration) {
@@ -1746,13 +1761,11 @@ export default function FrequencySelectionScreen() {
                                 hitSlop={8}
                                 onPress={() => {
                                   if (Platform.OS !== 'web') haptics.selection();
-                                  const numericTotal = parseFloat(totalAmount.replace(/,/g, '')) || 0;
-                                  const breakdown = isEqualSplit
-                                    ? calculatePayoutFees(numericTotal, customDates.length)
-                                    : calculatePayoutFeesCustom(
-                                        numericTotal,
-                                        customDates.map((d) => parseFloat((dateAmounts[d] || '0').replace(/,/g, '')) || 0)
-                                      );
+                                  const numericTotal = parseFloat(
+                                    (params.totalAmount as string || totalAmount || '0').replace(/,/g, '')
+                                  ) || 0;
+                                  // Fees are always equal-split based — custom amounts don't affect fee calculation
+                                  const breakdown = calculatePayoutFees(numericTotal, customDates.length);
                                   setFeesBreakdownForModal(breakdown);
                                   setShowFeesBreakdownModal(true);
                                 }}
@@ -1879,6 +1892,89 @@ export default function FrequencySelectionScreen() {
                   <Text style={styles.feesBreakdownTotalValue}>
                     ₦{feesBreakdownForModal.totalFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Text>
+                </View>
+              </View>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Unallocated amount confirmation modal */}
+      <Modal
+        visible={showUnallocatedModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowUnallocatedModal(false)}
+      >
+        <Pressable
+          style={styles.feesModalOverlay}
+          onPress={() => setShowUnallocatedModal(false)}
+        >
+          <Pressable style={styles.feesModalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.feesModalHeader}>
+              <Text style={styles.feesModalTitle}>Unallocated amount</Text>
+              <Pressable
+                hitSlop={8}
+                onPress={() => {
+                  if (Platform.OS !== 'web') haptics.selection();
+                  setShowUnallocatedModal(false);
+                }}
+                style={styles.feesModalCloseBtn}
+              >
+                <X size={22} color={colors.text} />
+              </Pressable>
+            </View>
+
+            {pendingProceedData && (
+              <View style={styles.feesBreakdownBody}>
+                {/* Remainder highlight */}
+                <View style={styles.unallocatedAmountBox}>
+                  <Text style={styles.unallocatedAmountLabel}>Unallocated</Text>
+                  <Text style={styles.unallocatedAmountValue}>
+                    ₦{pendingProceedData.remainder.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+
+                <Text style={styles.unallocatedDescription}>
+                  This amount hasn't been assigned to any payout date. If you proceed, your plan total will be reduced and the difference returned to your available balance.
+                </Text>
+
+                <View style={styles.feesBreakdownRow}>
+                  <Text style={styles.feesBreakdownLabel}>Original plan total</Text>
+                  <Text style={styles.feesBreakdownValue}>
+                    ₦{pendingProceedData.originalTotal.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View style={[styles.feesBreakdownRow, styles.feesBreakdownTotalRow]}>
+                  <Text style={styles.feesBreakdownTotalLabel}>Adjusted plan total</Text>
+                  <Text style={styles.feesBreakdownTotalValue}>
+                    ₦{pendingProceedData.reducedTotal.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+
+                <View style={styles.unallocatedActions}>
+                  <Pressable
+                    style={styles.unallocatedAdjustBtn}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') haptics.selection();
+                      setShowUnallocatedModal(false);
+                    }}
+                  >
+                    <Text style={styles.unallocatedAdjustBtnText}>Adjust Amounts</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.unallocatedProceedBtn}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') haptics.mediumImpact();
+                      setShowUnallocatedModal(false);
+                      pushCustomSchedule(
+                        pendingProceedData.reducedTotal,
+                        pendingProceedData.totalAllocated
+                      );
+                    }}
+                  >
+                    <Text style={styles.unallocatedProceedBtnText}>Proceed Anyway</Text>
+                  </Pressable>
                 </View>
               </View>
             )}
@@ -2535,6 +2631,62 @@ const createStyles = (colors: any, isSmallScreen: boolean, isDark: boolean) => S
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+  },
+  unallocatedAmountBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(239,68,68,0.12)' : '#FEF2F2',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 4,
+  },
+  unallocatedAmountLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#EF4444',
+  },
+  unallocatedAmountValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#EF4444',
+  },
+  unallocatedDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  unallocatedActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  unallocatedAdjustBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  unallocatedAdjustBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  unallocatedProceedBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+  },
+  unallocatedProceedBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   remainderWarning: {
     fontSize: 12,
