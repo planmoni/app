@@ -387,6 +387,7 @@ export default function HomeScreen() {
   const [showBalanceActionsModal, setShowBalanceActionsModal] = useState(false);
   const { hasAppLockPin } = usePin();
   const scrollY = useRef(new Animated.Value(0)).current;
+  const [stickyButtonsInteractive, setStickyButtonsInteractive] = useState(false);
 
   const ensureAuthenticatedOrWelcome = useCallback(() => {
     if (!isAuthenticated) {
@@ -1259,8 +1260,7 @@ export default function HomeScreen() {
   // Ref to prevent duplicate navigation
   const isNavigatingToAddFundsRef = useRef(false);
 
-  const handleAddFunds = async () => {
-    // Prevent duplicate navigation
+  const handleAddFunds = useCallback(() => {
     if (isNavigatingToAddFundsRef.current) {
       return;
     }
@@ -1270,62 +1270,24 @@ export default function HomeScreen() {
       return;
     }
 
-    // Trigger medium impact haptic feedback
     impact();
-    
-    // Close the balance actions modal first
     setShowBalanceActionsModal(false);
-    
-    // Check if user has completed Tier 1
+
+    // Navigate immediately — account setup for bank transfer is handled on
+    // /add-funds and /bank-transfer, not here. Avoid blocking on a Supabase
+    // query that can hang when the connection is stale.
+    isNavigatingToAddFundsRef.current = true;
+    router.push('/add-funds');
+
     const tierCompletion = checkTierCompletion();
-    
-    // Check if user has an account
-    let hasAccount = false;
-    if (session?.user?.id) {
-      try {
-        const { data } = await supabase
-          .from('safehaven_accounts')
-          .select('id, account_number')
-          .eq('user_id', session.user.id)
-          .eq('is_deleted', false)
-          .not('account_number', 'ilike', 'PENDING_%')
-          .maybeSingle();
-        
-        hasAccount = !!(data && data.account_number && !data.account_number.startsWith('PENDING_'));
-      } catch (error) {
-        console.error('Error checking account:', error);
-      }
-    }
-    
-    // Allow access to the Add funds page even if Tier 1 isn't complete.
-    // Mono/Paystack flows don't require Tier 1, while bank-transfer may.
-    if (!tierCompletion.tier1) {
-      isNavigatingToAddFundsRef.current = true;
-      router.push('/add-funds');
-      logAnalyticsEvent('add_funds_click_non_kyc');
-      // Reset flag after navigation completes
-      setTimeout(() => {
-        isNavigatingToAddFundsRef.current = false;
-      }, 1000);
-      return;
-    }
+    logAnalyticsEvent(
+      tierCompletion.tier1 ? 'add_funds_click' : 'add_funds_click_non_kyc'
+    );
 
-    // Tier 1 is complete at this point. If user already has an account, go directly.
-    if (hasAccount) {
-      isNavigatingToAddFundsRef.current = true;
-      router.push('/add-funds');
-      logAnalyticsEvent('add_funds_click');
-      // Reset flag after navigation completes
-      setTimeout(() => {
-        isNavigatingToAddFundsRef.current = false;
-      }, 1000);
-      return;
-    }
-
-    // Otherwise show ClaimAccountModal to help create/claim the safehaven account.
-    setShowClaimAccountModal(true);
-    logAnalyticsEvent('add_funds_click_claim_modal');
-  };
+    setTimeout(() => {
+      isNavigatingToAddFundsRef.current = false;
+    }, 1000);
+  }, [ensureAuthenticatedOrWelcome, impact, checkTierCompletion]);
 
   const handleWithdraw = () => {
     impact();
@@ -1717,7 +1679,15 @@ export default function HomeScreen() {
               nestedScrollEnabled
               onScroll={Animated.event(
                 [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                { useNativeDriver: false }
+                {
+                  useNativeDriver: false,
+                  listener: (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+                    const interactive = event.nativeEvent.contentOffset.y > 100;
+                    setStickyButtonsInteractive((prev) =>
+                      prev !== interactive ? interactive : prev
+                    );
+                  },
+                }
               )}
               onScrollBeginDrag={() => updateLastActiveOnInteraction()}
               onTouchStart={() => updateLastActiveOnInteraction()}
@@ -1901,7 +1871,9 @@ export default function HomeScreen() {
 
       {/* Sticky Buttons - Only show on Home tab */}
       {activeBalanceTab === 'home' && (
-        <Animated.View style={[
+        <Animated.View
+          pointerEvents={stickyButtonsInteractive ? 'auto' : 'none'}
+          style={[
           styles.stickyButtons,
           {
             opacity: buttonOpacity,
