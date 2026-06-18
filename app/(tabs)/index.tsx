@@ -19,7 +19,7 @@ const ImageCarousel = React.lazy(() =>
 );
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
-import { useAppForeground } from '@/hooks/useAppForeground';
+import { warmConnection } from '@/lib/supabase-fetch';
 import { router, useGlobalSearchParams, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
 import {
   HelpCircleIcon,
@@ -72,7 +72,6 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
 import { logAnalyticsEvent } from '@/lib/firebase';
-import { reconnectSupabase } from '@/lib/supabase-reconnect';
 import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
 import { LifecycleEventName } from '@/lib/lifecycleEvents';
 import { updateNextPayoutWidget } from '@/lib/widgetStorage';
@@ -295,8 +294,6 @@ export default function HomeScreen() {
   const tabScrollViewRef = useRef<ScrollView>(null);
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification, selection } = useHaptics();
-  const foregroundTick = useAppForeground();
-  
   // Tab labels + state; horizontal pager position is synced in useLayoutEffect / useEffect below
   const handleTabChange = useCallback((tab: 'home' | 'plans' | 'payouts') => {
     impact();
@@ -355,7 +352,7 @@ export default function HomeScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastRefreshTimeRef = useRef<number>(0);
+  const isRefreshingRef = useRef(false);
   const [carouselImages, setCarouselImages] = useState<any[]>([]);
   const [imagesReady, setImagesReady] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -909,107 +906,75 @@ export default function HomeScreen() {
     logAnalyticsEvent('profile_click');
   }, []);
 
-  // Handle pull-to-refresh - refresh all page data.
-  // Priority order: wallet + payout plans (critical, user sees these immediately) are
-  // awaited before the spinner is dismissed. Transactions, expense plans, and KYC
-  // are fired in the background so a slow or timed-out secondary query never delays
-  // the user seeing their fresh balance.
+  // Handle pull-to-refresh — reconnect first, refresh everything in parallel,
+  // and cap the spinner so a stale/hung query never blocks the UI for 25s+.
+  const REFRESH_SPINNER_CAP_MS = 6000;
+
   const handleRefresh = useCallback(async () => {
-    // Debounce: prevent multiple rapid refreshes (minimum 1 second between refreshes)
-    const now = Date.now();
-    if (now - lastRefreshTimeRef.current < 1000) {
+    if (!session?.user?.id) {
+      setIsRefreshing(false);
       return;
     }
-    lastRefreshTimeRef.current = now;
+
+    if (isRefreshingRef.current) {
+      return;
+    }
+
+    isRefreshingRef.current = true;
+    setIsRefreshing(true);
 
     if (refreshTimeoutRef.current) {
       clearTimeout(refreshTimeoutRef.current);
       refreshTimeoutRef.current = null;
     }
 
-    setIsRefreshing(true);
-
-    // Failsafe: never leave the spinner stuck for more than 25s
-    refreshTimeoutRef.current = setTimeout(() => {
-      setIsRefreshing(false);
-      refreshTimeoutRef.current = null;
-    }, 25000);
-
-    try {
-      // — Critical tier: wallet balance + payout plans —
-      // Await these so the spinner stays visible until the user's balance is fresh.
-      const criticalResults = await Promise.allSettled([
-        refreshWallet(),
-        fetchPayoutPlans(),
-      ]);
-      criticalResults.forEach((r, i) => {
-        if (r.status === 'rejected') {
-          console.warn(`Refresh failed for ${['wallet', 'payout plans'][i]}:`, r.reason);
-        }
-      });
-
-      impact();
-    } catch (error) {
-      console.error('Error refreshing critical data:', error);
-    } finally {
+    const endRefresh = () => {
       if (refreshTimeoutRef.current) {
         clearTimeout(refreshTimeoutRef.current);
         refreshTimeoutRef.current = null;
       }
       setIsRefreshing(false);
-    }
+      isRefreshingRef.current = false;
+    };
 
-    // — Secondary tier: transactions, expense plans, KYC —
-    // Fire these silently after the spinner is gone; failures only appear in logs.
-    Promise.allSettled([
-      fetchTransactions(),
-      fetchExpensePlans(),
-      loadProgress(),
-    ]).then((results) => {
-      results.forEach((r, i) => {
-        if (r.status === 'rejected') {
-          console.warn(`Background refresh failed for ${['transactions', 'expense plans', 'KYC'][i]}:`, r.reason);
-        }
-      });
-    });
-  }, [refreshWallet, fetchExpensePlans, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
+    // Absolute failsafe — spinner must never stick
+    refreshTimeoutRef.current = setTimeout(endRefresh, REFRESH_SPINNER_CAP_MS + 3000);
 
-  // Refresh dashboard data when app returns from background.
-  // NOTE: useRealtimeWallet handles its own wallet refetch on foreground independently,
-  // so we do NOT call refreshWallet() here to avoid a duplicate request at t=0.
-  // We also stagger the remaining fetches with an initial 500ms delay to give the
-  // Supabase WebSocket time to re-establish after the app was backgrounded, preventing
-  // a "thundering herd" of 5-6 simultaneous queries that all hit the 12s timeout.
-  useEffect(() => {
-    if (!session?.user?.id || foregroundTick === 0) {
-      return;
-    }
+    try {
+      await warmConnection();
 
-    let cancelled = false;
-
-    const staggeredForegroundRefresh = async () => {
-      // Run the "hard restart" (teardown stale channels + refresh auth token) in
-      // parallel with the 1s network-recovery delay so both happen at the same time.
-      await Promise.allSettled([
-        reconnectSupabase(),
-        new Promise((resolve) => setTimeout(resolve, 1000)),
+      const refreshWork = Promise.allSettled([
+        refreshWallet(),
+        fetchPayoutPlans(),
+        fetchTransactions(),
+        fetchExpensePlans(),
+        loadProgress(),
       ]);
-      if (cancelled) return;
 
-      // Tier 1: most critical — payout plans + transactions (user-visible immediately)
-      await Promise.allSettled([fetchPayoutPlans(), fetchTransactions()]);
-      if (cancelled) return;
+      await Promise.race([
+        refreshWork,
+        new Promise<void>((resolve) => setTimeout(resolve, REFRESH_SPINNER_CAP_MS)),
+      ]);
 
-      // Tier 2: secondary — expense plans + KYC (less time-sensitive)
-      await Promise.allSettled([fetchExpensePlans(), loadProgress()]);
-    };
+      impact();
 
-    void staggeredForegroundRefresh();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [foregroundTick, session?.user?.id, fetchPayoutPlans, fetchTransactions, fetchExpensePlans, loadProgress]);
+      // If the spinner cap fired first, let remaining fetches finish silently
+      void refreshWork.then((results) => {
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') {
+            console.warn(
+              `Refresh failed for ${['wallet', 'payout plans', 'transactions', 'expense plans', 'KYC'][i]}:`,
+              r.reason
+            );
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Error refreshing page data:', error);
+    } finally {
+      endRefresh();
+    }
+  }, [session?.user?.id, refreshWallet, fetchExpensePlans, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
 
   const handleHelpPress = useCallback(async () => {
     try {

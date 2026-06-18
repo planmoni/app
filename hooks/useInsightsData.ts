@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPayoutDateTime } from '@/lib/formatters';
-import { withRetryOnTimeout } from '@/lib/with-timeout';
-
-const FETCH_TIMEOUT_MS = 15000;
+import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordinator';
+import { fetchWithRetry, CACHE_KEYS, readCache, writeCache } from '@/lib/supabase-fetch';
 
 export type Metric = {
   title: string;
@@ -31,97 +30,36 @@ export type VaultStat = {
   status: string;
 };
 
-export function useInsightsData() {
+export function useInsightsData(payoutPlans: any[] = []) {
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [trends, setTrends] = useState<Trend[]>([]);
   const [vaultStats, setVaultStats] = useState<VaultStat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+  const hasCachedDataRef = useRef(false);
 
-  useEffect(() => {
-    if (session?.user?.id) {
-      fetchInsightsData();
-    } else {
-      // Return empty/mock data for unauthenticated users
-      setMetrics([
-        {
-          title: 'Payouts',
-          value: '₦0',
-          change: '+0%',
-          positive: true,
-          icon: 'Send',
-          description: 'Total payouts this month',
-        },
-        {
-          title: 'Deposits',
-          value: '₦0',
-          change: '+0%',
-          positive: true,
-          icon: 'Wallet',
-          description: 'Total deposits this month',
-        },
-        {
-          title: 'Active',
-          value: '0',
-          change: '+0',
-          positive: false,
-          icon: 'Clock',
-          description: 'Currently active payouts',
-        },
-        {
-          title: 'Txns',
-          value: '0',
-          change: '+0%',
-          positive: false,
-          icon: 'TrendingUp',
-          description: 'Total payout transactions',
-        },
-      ]);
-      setTrends([]);
-      setVaultStats([]);
-      setIsLoading(false);
-      setError(null);
-    }
-  }, [session?.user?.id]);
-
-  const fetchInsightsData = async () => {
+  const fetchInsightsData = useCallback(async () => {
+    if (!session?.user?.id) return;
     try {
-      setIsLoading(true);
+      if (!hasCachedDataRef.current) {
+        setIsLoading(true);
+      }
       setError(null);
 
-      // Fetch transactions and payout plans in parallel with timeout + retry.
-      const [transactionsResult, plansResult] = await Promise.allSettled([
-        withRetryOnTimeout(
-          () =>
-            supabase
-              .from('transactions')
-              .select('*')
-              .eq('user_id', session?.user?.id)
-              .order('created_at', { ascending: false }),
-          FETCH_TIMEOUT_MS,
-          'Insights transactions'
-        ) as Promise<{ data: any[] | null; error: any }>,
-        withRetryOnTimeout(
-          () =>
-            supabase
-              .from('payout_plans')
-              .select('*')
-              .eq('user_id', session?.user?.id)
-              .order('created_at', { ascending: false }),
-          FETCH_TIMEOUT_MS,
-          'Insights payout plans'
-        ) as Promise<{ data: any[] | null; error: any }>,
-      ]);
+      const transactionsResult = await fetchWithRetry(
+        () =>
+          supabase
+            .from('transactions')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .order('created_at', { ascending: false }),
+        'Insights transactions'
+      ) as { data: any[] | null; error: any };
 
-      if (transactionsResult.status === 'rejected') throw transactionsResult.reason;
-      if (plansResult.status === 'rejected') throw plansResult.reason;
+      if (transactionsResult.error) throw transactionsResult.error;
 
-      const transactions = transactionsResult.value.data;
-      const payoutPlans = plansResult.value.data;
-
-      if (transactionsResult.value.error) throw transactionsResult.value.error;
-      if (plansResult.value.error) throw plansResult.value.error;
+      const transactions = transactionsResult.data;
 
       // Calculate metrics
       const totalPayouts = transactions
@@ -418,12 +356,94 @@ export function useInsightsData() {
       setMetrics(metricsData);
       setTrends(trendsData);
       setVaultStats(vaultStatsData);
+
+      void writeCache(CACHE_KEYS.insights(session.user.id), {
+        metrics: metricsData,
+        trends: trendsData,
+        vaultStats: vaultStatsData,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch insights data');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [session?.user?.id, payoutPlans]);
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      let isMounted = true;
+
+      const init = async () => {
+        try {
+          const cached = await readCache<{
+            metrics: Metric[];
+            trends: Trend[];
+            vaultStats: VaultStat[];
+          }>(CACHE_KEYS.insights(session.user.id));
+          if (cached && isMounted) {
+            const d = cached;
+            setMetrics(d.metrics || []);
+            setTrends(d.trends || []);
+            setVaultStats(d.vaultStats || []);
+            setIsLoading(false);
+            hasCachedDataRef.current = true;
+          }
+        } catch (_) {}
+
+        if (!isMounted) return;
+        void fetchInsightsData();
+      };
+
+      void init();
+
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    // Return empty/mock data for unauthenticated users
+    setMetrics([
+      {
+        title: 'Payouts',
+        value: '₦0',
+        change: '+0%',
+        positive: true,
+        icon: 'Send',
+        description: 'Total payouts this month',
+      },
+      {
+        title: 'Deposits',
+        value: '₦0',
+        change: '+0%',
+        positive: true,
+        icon: 'Wallet',
+        description: 'Total deposits this month',
+      },
+      {
+        title: 'Active',
+        value: '0',
+        change: '+0',
+        positive: false,
+        icon: 'Clock',
+        description: 'Currently active payouts',
+      },
+      {
+        title: 'Txns',
+        value: '0',
+        change: '+0%',
+        positive: false,
+        icon: 'TrendingUp',
+        description: 'Total payout transactions',
+      },
+    ]);
+    setTrends([]);
+    setVaultStats([]);
+    setIsLoading(false);
+    setError(null);
+    hasCachedDataRef.current = false;
+  }, [session?.user?.id, payoutPlans, fetchInsightsData]);
+
+  useRegisterForegroundRefetch('insights', 2, fetchInsightsData, !!session?.user?.id);
 
   return {
     metrics,

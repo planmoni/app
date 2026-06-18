@@ -11,9 +11,11 @@ import { QueryClient, QueryClientProvider as TanStackQueryClientProvider } from 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 2,
+      retry: 1,
       refetchOnWindowFocus: false,
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      refetchOnReconnect: true,
+      staleTime: 5 * 60 * 1000,
+      networkMode: 'offlineFirst',
     },
     mutations: {
       retry: 1,

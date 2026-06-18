@@ -11,6 +11,7 @@ import PlanmoniLoader from '@/components/PlanmoniLoader';
 import Button from '@/components/Button';
 import SummaryCard from '@/components/SummaryCard';
 import { supabase } from '@/lib/supabase';
+import { withRetryOnTimeout } from '@/lib/with-timeout';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { logAnalyticsEvent } from '@/lib/firebase';
@@ -24,8 +25,8 @@ export default function InsightsScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { isAuthenticated } = useRequireAuth();
-  const { metrics, trends, vaultStats, isLoading, error, refreshInsights } = useInsightsData();
   const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
+  const { metrics, trends, vaultStats, isLoading, error, refreshInsights } = useInsightsData(payoutPlans);
   const { expensePlans } = useExpensePlans();
   const [customPayoutDates, setCustomPayoutDates] = useState<Record<string, string[]>>({});
   const [vaultStatsLimit, setVaultStatsLimit] = useState(5);
@@ -88,11 +89,16 @@ export default function InsightsScreen() {
 
       try {
         const planIds = customPlans.map(plan => plan.id);
-        const { data, error } = await supabase
-          .from('custom_payout_dates')
-          .select('payout_plan_id, payout_date')
-          .in('payout_plan_id', planIds)
-          .order('payout_date', { ascending: true });
+        const { data, error } = await withRetryOnTimeout(
+          () =>
+            supabase
+              .from('custom_payout_dates')
+              .select('payout_plan_id, payout_date')
+              .in('payout_plan_id', planIds)
+              .order('payout_date', { ascending: true }),
+          15000,
+          'Insights custom payout dates'
+        ) as { data: any[] | null; error: any };
 
         if (error) throw error;
 
@@ -217,7 +223,11 @@ export default function InsightsScreen() {
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
-  if (isLoading || payoutPlansLoading) {
+  const showInitialLoader =
+    (isLoading && metrics.length === 0) ||
+    (payoutPlansLoading && payoutPlans.length === 0);
+
+  if (showInitialLoader) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>

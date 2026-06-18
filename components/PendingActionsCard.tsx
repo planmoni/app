@@ -3,7 +3,7 @@ import SkeletonBox from '@/components/SkeletonBox';
 import { ChevronRight, X, Mail, Lock, Fingerprint, CircleAlert as AlertCircle, Clock, ShieldCheck } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,8 +12,8 @@ import { useOnlineStatus } from './OnlineStatusProvider';
 import OfflineNotice from './OfflineNotice';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { useAppForeground } from '@/hooks/useAppForeground';
-import { withTimeout } from '@/lib/with-timeout';
+import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordinator';
+import { fetchWithRetry, CACHE_KEYS, readCache, writeCache } from '@/lib/supabase-fetch';
 import Tier1Icon from '@/assets/kyc/1.svg';
 import Tier2Icon from '@/assets/kyc/2.svg';
 import Tier3Icon from '@/assets/kyc/3.svg';
@@ -47,7 +47,7 @@ export default function PendingActionsCard() {
   const { isOnline } = useOnlineStatus();
   const { progress, currentTier = 0, getTierInfo } = useKYCProgress();
   const [tierInfo, setTierInfo] = useState<any>(null);
-  const foregroundTick = useAppForeground();
+  const hasCachedDataRef = useRef(false);
 
   const fetchProfileData = useCallback(async () => {
     if (!session?.user?.id) {
@@ -61,22 +61,26 @@ export default function PendingActionsCard() {
     }
 
     try {
-      setIsLoading(true);
-      const result = await withTimeout(
-        supabase
-          .from('profiles')
-          .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
-          .eq('id', session.user.id)
-          .single(),
-        12000,
+      if (!hasCachedDataRef.current) {
+        setIsLoading(true);
+      }
+
+      const result = await fetchWithRetry(
+        () =>
+          supabase
+            .from('profiles')
+            .select('email_verified, app_lock_enabled, two_factor_enabled, account_verified')
+            .eq('id', session.user.id)
+            .single(),
         'Profile fetch'
       );
       const { data, error } = result as { data: typeof profileData; error: { message?: string } | null };
 
       if (error) throw error;
       setProfileData(data);
+      void writeCache(CACHE_KEYS.pendingProfile(session.user.id), data);
     } catch (error) {
-      console.error('Error loading profile data:', error);
+      console.warn('Error loading profile data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -93,11 +97,44 @@ export default function PendingActionsCard() {
   }, [getTierInfo, isOnline]);
 
   useEffect(() => {
-    if (session?.user?.id) {
+    if (!session?.user?.id) {
+      hasCachedDataRef.current = false;
+      return;
+    }
+
+    let isMounted = true;
+
+    const init = async () => {
+      try {
+        const cached = await readCache<any>(CACHE_KEYS.pendingProfile(session.user.id));
+        if (cached && isMounted) {
+          setProfileData(cached);
+          setIsLoading(false);
+          hasCachedDataRef.current = true;
+        }
+      } catch (_) {}
+
+      if (!isMounted) return;
       void fetchProfileData();
       void loadTierInfo();
-    }
-  }, [session?.user?.id, foregroundTick, fetchProfileData, loadTierInfo]);
+    };
+
+    void init();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.user?.id, fetchProfileData, loadTierInfo]);
+
+  useRegisterForegroundRefetch(
+    'pending-profile',
+    3,
+    () => {
+      void fetchProfileData();
+      void loadTierInfo();
+    },
+    !!session?.user?.id
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -250,8 +287,8 @@ export default function PendingActionsCard() {
     return null;
   }
 
-  // Show skeleton loading state
-  if (isLoading || pinStatePending) {
+  // Show skeleton only when we have no cached profile data yet
+  if ((isLoading && !profileData) || pinStatePending) {
     const cardWidth = Platform.OS === 'ios' ? 300 : 250;
     return (
       <View>

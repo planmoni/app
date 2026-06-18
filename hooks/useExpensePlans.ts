@@ -1,13 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { ExpensePlan, ExpenseBucket, ExpenseBucketLockedFunds, BudgetStructure } from '@/types/expense-planner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { withTimeout } from '@/lib/with-timeout';
-
-const EXPENSE_PLANS_CACHE_KEY_PREFIX = 'cache_expense_plans_';
-const FETCH_TIMEOUT_MS = 15000;
+import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordinator';
+import { fetchWithRetry, CACHE_KEYS, readCache, writeCache, toUserFacingError } from '@/lib/supabase-fetch';
 
 export function useExpensePlans() {
   const { session } = useAuth();
@@ -15,6 +12,20 @@ export function useExpensePlans() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const hasCachedDataRef = useRef(false);
+  const fetchInFlightRef = useRef(false);
+
+  const hydrateFromCache = useCallback(async (userId: string): Promise<boolean> => {
+    if (hasCachedDataRef.current) return true;
+
+    const cached = await readCache<ExpensePlan[]>(CACHE_KEYS.expensePlans(userId));
+    if (cached !== null) {
+      setExpensePlans(cached);
+      hasCachedDataRef.current = true;
+      setIsLoading(false);
+      return true;
+    }
+    return false;
+  }, []);
 
   /**
    * Calculate funding status for a plan based on current_balance and total_budget
@@ -48,38 +59,43 @@ export function useExpensePlans() {
     return 'partially_funded';
   };
 
-  const fetchExpensePlans = async () => {
-    if (!session?.user?.id) {
+  const fetchExpensePlans = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!userId) {
       setIsLoading(false);
       return;
     }
+
+    if (fetchInFlightRef.current) return;
+    fetchInFlightRef.current = true;
+
+    await hydrateFromCache(userId);
 
     try {
       if (!hasCachedDataRef.current) {
         setIsLoading(true);
       }
       setError(null);
-      
-      // Fetch all budget plans
-      const { data: plans, error: fetchError } = await withTimeout(
-        supabase
-          .from('budget_plans')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false }),
-        FETCH_TIMEOUT_MS,
+
+      const { data: plans, error: fetchError } = (await fetchWithRetry(
+        () =>
+          supabase
+            .from('budget_plans')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false }),
         'Expense plans fetch'
-      ) as { data: any[] | null; error: any };
-      
+      )) as { data: any[] | null; error: any };
+
       if (fetchError) throw fetchError;
-      
+
       if (!plans || plans.length === 0) {
         setExpensePlans([]);
+        hasCachedDataRef.current = true;
+        void writeCache(CACHE_KEYS.expensePlans(userId), []);
         return;
       }
 
-      // Enhance plans with categories/subcategories and funding status
-      // Buckets are no longer a separate table - categories/subcategories are stored directly in budget_plans
       const enhancedPlans: ExpensePlan[] = plans.map((plan: any) => {
         // Get current_balance from plan
         const currentBalance = (plan as any).current_balance || 0;
@@ -123,19 +139,25 @@ export function useExpensePlans() {
         };
       });
 
-      // Set expense plans (all plans stay, no expiry)
       setExpensePlans(enhancedPlans);
-      AsyncStorage.setItem(
-        `${EXPENSE_PLANS_CACHE_KEY_PREFIX}${session.user.id}`,
-        JSON.stringify(enhancedPlans)
-      ).catch(() => {});
+      hasCachedDataRef.current = true;
+      void writeCache(CACHE_KEYS.expensePlans(userId), enhancedPlans);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch expense plans'));
-      console.error('Error fetching expense plans:', err);
+      if (hasCachedDataRef.current) {
+        if (__DEV__) {
+          console.warn('Expense plans refresh failed; showing cached data.');
+        }
+      } else {
+        if (__DEV__) {
+          console.warn('Expense plans fetch failed:', toUserFacingError(err, false));
+        }
+        setError(new Error(toUserFacingError(err, false)));
+      }
     } finally {
       setIsLoading(false);
+      fetchInFlightRef.current = false;
     }
-  };
+  }, [session?.user?.id, hydrateFromCache]);
 
   /**
    * Check if error is a retryable network/server error (502, 503, 504, etc.)
@@ -631,17 +653,6 @@ export function useExpensePlans() {
 
     const setupRealtimeSubscription = async () => {
       try {
-        // Show cached data instantly while we fetch fresh
-        try {
-          const cached = await AsyncStorage.getItem(`${EXPENSE_PLANS_CACHE_KEY_PREFIX}${session.user.id}`);
-          if (cached && isMounted) {
-            setExpensePlans(JSON.parse(cached));
-            setIsLoading(false);
-            hasCachedDataRef.current = true;
-          }
-        } catch (_) {}
-
-        // Initial fresh fetch
         await fetchExpensePlans();
 
         if (!isMounted) return;
@@ -689,7 +700,7 @@ export function useExpensePlans() {
         supabase.removeChannel(channel);
       }
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, fetchExpensePlans]);
 
   /**
    * Save the last step/page the user was on before closing
@@ -1024,6 +1035,13 @@ export function useExpensePlans() {
       throw error;
     }
   };
+
+  useRegisterForegroundRefetch(
+    'expense-plans',
+    3,
+    () => fetchExpensePlans(),
+    !!session?.user?.id
+  );
 
   return {
     expensePlans,

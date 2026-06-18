@@ -22,7 +22,7 @@ export default function CalendarScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { session } = useAuth();
-  const { events, isLoading, error, refreshEvents } = useCalendarEvents();
+  const { events, isLoading, error, isStale, refreshEvents } = useCalendarEvents();
   const [activeView, setActiveView] = useState<ViewType>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -203,7 +203,7 @@ export default function CalendarScreen() {
 
   const styles = createStyles(colors, isDark, cellSize, weekCellSize, textSizeMultiplier);
 
-  if (isLoading) {
+  if (isLoading && events.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
@@ -231,7 +231,7 @@ export default function CalendarScreen() {
     );
   }
 
-  if (error) {
+  if (error && events.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
@@ -681,6 +681,14 @@ export default function CalendarScreen() {
         </View>
       </View>
 
+      {(isStale || (error && events.length > 0)) && (
+        <View style={styles.staleBanner}>
+          <Text style={styles.staleBannerText}>
+            {error || "Couldn't refresh. Showing saved data."}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.viewSelector}>
         {(['month', 'week', 'list'] as ViewType[]).map((view) => (
           <Pressable
@@ -765,6 +773,19 @@ const createStyles = (colors: any, isDark: boolean, cellSize: number, weekCellSi
   loadingText: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
     color: colors.textSecondary,
+  },
+  staleBanner: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: isDark ? 'rgba(251, 191, 36, 0.15)' : 'rgba(251, 191, 36, 0.2)',
+  },
+  staleBannerText: {
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   errorContainer: {
     flex: 1,

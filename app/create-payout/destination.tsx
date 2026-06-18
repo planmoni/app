@@ -35,18 +35,14 @@ export default function DestinationScreen() {
     fetchPayoutAccounts
   } = usePayoutAccounts();
   
-  const { 
-    bankAccounts, 
-    isLoading: bankAccountsLoading, 
-    error: bankAccountsError 
-  } = useRealtimeBankAccounts();
+  const { bankAccounts } = useRealtimeBankAccounts();
 
   // Get banks for icon mapping
   const { banks } = useBanks();
 
-  // Combine loading and error states
-  const isLoading = payoutAccountsLoading || bankAccountsLoading;
-  const error = payoutAccountsError || bankAccountsError;
+  // Only gate the payout list on payout accounts — bank accounts load independently.
+  const isLoading = payoutAccountsLoading;
+  const error = payoutAccountsError;
 
   // Refresh accounts when screen comes into focus
   useFocusEffect(
@@ -276,7 +272,7 @@ export default function DestinationScreen() {
           <View style={styles.accountsList}>
             {isLoading ? (
               <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading bank accounts...</Text>
+                <Text style={styles.loadingText}>Loading payout accounts...</Text>
               </View>
             ) : accountType === 'payout' ? (
               payoutAccounts.length === 0 ? (

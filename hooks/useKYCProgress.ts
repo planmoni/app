@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { withTimeout } from '@/lib/with-timeout';
-
-const FETCH_TIMEOUT_MS = 15000;
+import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordinator';
+import { fetchWithRetry, CACHE_KEYS, readCache, writeCache } from '@/lib/supabase-fetch';
 
 export type KYCStep = 'liveness_verification' | 'personal' | 'bvn_verification' | 'id_face_match' | 'documents_verification' | 'address_details' | 'review';
 
@@ -48,6 +47,7 @@ export interface KYCTierInfo {
 
 export const useKYCProgress = () => {
   const { session } = useAuth();
+  const hasCachedDataRef = useRef(false);
   const [progress, setProgress] = useState<KYCProgress>({
     current_step: 'liveness_verification',
     personal_info_completed: false,
@@ -71,28 +71,27 @@ export const useKYCProgress = () => {
     if (!session?.user?.id) return;
 
     try {
-      setLoading(true);
+      if (!hasCachedDataRef.current) {
+        setLoading(true);
+      }
       setError(null);
 
-      // Query kyc_progress table directly
-      const { data, error: fetchError } = await withTimeout(
-        supabase
-          .from('kyc_progress')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .maybeSingle(),
-        FETCH_TIMEOUT_MS,
+      const { data, error: fetchError } = await fetchWithRetry(
+        () =>
+          supabase
+            .from('kyc_progress')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle(),
         'KYC progress fetch'
       ) as { data: any; error: any };
 
       if (data) {
-        // Record exists, use it
         setProgress(data);
+        void writeCache(CACHE_KEYS.kycProgress(session.user.id), data);
       } else if (fetchError && fetchError.code !== 'PGRST116') {
-        // Only throw if it's not a "no rows" error
         throw fetchError;
       } else {
-        // No record exists, create a default one
         const defaultProgress: KYCProgress = {
           user_id: session.user.id,
           current_step: 'liveness_verification',
@@ -109,36 +108,38 @@ export const useKYCProgress = () => {
           utility_bill_verified: false
         };
 
-        // Use upsert to handle race conditions where record might be created between check and insert
-        const { data: newData, error: createError } = await supabase
-          .from('kyc_progress')
-          .upsert(defaultProgress, {
-            onConflict: 'user_id',
-            ignoreDuplicates: false
-          })
-          .select()
-          .single();
+        const { data: newData, error: createError } = await fetchWithRetry(
+          () =>
+            supabase
+              .from('kyc_progress')
+              .upsert(defaultProgress, {
+                onConflict: 'user_id',
+                ignoreDuplicates: false
+              })
+              .select()
+              .single(),
+          'KYC progress create'
+        ) as { data: any; error: any };
 
         if (createError) {
-          // If upsert fails with duplicate key, try to fetch the existing record
           if (createError.code === '23505') {
-            console.log('[KYC] Duplicate key detected, fetching existing record');
-            const { data: existingData, error: fetchExistingError } = await withTimeout(
-              supabase
-                .from('kyc_progress')
-                .select('*')
-                .eq('user_id', session.user.id)
-                .single(),
-              FETCH_TIMEOUT_MS,
+            const { data: existingData, error: fetchExistingError } = await fetchWithRetry(
+              () =>
+                supabase
+                  .from('kyc_progress')
+                  .select('*')
+                  .eq('user_id', session.user.id)
+                  .single(),
               'KYC progress fetch (retry)'
             ) as { data: any; error: any };
-            
+
             if (fetchExistingError) {
               throw fetchExistingError;
             }
-            
+
             if (existingData) {
               setProgress(existingData);
+              void writeCache(CACHE_KEYS.kycProgress(session.user.id), existingData);
               return;
             }
           }
@@ -147,11 +148,14 @@ export const useKYCProgress = () => {
 
         if (newData) {
           setProgress(newData);
+          void writeCache(CACHE_KEYS.kycProgress(session.user.id), newData);
         }
       }
     } catch (err) {
-      console.error('Error loading KYC progress:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load progress');
+      console.warn('Error loading KYC progress:', err);
+      if (!hasCachedDataRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load progress');
+      }
     } finally {
       setLoading(false);
     }
@@ -332,12 +336,44 @@ export const useKYCProgress = () => {
     return result;
   }, [updateProgress, updateTier]);
 
-  // Load progress on mount and when session changes
+  // Load cached progress immediately, then fetch fresh data.
   useEffect(() => {
-    loadProgress().then(() => {
-      updateTier();
-    });
-  }, [loadProgress, updateTier]);
+    if (!session?.user?.id) {
+      hasCachedDataRef.current = false;
+      return;
+    }
+
+    let isMounted = true;
+
+    const init = async () => {
+      try {
+        const cached = await readCache<KYCProgress>(CACHE_KEYS.kycProgress(session.user.id));
+        if (cached && isMounted) {
+          setProgress(cached);
+          hasCachedDataRef.current = true;
+        }
+      } catch (_) {}
+
+      if (!isMounted) return;
+      await loadProgress();
+      await updateTier();
+    };
+
+    void init();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.user?.id, loadProgress, updateTier]);
+
+  useRegisterForegroundRefetch(
+    'kyc-progress',
+    3,
+    () => {
+      void loadProgress().then(() => updateTier());
+    },
+    !!session?.user?.id
+  );
 
   // Check tier completion based on progress
   const checkTierCompletion = useCallback(() => {

@@ -1,56 +1,85 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { withTimeout } from '@/lib/with-timeout';
-
-const FETCH_TIMEOUT_MS = 15000;
+import { fetchWithRetry, CACHE_KEYS, readCache, writeCache } from '@/lib/supabase-fetch';
 
 export function useHasCreatedPayoutPlan() {
   const [hasCreatedPayoutPlan, setHasCreatedPayoutPlan] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
   const { session } = useAuth();
+  const hasCachedDataRef = useRef(false);
 
-  useEffect(() => {
-    if (session?.user?.id) {
-      checkIfUserHasCreatedPayoutPlan();
-    } else {
+  const checkIfUserHasCreatedPayoutPlan = useCallback(async () => {
+    if (!session?.user?.id) {
       setHasCreatedPayoutPlan(false);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      if (!hasCachedDataRef.current) {
+        setIsLoading(true);
+      }
+
+      const { data, error } = await fetchWithRetry(
+        () =>
+          supabase
+            .from('transactions')
+            .select('id')
+            .eq('user_id', session.user.id)
+            .eq('type', 'payout')
+            .limit(1),
+        'Payout plan check'
+      ) as { data: { id: string }[] | null; error: unknown };
+
+      if (error) {
+        console.warn('Error checking payout transaction history:', error);
+        if (!hasCachedDataRef.current) {
+          setHasCreatedPayoutPlan(false);
+        }
+      } else {
+        const hasPlan = (data?.length ?? 0) > 0;
+        setHasCreatedPayoutPlan(hasPlan);
+        void writeCache(CACHE_KEYS.hasPayoutPlan(session.user.id), hasPlan);
+      }
+    } catch (err) {
+      console.warn('Error checking if user has created payout transactions:', err);
+      if (!hasCachedDataRef.current) {
+        setHasCreatedPayoutPlan(false);
+      }
+    } finally {
       setIsLoading(false);
     }
   }, [session?.user?.id]);
 
-  const checkIfUserHasCreatedPayoutPlan = async () => {
-    try {
-      setIsLoading(true);
-
-      // Only consider users who have existing payout transactions.
-      // This prevents showing the "first payout schedule" modal when the user already has payout history.
-      const { data, error } = await withTimeout(
-        supabase
-          .from('transactions')
-          .select('id')
-          .eq('user_id', session?.user?.id)
-          .eq('type', 'payout')
-          .limit(1),
-        FETCH_TIMEOUT_MS,
-        'Payout plan check'
-      );
-
-      if (error) {
-        console.error('Error checking payout transaction history:', error);
-        // Default to false on error to be safe
-        setHasCreatedPayoutPlan(false);
-      } else {
-        // If any event exists, user has created a payout plan before
-        setHasCreatedPayoutPlan((data?.length ?? 0) > 0);
-      }
-    } catch (err) {
-      console.error('Error checking if user has created payout transactions:', err);
+  useEffect(() => {
+    if (!session?.user?.id) {
+      hasCachedDataRef.current = false;
       setHasCreatedPayoutPlan(false);
-    } finally {
       setIsLoading(false);
+      return;
     }
-  };
+
+    let isMounted = true;
+
+    const init = async () => {
+      const cached = await readCache<boolean>(CACHE_KEYS.hasPayoutPlan(session.user.id));
+      if (cached !== null && isMounted) {
+        setHasCreatedPayoutPlan(cached);
+        setIsLoading(false);
+        hasCachedDataRef.current = true;
+      }
+
+      if (!isMounted) return;
+      await checkIfUserHasCreatedPayoutPlan();
+    };
+
+    void init();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.user?.id, checkIfUserHasCreatedPayoutPlan]);
 
   return {
     hasCreatedPayoutPlan,
@@ -58,4 +87,3 @@ export function useHasCreatedPayoutPlan() {
     refetch: checkIfUserHasCreatedPayoutPlan,
   };
 }
-

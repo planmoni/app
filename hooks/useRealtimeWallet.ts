@@ -2,12 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { useAppForeground } from '@/hooks/useAppForeground';
-import { withRetryOnTimeout } from '@/lib/with-timeout';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const FETCH_TIMEOUT_MS = 15000;
-const WALLET_CACHE_KEY_PREFIX = 'cache_wallet_';
+import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordinator';
+import { fetchWithRetry, CACHE_KEYS, readCache, writeCache } from '@/lib/supabase-fetch';
 
 export function useRealtimeWallet() {
   const [balance, setBalance] = useState(0);
@@ -16,7 +12,6 @@ export function useRealtimeWallet() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
-  const foregroundTick = useAppForeground();
   const channelRef = useRef<RealtimeChannel | null>(null);
   const hasCachedDataRef = useRef(false);
 
@@ -32,14 +27,13 @@ export function useRealtimeWallet() {
       }
       setError(null);
 
-      const { data, error: fetchError } = await withRetryOnTimeout(
+      const { data, error: fetchError } = await fetchWithRetry(
         () =>
           supabase
             .from('wallets')
             .select('balance, locked_balance, available_balance')
             .eq('user_id', session.user.id)
             .single(),
-        FETCH_TIMEOUT_MS,
         'Wallet fetch'
       ) as { data: { balance: number; locked_balance: number; available_balance: number } | null; error: any };
 
@@ -53,10 +47,7 @@ export function useRealtimeWallet() {
         setBalance(data.balance || 0);
         setLockedBalance(data.locked_balance || 0);
         setAvailableBalance(data.available_balance || 0);
-        AsyncStorage.setItem(
-          `${WALLET_CACHE_KEY_PREFIX}${session.user.id}`,
-          JSON.stringify(data)
-        ).catch(() => {});
+        void writeCache(CACHE_KEYS.wallet(session.user.id), data);
       }
     } catch (err) {
       console.warn('Error fetching wallet data:', err);
@@ -74,14 +65,13 @@ export function useRealtimeWallet() {
     try {
       setError(null);
 
-      const { data, error: fetchError } = await withRetryOnTimeout(
+      const { data, error: fetchError } = await fetchWithRetry(
         () =>
           supabase
             .from('wallets')
             .select('balance, locked_balance, available_balance')
             .eq('user_id', session.user.id)
             .single(),
-        FETCH_TIMEOUT_MS,
         'Wallet refresh'
       ) as { data: { balance: number; locked_balance: number; available_balance: number } | null; error: any };
 
@@ -101,10 +91,7 @@ export function useRealtimeWallet() {
         setBalance(walletData.balance);
         setLockedBalance(walletData.lockedBalance);
         setAvailableBalance(walletData.availableBalance);
-        AsyncStorage.setItem(
-          `${WALLET_CACHE_KEY_PREFIX}${session.user.id}`,
-          JSON.stringify(data)
-        ).catch(() => {});
+        void writeCache(CACHE_KEYS.wallet(session.user.id), data);
 
         return walletData;
       }
@@ -180,9 +167,11 @@ export function useRealtimeWallet() {
     const init = async () => {
       // Show cached data instantly while we fetch fresh
       try {
-        const cached = await AsyncStorage.getItem(`${WALLET_CACHE_KEY_PREFIX}${session.user.id}`);
+        const cached = await readCache<{ balance: number; locked_balance: number; available_balance: number }>(
+          CACHE_KEYS.wallet(session.user.id)
+        );
         if (cached && isMounted) {
-          const d = JSON.parse(cached);
+          const d = cached;
           setBalance(d.balance || 0);
           setLockedBalance(d.locked_balance || 0);
           setAvailableBalance(d.available_balance || 0);
@@ -212,15 +201,15 @@ export function useRealtimeWallet() {
     };
   }, [session?.user?.id, fetchWalletData, setupRealtimeSubscription]);
 
-  // Refetch wallet + reconnect realtime when app returns to foreground.
-  useEffect(() => {
-    if (!session?.user?.id || foregroundTick === 0) {
-      return;
-    }
-
-    void fetchWalletData();
-    setupRealtimeSubscription();
-  }, [foregroundTick, session?.user?.id, fetchWalletData, setupRealtimeSubscription]);
+  useRegisterForegroundRefetch(
+    'wallet',
+    1,
+    () => {
+      void fetchWalletData();
+      setupRealtimeSubscription();
+    },
+    !!session?.user?.id
+  );
 
   return {
     balance,

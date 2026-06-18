@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowLeft, Copy, Info, CheckCircle } from 'lucide-react-native';
@@ -6,12 +6,19 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
-import { useKYCProgress } from '@/hooks/useKYCProgress';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordinator';
+import { fetchWithRetry, CACHE_KEYS, readCache, writeCache } from '@/lib/supabase-fetch';
 import * as Clipboard from 'expo-clipboard';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import ClaimAccountModal from '@/components/ClaimAccountModal';
+
+type AccountInfo = {
+  account_number: string;
+  account_name: string;
+  bank_name: string;
+};
 
 export default function BankTransferScreen() {
   const { colors, isDark } = useTheme();
@@ -20,64 +27,108 @@ export default function BankTransferScreen() {
   const haptics = useHaptics();
   const { showToast } = useToast();
   const { session } = useAuth();
-  const { checkTierCompletion, progress } = useKYCProgress();
   const isSmallScreen = screenWidth < 380;
 
   const [hasAccount, setHasAccount] = useState(false);
   const [accountLoading, setAccountLoading] = useState(true);
-  const [accountInfo, setAccountInfo] = useState<{
-    account_number: string;
-    account_name: string;
-    bank_name: string;
-  } | null>(null);
+  const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
   const [showClaimModal, setShowClaimModal] = useState(false);
+  const hasCachedDataRef = useRef(false);
 
   const styles = useMemo(() => createStyles(colors, isDark, isSmallScreen), [colors, isDark, isSmallScreen]);
 
-  // Check if user has an account
-  useEffect(() => {
-    const checkAccount = async () => {
-      if (!session?.user?.id) {
-        setAccountLoading(false);
+  const applyAccountData = useCallback((data: { account_number: string; account_name?: string } | null) => {
+    if (data?.account_number && !data.account_number.startsWith('PENDING_')) {
+      setHasAccount(true);
+      setAccountInfo({
+        account_number: data.account_number,
+        account_name: data.account_name || 'N/A',
+        bank_name: 'SAFEHAVEN MFB',
+      });
+      return;
+    }
+    setHasAccount(false);
+    setAccountInfo(null);
+  }, []);
+
+  const fetchAccount = useCallback(async () => {
+    if (!session?.user?.id) {
+      setAccountLoading(false);
+      return;
+    }
+
+    try {
+      if (!hasCachedDataRef.current) {
+        setAccountLoading(true);
+      }
+
+      const { data, error } = await fetchWithRetry(
+        () =>
+          supabase
+            .from('safehaven_accounts')
+            .select('id, account_number, account_name, status')
+            .eq('user_id', session.user.id)
+            .eq('is_deleted', false)
+            .not('account_number', 'ilike', 'PENDING_%')
+            .maybeSingle(),
+        'SafeHaven account'
+      ) as { data: { account_number: string; account_name?: string } | null; error: any };
+
+      if (error && error.code !== 'PGRST116') {
+        console.warn('Error checking account:', error);
+        if (!hasCachedDataRef.current) {
+          applyAccountData(null);
+        }
         return;
       }
 
-      try {
-        setAccountLoading(true);
-        const { data, error } = await supabase
-          .from('safehaven_accounts')
-          .select('id, account_number, account_name, status')
-          .eq('user_id', session.user.id)
-          .eq('is_deleted', false)
-          .not('account_number', 'ilike', 'PENDING_%')
-          .maybeSingle();
-
-        if (error && error.code !== 'PGRST116') {
-          console.warn('Error checking account:', error);
-          setHasAccount(false);
-          setAccountInfo(null);
-        } else if (data && data.account_number && !data.account_number.startsWith('PENDING_')) {
-          setHasAccount(true);
-          setAccountInfo({
-            account_number: data.account_number,
-            account_name: data.account_name || 'N/A',
-            bank_name: 'SAFEHAVEN MFB',
-          });
-        } else {
-          setHasAccount(false);
-          setAccountInfo(null);
-        }
-      } catch (error) {
-        console.error('Error checking account:', error);
-        setHasAccount(false);
-        setAccountInfo(null);
-      } finally {
-        setAccountLoading(false);
+      applyAccountData(data);
+      if (data?.account_number) {
+        void writeCache(CACHE_KEYS.safehavenAccount(session.user.id), data);
       }
+    } catch (error) {
+      console.error('Error checking account:', error);
+      if (!hasCachedDataRef.current) {
+        applyAccountData(null);
+      }
+    } finally {
+      setAccountLoading(false);
+    }
+  }, [session?.user?.id, applyAccountData]);
+
+  useEffect(() => {
+    if (!session?.user?.id) {
+      hasCachedDataRef.current = false;
+      setAccountLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    const init = async () => {
+      try {
+        const cached = await readCache<{ account_number: string; account_name?: string }>(
+          CACHE_KEYS.safehavenAccount(session.user.id)
+        );
+        if (cached && isMounted) {
+          applyAccountData(cached);
+          setAccountLoading(false);
+          hasCachedDataRef.current = true;
+        }
+      } catch (_) {}
+
+      if (!isMounted) return;
+      void fetchAccount();
     };
 
-    checkAccount();
-  }, [session?.user?.id]);
+    void init();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.user?.id, fetchAccount, applyAccountData]);
+
+  useRegisterForegroundRefetch('bank-transfer', 3, fetchAccount, !!session?.user?.id);
 
   const handleBack = () => {
     haptics.lightImpact();
@@ -100,13 +151,6 @@ export default function BankTransferScreen() {
     }
   };
 
-  const handleQuickTransfer = () => {
-    haptics.mediumImpact();
-    // Navigate to virtual account page or show virtual account details
-    // For now, we'll show a toast - this can be updated when virtual account functionality is ready
-    showToast('Virtual account feature coming soon', 'info');
-  };
-
   const handleClaimAccount = () => {
     haptics.mediumImpact();
     setShowClaimModal(true);
@@ -114,38 +158,8 @@ export default function BankTransferScreen() {
 
   const handleClaimSuccess = () => {
     setShowClaimModal(false);
-    // Refresh account info
-    const checkAccount = async () => {
-      if (!session?.user?.id) return;
-
-      try {
-        const { data } = await supabase
-          .from('safehaven_accounts')
-          .select('id, account_number, account_name, status')
-          .eq('user_id', session.user.id)
-          .eq('is_deleted', false)
-          .not('account_number', 'ilike', 'PENDING_%')
-          .maybeSingle();
-
-        if (data && data.account_number && !data.account_number.startsWith('PENDING_')) {
-          setHasAccount(true);
-          setAccountInfo({
-            account_number: data.account_number,
-            account_name: data.account_name || 'N/A',
-            bank_name: 'SAFEHAVEN MFB',
-          });
-        }
-      } catch (error) {
-        console.error('Error refreshing account:', error);
-      }
-    };
-
-    checkAccount();
+    void fetchAccount();
   };
-
-  // Check if KYC Tier 1 is complete
-  const tierCompletion = checkTierCompletion();
-  const isTier1Complete = tierCompletion.tier1;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -165,12 +179,11 @@ export default function BankTransferScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          {accountLoading ? (
+          {accountLoading && !accountInfo ? (
             <View style={styles.loadingContainer}>
               <PlanmoniLoader size="medium" description="Loading account details..." />
             </View>
           ) : hasAccount && accountInfo ? (
-            // User has account - show account details
             <>
               <View style={styles.accountDetailsCard}>
                 <View style={styles.cardHeader}>
@@ -223,7 +236,6 @@ export default function BankTransferScreen() {
               </View>
             </>
           ) : (
-            // User doesn't have account - show claim account message
             <>
               <View style={styles.noAccountContainer}>
                 <Text style={styles.noAccountMessage}>
@@ -241,7 +253,6 @@ export default function BankTransferScreen() {
         </View>
       </ScrollView>
 
-      {/* Claim Account Modal */}
       <ClaimAccountModal
         isVisible={showClaimModal}
         onClose={() => setShowClaimModal(false)}

@@ -1,18 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchWithRetry, CACHE_KEYS, readCache, writeCache, toUserFacingError } from '@/lib/supabase-fetch';
 
 export interface KYCFormData {
   id?: string;
   user_id?: string;
-  
+
   // Personal Information
   first_name?: string;
   last_name?: string;
   middle_name?: string;
   date_of_birth?: string;
   phone_number?: string;
-  
+
   // Address Information
   address?: string;
   address_no?: string;
@@ -22,7 +23,7 @@ export interface KYCFormData {
   address_place_id?: string;
   lga?: string;
   state?: string;
-  
+
   // Identity Information
   bvn?: string;
   account_number?: string;
@@ -31,20 +32,20 @@ export interface KYCFormData {
   nin?: string;
   document_type?: 'bvn' | 'nin' | 'passport' | 'drivers_license';
   document_number?: string;
-  
+
   // Document URLs
   document_front_url?: string;
   document_back_url?: string;
   selfie_url?: string;
-  
+
   // Address Documents (Optional)
   utility_bill_url?: string;
   utility_bill_validated?: boolean;
   utility_bill_validation_result?: any;
-  
+
   // Admin Approval
   approved?: boolean;
-  
+
   created_at?: string;
   updated_at?: string;
 }
@@ -54,20 +55,26 @@ export const useKYCData = () => {
   const [formData, setFormData] = useState<KYCFormData>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasCachedDataRef = useRef(false);
 
-  // Load KYC form data
   const loadFormData = useCallback(async () => {
     if (!session?.user?.id) return;
 
     try {
-      setLoading(true);
+      if (!hasCachedDataRef.current) {
+        setLoading(true);
+      }
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('kyc_data')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .single();
+      const { data, error: fetchError } = await fetchWithRetry(
+        () =>
+          supabase
+            .from('kyc_data')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .single(),
+        'KYC form data'
+      ) as { data: KYCFormData | null; error: { code?: string; message?: string } | null };
 
       if (fetchError && fetchError.code !== 'PGRST116') {
         throw fetchError;
@@ -75,18 +82,20 @@ export const useKYCData = () => {
 
       if (data) {
         setFormData(data);
+        void writeCache(CACHE_KEYS.kycData(session.user.id), data);
       } else {
         setFormData({});
       }
     } catch (err) {
-      console.error('Error loading KYC form data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load form data');
+      console.warn('Error loading KYC form data:', err);
+      if (!hasCachedDataRef.current) {
+        setError(toUserFacingError(err, false));
+      }
     } finally {
       setLoading(false);
     }
   }, [session?.user?.id]);
 
-  // Save KYC form data
   const saveFormData = useCallback(async (updates: Partial<KYCFormData>): Promise<boolean> => {
     if (!session?.user?.id) return false;
 
@@ -96,7 +105,6 @@ export const useKYCData = () => {
 
       console.log('Saving KYC form data:', updates);
 
-      // Check if record exists
       const { error: checkError } = await supabase
         .from('kyc_data')
         .select('id')
@@ -106,12 +114,11 @@ export const useKYCData = () => {
       let result;
 
       if (checkError && checkError.code === 'PGRST116') {
-        // Create new record
         const { data, error: insertError } = await supabase
           .from('kyc_data')
           .insert({
             ...updates,
-            user_id: session.user.id
+            user_id: session.user.id,
           })
           .select()
           .single();
@@ -119,7 +126,6 @@ export const useKYCData = () => {
         if (insertError) throw insertError;
         result = data;
 
-        // Create audit log for KYC data creation
         await supabase.rpc('create_kyc_audit_log', {
           p_user_id: session.user.id,
           p_operation_type: 'kyc_initiated',
@@ -132,13 +138,12 @@ export const useKYCData = () => {
           p_metadata: {
             component: 'useKYCData',
             action: 'create_record',
-            fields_updated: Object.keys(updates)
-          }
+            fields_updated: Object.keys(updates),
+          },
         });
       } else if (checkError) {
         throw checkError;
       } else {
-        // Update existing record
         const { data, error: updateError } = await supabase
           .from('kyc_data')
           .update(updates)
@@ -149,7 +154,6 @@ export const useKYCData = () => {
         if (updateError) throw updateError;
         result = data;
 
-        // Create audit log for KYC data update
         await supabase.rpc('create_kyc_audit_log', {
           p_user_id: session.user.id,
           p_operation_type: 'kyc_submitted',
@@ -162,13 +166,13 @@ export const useKYCData = () => {
           p_metadata: {
             component: 'useKYCData',
             action: 'update_record',
-            fields_updated: Object.keys(updates)
-          }
+            fields_updated: Object.keys(updates),
+          },
         });
       }
 
-      
       setFormData(result);
+      void writeCache(CACHE_KEYS.kycData(session.user.id), result);
       console.log('KYC form data saved successfully');
       return true;
     } catch (err) {
@@ -180,10 +184,32 @@ export const useKYCData = () => {
     }
   }, [session?.user?.id]);
 
-  // Load data on mount and when session changes
   useEffect(() => {
-    loadFormData();
-  }, [loadFormData]);
+    if (!session?.user?.id) {
+      hasCachedDataRef.current = false;
+      setFormData({});
+      return;
+    }
+
+    let isMounted = true;
+
+    const init = async () => {
+      const cached = await readCache<KYCFormData>(CACHE_KEYS.kycData(session.user.id));
+      if (cached && isMounted) {
+        setFormData(cached);
+        hasCachedDataRef.current = true;
+      }
+
+      if (!isMounted) return;
+      await loadFormData();
+    };
+
+    void init();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.user?.id, loadFormData]);
 
   return {
     formData,
@@ -191,6 +217,6 @@ export const useKYCData = () => {
     error,
     loadFormData,
     saveFormData,
-    setFormData
+    setFormData,
   };
-}; 
+};

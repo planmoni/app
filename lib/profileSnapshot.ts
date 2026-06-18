@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
+import { withRetryOnTimeout } from './with-timeout';
+
+const PROFILE_FETCH_TIMEOUT_MS = 15000;
 
 export interface ProfileSnapshot {
   id: string;
@@ -143,11 +146,16 @@ export class ProfileSnapshotManager {
       console.log('�� Refreshing profile snapshot for user:', userId);
       
       // Fetch fresh profile data
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      const { data: profile, error } = await withRetryOnTimeout(
+        () =>
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single(),
+        PROFILE_FETCH_TIMEOUT_MS,
+        'Profile snapshot refresh'
+      ) as { data: ProfileSnapshot | null; error: { message?: string } | null };
 
       if (error) {
         console.error('Error fetching profile data:', error);

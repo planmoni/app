@@ -26,6 +26,7 @@ import { useFonts } from 'expo-font';
 import { usePayoutNotifications } from '@/hooks/usePayoutNotifications';
 import { useTransactionNotifications } from '@/hooks/useTransactionNotifications';
 import { supabase } from '@/lib/supabase';
+import { useForegroundRefreshCoordinator } from '@/hooks/useForegroundRefreshCoordinator';
 import { SplashScreen, Stack, usePathname, router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
@@ -90,6 +91,9 @@ function RootLayoutNav() {
   
   // Track page changes for redirect after unlock
   usePageTracking();
+
+  // Staggered foreground data refresh (wallet, plans, transactions, etc.)
+  useForegroundRefreshCoordinator();
   
   // Initialize notification hooks for payout and transaction notifications
   usePayoutNotifications();

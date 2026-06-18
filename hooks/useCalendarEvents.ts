@@ -1,340 +1,151 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { withRetryOnTimeout } from '@/lib/with-timeout';
+import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
+import { buildCalendarEvents, CalendarEvent } from '@/lib/calendar/buildCalendarEvents';
+import {
+  CACHE_KEYS,
+  fetchWithRetry,
+  readCache,
+  writeCache,
+  toUserFacingError,
+  warmConnection,
+} from '@/lib/supabase-fetch';
 
-const FETCH_TIMEOUT_MS = 15000;
-
-export type CalendarEvent = {
-  id: string;
-  title: string;
-  amount: string;
-  time: string;
-  type: 'completed' | 'pending' | 'scheduled' | 'failed';
-  description: string;
-  vault?: string;
-  date: string;
-  payout_plan_id?: string;
-  transaction_id?: string;
-};
+export type { CalendarEvent };
 
 export function useCalendarEvents() {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+  const { payoutPlans, isLoading: plansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
+  const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
+
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isStale, setIsStale] = useState(false);
+  const [customDatesByPlan, setCustomDatesByPlan] = useState<
+    Record<string, { payout_date: string; payout_time?: string }[]>
+  >({});
+  const hasCachedDataRef = useRef(false);
+  const customDatesFetchedRef = useRef<string>('');
+
+  const isLoading =
+    !hasCachedDataRef.current && (plansLoading || transactionsLoading) && events.length === 0;
 
   useEffect(() => {
-    if (session?.user?.id) {
-      fetchCalendarEvents();
-    } else {
+    if (!session?.user?.id) {
+      hasCachedDataRef.current = false;
       setEvents([]);
-      setIsLoading(false);
       setError(null);
+      setIsStale(false);
+      return;
     }
+
+    let isMounted = true;
+
+    const loadCache = async () => {
+      const cached = await readCache<CalendarEvent[]>(CACHE_KEYS.calendarEvents(session.user.id));
+      if (cached?.length && isMounted) {
+        setEvents(cached);
+        hasCachedDataRef.current = true;
+      }
+    };
+
+    void loadCache();
+
+    return () => {
+      isMounted = false;
+    };
   }, [session?.user?.id]);
 
-  const fetchCalendarEvents = async () => {
+  const fetchCustomDates = useCallback(async () => {
     if (!session?.user?.id) return;
-    try {
-      setError(null);
-      setIsLoading(true);
 
-      const selectPlan = `
-        id,
-        name,
-        payout_amount,
-        status,
-        start_date,
-        next_payout_date,
-        created_at,
-        completed_payouts,
-        duration,
-        frequency
-      `;
+    const customPlanIds = payoutPlans
+      .filter((p) => p.status === 'active' && p.start_date && p.frequency === 'custom')
+      .map((p) => p.id);
 
-      // Fire all top-level queries in parallel with timeout + retry so a stale
-      // connection on app resume doesn't cause an immediate failure and empty page.
-      const [plansResult, pairingsResult, transactionsResult] = await Promise.allSettled([
-        withRetryOnTimeout(
-          () => supabase.from('payout_plans').select(selectPlan).eq('user_id', session.user.id),
-          FETCH_TIMEOUT_MS,
-          'Calendar payout plans'
-        ) as Promise<{ data: any[] | null; error: any }>,
-        withRetryOnTimeout(
-          () => supabase.from('payout_plan_pairings').select('payout_plan_id').eq('paired_user_id', session.user.id),
-          FETCH_TIMEOUT_MS,
-          'Calendar pairings'
-        ) as Promise<{ data: any[] | null; error: any }>,
-        withRetryOnTimeout(
-          () =>
-            supabase
-              .from('transactions')
-              .select(`id, type, amount, status, created_at, payout_plan_id, payout_plans ( name )`)
-              .eq('type', 'payout')
-              .order('created_at', { ascending: false }),
-          FETCH_TIMEOUT_MS,
-          'Calendar transactions'
-        ) as Promise<{ data: any[] | null; error: any }>,
-      ]);
+    const idsKey = customPlanIds.sort().join(',');
+    if (idsKey === customDatesFetchedRef.current) return;
+    customDatesFetchedRef.current = idsKey;
 
-      const ownedPlans =
-        plansResult.status === 'fulfilled' && !plansResult.value.error ? plansResult.value.data || [] : [];
-      const pairingRows =
-        pairingsResult.status === 'fulfilled' ? pairingsResult.value.data || [] : [];
-      const transactions =
-        transactionsResult.status === 'fulfilled' && !transactionsResult.value.error
-          ? transactionsResult.value.data || []
-          : [];
-
-      if (plansResult.status === 'rejected') throw plansResult.reason;
-      if (transactionsResult.status === 'rejected') throw transactionsResult.reason;
-
-      const pairedIds = pairingRows.map((r: { payout_plan_id: string }) => r.payout_plan_id).filter(Boolean);
-      let pairedPlans: any[] = [];
-      if (pairedIds.length > 0) {
-        const { data: pairedData } = await withRetryOnTimeout(
-          () => supabase.from('payout_plans').select(selectPlan).in('id', pairedIds),
-          FETCH_TIMEOUT_MS,
-          'Calendar paired plans'
-        ) as { data: any[] | null; error: any };
-        pairedPlans = pairedData || [];
-      }
-      const payoutPlans = [...ownedPlans, ...pairedPlans];
-
-      const calendarEvents: CalendarEvent[] = [];
-
-      // Process completed payouts from transactions
-      transactions?.forEach((transaction: any) => {
-        const date = new Date(transaction.created_at);
-        const formattedDate = date.toLocaleDateString('en-US', {
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric'
-        });
-
-        calendarEvents.push({
-          id: transaction.id,
-          title: `₦${Number(transaction.amount).toLocaleString()} disbursed`,
-          amount: `₦${Number(transaction.amount).toLocaleString()}`,
-          time: date.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-          }),
-          type: transaction.status === 'completed' ? 'completed' : 'failed',
-          description: `From Vault "${transaction.payout_plans?.name || 'Unknown'}"`,
-          vault: transaction.payout_plans?.name,
-          date: formattedDate,
-          payout_plan_id: transaction.payout_plan_id,
-          transaction_id: transaction.id,
-        });
-      });
-
-      // Process payout plan creation dates and scheduled payouts
-      if (payoutPlans) {
-        for (const plan of payoutPlans) {
-        const createdDate = new Date(plan.created_at);
-        const formattedCreatedDate = createdDate.toLocaleDateString('en-US', {
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric'
-        });
-
-        calendarEvents.push({
-          id: `plan-created-${plan.id}`,
-          title: 'Payout plan created',
-          amount: `₦${plan.payout_amount.toLocaleString()}`,
-          time: createdDate.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-          }),
-          type: 'pending',
-          description: `Plan "${plan.name}" created`,
-          vault: plan.name,
-          date: formattedCreatedDate,
-          payout_plan_id: plan.id,
-        });
-
-          // Process scheduled payouts - calculate all future scheduled payouts
-          if (plan.status === 'active' && plan.start_date) {
-            const startDate = new Date(plan.start_date);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            // Extract payout time from next_payout_date (if it exists and is a timestamptz)
-            // Default to 9:00 AM if not available or if time is midnight (likely just a date)
-            let payoutTime: { hours: number; minutes: number } = { hours: 9, minutes: 0 };
-            if (plan.next_payout_date) {
-              const nextPayoutDateTime = new Date(plan.next_payout_date);
-              // Check if it's a valid date and has meaningful time information (not midnight)
-              if (!isNaN(nextPayoutDateTime.getTime())) {
-                const hours = nextPayoutDateTime.getHours();
-                const minutes = nextPayoutDateTime.getMinutes();
-                // Only use the time if it's not midnight (likely a real time, not just a date)
-                if (hours !== 0 || minutes !== 0) {
-                  payoutTime = { hours, minutes };
-                }
-              }
-            }
-            
-            // Calculate all future scheduled payouts
-            const scheduledDates: Date[] = [];
-            
-            if (plan.frequency === 'custom') {
-              // For custom frequency, fetch custom payout dates
-              const { data: customDates } = await withRetryOnTimeout(
-                () =>
-                  supabase
-                    .from('custom_payout_dates')
-                    .select('payout_date, payout_time')
-                    .eq('payout_plan_id', plan.id)
-                    .gte('payout_date', today.toISOString().split('T')[0])
-                    .order('payout_date', { ascending: true }),
-                FETCH_TIMEOUT_MS,
-                'Calendar custom dates'
-              ) as { data: any[] | null; error: any };
-              
-              if (customDates) {
-                for (const customDate of customDates) {
-                  const dateParts = String(customDate.payout_date).split('T')[0].split('-').map(Number);
-                  const [y, m, d] = dateParts;
-                  let hours = payoutTime.hours;
-                  let minutes = payoutTime.minutes;
-                  if (customDate.payout_time) {
-                    const timeParts = String(customDate.payout_time).split(':').map(Number);
-                    if (!isNaN(timeParts[0])) hours = timeParts[0] % 24;
-                    if (!isNaN(timeParts[1])) minutes = timeParts[1] % 60;
-                  }
-                  const date = new Date(y, m - 1, d, hours, minutes, 0, 0);
-                  scheduledDates.push(date);
-                }
-              }
-            } else {
-              // Calculate scheduled dates based on frequency
-              const remainingPayouts = plan.duration - plan.completed_payouts;
-              
-              for (let i = 0; i < remainingPayouts; i++) {
-                const payoutIndex = plan.completed_payouts + i;
-                const scheduledDate = new Date(startDate);
-                
-                switch (plan.frequency) {
-                  case 'daily':
-                    scheduledDate.setDate(startDate.getDate() + payoutIndex);
-                    break;
-                  case 'weekly':
-                    scheduledDate.setDate(startDate.getDate() + (payoutIndex * 7));
-                    break;
-                  case 'biweekly':
-                    scheduledDate.setDate(startDate.getDate() + (payoutIndex * 14));
-                    break;
-                  case 'monthly':
-                    scheduledDate.setMonth(startDate.getMonth() + payoutIndex);
-                    break;
-                }
-                
-                // Apply the payout time
-                scheduledDate.setHours(payoutTime.hours, payoutTime.minutes, 0, 0);
-                
-                // Only include future dates (or today)
-                const scheduledDateOnly = new Date(scheduledDate);
-                scheduledDateOnly.setHours(0, 0, 0, 0);
-                if (scheduledDateOnly >= today) {
-                  scheduledDates.push(scheduledDate);
-                }
-              }
-            }
-            
-            // Create calendar events for each scheduled payout
-            for (let index = 0; index < scheduledDates.length; index++) {
-              const scheduledDate = scheduledDates[index];
-              const formattedDate = scheduledDate.toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric'
-          });
-
-          // Calculate days until payout
-              const daysUntilPayout = Math.ceil((scheduledDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-          
-          // Determine event type and title based on timing
-          let eventType: 'scheduled' | 'failed' = 'scheduled';
-          let eventTitle = 'Scheduled payout';
-              let eventDescription = `Payout from "${plan.name}"`;
-          
-          // If payout is overdue (more than 1 day past due), mark as failed
-          if (daysUntilPayout < -1) {
-            eventType = 'failed';
-            eventTitle = 'Overdue payout';
-            eventDescription = `Overdue payout from "${plan.name}" (${Math.abs(daysUntilPayout)} days late)`;
-          }
-          
-              // Show all future scheduled payouts, or overdue payouts up to 7 days
-              // This ensures all scheduled payouts in a plan are visible in the calendar
-              if (daysUntilPayout >= 0 || (daysUntilPayout < 0 && daysUntilPayout >= -7)) {
-            calendarEvents.push({
-                  id: `plan-scheduled-${plan.id}-${index}`,
-              title: eventTitle,
-              amount: `₦${plan.payout_amount.toLocaleString()}`,
-                  time: scheduledDate.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-              }),
-              type: eventType,
-              description: eventDescription,
-              vault: plan.name,
-                  date: formattedDate,
-              payout_plan_id: plan.id,
-            });
-              }
-          }
-        }
-
-        // Check for plans that are paused
-        if (plan.status === 'paused' && plan.next_payout_date) {
-          const pausedDate = new Date(plan.next_payout_date);
-          const formattedPausedDate = pausedDate.toLocaleDateString('en-US', {
-            month: 'long',
-            day: 'numeric',
-            year: 'numeric'
-          });
-
-          calendarEvents.push({
-            id: `plan-paused-${plan.id}`,
-            title: 'Payout paused',
-            amount: `₦${plan.payout_amount.toLocaleString()}`,
-            time: pausedDate.toLocaleTimeString('en-US', {
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true
-            }),
-            type: 'failed',
-            description: `Payout from "${plan.name}" was paused`,
-            vault: plan.name,
-            date: formattedPausedDate,
-            payout_plan_id: plan.id,
-          });
-        }
-        }
-      }
-
-      // Sort events by date
-      calendarEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-      setEvents(calendarEvents);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch calendar events');
-    } finally {
-      setIsLoading(false);
+    if (customPlanIds.length === 0) {
+      setCustomDatesByPlan({});
+      return;
     }
-  };
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+
+    try {
+      const { data } = (await fetchWithRetry(
+        () =>
+          supabase
+            .from('custom_payout_dates')
+            .select('payout_plan_id, payout_date, payout_time')
+            .in('payout_plan_id', customPlanIds)
+            .gte('payout_date', todayStr)
+            .order('payout_date', { ascending: true }),
+        'Calendar custom dates'
+      )) as { data: any[] | null; error: any };
+
+      const byPlan: Record<string, { payout_date: string; payout_time?: string }[]> = {};
+      data?.forEach((item) => {
+        if (!byPlan[item.payout_plan_id]) byPlan[item.payout_plan_id] = [];
+        byPlan[item.payout_plan_id].push(item);
+      });
+      setCustomDatesByPlan(byPlan);
+      setIsStale(false);
+    } catch (err) {
+      console.warn('Calendar custom dates fetch failed:', err);
+      if (hasCachedDataRef.current) {
+        setIsStale(true);
+      }
+    }
+  }, [session?.user?.id, payoutPlans]);
+
+  useEffect(() => {
+    void fetchCustomDates();
+  }, [fetchCustomDates]);
+
+  const builtEvents = useMemo(
+    () => buildCalendarEvents(payoutPlans, transactions, customDatesByPlan),
+    [payoutPlans, transactions, customDatesByPlan]
+  );
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    if (builtEvents.length > 0 || (payoutPlans.length === 0 && transactions.length === 0 && !plansLoading && !transactionsLoading)) {
+      setEvents(builtEvents);
+      if (builtEvents.length > 0) {
+        hasCachedDataRef.current = true;
+        void writeCache(CACHE_KEYS.calendarEvents(session.user.id), builtEvents);
+      }
+      setError(null);
+      setIsStale(false);
+    } else if (!hasCachedDataRef.current && !plansLoading && !transactionsLoading) {
+      setError("Couldn't load calendar events. Tap Retry.");
+    }
+  }, [builtEvents, session?.user?.id, payoutPlans.length, transactions.length, plansLoading, transactionsLoading]);
+
+  const refreshEvents = useCallback(async () => {
+    if (!session?.user?.id) return;
+    setError(null);
+    customDatesFetchedRef.current = '';
+    await warmConnection();
+    await Promise.allSettled([fetchPayoutPlans(), fetchTransactions()]);
+    await fetchCustomDates();
+  }, [session?.user?.id, fetchPayoutPlans, fetchTransactions, fetchCustomDates]);
+
+  const displayError = error ? toUserFacingError(error, hasCachedDataRef.current) : null;
 
   return {
     events,
     isLoading,
-    error,
-    refreshEvents: fetchCalendarEvents,
+    error: events.length > 0 ? (isStale ? displayError : null) : displayError,
+    isStale,
+    refreshEvents,
   };
 }

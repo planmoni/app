@@ -2,9 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const PAYOUT_PLANS_CACHE_KEY_PREFIX = 'cache_payout_plans_';
+import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordinator';
+import { fetchWithRetry, CACHE_KEYS, readCache, writeCache } from '@/lib/supabase-fetch';
 
 export type PayoutPlan = {
   id: string;
@@ -72,16 +71,27 @@ export function useRealtimePayoutPlans() {
 
       // Fetch owned plans and pairings in parallel (P4 fix)
       const [ownedResult, pairingResult] = await Promise.all([
-        supabase
-          .from('payout_plans')
-          .select(select)
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('payout_plan_pairings')
-          .select('payout_plan_id')
-          .eq('paired_user_id', session.user.id),
-      ]);
+        fetchWithRetry(
+          () =>
+            supabase
+              .from('payout_plans')
+              .select(select)
+              .eq('user_id', session.user.id)
+              .order('created_at', { ascending: false }),
+          'Payout plans'
+        ),
+        fetchWithRetry(
+          () =>
+            supabase
+              .from('payout_plan_pairings')
+              .select('payout_plan_id')
+              .eq('paired_user_id', session.user.id),
+          'Payout plan pairings'
+        ),
+      ]) as [
+        { data: any[] | null; error: any },
+        { data: { payout_plan_id: string }[] | null; error: any },
+      ];
 
       const { data: ownedData, error: ownedError } = ownedResult;
       const { data: pairingRows, error: pairingError } = pairingResult;
@@ -91,35 +101,30 @@ export function useRealtimePayoutPlans() {
 
       if (pairingError) {
         setPayoutPlans(owned);
-        AsyncStorage.setItem(
-          `${PAYOUT_PLANS_CACHE_KEY_PREFIX}${session.user.id}`,
-          JSON.stringify(owned)
-        ).catch(() => {});
+        void writeCache(CACHE_KEYS.payoutPlans(session.user.id), owned);
         return;
       }
 
       const pairedIds = (pairingRows || []).map((r: { payout_plan_id: string }) => r.payout_plan_id).filter(Boolean);
       if (pairedIds.length === 0) {
         setPayoutPlans(owned);
-        AsyncStorage.setItem(
-          `${PAYOUT_PLANS_CACHE_KEY_PREFIX}${session.user.id}`,
-          JSON.stringify(owned)
-        ).catch(() => {});
+        void writeCache(CACHE_KEYS.payoutPlans(session.user.id), owned);
         return;
       }
 
-      const { data: pairedData, error: pairedError } = await supabase
-        .from('payout_plans')
-        .select(select)
-        .in('id', pairedIds)
-        .order('created_at', { ascending: false });
+      const { data: pairedData, error: pairedError } = await fetchWithRetry(
+        () =>
+          supabase
+            .from('payout_plans')
+            .select(select)
+            .in('id', pairedIds)
+            .order('created_at', { ascending: false }),
+        'Paired payout plans'
+      ) as { data: any[] | null; error: any };
 
       if (pairedError) {
         setPayoutPlans(owned);
-        AsyncStorage.setItem(
-          `${PAYOUT_PLANS_CACHE_KEY_PREFIX}${session.user.id}`,
-          JSON.stringify(owned)
-        ).catch(() => {});
+        void writeCache(CACHE_KEYS.payoutPlans(session.user.id), owned);
         return;
       }
 
@@ -130,10 +135,7 @@ export function useRealtimePayoutPlans() {
       }
       merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setPayoutPlans(merged);
-      AsyncStorage.setItem(
-        `${PAYOUT_PLANS_CACHE_KEY_PREFIX}${session.user.id}`,
-        JSON.stringify(merged)
-      ).catch(() => {});
+      void writeCache(CACHE_KEYS.payoutPlans(session.user.id), merged);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch payout plans');
     } finally {
@@ -157,9 +159,9 @@ export function useRealtimePayoutPlans() {
       try {
         // Show cached data instantly while we fetch fresh
         try {
-          const cached = await AsyncStorage.getItem(`${PAYOUT_PLANS_CACHE_KEY_PREFIX}${session.user.id}`);
+          const cached = await readCache<PayoutPlan[]>(CACHE_KEYS.payoutPlans(session.user.id));
           if (cached && isMounted) {
-            setPayoutPlans(JSON.parse(cached));
+            setPayoutPlans(cached);
             setIsLoading(false);
             hasCachedDataRef.current = true;
           }
@@ -276,6 +278,8 @@ export function useRealtimePayoutPlans() {
       }
     };
   }, [session?.user?.id, fetchPayoutPlans]);
+
+  useRegisterForegroundRefetch('payout-plans', 1, fetchPayoutPlans, !!session?.user?.id);
 
   const pausePlan = async (planId: string) => {
     try {

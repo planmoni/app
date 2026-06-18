@@ -1,6 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordinator';
+import {
+  fetchWithRetry,
+  CACHE_KEYS,
+  readCache,
+  writeCache,
+  toUserFacingError,
+} from '@/lib/supabase-fetch';
 
 export type PayoutAccount = {
   id: string;
@@ -21,43 +29,25 @@ export function usePayoutAccounts() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+  const hasCachedDataRef = useRef(false);
 
-  useEffect(() => {
-    if (session?.user?.id) {
-      fetchPayoutAccounts();
-    }
-  }, [session?.user?.id]);
-
-  const fetchPayoutAccounts = async () => {
-    try {
-      setError(null);
-      
-      // First, fetch payout accounts
-      const { data: accounts, error: accountsError } = await supabase
-        .from('payout_accounts')
-        .select('*')
-        .eq('user_id', session?.user?.id)
-        .order('created_at', { ascending: false });
-
-      if (accountsError) throw accountsError;
-
-      // Then, fetch active payout plans count for each account (only for own plans)
-      const userId = session?.user?.id;
-      const accountsWithPlanCounts = await Promise.all(
-        (accounts || []).map(async (account: PayoutAccount) => {
-          if (!userId) return { ...account, active_payout_plans_count: 0 };
+  const enrichPlanCounts = useCallback(
+    async (accounts: PayoutAccount[], userId: string) => {
+      const enriched = await Promise.all(
+        accounts.map(async (account) => {
           try {
-            const { count, error: countError } = await supabase
-              .from('payout_plans')
-              .select('*', { count: 'exact', head: true })
-              .eq('user_id', userId)
-              .eq('payout_account_id', account.id)
-              .in('status', ['active', 'paused']);
+            const { count, error: countError } = await fetchWithRetry(
+              () =>
+                supabase
+                  .from('payout_plans')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('user_id', userId)
+                  .eq('payout_account_id', account.id)
+                  .in('status', ['active', 'paused']),
+              `Payout plans count (${account.id})`
+            );
 
             if (countError) {
-              if (__DEV__) {
-                console.warn('Payout plans count for account', account.id, countError.message || countError);
-              }
               return { ...account, active_payout_plans_count: 0 };
             }
             return { ...account, active_payout_plans_count: count ?? 0 };
@@ -67,22 +57,97 @@ export function usePayoutAccounts() {
         })
       );
 
-      setPayoutAccounts(accountsWithPlanCounts);
+      setPayoutAccounts(enriched);
+      void writeCache(CACHE_KEYS.payoutAccounts(userId), enriched);
+    },
+    []
+  );
+
+  const fetchPayoutAccounts = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!userId) {
+      setPayoutAccounts([]);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      if (!hasCachedDataRef.current) {
+        setIsLoading(true);
+      }
+      setError(null);
+
+      const { data: accounts, error: accountsError } = (await fetchWithRetry(
+        () =>
+          supabase
+            .from('payout_accounts')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false }),
+        'Payout accounts fetch'
+      )) as { data: PayoutAccount[] | null; error: { message?: string } | null };
+
+      if (accountsError) throw accountsError;
+
+      const baseAccounts: PayoutAccount[] = (accounts || []).map((account) => ({
+        ...account,
+        active_payout_plans_count: 0,
+      }));
+
+      setPayoutAccounts(baseAccounts);
+      hasCachedDataRef.current = baseAccounts.length > 0;
+      void writeCache(CACHE_KEYS.payoutAccounts(userId), baseAccounts);
+
+      if (baseAccounts.length > 0) {
+        void enrichPlanCounts(baseAccounts, userId);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch payout accounts');
+      console.warn('Error fetching payout accounts:', err);
+      if (!hasCachedDataRef.current) {
+        setError(toUserFacingError(err, false));
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [session?.user?.id, enrichPlanCounts]);
+
+  useEffect(() => {
+    if (!session?.user?.id) {
+      hasCachedDataRef.current = false;
+      setPayoutAccounts([]);
+      setIsLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    const init = async () => {
+      const cached = await readCache<PayoutAccount[]>(CACHE_KEYS.payoutAccounts(session.user.id));
+      if (cached?.length && isMounted) {
+        setPayoutAccounts(cached);
+        setIsLoading(false);
+        hasCachedDataRef.current = true;
+      }
+
+      if (!isMounted) return;
+      await fetchPayoutAccounts();
+    };
+
+    void init();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.user?.id, fetchPayoutAccounts]);
+
+  useRegisterForegroundRefetch('payout-accounts', 3, fetchPayoutAccounts, !!session?.user?.id);
 
   const getProfileFullName = async (): Promise<string | null> => {
-    // Try session metadata first
     const metaName = session?.user?.user_metadata?.full_name;
     if (metaName && typeof metaName === 'string' && metaName.trim().length > 0) {
       return metaName.trim();
     }
 
-    // Fallback to profiles table (full_name, or first_name + last_name)
     if (!session?.user?.id) return null;
     const { data, error: profileError } = await supabase
       .from('profiles')
@@ -95,9 +160,10 @@ export function usePayoutAccounts() {
       return null;
     }
 
-    const combined = data?.full_name && data.full_name.trim().length > 0
-      ? data.full_name.trim()
-      : `${data?.first_name || ''} ${data?.last_name || ''}`.trim();
+    const combined =
+      data?.full_name && data.full_name.trim().length > 0
+        ? data.full_name.trim()
+        : `${data?.first_name || ''} ${data?.last_name || ''}`.trim();
 
     return combined.length > 0 ? combined : null;
   };
@@ -106,7 +172,7 @@ export function usePayoutAccounts() {
     if (!value) return [] as string[];
     return value
       .split(/\s+/)
-      .map(t => t.trim().toLowerCase().replace(/[^a-z0-9]/g, ''))
+      .map((t) => t.trim().toLowerCase().replace(/[^a-z0-9]/g, ''))
       .filter(Boolean);
   };
 
@@ -120,29 +186,26 @@ export function usePayoutAccounts() {
   }) => {
     try {
       setError(null);
-      
+
       if (!session?.user?.id) {
         const msg = 'User not authenticated';
         setError(msg);
         throw new Error(msg);
       }
 
-      // Enforce max 3 accounts
       if (payoutAccounts.length >= 3) {
         const msg = 'You can only add up to 3 payout accounts. Please remove one to add another.';
         setError(msg);
         throw new Error(msg);
       }
 
-      // Get profile name for validation
       const profileFullName = await getProfileFullName();
       const profileTokens = normalizeTokens(profileFullName);
-      
-      // Check if account already exists
+
       const { data: existingAccount, error: checkError } = await supabase
         .from('payout_accounts')
         .select('id, account_number, bank_name')
-        .eq('user_id', session?.user?.id)
+        .eq('user_id', session.user.id)
         .eq('account_number', accountData.account_number.trim())
         .eq('bank_name', accountData.bank_name.trim())
         .maybeSingle();
@@ -155,53 +218,35 @@ export function usePayoutAccounts() {
         throw new Error(errorMessage);
       }
 
-      // Name validation: require at least 2 matching tokens
       const accountNameTokens = normalizeTokens(accountData.account_name);
 
-      // Only enforce client-side if we have both sides
       if (profileTokens.length > 0 && accountNameTokens.length > 0) {
         const profileSet = new Set(profileTokens);
-        const matches = accountNameTokens.filter(tok => profileSet.has(tok));
+        const matches = accountNameTokens.filter((tok) => profileSet.has(tok));
         if (matches.length < 2) {
           const msg = 'The payout account does not match your name, please contact support';
           setError(msg);
           throw new Error(msg);
         }
       }
-      
-      // Log the data being inserted for debugging
-      console.log('💾 Inserting payout account to database:', {
-        user_id: session?.user?.id,
-        account_name: accountData.account_name,
-        account_number: accountData.account_number,
-        bank_name: accountData.bank_name,
-        bank_code: accountData.bank_code || 'N/A',
-        safehaven_bank_code: accountData.safehaven_bank_code || 'N/A'
-      });
-      
+
       const { data, error: insertError } = await supabase
         .from('payout_accounts')
         .insert({
-          user_id: session?.user?.id,
-          ...accountData
+          user_id: session.user.id,
+          ...accountData,
         })
         .select()
         .single();
 
-      if (insertError) {
-        console.error('❌ Error inserting payout account:', insertError);
-        throw insertError;
-      }
-      
-      console.log('✅ Payout account inserted successfully:', {
-        id: data.id,
-        bank_code: data.bank_code || 'N/A',
-        safehaven_bank_code: data.safehaven_bank_code || 'N/A'
+      if (insertError) throw insertError;
+
+      setPayoutAccounts((prev) => {
+        const next = [data, ...prev];
+        void writeCache(CACHE_KEYS.payoutAccounts(session.user.id), next);
+        return next;
       });
-      
-      // Update local state with the new account
-      setPayoutAccounts(prev => [data, ...prev]);
-      
+
       return data;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to add payout account';
@@ -210,14 +255,17 @@ export function usePayoutAccounts() {
     }
   };
 
-  const updatePayoutAccount = async (accountId: string, accountData: {
-    account_name?: string;
-    account_number?: string;
-    bank_name?: string;
-  }) => {
+  const updatePayoutAccount = async (
+    accountId: string,
+    accountData: {
+      account_name?: string;
+      account_number?: string;
+      bank_name?: string;
+    }
+  ) => {
     try {
       setError(null);
-      
+
       const { error: updateError } = await supabase
         .from('payout_accounts')
         .update(accountData)
@@ -225,11 +273,10 @@ export function usePayoutAccounts() {
         .eq('user_id', session?.user?.id);
 
       if (updateError) throw updateError;
-      
-      // Update local state
-      setPayoutAccounts(prev => 
-        prev.map(account => 
-              account.id === accountId
+
+      setPayoutAccounts((prev) =>
+        prev.map((account) =>
+          account.id === accountId
             ? { ...account, ...accountData, updated_at: new Date().toISOString() }
             : account
         )
@@ -243,14 +290,12 @@ export function usePayoutAccounts() {
   const setDefaultAccount = async (accountId: string) => {
     try {
       setError(null);
-      
-      // First, remove default from all accounts
+
       await supabase
         .from('payout_accounts')
         .update({ is_default: false })
         .eq('user_id', session?.user?.id);
 
-      // Then set the selected account as default
       const { error: updateError } = await supabase
         .from('payout_accounts')
         .update({ is_default: true })
@@ -258,13 +303,12 @@ export function usePayoutAccounts() {
         .eq('user_id', session?.user?.id);
 
       if (updateError) throw updateError;
-      
-      // Update local state - ensure only one account is default
-      setPayoutAccounts(prev => 
-        prev.map(account => ({
+
+      setPayoutAccounts((prev) =>
+        prev.map((account) => ({
           ...account,
-          is_default: account.id === accountId, // Only the selected account is default
-          updated_at: new Date().toISOString()
+          is_default: account.id === accountId,
+          updated_at: new Date().toISOString(),
         }))
       );
     } catch (err) {
@@ -276,7 +320,7 @@ export function usePayoutAccounts() {
   const deleteAccount = async (accountId: string) => {
     try {
       setError(null);
-      
+
       const { error: deleteError } = await supabase
         .from('payout_accounts')
         .delete()
@@ -284,13 +328,14 @@ export function usePayoutAccounts() {
         .eq('user_id', session?.user?.id);
 
       if (deleteError) throw deleteError;
-      
-      // Update local state
-      setPayoutAccounts(prev => prev.filter(account => account.id !== accountId));
-      
-      // If we deleted the default account and there are other accounts, make the first one default
-      const remainingAccounts = payoutAccounts.filter(account => account.id !== accountId);
-      if (payoutAccounts.find(a => a.id === accountId)?.is_default && remainingAccounts.length > 0) {
+
+      const remainingAccounts = payoutAccounts.filter((account) => account.id !== accountId);
+      setPayoutAccounts(remainingAccounts);
+      if (session?.user?.id) {
+        void writeCache(CACHE_KEYS.payoutAccounts(session.user.id), remainingAccounts);
+      }
+
+      if (payoutAccounts.find((a) => a.id === accountId)?.is_default && remainingAccounts.length > 0) {
         await setDefaultAccount(remainingAccounts[0].id);
       }
     } catch (err) {

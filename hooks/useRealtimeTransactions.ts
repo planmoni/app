@@ -2,11 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { withTimeout } from '@/lib/with-timeout';
-
-const TRANSACTIONS_CACHE_KEY_PREFIX = 'cache_transactions_';
-const FETCH_TIMEOUT_MS = 15000;
+import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordinator';
+import { fetchWithRetry, CACHE_KEYS, readCache, writeCache, toUserFacingError } from '@/lib/supabase-fetch';
 
 export type Transaction = {
   id: string;
@@ -44,10 +41,11 @@ export function useRealtimeTransactions() {
         setIsLoading(true);
       }
       setError(null);
-      const { data, error: fetchError } = await withTimeout(
-        supabase
-          .from('transactions')
-          .select(`
+      const { data, error: fetchError } = await fetchWithRetry(
+        () =>
+          supabase
+            .from('transactions')
+            .select(`
             *,
             payout_plans (
               name
@@ -57,10 +55,9 @@ export function useRealtimeTransactions() {
               account_number
             )
           `)
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(limit),
-        FETCH_TIMEOUT_MS,
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(limit),
         'Transactions fetch'
       ) as { data: any[] | null; error: any };
 
@@ -70,14 +67,13 @@ export function useRealtimeTransactions() {
 
       if (data) {
         setTransactions(data as Transaction[]);
-        AsyncStorage.setItem(
-          `${TRANSACTIONS_CACHE_KEY_PREFIX}${userId}`,
-          JSON.stringify(data)
-        ).catch(() => {});
+        void writeCache(CACHE_KEYS.transactions(userId), data);
       }
     } catch (err: any) {
-      console.error('Error fetching transactions:', err);
-      setError(err.message || 'Failed to fetch transactions');
+      console.warn('Error fetching transactions:', err);
+      if (!hasCachedDataRef.current) {
+        setError(toUserFacingError(err, false));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -97,22 +93,17 @@ export function useRealtimeTransactions() {
 
     const setupRealtimeSubscription = async () => {
       try {
-        // Show cached data instantly while we fetch fresh
-        try {
-          const cached = await AsyncStorage.getItem(`${TRANSACTIONS_CACHE_KEY_PREFIX}${session.user.id}`);
-          if (cached && isMounted) {
-            setTransactions(JSON.parse(cached));
-            setIsLoading(false);
-            hasCachedDataRef.current = true;
-          }
-        } catch (_) {}
+        const cached = await readCache<Transaction[]>(CACHE_KEYS.transactions(session.user.id));
+        if (cached && isMounted) {
+          setTransactions(cached);
+          setIsLoading(false);
+          hasCachedDataRef.current = true;
+        }
 
-        // Initial fresh fetch
         await fetchTransactions();
 
         if (!isMounted) return;
 
-        // Set up real-time subscription
         const channelName = `transactions-changes-${session.user.id}`;
         channel = supabase
           .channel(channelName)
@@ -127,27 +118,24 @@ export function useRealtimeTransactions() {
             (payload: any) => {
               if (!isMounted) return;
               console.log('Transaction change received:', payload);
-              
+
               if (payload.eventType === 'INSERT' && payload.new) {
-                setTransactions(prev => [payload.new as Transaction, ...prev]);
+                setTransactions((prev) => [payload.new as Transaction, ...prev]);
               } else if (payload.eventType === 'UPDATE' && payload.new) {
-                setTransactions(prev => 
-                  prev.map(transaction => 
-                    transaction.id === payload.new.id ? payload.new as Transaction : transaction
+                setTransactions((prev) =>
+                  prev.map((transaction) =>
+                    transaction.id === payload.new.id ? (payload.new as Transaction) : transaction
                   )
                 );
               }
             }
           );
-        // Only subscribe if not already subscribed
         if (channel && (channel.state === 'closed' || channel.state === 'leaving')) {
-          channel.subscribe((status: any) => {
-            // Silence realtime subscription noise (CHANNEL_ERROR/TIMED_OUT)
-          });
+          channel.subscribe(() => {});
         }
       } catch (err) {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Failed to setup transactions subscription');
+        if (isMounted && !hasCachedDataRef.current) {
+          setError(toUserFacingError(err, false));
         }
       }
     };
@@ -165,6 +153,13 @@ export function useRealtimeTransactions() {
       }
     };
   }, [session?.user?.id, fetchTransactions]);
+
+  useRegisterForegroundRefetch(
+    'transactions',
+    2,
+    () => fetchTransactions(),
+    !!session?.user?.id
+  );
 
   return {
     transactions,
