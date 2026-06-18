@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAppForeground } from '@/hooks/useAppForeground';
-import { warmConnection } from '@/lib/supabase-fetch';
+import { ensureSupabaseConnection } from '@/lib/supabase-connection';
+import NetInfo from '@react-native-community/netinfo';
 
 export type ForegroundRefreshTier = 1 | 2 | 3;
 
@@ -11,8 +12,8 @@ type RefetchEntry = {
 
 const TIER_DELAYS_MS: Record<ForegroundRefreshTier, number> = {
   1: 0,
-  2: 500,
-  3: 1000,
+  2: 750,
+  3: 1500,
 };
 
 const registry = new Map<string, RefetchEntry>();
@@ -28,8 +29,21 @@ export function registerForegroundRefetch(
   };
 }
 
+export function getForegroundRefetchRegistrySize(): number {
+  return registry.size;
+}
+
 async function runStaggeredRefresh(): Promise<void> {
-  await warmConnection();
+  const status = await ensureSupabaseConnection();
+  if (!status.ok) {
+    if (__DEV__) {
+      console.warn(
+        '[foreground] Skipping refetch — connection unhealthy:',
+        status.lastError
+      );
+    }
+    return;
+  }
 
   const tiers: ForegroundRefreshTier[] = [1, 2, 3];
   for (const tier of tiers) {
@@ -45,12 +59,13 @@ async function runStaggeredRefresh(): Promise<void> {
 }
 
 /**
- * Mount once at app root. On foreground resume, warm the Supabase connection
- * then run registered refetches in staggered tiers to avoid a thundering herd.
+ * Mount once at app root. On foreground resume, ensure connection health
+ * then run registered refetches in staggered tiers.
  */
 export function useForegroundRefreshCoordinator(): void {
   const foregroundTick = useAppForeground();
   const runningRef = useRef(false);
+  const wasOfflineRef = useRef(false);
 
   useEffect(() => {
     if (foregroundTick === 0) return;
@@ -62,6 +77,27 @@ export function useForegroundRefreshCoordinator(): void {
       runningRef.current = false;
     });
   }, [foregroundTick]);
+
+  // Reconnect when network returns after being offline.
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const online = state.isConnected === true && state.isInternetReachable !== false;
+      if (!online) {
+        wasOfflineRef.current = true;
+        return;
+      }
+      if (wasOfflineRef.current && online) {
+        wasOfflineRef.current = false;
+        if (runningRef.current) return;
+        runningRef.current = true;
+        void runStaggeredRefresh().finally(() => {
+          runningRef.current = false;
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 }
 
 /**

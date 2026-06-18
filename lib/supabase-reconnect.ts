@@ -1,35 +1,103 @@
 import { supabase } from '@/lib/supabase';
+import { abortAllSupabaseFetches } from '@/lib/supabase-http';
+import type { Session } from '@supabase/supabase-js';
+
+const AUTH_EXPIRED_PATTERNS = [
+  'refresh_token_not_found',
+  'Invalid Refresh Token',
+  'JWT expired',
+  'Session expired',
+  'session_not_found',
+];
+
+export type ReconnectResult = {
+  channelsCleared: boolean;
+  sessionRefreshed: boolean;
+  authError: string | null;
+  isAuthExpired: boolean;
+};
+
+let lastReconnectResult: ReconnectResult | null = null;
+let authExpiredHandler: (() => void) | null = null;
+let sessionRefreshedHandler: ((session: Session) => void) | null = null;
+
+export function setAuthExpiredHandler(handler: (() => void) | null): void {
+  authExpiredHandler = handler;
+}
+
+export function setSessionRefreshedHandler(
+  handler: ((session: Session) => void) | null
+): void {
+  sessionRefreshedHandler = handler;
+}
+
+export function getLastReconnectResult(): ReconnectResult | null {
+  return lastReconnectResult;
+}
+
+function isAuthExpiredError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return AUTH_EXPIRED_PATTERNS.some(
+    (pattern) => lower.includes(pattern.toLowerCase())
+  );
+}
 
 /**
  * Perform an internal "hard restart" of the Supabase connection.
- *
- * When the app returns from a long background period, existing WebSocket
- * channels are dead and the auth session token may be stale. Instead of
- * waiting for individual queries to timeout, we proactively:
- *   1. Remove every live realtime channel so each hook re-subscribes on a
- *      fresh WebSocket when it next calls setupRealtimeSubscription().
- *   2. Refresh the auth session to get a valid, non-expired access token.
- *
- * This should be called at t=0 of the foreground resume event, in parallel
- * with any initial delay, so the connection is clean before data queries fire.
  */
-export async function reconnectSupabase(): Promise<void> {
-  // Step 1: Tear down all realtime channels.
-  // Each hook's foreground effect will call setupRealtimeSubscription() and
-  // create a fresh channel after this, so nothing is lost.
+export async function reconnectSupabase(): Promise<ReconnectResult> {
+  const result: ReconnectResult = {
+    channelsCleared: false,
+    sessionRefreshed: false,
+    authError: null,
+    isAuthExpired: false,
+  };
+
+  // Abort zombie HTTP requests before tearing down channels.
+  abortAllSupabaseFetches();
+
   try {
     await supabase.removeAllChannels();
-  } catch (_) {
-    // Non-fatal — continue to auth refresh even if channel removal fails.
+    result.channelsCleared = true;
+    if (__DEV__) {
+      console.warn('[supabase] Realtime channels cleared');
+    }
+  } catch (err) {
+    if (__DEV__) {
+      console.warn('[supabase] removeAllChannels failed:', err);
+    }
   }
 
-  // Step 2: Refresh the auth session.
-  // After a long background period, the JWT access token may be close to or
-  // past expiry. Refreshing here ensures all subsequent API calls use a valid
-  // token instead of getting 401 errors that look like network failures.
   try {
-    await supabase.auth.refreshSession();
-  } catch (_) {
-    // Non-fatal — the existing session may still be valid.
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error) {
+      result.authError = error.message;
+      result.isAuthExpired = isAuthExpiredError(error.message);
+      if (__DEV__) {
+        console.warn('[supabase] refreshSession failed:', error.message);
+      }
+      if (result.isAuthExpired) {
+        authExpiredHandler?.();
+      }
+    } else if (data.session) {
+      result.sessionRefreshed = true;
+      sessionRefreshedHandler?.(data.session);
+      if (__DEV__) {
+        console.warn('[supabase] Session refreshed successfully');
+      }
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    result.authError = message;
+    result.isAuthExpired = isAuthExpiredError(message);
+    if (__DEV__) {
+      console.warn('[supabase] refreshSession error:', message);
+    }
+    if (result.isAuthExpired) {
+      authExpiredHandler?.();
+    }
   }
+
+  lastReconnectResult = result;
+  return result;
 }

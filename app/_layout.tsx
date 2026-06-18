@@ -26,7 +26,8 @@ import { useFonts } from 'expo-font';
 import { usePayoutNotifications } from '@/hooks/usePayoutNotifications';
 import { useTransactionNotifications } from '@/hooks/useTransactionNotifications';
 import { supabase } from '@/lib/supabase';
-import { useForegroundRefreshCoordinator } from '@/hooks/useForegroundRefreshCoordinator';
+import { useForegroundRefreshCoordinator, getForegroundRefetchRegistrySize } from '@/hooks/useForegroundRefreshCoordinator';
+import { getSupabaseConnectionStatus } from '@/lib/supabase-connection';
 import { SplashScreen, Stack, usePathname, router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
@@ -94,6 +95,22 @@ function RootLayoutNav() {
 
   // Staggered foreground data refresh (wallet, plans, transactions, etc.)
   useForegroundRefreshCoordinator();
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    const interval = setInterval(() => {
+      const status = getSupabaseConnectionStatus();
+      if (!status.ok && status.lastError) {
+        console.warn('[supabase-status]', {
+          ok: status.ok,
+          lastError: status.lastError,
+          registrySize: getForegroundRefetchRegistrySize(),
+          lastSuccessAt: status.lastSuccessAt,
+        });
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
   
   // Initialize notification hooks for payout and transaction notifications
   usePayoutNotifications();

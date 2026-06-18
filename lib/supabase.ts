@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import { secureStoreAdapter } from './SecureStoreAdapter';
+import { supabaseGlobalFetch } from './supabase-http';
 
 // Polyfill crypto.getRandomValues for PKCE when native module is missing (e.g. simulator).
 // Supabase auth with flowType: 'pkce' needs getRandomValues; react-native-get-random-values
@@ -42,6 +43,9 @@ let supabase: any;
 if (supabaseUrl && supabaseAnonKey) {
   // Valid configuration - create real client with SecureStore adapter
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      fetch: supabaseGlobalFetch,
+    },
     auth: {
       autoRefreshToken: true,
       persistSession: true,

@@ -1,6 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordinator';
+import {
+  fetchWithRetry,
+  CACHE_KEYS,
+  readCache,
+  writeCache,
+  toUserFacingError,
+} from '@/lib/supabase-fetch';
 
 export type BankAccount = {
   id: string;
@@ -19,30 +27,71 @@ export function useBankAccounts() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+  const hasCachedDataRef = useRef(false);
 
-  useEffect(() => {
-    if (session?.user?.id) {
-      fetchBankAccounts();
+  const fetchBankAccounts = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!userId) {
+      setIsLoading(false);
+      return;
     }
-  }, [session?.user?.id]);
 
-  const fetchBankAccounts = async () => {
+    if (!hasCachedDataRef.current) {
+      const cached = await readCache<BankAccount[]>(CACHE_KEYS.bankAccounts(userId));
+      if (cached !== null) {
+        setBankAccounts(cached);
+        setIsLoading(false);
+        hasCachedDataRef.current = true;
+      }
+    }
+
     try {
+      if (!hasCachedDataRef.current) {
+        setIsLoading(true);
+      }
       setError(null);
-      const { data, error: fetchError } = await supabase
-        .from('bank_accounts')
-        .select('*')
-        .eq('user_id', session?.user?.id)
-        .order('created_at', { ascending: false });
+
+      const { data, error: fetchError } = (await fetchWithRetry(
+        () =>
+          supabase
+            .from('bank_accounts')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false }),
+        'Bank accounts fetch'
+      )) as { data: BankAccount[] | null; error: { message?: string } | null };
 
       if (fetchError) throw fetchError;
-      setBankAccounts(data || []);
+
+      const accounts = data || [];
+      setBankAccounts(accounts);
+      hasCachedDataRef.current = true;
+      void writeCache(CACHE_KEYS.bankAccounts(userId), accounts);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch bank accounts');
+      if (!hasCachedDataRef.current) {
+        setError(toUserFacingError(err, false));
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      void fetchBankAccounts();
+    } else {
+      hasCachedDataRef.current = false;
+      setBankAccounts([]);
+      setIsLoading(false);
+    }
+  }, [session?.user?.id, fetchBankAccounts]);
+
+  useRegisterForegroundRefetch(
+    'bank-accounts-static',
+    2,
+    () => fetchBankAccounts(),
+    !!session?.user?.id
+  );
 
   const addBankAccount = async (accountData: {
     bank_name: string;
@@ -74,14 +123,12 @@ export function useBankAccounts() {
   const setDefaultAccount = async (accountId: string) => {
     try {
       setError(null);
-      
-      // First, remove default from all accounts
+
       await supabase
         .from('bank_accounts')
         .update({ is_default: false })
         .eq('user_id', session?.user?.id);
 
-      // Then set the selected account as default
       const { error: updateError } = await supabase
         .from('bank_accounts')
         .update({ is_default: true })

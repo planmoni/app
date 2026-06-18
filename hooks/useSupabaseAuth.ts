@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { 
@@ -13,6 +12,7 @@ import {
 } from '@/lib/session-persistence';
 import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
 import { useAppError } from '@/contexts/AppErrorContext';
+import { setAuthExpiredHandler, setSessionRefreshedHandler } from '@/lib/supabase-reconnect';
 
 type AuthResult = {
   success: boolean;
@@ -373,39 +373,19 @@ export function useSupabaseAuth() {
     };
   }, []);
 
-  // Refresh auth session when app returns to foreground (fixes stale JWT after background).
+  // Auth refresh on resume is handled by ensureSupabaseConnection via the foreground coordinator.
   useEffect(() => {
-    let appState = AppState.currentState;
-
-    const refreshOnForeground = async () => {
-      try {
-        const { data: { session: current } } = await supabase.auth.getSession();
-        if (!current) {
-          return;
-        }
-        const { data, error } = await supabase.auth.refreshSession();
-        if (error) {
-          console.warn('Session refresh on resume failed:', error.message);
-          return;
-        }
-        if (data.session?.user?.id) {
-          setSession(data.session);
-          await saveSession(data.session);
-        }
-      } catch (err) {
-        console.warn('Session refresh on resume error:', err);
-      }
-    };
-
-    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
-      const wasBackground = appState.match(/inactive|background/);
-      appState = nextState;
-      if (wasBackground && nextState === 'active') {
-        void refreshOnForeground();
-      }
+    setAuthExpiredHandler(() => {
+      setError('Session expired or invalid');
     });
-
-    return () => subscription.remove();
+    setSessionRefreshedHandler((refreshedSession) => {
+      setSession(refreshedSession);
+      void saveSession(refreshedSession);
+    });
+    return () => {
+      setAuthExpiredHandler(null);
+      setSessionRefreshedHandler(null);
+    };
   }, []);
 
   const signIn = async (email: string, password: string): Promise<AuthResult> => {

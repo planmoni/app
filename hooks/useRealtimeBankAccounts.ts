@@ -1,7 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordinator';
+import {
+  fetchWithRetry,
+  CACHE_KEYS,
+  readCache,
+  writeCache,
+  toUserFacingError,
+} from '@/lib/supabase-fetch';
 
 export type BankAccount = {
   id: string;
@@ -9,7 +17,7 @@ export type BankAccount = {
   bank_name: string;
   account_number: string;
   account_name: string;
-  mono_account_id?: string,
+  mono_account_id?: string;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -20,18 +28,76 @@ export function useRealtimeBankAccounts() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
+  const hasCachedDataRef = useRef(false);
+
+  const fetchBankAccounts = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!userId) {
+      setBankAccounts([]);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!hasCachedDataRef.current) {
+      const cached = await readCache<BankAccount[]>(CACHE_KEYS.bankAccounts(userId));
+      if (cached !== null) {
+        setBankAccounts(cached);
+        setIsLoading(false);
+        hasCachedDataRef.current = true;
+      }
+    }
+
+    try {
+      if (!hasCachedDataRef.current) {
+        setIsLoading(true);
+      }
+      setError(null);
+
+      const { data, error: fetchError } = (await fetchWithRetry(
+        () =>
+          supabase
+            .from('bank_accounts')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false }),
+        'Bank accounts fetch'
+      )) as { data: BankAccount[] | null; error: { message?: string } | null };
+
+      if (fetchError) throw fetchError;
+
+      const accounts = data || [];
+      setBankAccounts(accounts);
+      hasCachedDataRef.current = true;
+      void writeCache(CACHE_KEYS.bankAccounts(userId), accounts);
+    } catch (err) {
+      if (hasCachedDataRef.current) {
+        if (__DEV__) {
+          console.warn('Bank accounts refresh failed; showing cached data.');
+        }
+      } else {
+        setError(toUserFacingError(err, false));
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [session?.user?.id]);
 
   useEffect(() => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      hasCachedDataRef.current = false;
+      setBankAccounts([]);
+      setIsLoading(false);
+      return;
+    }
 
-    let channel: RealtimeChannel;
+    let channel: RealtimeChannel | null = null;
+    let isMounted = true;
 
     const setupRealtimeSubscription = async () => {
       try {
-        // Initial fetch
         await fetchBankAccounts();
+        if (!isMounted) return;
 
-        // Set up real-time subscription
         const channelName = `bank-accounts-changes-${session.user.id}`;
         channel = supabase
           .channel(channelName)
@@ -43,68 +109,62 @@ export function useRealtimeBankAccounts() {
               table: 'bank_accounts',
               filter: `user_id=eq.${session.user.id}`,
             },
-            (payload: any) => {
-              console.log('Bank account change received:', payload);
-              
+            (payload: {
+              eventType: string;
+              new?: BankAccount;
+              old?: { id: string };
+            }) => {
+              if (!isMounted) return;
+
               if (payload.eventType === 'INSERT' && payload.new) {
-                setBankAccounts(prev => [payload.new as BankAccount, ...prev]);
+                setBankAccounts((prev) => [payload.new as BankAccount, ...prev]);
               } else if (payload.eventType === 'UPDATE' && payload.new) {
-                setBankAccounts(prev => 
-                  prev.map(account => 
-                    account.id === payload.new.id ? payload.new as BankAccount : account
+                setBankAccounts((prev) =>
+                  prev.map((account) =>
+                    account.id === payload.new!.id ? (payload.new as BankAccount) : account
                   )
                 );
               } else if (payload.eventType === 'DELETE' && payload.old) {
-                setBankAccounts(prev => 
-                  prev.filter(account => account.id !== payload.old.id)
+                setBankAccounts((prev) =>
+                  prev.filter((account) => account.id !== payload.old!.id)
                 );
               }
             }
           );
-        // Only subscribe if not already subscribed
-        if (channel.state === 'closed' || channel.state === 'leaving') {
-          channel.subscribe((status: any) => {
-            // Silence realtime subscription status noise
-          });
+
+        if (channel && (channel.state === 'closed' || channel.state === 'leaving')) {
+          channel.subscribe(() => {});
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to setup bank accounts subscription');
+        if (!hasCachedDataRef.current && isMounted) {
+          setError(toUserFacingError(err, false));
+        }
       }
     };
 
     setupRealtimeSubscription();
 
     return () => {
+      isMounted = false;
       if (channel) {
         supabase.removeChannel(channel);
       }
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, fetchBankAccounts]);
 
-  const fetchBankAccounts = async () => {
-    try {
-      setError(null);
-      const { data, error: fetchError } = await supabase
-        .from('bank_accounts')
-        .select('*')
-        .eq('user_id', session?.user?.id)
-        .order('created_at', { ascending: false });
-
-      if (fetchError) throw fetchError;
-      setBankAccounts(data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch bank accounts');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  useRegisterForegroundRefetch(
+    'bank-accounts',
+    2,
+    () => fetchBankAccounts(),
+    !!session?.user?.id
+  );
 
   const addBankAccount = async (accountData: {
     bank_name: string;
     bank_code?: string;
     account_number: string;
     account_name: string;
-    mono_account_id?: string,
+    mono_account_id?: string;
     is_default?: boolean;
   }) => {
     try {
@@ -113,13 +173,12 @@ export function useRealtimeBankAccounts() {
         .from('bank_accounts')
         .insert({
           user_id: session?.user?.id,
-          ...accountData
+          ...accountData,
         })
         .select()
         .single();
 
       if (insertError) throw insertError;
-      // Real-time subscription will handle the update
       return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add bank account');
@@ -130,14 +189,12 @@ export function useRealtimeBankAccounts() {
   const setDefaultAccount = async (accountId: string) => {
     try {
       setError(null);
-      
-      // First, remove default from all accounts
+
       await supabase
         .from('bank_accounts')
         .update({ is_default: false })
         .eq('user_id', session?.user?.id);
 
-      // Then set the selected account as default
       const { error: updateError } = await supabase
         .from('bank_accounts')
         .update({ is_default: true })
@@ -145,7 +202,6 @@ export function useRealtimeBankAccounts() {
         .eq('user_id', session?.user?.id);
 
       if (updateError) throw updateError;
-      // Real-time subscription will handle the update
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set default account');
       throw err;
@@ -162,7 +218,6 @@ export function useRealtimeBankAccounts() {
         .eq('user_id', session?.user?.id);
 
       if (deleteError) throw deleteError;
-      // Real-time subscription will handle the update
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete account');
       throw err;

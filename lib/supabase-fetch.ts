@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { withRetryOnTimeout } from '@/lib/with-timeout';
-import { reconnectSupabase } from '@/lib/supabase-reconnect';
+import { ensureSupabaseConnection } from '@/lib/supabase-connection';
 
 export const FETCH_TIMEOUT_MS = 15000;
 export const DEFAULT_RETRY_DELAY_MS = 2000;
@@ -19,6 +19,7 @@ export const CACHE_KEYS = {
   hasPayoutPlan: (userId: string) => `cache_has_payout_plan_${userId}`,
   expensePlans: (userId: string) => `cache_expense_plans_${userId}`,
   payoutAccounts: (userId: string) => `cache_payout_accounts_${userId}`,
+  bankAccounts: (userId: string) => `cache_bank_accounts_${userId}`,
 } as const;
 
 export type FetchWithRetryOptions = {
@@ -55,12 +56,12 @@ export async function writeCache<T>(key: string, data: T): Promise<void> {
   }
 }
 
-export async function warmConnection(maxWaitMs = WARM_CONNECTION_MS): Promise<void> {
-  await Promise.race([
-    reconnectSupabase(),
-    new Promise<void>((resolve) => setTimeout(resolve, maxWaitMs)),
-  ]);
+export async function warmConnection() {
+  return ensureSupabaseConnection();
 }
+
+export { ensureSupabaseConnection } from '@/lib/supabase-connection';
+export { getSupabaseConnectionStatus } from '@/lib/supabase-connection';
 
 const FRIENDLY_REFRESH_ERROR = "Couldn't refresh. Showing saved data.";
 
