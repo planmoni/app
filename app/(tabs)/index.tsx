@@ -907,7 +907,11 @@ export default function HomeScreen() {
     logAnalyticsEvent('profile_click');
   }, []);
 
-  // Handle pull-to-refresh - refresh all page data
+  // Handle pull-to-refresh - refresh all page data.
+  // Priority order: wallet + payout plans (critical, user sees these immediately) are
+  // awaited before the spinner is dismissed. Transactions, expense plans, and KYC
+  // are fired in the background so a slow or timed-out secondary query never delays
+  // the user seeing their fresh balance.
   const handleRefresh = useCallback(async () => {
     // Debounce: prevent multiple rapid refreshes (minimum 1 second between refreshes)
     const now = Date.now();
@@ -916,7 +920,6 @@ export default function HomeScreen() {
     }
     lastRefreshTimeRef.current = now;
 
-    // Clear any existing timeout
     if (refreshTimeoutRef.current) {
       clearTimeout(refreshTimeoutRef.current);
       refreshTimeoutRef.current = null;
@@ -924,57 +927,83 @@ export default function HomeScreen() {
 
     setIsRefreshing(true);
 
-    // Set a timeout to ensure refresh state doesn't get stuck (max 10 seconds)
+    // Failsafe: never leave the spinner stuck for more than 25s
     refreshTimeoutRef.current = setTimeout(() => {
       setIsRefreshing(false);
       refreshTimeoutRef.current = null;
-    }, 10000);
+    }, 25000);
 
     try {
-      // Refresh critical data in parallel (excluding carousel images which are non-critical)
-      // Use Promise.allSettled to prevent one failure from blocking others
-      const results = await Promise.allSettled([
-        // Refresh wallet balance
+      // — Critical tier: wallet balance + payout plans —
+      // Await these so the spinner stays visible until the user's balance is fresh.
+      const criticalResults = await Promise.allSettled([
         refreshWallet(),
-        // Refresh vault plans
-        fetchExpensePlans(),
-        // Refresh payout plans
         fetchPayoutPlans(),
-        // Refresh transactions
-        fetchTransactions(),
-        // Refresh KYC progress
-        loadProgress(),
       ]);
-
-      // Log any failures but don't block the refresh
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          const operationNames = ['wallet', 'vault plans', 'payout plans', 'transactions', 'KYC progress'];
-          console.warn(`Refresh failed for ${operationNames[index]}:`, result.reason);
+      criticalResults.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          console.warn(`Refresh failed for ${['wallet', 'payout plans'][i]}:`, r.reason);
         }
       });
-      
-      // Add haptic feedback for successful refresh
+
       impact();
     } catch (error) {
-      console.error('Error refreshing page data:', error);
+      console.error('Error refreshing critical data:', error);
     } finally {
-      // Clear timeout and reset refresh state
       if (refreshTimeoutRef.current) {
         clearTimeout(refreshTimeoutRef.current);
         refreshTimeoutRef.current = null;
       }
       setIsRefreshing(false);
     }
+
+    // — Secondary tier: transactions, expense plans, KYC —
+    // Fire these silently after the spinner is gone; failures only appear in logs.
+    Promise.allSettled([
+      fetchTransactions(),
+      fetchExpensePlans(),
+      loadProgress(),
+    ]).then((results) => {
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          console.warn(`Background refresh failed for ${['transactions', 'expense plans', 'KYC'][i]}:`, r.reason);
+        }
+      });
+    });
   }, [refreshWallet, fetchExpensePlans, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
 
   // Refresh dashboard data when app returns from background.
+  // NOTE: useRealtimeWallet handles its own wallet refetch on foreground independently,
+  // so we do NOT call refreshWallet() here to avoid a duplicate request at t=0.
+  // We also stagger the remaining fetches with an initial 500ms delay to give the
+  // Supabase WebSocket time to re-establish after the app was backgrounded, preventing
+  // a "thundering herd" of 5-6 simultaneous queries that all hit the 12s timeout.
   useEffect(() => {
     if (!session?.user?.id || foregroundTick === 0) {
       return;
     }
-    void handleRefresh();
-  }, [foregroundTick, session?.user?.id, handleRefresh]);
+
+    let cancelled = false;
+
+    const staggeredForegroundRefresh = async () => {
+      // Give network ~1s to recover before firing any queries.
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (cancelled) return;
+
+      // Tier 1: most critical — payout plans + transactions (user-visible immediately)
+      await Promise.allSettled([fetchPayoutPlans(), fetchTransactions()]);
+      if (cancelled) return;
+
+      // Tier 2: secondary — expense plans + KYC (less time-sensitive)
+      await Promise.allSettled([fetchExpensePlans(), loadProgress()]);
+    };
+
+    void staggeredForegroundRefresh();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [foregroundTick, session?.user?.id, fetchPayoutPlans, fetchTransactions, fetchExpensePlans, loadProgress]);
 
   const handleHelpPress = useCallback(async () => {
     try {

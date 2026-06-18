@@ -3,10 +3,10 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { useAppForeground } from '@/hooks/useAppForeground';
-import { withTimeout } from '@/lib/with-timeout';
+import { withRetryOnTimeout } from '@/lib/with-timeout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const FETCH_TIMEOUT_MS = 12000;
+const FETCH_TIMEOUT_MS = 20000;
 const WALLET_CACHE_KEY_PREFIX = 'cache_wallet_';
 
 export function useRealtimeWallet() {
@@ -32,15 +32,16 @@ export function useRealtimeWallet() {
       }
       setError(null);
 
-      const { data, error: fetchError } = await withTimeout(
-        supabase
-          .from('wallets')
-          .select('balance, locked_balance, available_balance')
-          .eq('user_id', session.user.id)
-          .single(),
+      const { data, error: fetchError } = await withRetryOnTimeout(
+        () =>
+          supabase
+            .from('wallets')
+            .select('balance, locked_balance, available_balance')
+            .eq('user_id', session.user.id)
+            .single(),
         FETCH_TIMEOUT_MS,
         'Wallet fetch'
-      );
+      ) as { data: { balance: number; locked_balance: number; available_balance: number } | null; error: any };
 
       if (fetchError) {
         console.warn('Failed to fetch wallet data:', fetchError);
@@ -73,15 +74,16 @@ export function useRealtimeWallet() {
     try {
       setError(null);
 
-      const { data, error: fetchError } = await withTimeout(
-        supabase
-          .from('wallets')
-          .select('balance, locked_balance, available_balance')
-          .eq('user_id', session.user.id)
-          .single(),
+      const { data, error: fetchError } = await withRetryOnTimeout(
+        () =>
+          supabase
+            .from('wallets')
+            .select('balance, locked_balance, available_balance')
+            .eq('user_id', session.user.id)
+            .single(),
         FETCH_TIMEOUT_MS,
         'Wallet refresh'
-      );
+      ) as { data: { balance: number; locked_balance: number; available_balance: number } | null; error: any };
 
       if (fetchError) {
         console.warn('Failed to fetch wallet data:', fetchError);

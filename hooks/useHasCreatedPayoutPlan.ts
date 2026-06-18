@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { withTimeout } from '@/lib/with-timeout';
 
-const FETCH_TIMEOUT_MS = 12000;
+const FETCH_TIMEOUT_MS = 20000;
 
 export function useHasCreatedPayoutPlan() {
   const [hasCreatedPayoutPlan, setHasCreatedPayoutPlan] = useState<boolean>(false);

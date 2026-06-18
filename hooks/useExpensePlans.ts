@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { withTimeout } from '@/lib/with-timeout';
 
 const EXPENSE_PLANS_CACHE_KEY_PREFIX = 'cache_expense_plans_';
-const FETCH_TIMEOUT_MS = 12000;
+const FETCH_TIMEOUT_MS = 20000;
 
 export function useExpensePlans() {
   const { session } = useAuth();
