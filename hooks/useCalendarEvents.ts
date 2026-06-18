@@ -17,12 +17,14 @@ export type { CalendarEvent };
 
 export function useCalendarEvents() {
   const { session } = useAuth();
-  const { payoutPlans, isLoading: plansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
-  const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
+  const { payoutPlans, isLoading: plansLoading, error: plansError, fetchPayoutPlans } = useRealtimePayoutPlans();
+  const { transactions, isLoading: transactionsLoading, error: transactionsError, fetchTransactions } =
+    useRealtimeTransactions();
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isStale, setIsStale] = useState(false);
+  const [cacheReady, setCacheReady] = useState(false);
   const [customDatesByPlan, setCustomDatesByPlan] = useState<
     Record<string, { payout_date: string; payout_time?: string }[]>
   >({});
@@ -30,7 +32,8 @@ export function useCalendarEvents() {
   const customDatesFetchedRef = useRef<string>('');
 
   const isLoading =
-    !hasCachedDataRef.current && (plansLoading || transactionsLoading) && events.length === 0;
+    !cacheReady ||
+    (!hasCachedDataRef.current && (plansLoading || transactionsLoading) && events.length === 0);
 
   useEffect(() => {
     if (!session?.user?.id) {
@@ -38,17 +41,23 @@ export function useCalendarEvents() {
       setEvents([]);
       setError(null);
       setIsStale(false);
+      setCacheReady(true);
       return;
     }
 
     let isMounted = true;
+    setCacheReady(false);
 
     const loadCache = async () => {
       const cached = await readCache<CalendarEvent[]>(CACHE_KEYS.calendarEvents(session.user.id));
-      if (cached?.length && isMounted) {
+      if (!isMounted) return;
+
+      if (Array.isArray(cached) && cached.length > 0) {
         setEvents(cached);
         hasCachedDataRef.current = true;
+        setError(null);
       }
+      setCacheReady(true);
     };
 
     void loadCache();
@@ -115,24 +124,45 @@ export function useCalendarEvents() {
   );
 
   useEffect(() => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id || !cacheReady) return;
 
-    if (builtEvents.length > 0 || (payoutPlans.length === 0 && transactions.length === 0 && !plansLoading && !transactionsLoading)) {
+    if (builtEvents.length > 0) {
       setEvents(builtEvents);
-      if (builtEvents.length > 0) {
-        hasCachedDataRef.current = true;
-        void writeCache(CACHE_KEYS.calendarEvents(session.user.id), builtEvents);
-      }
+      hasCachedDataRef.current = true;
+      void writeCache(CACHE_KEYS.calendarEvents(session.user.id), builtEvents);
       setError(null);
       setIsStale(false);
-    } else if (!hasCachedDataRef.current && !plansLoading && !transactionsLoading) {
-      setError("Couldn't load calendar events. Tap Retry.");
+      return;
     }
-  }, [builtEvents, session?.user?.id, payoutPlans.length, transactions.length, plansLoading, transactionsLoading]);
+
+    if (hasCachedDataRef.current) {
+      // Keep showing cached events while plans/transactions refresh.
+      if (!plansLoading && !transactionsLoading) {
+        setIsStale(true);
+      }
+      return;
+    }
+
+    if (!plansLoading && !transactionsLoading) {
+      const sourceError = plansError || transactionsError;
+      if (sourceError) {
+        setError("Couldn't load calendar events. Tap Retry.");
+      }
+    }
+  }, [
+    builtEvents,
+    session?.user?.id,
+    plansError,
+    transactionsError,
+    plansLoading,
+    transactionsLoading,
+    cacheReady,
+  ]);
 
   const refreshEvents = useCallback(async () => {
     if (!session?.user?.id) return;
     setError(null);
+    setIsStale(false);
     customDatesFetchedRef.current = '';
     await warmConnection();
     await Promise.allSettled([fetchPayoutPlans(), fetchTransactions()]);
@@ -144,7 +174,7 @@ export function useCalendarEvents() {
   return {
     events,
     isLoading,
-    error: events.length > 0 ? (isStale ? displayError : null) : displayError,
+    error: events.length > 0 ? (isStale ? displayError ?? "Couldn't refresh. Showing saved data." : null) : displayError,
     isStale,
     refreshEvents,
   };

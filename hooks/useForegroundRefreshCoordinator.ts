@@ -34,13 +34,11 @@ export function getForegroundRefetchRegistrySize(): number {
 }
 
 async function runStaggeredRefresh(): Promise<void> {
-  const status = await ensureSupabaseConnection();
-  if (!status.ok) {
+  const status = await ensureSupabaseConnection({ skipProbe: true });
+
+  if (!status.ok && status.reconnect?.isAuthExpired) {
     if (__DEV__) {
-      console.warn(
-        '[foreground] Skipping refetch — connection unhealthy:',
-        status.lastError
-      );
+      console.warn('[foreground] Skipping refetch — session expired');
     }
     return;
   }
@@ -66,9 +64,12 @@ export function useForegroundRefreshCoordinator(): void {
   const foregroundTick = useAppForeground();
   const runningRef = useRef(false);
   const wasOfflineRef = useRef(false);
+  const hasResumedOnceRef = useRef(false);
 
   useEffect(() => {
     if (foregroundTick === 0) return;
+
+    hasResumedOnceRef.current = true;
 
     if (runningRef.current) return;
     runningRef.current = true;
@@ -78,12 +79,15 @@ export function useForegroundRefreshCoordinator(): void {
     });
   }, [foregroundTick]);
 
-  // Reconnect when network returns after being offline.
+  // Reconnect when network returns — only after at least one real foreground resume.
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       const online = state.isConnected === true && state.isInternetReachable !== false;
       if (!online) {
         wasOfflineRef.current = true;
+        return;
+      }
+      if (!hasResumedOnceRef.current) {
         return;
       }
       if (wasOfflineRef.current && online) {

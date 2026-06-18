@@ -67,6 +67,7 @@ export function useRealtimeTransactions() {
 
       if (data) {
         setTransactions(data as Transaction[]);
+        hasCachedDataRef.current = true;
         void writeCache(CACHE_KEYS.transactions(userId), data);
       }
     } catch (err: any) {
@@ -94,7 +95,7 @@ export function useRealtimeTransactions() {
     const setupRealtimeSubscription = async () => {
       try {
         const cached = await readCache<Transaction[]>(CACHE_KEYS.transactions(session.user.id));
-        if (cached && isMounted) {
+        if (Array.isArray(cached) && isMounted) {
           setTransactions(cached);
           setIsLoading(false);
           hasCachedDataRef.current = true;

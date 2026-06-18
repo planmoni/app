@@ -9,6 +9,7 @@ import {
   writeCache,
   toUserFacingError,
 } from '@/lib/supabase-fetch';
+import { withTimeout } from '@/lib/with-timeout';
 
 export type PayoutAccount = {
   id: string;
@@ -30,6 +31,19 @@ export function usePayoutAccounts() {
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
   const hasCachedDataRef = useRef(false);
+  const fetchInFlightRef = useRef(false);
+  const fetchStartedAtRef = useRef(0);
+  const FETCH_STALE_MS = 20000;
+
+  const hydrateFromCache = useCallback(async (userId: string): Promise<boolean> => {
+    const cached = await readCache<PayoutAccount[]>(CACHE_KEYS.payoutAccounts(userId));
+    if (!Array.isArray(cached)) return false;
+
+    setPayoutAccounts(cached);
+    hasCachedDataRef.current = true;
+    setIsLoading(false);
+    return true;
+  }, []);
 
   const enrichPlanCounts = useCallback(
     async (accounts: PayoutAccount[], userId: string) => {
@@ -71,6 +85,17 @@ export function usePayoutAccounts() {
       return;
     }
 
+    if (
+      fetchInFlightRef.current &&
+      Date.now() - fetchStartedAtRef.current < FETCH_STALE_MS
+    ) {
+      return;
+    }
+    fetchInFlightRef.current = true;
+    fetchStartedAtRef.current = Date.now();
+
+    await hydrateFromCache(userId);
+
     try {
       if (!hasCachedDataRef.current) {
         setIsLoading(true);
@@ -95,7 +120,7 @@ export function usePayoutAccounts() {
       }));
 
       setPayoutAccounts(baseAccounts);
-      hasCachedDataRef.current = baseAccounts.length > 0;
+      hasCachedDataRef.current = true;
       void writeCache(CACHE_KEYS.payoutAccounts(userId), baseAccounts);
 
       if (baseAccounts.length > 0) {
@@ -108,8 +133,9 @@ export function usePayoutAccounts() {
       }
     } finally {
       setIsLoading(false);
+      fetchInFlightRef.current = false;
     }
-  }, [session?.user?.id, enrichPlanCounts]);
+  }, [session?.user?.id, enrichPlanCounts, hydrateFromCache]);
 
   useEffect(() => {
     if (!session?.user?.id) {
@@ -122,13 +148,7 @@ export function usePayoutAccounts() {
     let isMounted = true;
 
     const init = async () => {
-      const cached = await readCache<PayoutAccount[]>(CACHE_KEYS.payoutAccounts(session.user.id));
-      if (cached?.length && isMounted) {
-        setPayoutAccounts(cached);
-        setIsLoading(false);
-        hasCachedDataRef.current = true;
-      }
-
+      await hydrateFromCache(session.user.id);
       if (!isMounted) return;
       await fetchPayoutAccounts();
     };
@@ -138,9 +158,15 @@ export function usePayoutAccounts() {
     return () => {
       isMounted = false;
     };
-  }, [session?.user?.id, fetchPayoutAccounts]);
+  }, [session?.user?.id, fetchPayoutAccounts, hydrateFromCache]);
 
   useRegisterForegroundRefetch('payout-accounts', 3, fetchPayoutAccounts, !!session?.user?.id);
+
+  useEffect(() => {
+    if (!isLoading || payoutAccounts.length > 0) return;
+    const timer = setTimeout(() => setIsLoading(false), 10000);
+    return () => clearTimeout(timer);
+  }, [isLoading, payoutAccounts.length]);
 
   const getProfileFullName = async (): Promise<string | null> => {
     const metaName = session?.user?.user_metadata?.full_name;
@@ -199,16 +225,24 @@ export function usePayoutAccounts() {
         throw new Error(msg);
       }
 
-      const profileFullName = await getProfileFullName();
+      const profileFullName = await withTimeout(
+        getProfileFullName(),
+        10000,
+        'Profile name lookup'
+      );
       const profileTokens = normalizeTokens(profileFullName);
 
-      const { data: existingAccount, error: checkError } = await supabase
-        .from('payout_accounts')
-        .select('id, account_number, bank_name')
-        .eq('user_id', session.user.id)
-        .eq('account_number', accountData.account_number.trim())
-        .eq('bank_name', accountData.bank_name.trim())
-        .maybeSingle();
+      const { data: existingAccount, error: checkError } = await withTimeout(
+        supabase
+          .from('payout_accounts')
+          .select('id, account_number, bank_name')
+          .eq('user_id', session.user.id)
+          .eq('account_number', accountData.account_number.trim())
+          .eq('bank_name', accountData.bank_name.trim())
+          .maybeSingle(),
+        15000,
+        'Check existing payout account'
+      );
 
       if (checkError) throw checkError;
 
@@ -230,14 +264,18 @@ export function usePayoutAccounts() {
         }
       }
 
-      const { data, error: insertError } = await supabase
-        .from('payout_accounts')
-        .insert({
-          user_id: session.user.id,
-          ...accountData,
-        })
-        .select()
-        .single();
+      const { data, error: insertError } = await withTimeout(
+        supabase
+          .from('payout_accounts')
+          .insert({
+            user_id: session.user.id,
+            ...accountData,
+          })
+          .select()
+          .single(),
+        15000,
+        'Add payout account'
+      );
 
       if (insertError) throw insertError;
 
@@ -249,9 +287,9 @@ export function usePayoutAccounts() {
 
       return data;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to add payout account';
+      const errorMessage = toUserFacingError(err, false);
       setError(errorMessage);
-      throw err;
+      throw new Error(errorMessage);
     }
   };
 

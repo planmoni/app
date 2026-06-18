@@ -113,7 +113,7 @@ export default function PayoutAccountsScreen() {
         <Text style={styles.headerTitle}>Payout Accounts</Text>
       </View>
 
-      {isLoading && <HorizontalLoader />}
+      {isLoading && payoutAccounts.length === 0 && <HorizontalLoader />}
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={styles.subtitle}>
@@ -123,11 +123,16 @@ export default function PayoutAccountsScreen() {
         {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
+            {payoutAccounts.length === 0 && (
+              <Pressable style={styles.retryButton} onPress={() => void fetchPayoutAccounts()}>
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </Pressable>
+            )}
           </View>
         )}
 
         <View style={styles.accountsList}>
-          {isLoading ? (
+          {isLoading && payoutAccounts.length === 0 ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingText}>Loading payout accounts...</Text>
             </View>
@@ -339,6 +344,19 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   errorText: {
     color: colors.error,
     fontSize: 14,
+    marginBottom: 8,
+  },
+  retryButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   emptyContainer: {
     padding: 40,

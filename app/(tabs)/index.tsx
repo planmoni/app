@@ -1505,8 +1505,11 @@ export default function HomeScreen() {
     return null; // Don't render on web
   }
 
-  // Show loader if any data is loading
-  if (payoutPlansLoading || transactionsLoading) {
+  // Show loader only when we have no cached data to display yet.
+  if (
+    (payoutPlansLoading && payoutPlans.length === 0) ||
+    (transactionsLoading && transactions.length === 0)
+  ) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <PlanmoniLoader 

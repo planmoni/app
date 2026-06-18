@@ -49,7 +49,10 @@ export function useRealtimePayoutPlans() {
   const hasCachedDataRef = useRef(false);
 
   const fetchPayoutPlans = useCallback(async () => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      setIsLoading(false);
+      return;
+    }
     try {
       if (!hasCachedDataRef.current) {
         setIsLoading(true);
@@ -101,6 +104,7 @@ export function useRealtimePayoutPlans() {
 
       if (pairingError) {
         setPayoutPlans(owned);
+        hasCachedDataRef.current = true;
         void writeCache(CACHE_KEYS.payoutPlans(session.user.id), owned);
         return;
       }
@@ -108,6 +112,7 @@ export function useRealtimePayoutPlans() {
       const pairedIds = (pairingRows || []).map((r: { payout_plan_id: string }) => r.payout_plan_id).filter(Boolean);
       if (pairedIds.length === 0) {
         setPayoutPlans(owned);
+        hasCachedDataRef.current = true;
         void writeCache(CACHE_KEYS.payoutPlans(session.user.id), owned);
         return;
       }
@@ -124,6 +129,7 @@ export function useRealtimePayoutPlans() {
 
       if (pairedError) {
         setPayoutPlans(owned);
+        hasCachedDataRef.current = true;
         void writeCache(CACHE_KEYS.payoutPlans(session.user.id), owned);
         return;
       }
@@ -135,6 +141,7 @@ export function useRealtimePayoutPlans() {
       }
       merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setPayoutPlans(merged);
+      hasCachedDataRef.current = true;
       void writeCache(CACHE_KEYS.payoutPlans(session.user.id), merged);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch payout plans');
@@ -160,7 +167,7 @@ export function useRealtimePayoutPlans() {
         // Show cached data instantly while we fetch fresh
         try {
           const cached = await readCache<PayoutPlan[]>(CACHE_KEYS.payoutPlans(session.user.id));
-          if (cached && isMounted) {
+          if (Array.isArray(cached) && isMounted) {
             setPayoutPlans(cached);
             setIsLoading(false);
             hasCachedDataRef.current = true;

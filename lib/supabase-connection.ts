@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { reconnectSupabase, type ReconnectResult } from '@/lib/supabase-reconnect';
 import { withTimeout } from '@/lib/with-timeout';
 
-export const ENSURE_CONNECTION_MAX_MS = 4000;
+export const ENSURE_CONNECTION_MAX_MS = 6000;
 export const PROBE_TIMEOUT_MS = 5000;
 
 export type ConnectionStatus = {
@@ -35,11 +35,13 @@ async function runHealthProbe(): Promise<void> {
 
 export type EnsureConnectionOptions = {
   skipProbe?: boolean;
+  /** Skip channel teardown + auth refresh (e.g. before a single retry). */
+  lightweight?: boolean;
 };
 
 /**
- * Fully reconnect Supabase (channels + auth) then optionally probe REST API.
- * Unlike the old warmConnection 1.5s race, this awaits recovery before refetch.
+ * Reconnect Supabase (channels + conditional auth refresh) then optionally probe REST API.
+ * Returns ok when a local session exists — refresh timeouts do not block data fetches.
  */
 export async function ensureSupabaseConnection(
   options: EnsureConnectionOptions = {}
@@ -49,23 +51,27 @@ export async function ensureSupabaseConnection(
   }
 
   ensureInFlight = (async () => {
-    const reconnect = await Promise.race([
-      reconnectSupabase(),
-      new Promise<ReconnectResult>((resolve) =>
-        setTimeout(
-          () =>
-            resolve({
-              channelsCleared: false,
-              sessionRefreshed: false,
-              authError: 'Reconnect timed out',
-              isAuthExpired: false,
-            }),
-          ENSURE_CONNECTION_MAX_MS
-        )
-      ),
-    ]);
+    let reconnect: ReconnectResult | null = null;
 
-    if (reconnect.isAuthExpired) {
+    if (!options.lightweight) {
+      reconnect = await Promise.race([
+        reconnectSupabase(),
+        new Promise<ReconnectResult>((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                channelsCleared: false,
+                sessionRefreshed: false,
+                authError: 'Reconnect timed out',
+                isAuthExpired: false,
+              }),
+            ENSURE_CONNECTION_MAX_MS
+          )
+        ),
+      ]);
+    }
+
+    if (reconnect?.isAuthExpired) {
       lastStatus = {
         ok: false,
         lastError: reconnect.authError ?? 'Session expired',
@@ -75,32 +81,31 @@ export async function ensureSupabaseConnection(
       return lastStatus;
     }
 
-    if (!options.skipProbe) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const hasSession = !!session?.user?.id;
+
+    if (!options.skipProbe && hasSession) {
       try {
         await runHealthProbe();
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        lastStatus = {
-          ok: false,
-          lastError: message,
-          lastSuccessAt: lastStatus.lastSuccessAt,
-          reconnect,
-        };
         if (__DEV__) {
-          console.warn('[supabase] Health probe failed:', message);
+          console.warn('[supabase] Health probe failed (non-fatal):', message);
         }
-        return lastStatus;
       }
     }
 
     lastStatus = {
-      ok: true,
-      lastSuccessAt: Date.now(),
+      ok: hasSession,
+      lastError: reconnect?.authError ?? undefined,
+      lastSuccessAt: hasSession ? Date.now() : lastStatus.lastSuccessAt,
       reconnect,
     };
-    if (__DEV__) {
+
+    if (__DEV__ && lastStatus.ok) {
       console.warn('[supabase] Connection ensured');
     }
+
     return lastStatus;
   })().finally(() => {
     ensureInFlight = null;
@@ -111,5 +116,5 @@ export async function ensureSupabaseConnection(
 
 /** @deprecated Use ensureSupabaseConnection */
 export async function warmConnection(): Promise<ConnectionStatus> {
-  return ensureSupabaseConnection();
+  return ensureSupabaseConnection({ skipProbe: true });
 }
