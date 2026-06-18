@@ -415,11 +415,35 @@ export function useCreatePayout() {
         frequency === 'custom' ? 'on custom dates' :
         'as scheduled';
 
+      // For custom plans, build a description that reflects per-date amounts if set.
+      let planCreatedDescription: string;
+      if (frequency === 'custom' && customDates?.length) {
+        const hasCustomAmounts =
+          customDateAmounts &&
+          customDates.some((d) => {
+            const raw = customDateAmounts[d];
+            const num = typeof raw === 'string' ? parseFloat(raw.replace(/,/g, '')) : Number(raw ?? 0);
+            return !isNaN(num) && num > 0;
+          });
+        if (hasCustomAmounts) {
+          const totalNet = customDates.reduce((sum, d) => {
+            const raw = customDateAmounts![d];
+            const num = typeof raw === 'string' ? parseFloat(raw.replace(/,/g, '')) : Number(raw ?? 0);
+            return sum + (!isNaN(num) ? num : 0);
+          }, 0);
+          planCreatedDescription = `Your payout plan "${name}" has been created with ${customDates.length} custom dates. Total payout: ₦${totalNet.toLocaleString('en-NG', { minimumFractionDigits: 2 })}.`;
+        } else {
+          planCreatedDescription = `Your payout plan "${name}" has been created with ${customDates.length} custom dates. ₦${payoutAmount.toLocaleString()} per date.`;
+        }
+      } else {
+        planCreatedDescription = `Your payout plan "${name}" has been created successfully. ₦${payoutAmount.toLocaleString()} will be paid ${frequencyDisplay}.`;
+      }
+
       await supabase.from("events").insert({
         user_id: session.user.id,
         type: "payout_scheduled",
         title: "New Payout Plan Created",
-        description: `Your payout plan "${name}" has been created successfully. ₦${payoutAmount.toLocaleString()} will be paid ${frequencyDisplay}.`,
+        description: planCreatedDescription,
         status: "unread",
         payout_plan_id: payoutPlan.id,
       });
