@@ -23,7 +23,89 @@ export type PayoutAccount = {
   created_at: string;
   updated_at: string;
   active_payout_plans_count?: number;
+  /** All payout plans referencing this account (any status). */
+  linked_payout_plans_count?: number;
 };
+
+export function payoutAccountDeleteErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const code = 'code' in error ? String((error as { code?: string }).code) : '';
+    const message =
+      'message' in error && typeof (error as { message?: string }).message === 'string'
+        ? (error as { message: string }).message
+        : '';
+
+    if (message.includes('safe_delete_payout_account')) {
+      return 'Account removal is not available yet. Please update the app or try again shortly.';
+    }
+    if (
+      code === '23503' ||
+      code === '23514' ||
+      message.includes('payout_plans_account_check')
+    ) {
+      return ACTIVE_PLAN_BLOCK_MESSAGE;
+    }
+    if (message) return message;
+  }
+  if (error instanceof Error) return error.message;
+  return 'Failed to remove account';
+}
+
+const IN_USE_PLAN_STATUSES = ['active', 'paused'] as const;
+
+const ACTIVE_PLAN_BLOCK_MESSAGE =
+  'This account is used by an active or paused payout plan and cannot be removed.';
+
+async function countActivePlanLinks(accountId: string, userId: string): Promise<number> {
+  const [plansResult, schedulesResult] = await Promise.all([
+    withTimeout(
+      supabase
+        .from('payout_plans')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('payout_account_id', accountId)
+        .in('status', [...IN_USE_PLAN_STATUSES]),
+      10000,
+      'Active payout plan check'
+    ),
+    withTimeout(
+      supabase
+        .from('vault_payout_schedules')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('payout_account_id', accountId)
+        .in('status', [...IN_USE_PLAN_STATUSES]),
+      10000,
+      'Active vault schedule check'
+    ),
+  ]);
+
+  const plansCount = (plansResult as { count: number | null }).count ?? 0;
+  const schedulesCount = (schedulesResult as { count: number | null }).count ?? 0;
+  return plansCount + schedulesCount;
+}
+
+function tallyPlanLinks(
+  plans: { payout_account_id: string | null; status: string }[] | null,
+  schedules: { payout_account_id: string | null; status: string }[] | null
+) {
+  const tallies = new Map<string, { active: number; linked: number }>();
+
+  const add = (accountId: string | null, status: string) => {
+    if (!accountId) return;
+    const entry = tallies.get(accountId) ?? { active: 0, linked: 0 };
+    entry.linked += 1;
+    if (status === 'active' || status === 'paused') {
+      entry.active += 1;
+    }
+    tallies.set(accountId, entry);
+  };
+
+  plans?.forEach((plan) => add(plan.payout_account_id, plan.status));
+  schedules?.forEach((schedule) => add(schedule.payout_account_id, schedule.status));
+
+  return tallies;
+}
 
 export function usePayoutAccounts() {
   const [payoutAccounts, setPayoutAccounts] = useState<PayoutAccount[]>([]);
@@ -47,32 +129,49 @@ export function usePayoutAccounts() {
 
   const enrichPlanCounts = useCallback(
     async (accounts: PayoutAccount[], userId: string) => {
-      const enriched = await Promise.all(
-        accounts.map(async (account) => {
-          try {
-            const { count, error: countError } = await fetchWithRetry(
-              () =>
-                supabase
-                  .from('payout_plans')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('user_id', userId)
-                  .eq('payout_account_id', account.id)
-                  .in('status', ['active', 'paused']),
-              `Payout plans count (${account.id})`
-            );
+      try {
+        const [plansResult, schedulesResult] = await Promise.all([
+          fetchWithRetry(
+            () =>
+              supabase
+                .from('payout_plans')
+                .select('payout_account_id, status')
+                .eq('user_id', userId)
+                .not('payout_account_id', 'is', null),
+            'Payout plan links'
+          ),
+          fetchWithRetry(
+            () =>
+              supabase
+                .from('vault_payout_schedules')
+                .select('payout_account_id, status')
+                .eq('user_id', userId)
+                .not('payout_account_id', 'is', null),
+            'Vault payout schedule links'
+          ),
+        ]);
 
-            if (countError) {
-              return { ...account, active_payout_plans_count: 0 };
-            }
-            return { ...account, active_payout_plans_count: count ?? 0 };
-          } catch {
-            return { ...account, active_payout_plans_count: 0 };
-          }
-        })
-      );
+        const plans = (plansResult as { data: { payout_account_id: string | null; status: string }[] | null })
+          .data;
+        const schedules = (
+          schedulesResult as { data: { payout_account_id: string | null; status: string }[] | null }
+        ).data;
+        const tallies = tallyPlanLinks(plans, schedules);
 
-      setPayoutAccounts(enriched);
-      void writeCache(CACHE_KEYS.payoutAccounts(userId), enriched);
+        const enriched = accounts.map((account) => {
+          const counts = tallies.get(account.id) ?? { active: 0, linked: 0 };
+          return {
+            ...account,
+            active_payout_plans_count: counts.active,
+            linked_payout_plans_count: counts.linked,
+          };
+        });
+
+        setPayoutAccounts(enriched);
+        void writeCache(CACHE_KEYS.payoutAccounts(userId), enriched);
+      } catch {
+        // Keep accounts visible even if plan link counts fail.
+      }
     },
     []
   );
@@ -117,6 +216,7 @@ export function usePayoutAccounts() {
       const baseAccounts: PayoutAccount[] = (accounts || []).map((account) => ({
         ...account,
         active_payout_plans_count: 0,
+        linked_payout_plans_count: 0,
       }));
 
       setPayoutAccounts(baseAccounts);
@@ -359,11 +459,28 @@ export function usePayoutAccounts() {
     try {
       setError(null);
 
-      const { error: deleteError } = await supabase
-        .from('payout_accounts')
-        .delete()
-        .eq('id', accountId)
-        .eq('user_id', session?.user?.id);
+      const userId = session?.user?.id;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+
+      const account = payoutAccounts.find((a) => a.id === accountId);
+      if ((account?.active_payout_plans_count ?? 0) > 0) {
+        setError(ACTIVE_PLAN_BLOCK_MESSAGE);
+        throw new Error(ACTIVE_PLAN_BLOCK_MESSAGE);
+      }
+
+      const activeLinks = await countActivePlanLinks(accountId, userId);
+      if (activeLinks > 0) {
+        setError(ACTIVE_PLAN_BLOCK_MESSAGE);
+        throw new Error(ACTIVE_PLAN_BLOCK_MESSAGE);
+      }
+
+      const { error: deleteError } = (await withTimeout(
+        supabase.rpc('safe_delete_payout_account', { p_account_id: accountId }),
+        15000,
+        'Remove payout account'
+      )) as { error: { message?: string; code?: string } | null };
 
       if (deleteError) throw deleteError;
 
@@ -377,8 +494,9 @@ export function usePayoutAccounts() {
         await setDefaultAccount(remainingAccounts[0].id);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete account');
-      throw err;
+      const message = payoutAccountDeleteErrorMessage(err);
+      setError(message);
+      throw new Error(message);
     }
   };
 

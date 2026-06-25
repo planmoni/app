@@ -7,7 +7,7 @@ import SafeFooter from '@/components/SafeFooter';
 import React, { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { usePayoutAccounts } from '@/hooks/usePayoutAccounts';
+import { usePayoutAccounts, payoutAccountDeleteErrorMessage } from '@/hooks/usePayoutAccounts';
 import AddPayoutAccountModal from '@/components/AddPayoutAccountModal';
 import EditPayoutAccountModal from '@/components/EditPayoutAccountModal';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -83,7 +83,7 @@ export default function PayoutAccountsScreen() {
               console.error('Error removing account:', error);
               
               // Show user-friendly error message
-              const errorMessage = error instanceof Error ? error.message : 'Failed to remove account';
+              const errorMessage = payoutAccountDeleteErrorMessage(error);
               Alert.alert(
                 "Cannot Remove Account",
                 errorMessage,
@@ -183,9 +183,9 @@ export default function PayoutAccountsScreen() {
                     {account.is_default && (
                       <Text style={styles.defaultText}>Default Account</Text>
                     )}
-                    {account.active_payout_plans_count && account.active_payout_plans_count > 0 && (
+                    {(account.active_payout_plans_count ?? 0) > 0 && (
                       <Text style={styles.activePlansText}>
-                        Used in {account.active_payout_plans_count} active payout plan{account.active_payout_plans_count > 1 ? 's' : ''}
+                        Used in {account.active_payout_plans_count} active payout plan{account.active_payout_plans_count! > 1 ? 's' : ''}
                       </Text>
                     )}
                   </View>
@@ -220,8 +220,8 @@ export default function PayoutAccountsScreen() {
                     </Pressable>
                   )}
                   
-                  {/* Only show Remove button if no active payout plans and not default */}
-                  {!account.is_default && (!account.active_payout_plans_count || account.active_payout_plans_count === 0) && (
+                  {/* Remove when not default and not used by an active/paused payout plan */}
+                  {!account.is_default && (account.active_payout_plans_count ?? 0) === 0 && (
                     <Pressable
                       style={[styles.actionButton, styles.removeButton]}
                       onPress={() => handleRemoveAccount(account.id, account.account_name)}
