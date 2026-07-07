@@ -11,6 +11,7 @@ import { logAnalyticsEvent } from '@/lib/firebase';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { calculatePlanCompletedAmount } from '@/lib/custom-payout-amounts';
 
 interface PayoutPlansSectionProps {
   activePlans: any[];
@@ -69,15 +70,12 @@ function PayoutPlansSection({ activePlans, isLoading = false, customDateAmounts 
     return activePlans.map((plan) => {
       const progress = Math.round((plan.completed_payouts / plan.duration) * 100);
       
-      // For custom plans, calculate completed amount from custom dates
-      let completedAmount = 0;
-      if (plan.frequency === 'custom' && customDateAmounts[plan.id]) {
-        // Sum amounts from completed payouts (we'd need to track which dates were completed)
-        // For now, use the plan's payout_amount as fallback
-        completedAmount = plan.completed_payouts * plan.payout_amount;
-      } else {
-        completedAmount = plan.completed_payouts * plan.payout_amount;
-      }
+      const completedAmount = calculatePlanCompletedAmount(
+        plan.frequency,
+        plan.completed_payouts,
+        plan.payout_amount,
+        plan.frequency === 'custom' ? customDateAmounts[plan.id] : undefined
+      );
       
       const dayOfWeek = (plan as any).metadata?.dayOfWeek;
       const originalFrequency = (plan as any).metadata?.originalFrequency || plan.frequency;

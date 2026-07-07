@@ -47,6 +47,10 @@ import { formatPayoutFrequency, formatDisplayDate } from '@/lib/formatters';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { getPurposeLabel } from '@/lib/payout-purposes';
 import CustomAmountsBreakdownModal from '@/components/CustomAmountsBreakdownModal';
+import {
+  calculatePlanCompletedAmount,
+  calculatePlanRemainingAmount,
+} from '@/lib/custom-payout-amounts';
 import { supabase } from '@/lib/supabase';
 import { Users, Link, Hash, Copy } from 'lucide-react-native';
 
@@ -539,16 +543,25 @@ export default function ViewPayoutScreen() {
 
   // Calculate completed amount for custom plans
   const calculateCompletedAmount = () => {
-    if (plan.frequency === 'custom' && Object.keys(customDateAmounts).length > 0) {
-      // For custom plans, we need to sum the amounts of completed payouts
-      // Since we don't track which specific dates were completed, we'll use an average
-      // or we could fetch completed automated payouts to get exact amounts
-      // For now, use average amount per payout
-      const totalCustomAmount = Object.values(customDateAmounts).reduce((sum, amount) => sum + amount, 0);
-      const averageAmount = totalCustomAmount / Object.keys(customDateAmounts).length;
-      return plan.completed_payouts * averageAmount;
-    }
-    return plan.completed_payouts * plan.payout_amount;
+    if (!plan) return 0;
+    return calculatePlanCompletedAmount(
+      plan.frequency,
+      plan.completed_payouts,
+      plan.payout_amount,
+      customDateAmounts
+    );
+  };
+
+  const calculateRemainingAmount = () => {
+    if (!plan) return 0;
+    const net = plan.net_payout_amount ?? plan.total_amount - (plan.fee_amount ?? 0);
+    return calculatePlanRemainingAmount(
+      plan.frequency,
+      plan.completed_payouts,
+      plan.payout_amount,
+      net,
+      customDateAmounts
+    );
   };
 
   // Get the original frequency and day of week from metadata
@@ -817,7 +830,7 @@ export default function ViewPayoutScreen() {
             </View>
             <View style={styles.progressStat}>
               <Text style={styles.progressStatValue}>
-                {formatCurrency(plan.total_amount - calculateCompletedAmount())}
+                {formatCurrency(calculateRemainingAmount())}
               </Text>
               <Text style={styles.progressStatLabel}>Remaining</Text>
             </View>

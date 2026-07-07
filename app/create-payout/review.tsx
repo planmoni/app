@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform } from 'react-native';
 import { Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,7 +22,8 @@ import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee
 import type { PayoutFeeResult } from '@/lib/payout-fee-calculator';
 import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
 import { LifecycleEventName } from '@/lib/lifecycleEvents';
-import { buildCustomDateTimesMap } from '@/lib/payout-time';
+import { buildCustomDateTimesMap, formatTimeForDisplay } from '@/lib/payout-time';
+import { formatPayoutMoney, hasCustomPayoutAmounts } from '@/lib/custom-payout-amounts';
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -130,6 +131,15 @@ export default function ReviewScreen() {
   }, [feeDepsKey]);
 
   const firstPayoutDate = getFirstPayoutDate();
+  const showCustomPayoutAmounts = hasCustomPayoutAmounts(frequency, customDates, customDateAmounts);
+  const customScheduleTotal = useMemo(() => {
+    if (!showCustomPayoutAmounts) return 0;
+    return customDates.reduce((sum: number, date: string) => {
+      const raw = customDateAmounts[date] ?? payoutAmount;
+      const num = typeof raw === 'string' ? parseFloat(raw.replace(/,/g, '')) : Number(raw);
+      return sum + (isNaN(num) ? 0 : num);
+    }, 0);
+  }, [showCustomPayoutAmounts, customDates, customDateAmounts, payoutAmount]);
 
   const handleConfirmPayout = useCallback(async () => {
     // SECURITY: Prevent multiple simultaneous submissions
@@ -550,15 +560,9 @@ export default function ReviewScreen() {
                       {customDates.map((date: string) => {
                         const amount = customDateAmounts[date] || payoutAmount;
                         const timeStr = customDateTimes[date] || '12:00';
-                        const [h, m] = (timeStr || '12:00').split(':').map(Number);
-                        const hour = isNaN(h) ? 12 : h % 24;
-                        const minute = isNaN(m) ? 0 : m % 60;
-                        const period = hour >= 12 ? 'PM' : 'AM';
-                        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-                        const timeDisplay = `${displayHour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${period}`;
                         return (
                           <Text key={date} style={styles.detailSubtext}>
-                            {formatDisplayDate(date)}: ₦{parseFloat(amount.toString().replace(/,/g, '')).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} at {timeDisplay}
+                            {formatDisplayDate(date)}: {formatPayoutMoney(amount)} at {formatTimeForDisplay(timeStr)}
                           </Text>
                         );
                       })}
@@ -726,10 +730,52 @@ export default function ReviewScreen() {
                 <Text style={styles.summaryValue}>{parseInt(duration)}</Text>
               </View>
               
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Amount per Payout</Text>
-                <Text style={styles.summaryValue}>{`₦${payoutAmount}`}</Text>
-              </View>
+              {showCustomPayoutAmounts ? (
+                <View style={styles.summaryScheduleSection}>
+                  <View style={styles.summaryScheduleHeader}>
+                    <Text style={styles.summaryLabel}>Payout schedule</Text>
+                    <Text style={styles.summaryScheduleMeta}>
+                      {customDates.length} payout{customDates.length !== 1 ? 's' : ''} · {formatPayoutMoney(customScheduleTotal)}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryScheduleList}>
+                    {customDates.map((date: string, index: number) => {
+                      const amount = customDateAmounts[date] || payoutAmount;
+                      const timeStr = customDateTimes[date] || '12:00';
+                      const isLast = index === customDates.length - 1;
+                      return (
+                        <View
+                          key={date}
+                          style={[
+                            styles.summaryScheduleRow,
+                            isLast && styles.summaryScheduleRowLast,
+                          ]}
+                        >
+                          <View style={styles.summaryScheduleIndex}>
+                            <Text style={styles.summaryScheduleIndexText}>{index + 1}</Text>
+                          </View>
+                          <View style={styles.summaryScheduleDetails}>
+                            <Text style={styles.summaryScheduleDate} numberOfLines={1}>
+                              {formatDisplayDate(date)}
+                            </Text>
+                            <Text style={styles.summaryScheduleTime}>
+                              {formatTimeForDisplay(timeStr)}
+                            </Text>
+                          </View>
+                          <Text style={styles.summaryScheduleAmount}>
+                            {formatPayoutMoney(amount)}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Amount per Payout</Text>
+                  <Text style={styles.summaryValue}>{`₦${payoutAmount}`}</Text>
+                </View>
+              )}
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Frequency</Text>
@@ -1212,5 +1258,74 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   customAmountsList: {
     marginTop: 4,
     gap: 4,
+  },
+  summaryScheduleSection: {
+    marginBottom: 12,
+  },
+  summaryScheduleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  summaryScheduleMeta: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  summaryScheduleList: {
+    backgroundColor: colors.card,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  summaryScheduleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    gap: 10,
+  },
+  summaryScheduleRowLast: {
+    borderBottomWidth: 0,
+  },
+  summaryScheduleIndex: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#E0E7FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  summaryScheduleIndexText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  summaryScheduleDetails: {
+    flex: 1,
+    minWidth: 0,
+  },
+  summaryScheduleDate: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  summaryScheduleTime: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  summaryScheduleAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    flexShrink: 0,
   },
 });

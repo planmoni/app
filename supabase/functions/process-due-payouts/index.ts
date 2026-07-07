@@ -374,96 +374,43 @@ async function processSinglePayout(plan: any) {
   if (planCheck.completed_payouts >= planCheck.duration) {
     throw new Error(`Payout plan ${plan.plan_id} is already completed`);
   }
-  
-  // IDEMPOTENCY CHECK: Check if automated_payout already exists for this plan + scheduled_date
-  // This prevents duplicate processing if the function is called multiple times
-  const scheduledDate = plan.next_payout_date || planCheck.next_payout_date;
-  // Eligibility (daily / weekly / biweekly / custom / weekly_specific, etc.) is decided in
-  // get_due_payout_plans + next_payout_date. Re-applying calendar/weekday checks here caused
-  // false "skipping" (UTC vs local, weekly_specific DOW vs stored next_payout_date).
-  const { data: existingPayout, error: existingPayoutError } = await supabase
-    .from("automated_payouts")
-    .select("id, status, transfer_reference")
-    .eq("payout_plan_id", plan.plan_id)
-    .eq("scheduled_date", scheduledDate)
-    .in("status", ["pending", "processing", "completed"])
-    .maybeSingle();
-  
-  if (existingPayoutError) {
-    console.error("Error checking for existing payout:", existingPayoutError);
-    // Continue - don't fail on check error, let create_automated_payout handle it
+
+  // Atomic claim: one installment = one wallet debit + automated_payout + transaction (DB transaction).
+  const { data: claimRaw, error: claimError } = await supabase.rpc("claim_payout_installment", {
+    p_plan_id: plan.plan_id,
+    p_payment_reference: null,
+  });
+
+  if (claimError) {
+    throw new Error(`claim_payout_installment failed: ${claimError.message}`);
   }
-  
-  let payoutId: string;
-  
-  if (existingPayout) {
-    // IDEMPOTENCY: Payout already exists - use existing one
-    console.log(`✅ Automated payout already exists for plan ${plan.plan_id} on ${scheduledDate} (id: ${existingPayout.id}, status: ${existingPayout.status})`);
-    payoutId = existingPayout.id;
-    
-    // If already completed, skip processing
-    if (existingPayout.status === "completed") {
-      console.log(`⏭️ Payout ${payoutId} already completed, skipping processing`);
-      return;
+
+  const claim = (claimRaw || {}) as Record<string, unknown>;
+  if (!claim.success) {
+    if (claim.skip) {
+      throw new Error(`skipping: ${claim.error}`);
     }
-    
-    // If already processing, check if we should continue or skip
-    if (existingPayout.status === "processing") {
-      // Check how long it's been processing (if > 30 minutes, might be stuck)
-      const { data: payoutDetails } = await supabase
-        .from("automated_payouts")
-        .select("updated_at, execution_date")
-        .eq("id", payoutId)
-        .single();
-      
-      if (payoutDetails) {
-        const updatedAt = new Date(payoutDetails.updated_at);
-        const now = new Date();
-        const processingTime = now.getTime() - updatedAt.getTime();
-        const thirtyMinutes = 30 * 60 * 1000;
-        
-        if (processingTime < thirtyMinutes) {
-          console.log(`⏭️ Payout ${payoutId} is currently being processed (${Math.round(processingTime / 1000)}s ago), skipping duplicate processing`);
-          return;
-        } else {
-          console.log(`⚠️ Payout ${payoutId} has been processing for ${Math.round(processingTime / 60000)} minutes, may be stuck. Continuing...`);
-        }
-      }
-    }
-  } else {
-    // Create new automated payout record
-    // Note: create_automated_payout RPC function should also have idempotency checks
-    const { data: newPayoutId, error: createError } = await supabase.rpc("create_automated_payout", {
-      p_plan_id: plan.plan_id,
-      p_scheduled_date: scheduledDate
-    });
-    
-    if (createError) {
-      // Check if error is due to duplicate (idempotency)
-      if (createError.message?.includes("already exists") || createError.message?.includes("duplicate")) {
-        // Try to get the existing payout
-        const { data: duplicatePayout } = await supabase
-          .from("automated_payouts")
-          .select("id, status")
-          .eq("payout_plan_id", plan.plan_id)
-          .eq("scheduled_date", scheduledDate)
-          .maybeSingle();
-        
-        if (duplicatePayout) {
-          console.log(`✅ Duplicate detected, using existing payout ${duplicatePayout.id}`);
-          payoutId = duplicatePayout.id;
-        } else {
-          throw new Error(`Failed to create automated payout record: ${createError.message}`);
-        }
-      } else {
-        throw new Error(`Failed to create automated payout record: ${createError.message}`);
-      }
-    } else {
-      payoutId = newPayoutId;
-      console.log(`✅ Created new automated payout record: ${payoutId}`);
-    }
+    throw new Error(String(claim.error || "claim_payout_installment failed"));
   }
-  
+
+  if (claim.already_completed) {
+    console.log(`⏭️ Installment already completed for plan ${plan.plan_id}`);
+    return;
+  }
+
+  const payoutId = String(claim.automated_payout_id);
+  const actualPayoutAmount = Number(claim.amount);
+  const plannedReference = String(claim.payment_reference);
+  let transactionId = (claim.transaction_id as string) || null;
+  const mayCallSafehaven = claim.may_call_safehaven === true;
+
+  if (claim.already_claimed && !mayCallSafehaven) {
+    console.log(
+      `⏭️ Installment ${payoutId} already claimed; SafeHaven transfer already initiated — awaiting webhook/status poll`
+    );
+    return;
+  }
+
   // 2. Get payout account details
   const { data: payoutAccount, error: payoutError } = await supabase
     .from("payout_accounts")
@@ -487,113 +434,10 @@ async function processSinglePayout(plan: any) {
     );
   }
   payoutAccount.safehaven_bank_code = safehavenCode;
-  
-  // 4. Check wallet balance and handle insufficient balance for final payout
-  const { data: wallet, error: walletError } = await supabase
-    .from("wallets")
-    .select("locked_balance")
-    .eq("user_id", plan.user_id)
-    .single();
-  
-  if (walletError || !wallet) {
-    throw new Error("Wallet not found");
-  }
 
-  const lockedBalance = Number(wallet.locked_balance) || 0;
-  const isLastPayout = (plan.completed_payouts + 1) >= plan.duration;
-
-  // For custom-frequency plans the per-date amount lives in custom_payout_dates.amount.
-  // Fall back to plan.payout_amount (the equal-split average) only if no custom amount is set.
-  let requiredAmount = Number(plan.payout_amount) || 0;
-  if ((planCheck.frequency || "").toLowerCase() === "custom") {
-    const scheduledDateOnly = (scheduledDate || "").split("T")[0]; // YYYY-MM-DD
-    const { data: customDateRow, error: customDateError } = await supabase
-      .from("custom_payout_dates")
-      .select("amount")
-      .eq("payout_plan_id", plan.plan_id)
-      .eq("payout_date", scheduledDateOnly)
-      .maybeSingle();
-    if (customDateError) {
-      console.warn(`⚠️ Could not fetch custom_payout_dates for ${scheduledDateOnly}:`, customDateError.message);
-    } else if (customDateRow?.amount && Number(customDateRow.amount) > 0) {
-      requiredAmount = Number(customDateRow.amount);
-      console.log(`📆 Custom per-date amount for ${scheduledDateOnly}: ₦${requiredAmount}`);
-    } else {
-      console.log(`📆 No custom amount for ${scheduledDateOnly}; using plan default ₦${requiredAmount}`);
-    }
-  }
-  
-  // Determine the actual payout amount
-  let actualPayoutAmount = requiredAmount;
-  let usingPartialBalance = false;
-
-  // Check if we have sufficient locked_balance
-  if (lockedBalance >= requiredAmount) {
-    // Sufficient balance - use required amount
-    actualPayoutAmount = requiredAmount;
-    console.log(`✅ Sufficient locked balance: ₦${lockedBalance} >= ₦${requiredAmount}`);
-  } else if (isLastPayout && lockedBalance > 0) {
-    // Last payout with insufficient balance - use all available locked_balance
-    actualPayoutAmount = lockedBalance;
-    usingPartialBalance = true;
-    console.log(`⚠️ Using partial locked balance for final payout. Locked: ₦${lockedBalance}, Required: ₦${requiredAmount}, Using: ₦${actualPayoutAmount}`);
-  } else if (lockedBalance === 0) {
-    throw new Error("Insufficient wallet balance for payout: Locked balance is 0.00");
-  } else {
-    throw new Error(`Insufficient locked balance for payout. Locked: ₦${lockedBalance}, Required: ₦${requiredAmount}`);
-  }
-  
-  // Idempotency: one payout transaction per plan per day (checked here to avoid DB constraints)
-  const todayStart = new Date();
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setUTCHours(23, 59, 59, 999);
-  const { data: existingTx } = await supabase
-    .from("transactions")
-    .select("id, status, reference")
-    .eq("payout_plan_id", plan.plan_id)
-    .eq("type", "payout")
-    .gte("created_at", todayStart.toISOString())
-    .lte("created_at", todayEnd.toISOString())
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  let transactionId: string | null = null;
-  let plannedReference: string;
-  if (existingTx?.id) {
-    transactionId = existingTx.id;
-    plannedReference = existingTx.reference ?? `AUTO_${plan.plan_id}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    if (existingTx.status === "completed") {
-      console.log(`Idempotent: payout for today already completed (tx: ${transactionId}), skipping`);
-      throw new Error("already_created_today: payout for this plan already completed today");
-    }
-    console.log(`Idempotent: using existing payout transaction for today: ${transactionId} (status: ${existingTx.status})`);
-  } else {
-    plannedReference = `AUTO_${plan.plan_id}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    try {
-      const { data: txInit, error: txInitError } = await supabase.rpc("create_payout_transaction_if_absent", {
-        p_user_id: planCheck.user_id,
-        p_plan_id: plan.plan_id,
-        p_amount: actualPayoutAmount,
-        p_reference: plannedReference,
-        p_metadata: {
-          source: "automated_payout",
-          scheduled_date: scheduledDate,
-          plan_name: planCheck.name,
-        },
-      });
-      if (txInitError) {
-        console.error("Error creating idempotent transaction:", txInitError);
-      } else {
-        transactionId = txInit?.transaction_id ?? null;
-        console.log(txInit?.already_created_today
-          ? `Idempotent: another run created today's transaction: ${transactionId}`
-          : `Created idempotent transaction for today: ${transactionId}`);
-      }
-    } catch (txErr) {
-      console.warn("create_payout_transaction_if_absent failed, will continue and create later:", txErr);
-    }
+  if (!mayCallSafehaven) {
+    console.log(`⏭️ No SafeHaven call needed for payout ${payoutId}`);
+    return;
   }
 
   // 5 & 6. Get SafeHaven token
@@ -724,55 +568,7 @@ async function processSinglePayout(plan: any) {
     }
   }
 
-  // 8. Debit wallet balance (reduce both balance and locked_balance since money is being withdrawn)
-  // TRANSACTIONAL: transfer_funds RPC function handles this atomically
-  // IDEMPOTENCY: Check if wallet was already debited for this payout
-  const { data: payoutRecord, error: payoutRecordError } = await supabase
-    .from("automated_payouts")
-    .select("id, status, metadata")
-    .eq("id", payoutId)
-    .single();
-  
-  if (payoutRecordError) {
-    throw new Error(`Failed to verify payout record: ${payoutRecordError.message}`);
-  }
-  
-  // Check if wallet was already debited (idempotency check)
-  const walletAlreadyDebited = payoutRecord.metadata?.wallet_debited === true || 
-                                payoutRecord.status === "processing" || 
-                                payoutRecord.status === "completed";
-  
-  if (!walletAlreadyDebited) {
-    // TRANSACTIONAL: Deduct wallet balance atomically
-    const { error: reduceError } = await supabase.rpc("transfer_funds", {
-      arg_user_id: plan.user_id,
-      arg_amount: actualPayoutAmount
-    });
-
-    if (reduceError) {
-      console.error("Error reducing wallet balance:", reduceError);
-      throw new Error(`Failed to reduce wallet balance: ${reduceError.message}`);
-    }
-    
-    // Mark wallet as debited in metadata (idempotency marker)
-    await supabase
-      .from("automated_payouts")
-      .update({
-        metadata: {
-          ...(payoutRecord.metadata || {}),
-          wallet_debited: true,
-          wallet_debited_at: new Date().toISOString(),
-          wallet_debited_amount: actualPayoutAmount
-        }
-      })
-      .eq("id", payoutId);
-    
-    console.log(`✅ Wallet balance debited for payout: ₦${actualPayoutAmount}${usingPartialBalance ? ' (partial - final payout)' : ''}`);
-  } else {
-    console.log(`✅ Wallet balance already debited for payout ${payoutId} (idempotency check passed)`);
-  }
-
-  // 9. Initiate transfer via SafeHaven only
+  // 7. Initiate transfer via SafeHaven only (same payment_reference as claim — never mint a new one on retry)
   const planWithActualAmount = {
     ...plan,
     payout_amount: actualPayoutAmount
@@ -780,16 +576,82 @@ async function processSinglePayout(plan: any) {
   if (!safeHavenToken?.access_token) {
     throw new Error("SafeHaven token not available for this user.");
   }
-  const transferResult = await initiateSafeHavenTransfer(
-    planWithActualAmount,
-    payoutAccount,
-    safeHavenToken.access_token,
-    payoutId,
-    safehavenCode!,
-    plannedReference
-  );
-  
-  // 10. Update/Create transaction record status based on provider response
+
+  let transferResult: any;
+  try {
+    transferResult = await initiateSafeHavenTransfer(
+      planWithActualAmount,
+      payoutAccount,
+      safeHavenToken.access_token,
+      payoutId,
+      safehavenCode!,
+      plannedReference
+    );
+  } catch (transferErr: unknown) {
+    const errMsg = transferErr instanceof Error ? transferErr.message : String(transferErr);
+    if (/duplicate/i.test(errMsg)) {
+      console.log(`SafeHaven duplicate on POST — polling status for ${plannedReference}`);
+      const polled = await pollSafeHavenTransferStatus(plannedReference, safeHavenToken.access_token);
+      if (polled.isCompleted) {
+        transferResult = {
+          provider: "safehaven",
+          reference: plannedReference,
+          transfer_code: plannedReference,
+          status: "Completed",
+          rawResponse: polled.raw,
+        };
+      } else if (polled.isFailed) {
+        await supabase.rpc("fail_payout_installment", {
+          p_automated_payout_id: payoutId,
+          p_reason: polled.status,
+          p_provider_metadata: { response: polled.raw },
+        });
+        throw transferErr;
+      } else {
+        await supabase.rpc("mark_payout_safehaven_initiated", {
+          p_automated_payout_id: payoutId,
+          p_metadata: { duplicate_poll_pending: true, response: polled.raw },
+        });
+        console.log(`Transfer still pending after duplicate response for ${plannedReference}`);
+        return;
+      }
+    } else {
+      throw transferErr;
+    }
+  }
+
+  if (isSafeHavenDuplicateResponse(transferResult)) {
+    console.log(`SafeHaven response 94 — polling status for ${plannedReference}`);
+    const polled = await pollSafeHavenTransferStatus(plannedReference, safeHavenToken.access_token);
+    if (polled.isCompleted) {
+      transferResult = {
+        provider: "safehaven",
+        reference: plannedReference,
+        transfer_code: plannedReference,
+        status: "Completed",
+        rawResponse: polled.raw,
+      };
+    } else if (!polled.isFailed) {
+      await supabase.rpc("mark_payout_safehaven_initiated", {
+        p_automated_payout_id: payoutId,
+        p_metadata: { duplicate_poll_pending: true, response: polled.raw },
+      });
+      console.log(`Transfer still pending after duplicate response for ${plannedReference}`);
+      return;
+    }
+  }
+
+  await supabase.rpc("mark_payout_safehaven_initiated", {
+    p_automated_payout_id: payoutId,
+    p_metadata: {
+      provider: transferResult.provider,
+      transfer_code: transferResult.transfer_code || transferResult.reference,
+      transfer_status: transferResult.status,
+      response: transferResult.rawResponse || transferResult,
+    },
+  });
+
+  // 8. Update transaction record status based on provider response
   try {
     if (!transactionId) {
       // Fallback: create now if earlier idempotent insert failed
@@ -850,74 +712,31 @@ async function processSinglePayout(plan: any) {
     console.error('Failed to update transaction status after transfer:', txUpdateErr);
   }
   
-  // 11. Update automated payout record with transfer details
+  // 9. Update automated payout record with transfer details
   await updateAutomatedPayout(payoutId, transferResult);
-  
-  // 12. Update payout plan progress and next_payout_date
-  try {
-    const success = isTransferSuccess(transferResult);
-    if (success) {
-      const currentCompleted = planCheck.completed_payouts || 0;
-      const newCompleted = currentCompleted + 1;
-      const duration = planCheck.duration ?? 0;
-      const frequency = (planCheck.frequency || '').toLowerCase();
 
-      // Match update_payout_plan_progress: final payout clears next_payout_date and marks completed.
-      if (newCompleted >= duration && duration > 0) {
-        await supabase
-          .from('payout_plans')
-          .update({
-            completed_payouts: newCompleted,
-            next_payout_date: null,
-            status: 'completed',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', plan.plan_id);
-        console.log(`✅ Plan ${plan.plan_id} completed (${newCompleted}/${duration}); next_payout_date cleared`);
-      } else if (frequency === 'custom') {
-        // Per-date times live in custom_payout_dates; DB function reads payout_time per row.
-        await updatePayoutPlanProgress(plan.plan_id);
-      } else {
-        const meta = planCheck.metadata as Record<string, unknown> | undefined;
-        const dowCol = planCheck.day_of_week;
-        const dayOfWeek =
-          typeof dowCol === 'number' && dowCol >= 0 && dowCol <= 6
-            ? dowCol
-            : meta != null && typeof meta.dayOfWeek === 'number'
-              ? meta.dayOfWeek
-              : null;
-        const nextDate = computeNextPayoutDateWithTime(
-          planCheck.frequency,
-          planCheck.start_date,
-          newCompleted,
-          dayOfWeek,
-          planCheck.next_payout_date,
-          meta?.payoutHour as number | undefined,
-          meta?.payoutMinute as number | undefined
-        );
-        if (nextDate) {
-          await supabase
-            .from('payout_plans')
-            .update({
-              completed_payouts: newCompleted,
-              next_payout_date: nextDate.toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', plan.plan_id);
-          console.log(`✅ Updated plan ${plan.plan_id} to next date ${nextDate.toISOString()}`);
-        } else {
-          await updatePayoutPlanProgress(plan.plan_id);
-        }
-      }
+  // 10. Complete installment (advances plan + recalculates locked balance) when transfer succeeded immediately
+  if (isTransferSuccess(transferResult)) {
+    const { error: completeErr } = await supabase.rpc("complete_payout_installment", {
+      p_automated_payout_id: payoutId,
+      p_provider_metadata: {
+        provider: transferResult.provider,
+        transfer_code: transferResult.transfer_code || transferResult.reference,
+        transfer_status: transferResult.status,
+        response: transferResult.rawResponse || transferResult,
+        completed_via: "process_due_payouts",
+      },
+    });
+    if (completeErr) {
+      console.error("complete_payout_installment failed:", completeErr);
     } else {
-      console.log('Transfer not completed; will not advance next_payout_date');
+      console.log(`✅ Installment completed for automated_payout ${payoutId}`);
     }
-  } catch (npdErr) {
-    console.error('Failed to update next_payout_date; falling back to DB function:', npdErr);
-    await updatePayoutPlanProgress(plan.plan_id);
+  } else {
+    console.log("Transfer not completed inline; webhook or status poll will call complete_payout_installment");
   }
-  
-  // 13. Create notification (email will be sent by webhook when transfer completes)
+
+  // 11. Create notification (email will be sent by webhook when transfer completes)
   await createNotification(plan.user_id, planWithActualAmount, transferResult);
 }
 
@@ -934,6 +753,44 @@ function isTransferSuccess(transferResult: any): boolean {
   } catch (_) {
     return false;
   }
+}
+
+function isSafeHavenDuplicateResponse(transferResult: any): boolean {
+  try {
+    const raw = transferResult?.rawResponse || {};
+    const code = raw?.responseCode ?? raw?.data?.responseCode;
+    const statusCode = raw?.statusCode;
+    const message = String(raw?.message || raw?.data?.responseMessage || '').toLowerCase();
+    return statusCode === 400 && (code === '94' || message.includes('duplicate'));
+  } catch (_) {
+    return false;
+  }
+}
+
+async function pollSafeHavenTransferStatus(
+  paymentReference: string,
+  accessToken: string
+): Promise<{ isCompleted: boolean; isFailed: boolean; status: string; raw: any }> {
+  const response = await fetch(`${safeHavenApiUrl}/transfers/status`, {
+    method: "POST",
+    headers: {
+      "ClientID": safeHavenClientId,
+      "Authorization": `Bearer ${accessToken}`,
+      "accept": "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ paymentReference }),
+  });
+  const raw = await response.json();
+  const inner = raw?.data || raw;
+  const status = inner?.status || raw?.status || "Pending";
+  const responseCode = raw?.responseCode ?? inner?.responseCode;
+  const isCompleted =
+    status === "Completed" ||
+    status === "Success" ||
+    (raw?.statusCode === 200 && responseCode === "00" && (status === "Completed" || status === "Success"));
+  const isFailed = status === "Failed" || status === "Reversed";
+  return { isCompleted, isFailed, status, raw };
 }
 
 function computeNextPayoutDateWithTime(

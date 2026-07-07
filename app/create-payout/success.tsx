@@ -9,6 +9,7 @@ import React, { useEffect, useRef } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { formatDisplayDate, formatPayoutFrequency } from '@/lib/formatters';
+import { formatPayoutMoney, hasCustomPayoutAmounts } from '@/lib/custom-payout-amounts';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { Building2, X } from 'lucide-react-native';
 import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
@@ -35,6 +36,9 @@ export default function SuccessScreen() {
   const bankName = params.bankName as string || '';
   const accountNumber = (params.accountNumber as string) || '';
   const dayOfWeek = params.dayOfWeek ? parseInt(params.dayOfWeek as string) : undefined;
+  const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
+  const customDateAmounts = params.customDateAmounts ? JSON.parse(params.customDateAmounts as string) : {};
+  const showCustomPayoutAmounts = hasCustomPayoutAmounts(frequency, customDates, customDateAmounts);
 
   // Format amount with commas and proper number formatting
   const formatAmount = (amount: string) => {
@@ -118,8 +122,27 @@ export default function SuccessScreen() {
         <View style={styles.summaryCard}>
           <Text style={styles.amount}>{formatAmount(totalAmount)}</Text>
           <Text style={styles.description}>
-            will be paid out in {formatPayoutFrequency(frequency, dayOfWeek).toLowerCase()} installments of{'\n'}
-            <Text style={styles.highlight}>{formatAmount(payoutAmount)}</Text>
+            {showCustomPayoutAmounts ? (
+              <>
+                will be paid out on your custom schedule:{'\n'}
+                {customDates.map((date: string, index: number) => {
+                  const amount = customDateAmounts[date] || payoutAmount;
+                  return (
+                    <Text key={date}>
+                      {index > 0 ? '\n' : ''}
+                      <Text style={styles.highlight}>
+                        {formatDisplayDate(date)}: {formatPayoutMoney(amount)}
+                      </Text>
+                    </Text>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                will be paid out in {formatPayoutFrequency(frequency, dayOfWeek).toLowerCase()} installments of{'\n'}
+                <Text style={styles.highlight}>{formatAmount(payoutAmount)}</Text>
+              </>
+            )}
           </Text>
 
           <View style={styles.detailsContainer}>

@@ -132,6 +132,21 @@ async function applyCompleted(tx: PendingTransaction): Promise<boolean> {
   }
 
   console.log(`✅ Marked transaction ${tx.id} as completed`);
+
+  const apId =
+    tx.metadata && typeof tx.metadata === "object"
+      ? (tx.metadata as Record<string, unknown>).automated_payout_id
+      : null;
+  if (apId && typeof apId === "string") {
+    const { error: completeErr } = await supabase.rpc("complete_payout_installment", {
+      p_automated_payout_id: apId,
+      p_provider_metadata: { completed_via: "retry_pending_safehaven_transfers" },
+    });
+    if (completeErr) {
+      console.error(`complete_payout_installment failed for ${apId}:`, completeErr);
+    }
+  }
+
   return true;
 }
 

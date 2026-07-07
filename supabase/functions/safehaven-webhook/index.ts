@@ -1416,24 +1416,27 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
           .eq('id', transaction.id);
       }
 
-      // If completed, update payout plan and create notification
+      // If completed, advance plan via idempotent RPC
       if (newStatus === 'completed') {
-        // Get payout plan
+        const { error: completeErr } = await supabase.rpc('complete_payout_installment', {
+          p_automated_payout_id: automatedPayout.id,
+          p_provider_metadata: {
+            safehaven_webhook_status: transferData.status,
+            safehaven_response_message: transferData.responseMessage || null,
+            completed_via: 'safehaven_webhook',
+          },
+        });
+        if (completeErr) {
+          console.error('safehaven-webhook: complete_payout_installment failed:', completeErr);
+        }
+
         const { data: payoutPlan, error: planError } = await supabase
           .from('payout_plans')
-          .select('id, name, payout_amount, completed_payouts, duration, frequency, start_date, next_payout_date, payout_account_id, bank_account_id')
+          .select('id, name, payout_amount')
           .eq('id', automatedPayout.payout_plan_id)
           .single();
 
         if (!planError && payoutPlan) {
-          // Use RPC so all frequencies (daily, weekly, weekly_specific, biweekly, monthly, end_of_month, quarterly, biannual, annually, custom) are correct
-          const { error: progressError } = await supabase.rpc('update_payout_plan_progress', {
-            p_plan_id: payoutPlan.id
-          });
-          if (progressError) {
-            console.error('safehaven-webhook: update_payout_plan_progress failed:', progressError);
-          }
-
           // Create success notification
           await supabase
             .from('events')

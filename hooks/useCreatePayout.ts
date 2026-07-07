@@ -498,6 +498,15 @@ export function useCreatePayout() {
           bankName: bankName || "Your bank account",
           accountNumber: accountNumber || "",
           emergencyWithdrawalEnabled: emergencyWithdrawalEnabled.toString(),
+          ...(frequency === "custom" && customDates?.length
+            ? {
+                customDates: JSON.stringify(customDates),
+                customDateAmounts:
+                  customDateAmounts && Object.keys(customDateAmounts).length > 0
+                    ? JSON.stringify(customDateAmounts)
+                    : "",
+              }
+            : {}),
         },
       });
     } catch (err) {

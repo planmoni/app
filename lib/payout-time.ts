@@ -35,6 +35,14 @@ export function buildCustomDateTimesMap(
   return Object.fromEntries(dates.map((d) => [d, times?.[d] || defaultTime]));
 }
 
+/** 12-hour display for HH:mm (e.g. "12:00 PM"). */
+export function formatTimeForDisplay(timeStr: string): string {
+  const { hour, minute } = parseTimeString(timeStr);
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${displayHour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${period}`;
+}
+
 /** Postgres `time` / HH:mm:ss → HH:mm */
 export function payoutTimeToHHmm(payoutTime: string | null | undefined): string {
   if (!payoutTime) return '12:00';
