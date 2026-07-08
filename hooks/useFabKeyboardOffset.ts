@@ -28,6 +28,10 @@ interface UseFabKeyboardOffsetOptions {
    * Use dynamic calculation for Android (default: true)
    */
   useDynamicCalculation?: boolean;
+  /**
+   * When false, skip keyboard listeners (use for Android FABs that stay fixed).
+   */
+  enabled?: boolean;
 }
 
 export function useFabKeyboardOffset(options: UseFabKeyboardOffsetOptions = {}) {
@@ -36,6 +40,7 @@ export function useFabKeyboardOffset(options: UseFabKeyboardOffsetOptions = {}) 
     tabBarHeight = 0,
     animationDuration = 250,
     useDynamicCalculation = true,
+    enabled = true,
   } = options;
 
   const insets = useSafeAreaInsets();
@@ -45,8 +50,9 @@ export function useFabKeyboardOffset(options: UseFabKeyboardOffsetOptions = {}) 
   const animatedBottom = useRef(new Animated.Value(insets.bottom + tabBarHeight)).current;
   const keyboardListeners = useRef<any[]>([]);
 
-  // Use native module if available, otherwise fallback to Keyboard API
-  const softKeyboardOffset = useSoftKeyboardOffset ? useSoftKeyboardOffset() : 0;
+  // Always call the hook when available (Rules of Hooks); ignore result when disabled
+  const softKeyboardOffsetRaw = useSoftKeyboardOffset ? useSoftKeyboardOffset() : 0;
+  const softKeyboardOffset = enabled ? softKeyboardOffsetRaw : 0;
 
   // Calculate dynamic keyboard height for Android
   const calculateAndroidKeyboardHeight = useCallback((keyboardEventHeight: number) => {
@@ -82,6 +88,12 @@ export function useFabKeyboardOffset(options: UseFabKeyboardOffsetOptions = {}) 
     // Clean up existing listeners
     keyboardListeners.current.forEach(listener => listener.remove());
     keyboardListeners.current = [];
+
+    if (!enabled) {
+      setKeyboardHeight(0);
+      setBottomOffset(insets.bottom + tabBarHeight);
+      return;
+    }
 
     if (useSoftKeyboardOffset) {
       // Use react-native-avoid-softinput if available
@@ -150,10 +162,11 @@ export function useFabKeyboardOffset(options: UseFabKeyboardOffsetOptions = {}) 
       keyboardListeners.current.forEach(listener => listener.remove());
       keyboardListeners.current = [];
     };
-  }, [softKeyboardOffset, insets.bottom, gap, tabBarHeight, calculateAndroidKeyboardHeight]);
+  }, [enabled, softKeyboardOffset, insets.bottom, gap, tabBarHeight, calculateAndroidKeyboardHeight]);
 
   // Animate when bottomOffset changes
   useEffect(() => {
+    if (!enabled) return;
     Animated.timing(animatedBottom, {
       toValue: bottomOffset,
       duration: animationDuration,
@@ -162,21 +175,21 @@ export function useFabKeyboardOffset(options: UseFabKeyboardOffsetOptions = {}) 
         : Easing.out(Easing.ease),
       useNativeDriver: false,
     }).start();
-  }, [bottomOffset, animationDuration]);
+  }, [enabled, bottomOffset, animationDuration]);
 
   return {
     /**
      * Current bottom offset
      */
-    bottomOffset,
+    bottomOffset: enabled ? bottomOffset : insets.bottom + tabBarHeight,
     /**
      * Current keyboard height
      */
-    keyboardHeight,
+    keyboardHeight: enabled ? keyboardHeight : 0,
     /**
      * Whether keyboard is currently visible
      */
-    isKeyboardVisible: keyboardHeight > 0,
+    isKeyboardVisible: enabled && keyboardHeight > 0,
     /**
      * Safe area bottom inset
      */

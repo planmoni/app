@@ -99,22 +99,28 @@ function SlideItem({
     >
       {slide.id === '1' ? (
         <View style={[styles.introSlideContent, { height: slideHeight }]}>
-          <Text style={styles.introWelcomeText}>Welcome to</Text>
-          <Image
-            source={isDark ? WELCOME_IMAGES.logoDark : WELCOME_IMAGES.logoLight}
-            style={styles.introLogo}
-            resizeMode="contain"
-          />
+          <View style={styles.introBrandBlock}>
+            <Text style={styles.introWelcomeText}>Welcome to</Text>
+            <Image
+              source={isDark ? WELCOME_IMAGES.logoDark : WELCOME_IMAGES.logoLight}
+              style={styles.introLogo}
+              resizeMode="contain"
+            />
+          </View>
+
           <Image
             source={isDark ? WELCOME_IMAGES.awardLight : WELCOME_IMAGES.awardDark}
             style={styles.introAwardImage}
             resizeMode="contain"
           />
-          <Image
-            source={isDark ? WELCOME_IMAGES.partnershipLight : WELCOME_IMAGES.partnershipDark}
-            style={styles.introPartnershipImage}
-            resizeMode="contain"
-          />
+
+          <View style={styles.introPartnershipBlock}>
+            <Image
+              source={isDark ? WELCOME_IMAGES.partnershipLight : WELCOME_IMAGES.partnershipDark}
+              style={styles.introPartnershipImage}
+              resizeMode="contain"
+            />
+          </View>
         </View>
       ) : (
         <View style={[styles.slideContent, { height: slideHeight }]}>
@@ -355,9 +361,12 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
   const verticalPadding = isSmallScreen ? 16 : 20;
   const titleSize = isSmallScreen ? 24 : 28;
   const descriptionSize = isSmallScreen ? 13 : 15;
-  const footerHeight = (Platform.OS === 'ios' ? 56 : 50) + verticalPadding * 4.5;
-  const paginationHeight = 44;
-  const slideHeight = modalHeight - footerHeight - paginationHeight;
+  // Keep these in sync with footer / pagination styles below so the
+  // intro slide gets accurate remaining height to space content evenly.
+  const buttonHeight = Platform.OS === 'ios' ? 56 : 50;
+  const footerHeight = buttonHeight + (Platform.OS === 'ios' ? 36 : 28);
+  const paginationHeight = 32;
+  const slideHeight = Math.max(modalHeight - footerHeight - paginationHeight, 320);
 
   const styles = createStyles(colors, isDark, {
     verticalPadding,
@@ -367,6 +376,7 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
     slideHeight,
     width,
     isAndroid,
+    isSmallScreen,
   });
 
   return (
@@ -551,7 +561,8 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingHorizontal: responsive.verticalPadding,
-    paddingTop: Platform.OS === 'ios' ? 48 : 40,
+    // Leave room for the floating close button without crushing intro content
+    paddingTop: Platform.OS === 'ios' ? 44 : 36,
   },
   slideContent: {
     width: '100%',
@@ -581,31 +592,47 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     flex: 1,
     width: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: responsive.verticalPadding,
+    justifyContent: 'space-evenly',
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingHorizontal: Math.max(responsive.verticalPadding, 24),
+  },
+  introBrandBlock: {
+    alignItems: 'center',
+    width: '100%',
+    gap: responsive.isSmallScreen ? 8 : 12,
   },
   introWelcomeText: {
-    fontSize: Platform.OS === 'ios' ? 26 : 24,
+    fontSize: responsive.isSmallScreen ? 24 : Platform.OS === 'ios' ? 28 : 26,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 8,
-    marginTop: 24,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
+  // Logo asset ~1032x221 — size by width and preserve aspect ratio
   introLogo: {
-    width: responsive.width * 0.5,
-    height: responsive.slideHeight * 0.12,
-    marginBottom: 8,
+    width: Math.min(responsive.width * (responsive.isSmallScreen ? 0.46 : 0.52), 220),
+    height:
+      Math.min(responsive.width * (responsive.isSmallScreen ? 0.46 : 0.52), 220) *
+      (221 / 1032),
   },
+  // Award asset ~787x671
   introAwardImage: {
-    width: responsive.width * 0.44,
-    height: responsive.slideHeight * 0.22,
-    marginBottom: 10,
+    width: Math.min(responsive.width * (responsive.isSmallScreen ? 0.34 : 0.4), 170),
+    height:
+      Math.min(responsive.width * (responsive.isSmallScreen ? 0.34 : 0.4), 170) *
+      (671 / 787),
   },
+  introPartnershipBlock: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  // Partnership asset ~808x342
   introPartnershipImage: {
-    width: responsive.width * 0.5,
-    height: responsive.slideHeight * 0.14,
-    marginTop: 12,
+    width: Math.min(responsive.width * (responsive.isSmallScreen ? 0.52 : 0.58), 250),
+    height:
+      Math.min(responsive.width * (responsive.isSmallScreen ? 0.52 : 0.58), 250) *
+      (342 / 808),
   },
   textContainer: {
     alignItems: 'center',
@@ -633,7 +660,8 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: responsive.verticalPadding * 0.8,
+    paddingTop: 8,
+    paddingBottom: 12,
     paddingHorizontal: responsive.verticalPadding,
   },
   paginationDot: {
@@ -641,12 +669,11 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
     height: 10,
     borderRadius: 4,
     marginHorizontal: 1,
-    marginBottom: 20,
   },
   footer: {
-    paddingTop: responsive.verticalPadding,
-    paddingBottom: responsive.verticalPadding * 3.5,
-    paddingHorizontal: responsive.verticalPadding,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 20,
+    paddingHorizontal: Math.max(responsive.verticalPadding, 20),
   },
   footerContent: {
     flexDirection: 'row',

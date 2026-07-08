@@ -41,24 +41,22 @@ export default function FloatingButton({
 }: FloatingButtonProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  
-  // Only use keyboard offset on iOS - Android maintains constant position
+
+  // Android keeps a fixed bottom position — skip keyboard listeners so
+  // SoftInput events don't re-render this overlay during list scrolls.
   const { bottomOffset } = useFabKeyboardOffset({
     gap: keyboardGap,
     tabBarHeight,
+    enabled: Platform.OS === 'ios',
   });
 
   const styles = createStyles(colors, isDark);
 
-  // Calculate the final bottom position
   const getBottomPosition = () => {
     if (Platform.OS === 'android') {
-      // Android: constant position at bottom with safe area
       return insets.bottom + tabBarHeight;
-    } else {
-      // iOS: floating behavior with keyboard awareness
-      return bottomOffset;
     }
+    return bottomOffset;
   };
 
   return (

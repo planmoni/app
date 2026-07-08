@@ -1,4 +1,14 @@
-import { View, Text, StyleSheet, Pressable, Platform, TextInput } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Platform,
+  TextInput,
+  FlatList,
+  Keyboard,
+  ListRenderItemInfo,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   ArrowLeft,
@@ -19,13 +29,14 @@ import {
   PiggyBank,
   MoreHorizontal,
 } from 'lucide-react-native';
-import React, { useState, useEffect } from 'react';
+import React, { memo, useCallback, useMemo, useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
-import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { PURPOSE_OPTIONS } from '@/lib/payout-purposes';
+
+type PurposeOption = (typeof PURPOSE_OPTIONS)[number];
 
 const PURPOSE_ICONS: Record<string, React.ComponentType<{ size: number; color: string }>> = {
   personal_salary_allowance: Wallet,
@@ -44,11 +55,88 @@ const PURPOSE_ICONS: Record<string, React.ComponentType<{ size: number; color: s
   others: MoreHorizontal,
 };
 
+type PurposeOptionRowProps = {
+  value: string;
+  label: string;
+  description: string;
+  isSelected: boolean;
+  primary: string;
+  border: string;
+  surface: string;
+  backgroundTertiary: string;
+  text: string;
+  textSecondary: string;
+  onSelect: (value: string) => void;
+};
+
+const PurposeOptionRow = memo(function PurposeOptionRow({
+  value,
+  label,
+  description,
+  isSelected,
+  primary,
+  border,
+  surface,
+  backgroundTertiary,
+  text,
+  textSecondary,
+  onSelect,
+}: PurposeOptionRowProps) {
+  const IconComponent = PURPOSE_ICONS[value];
+
+  return (
+    <Pressable
+      style={[
+        styles.optionCard,
+        {
+          borderColor: isSelected ? primary : border,
+          backgroundColor: isSelected ? primary + '08' : surface,
+        },
+      ]}
+      onPress={() => onSelect(value)}
+      // Prefer press over scroll start only after a short delay (Android)
+      delayPressIn={50}
+    >
+      {IconComponent ? (
+        <View
+          style={[
+            styles.optionIconWrap,
+            {
+              backgroundColor: isSelected ? primary + '20' : backgroundTertiary,
+            },
+          ]}
+        >
+          <IconComponent size={22} color={isSelected ? primary : textSecondary} />
+        </View>
+      ) : null}
+      <View style={styles.optionContent}>
+        <Text style={[styles.optionLabel, { color: text }]}>{label}</Text>
+        <Text style={[styles.optionDescription, { color: textSecondary }]} numberOfLines={2}>
+          {description}
+        </Text>
+      </View>
+      <View
+        style={[
+          styles.checkWrap,
+          {
+            backgroundColor: isSelected ? primary : 'transparent',
+            borderColor: isSelected ? primary : border,
+          },
+        ]}
+      >
+        {isSelected ? <Check size={16} color="#FFFFFF" /> : null}
+      </View>
+    </Pressable>
+  );
+});
+
 export default function PurposeScreen() {
   const { colors } = useTheme();
   const params = useLocalSearchParams<Record<string, string>>();
   const haptics = useHaptics();
-  const [selectedPurpose, setSelectedPurpose] = useState<string | null>('personal_salary_allowance');
+  const [selectedPurpose, setSelectedPurpose] = useState<string | null>(
+    'personal_salary_allowance'
+  );
   const [purposeOtherText, setPurposeOtherText] = useState('');
 
   useEffect(() => {
@@ -56,7 +144,18 @@ export default function PurposeScreen() {
     if (params.purposeOther) setPurposeOtherText(params.purposeOther);
   }, [params.purpose, params.purposeOther]);
 
-  const handleContinue = () => {
+  const handleSelect = useCallback(
+    (value: string) => {
+      if (Platform.OS !== 'web') haptics.selection();
+      setSelectedPurpose(value);
+      if (value !== 'others') {
+        Keyboard.dismiss();
+      }
+    },
+    [haptics]
+  );
+
+  const handleContinue = useCallback(() => {
     if (!selectedPurpose) return;
     haptics.mediumImpact();
     router.push({
@@ -83,15 +182,88 @@ export default function PurposeScreen() {
         purposeOther: selectedPurpose === 'others' ? purposeOtherText : '',
       },
     });
-  };
+  }, [selectedPurpose, purposeOtherText, params, haptics]);
 
-  const canContinue = selectedPurpose !== null;
+  const listHeader = useMemo(
+    () => (
+      <View style={styles.listHeader}>
+        <Text style={[styles.title, { color: colors.text }]}>What is this plan for?</Text>
+        <Text style={[styles.description, { color: colors.textSecondary }]}>
+          Choose a purpose that best describes this payout plan.
+        </Text>
+      </View>
+    ),
+    [colors.text, colors.textSecondary]
+  );
 
-  const styles = createStyles(colors);
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<PurposeOption>) => {
+      const isSelected = selectedPurpose === item.value;
+      const isOthers = item.value === 'others';
+
+      return (
+        <View>
+          <PurposeOptionRow
+            value={item.value}
+            label={item.label}
+            description={item.description}
+            isSelected={isSelected}
+            primary={colors.primary}
+            border={colors.border}
+            surface={colors.surface}
+            backgroundTertiary={colors.backgroundTertiary}
+            text={colors.text}
+            textSecondary={colors.textSecondary}
+            onSelect={handleSelect}
+          />
+          {isOthers && isSelected ? (
+            <View style={styles.otherInputWrap}>
+              <TextInput
+                style={[
+                  styles.otherInput,
+                  {
+                    backgroundColor: colors.backgroundTertiary,
+                    borderColor: colors.border,
+                    color: colors.text,
+                  },
+                ]}
+                placeholder="Describe your purpose (optional)"
+                placeholderTextColor={colors.textTertiary}
+                value={purposeOtherText}
+                onChangeText={setPurposeOtherText}
+              />
+            </View>
+          ) : null}
+        </View>
+      );
+    },
+    [
+      selectedPurpose,
+      purposeOtherText,
+      handleSelect,
+      colors.primary,
+      colors.border,
+      colors.surface,
+      colors.backgroundTertiary,
+      colors.text,
+      colors.textSecondary,
+      colors.textTertiary,
+    ]
+  );
+
+  const keyExtractor = useCallback((item: PurposeOption) => item.value, []);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}
+      edges={['top']}
+    >
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: colors.surface, borderBottomColor: colors.border },
+        ]}
+      >
         <Pressable
           onPress={() => {
             if (Platform.OS !== 'web') haptics.lightImpact();
@@ -101,7 +273,7 @@ export default function PurposeScreen() {
         >
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>New Payout plan</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>New Payout plan</Text>
         <Pressable
           onPress={() => {
             if (Platform.OS !== 'web') haptics.lightImpact();
@@ -113,243 +285,161 @@ export default function PurposeScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: '40%' }]} />
+      <View style={[styles.progressContainer, { backgroundColor: colors.surface }]}>
+        <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
+          <View style={styles.progressFill} />
         </View>
-        <Text style={styles.stepText}>Step 2 of 5</Text>
+        <Text style={[styles.stepText, { color: colors.textSecondary }]}>Step 2 of 5</Text>
       </View>
 
-      {/* Single ScrollView via KeyboardAvoidingWrapper — nested ScrollViews glitch on Android */}
-      <KeyboardAvoidingWrapper
-        contentContainerStyle={styles.scrollContent}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.content}>
-          <Text style={styles.title}>What is this plan for?</Text>
-          <Text style={styles.description}>
-            Choose a purpose that best describes this payout plan.
-          </Text>
-
-          {PURPOSE_OPTIONS.map((option) => {
-            const isSelected = selectedPurpose === option.value;
-            const isOthers = option.value === 'others';
-            const IconComponent = PURPOSE_ICONS[option.value];
-            return (
-              <View key={option.value}>
-                <Pressable
-                  style={[
-                    styles.optionCard,
-                    {
-                      borderColor: isSelected ? colors.primary : colors.border,
-                      backgroundColor: isSelected
-                        ? colors.primary + '08'
-                        : colors.surface,
-                    },
-                  ]}
-                  onPress={() => {
-                    if (Platform.OS !== 'web') haptics.selection();
-                    setSelectedPurpose(option.value);
-                  }}
-                >
-                  {IconComponent ? (
-                    <View
-                      style={[
-                        styles.optionIconWrap,
-                        {
-                          backgroundColor: isSelected
-                            ? colors.primary + '20'
-                            : colors.backgroundTertiary,
-                        },
-                      ]}
-                    >
-                      <IconComponent
-                        size={22}
-                        color={isSelected ? colors.primary : colors.textSecondary}
-                      />
-                    </View>
-                  ) : null}
-                  <View style={styles.optionContent}>
-                    <Text style={[styles.optionLabel, { color: colors.text }]}>
-                      {option.label}
-                    </Text>
-                    <Text
-                      style={[styles.optionDescription, { color: colors.textSecondary }]}
-                      numberOfLines={2}
-                    >
-                      {option.description}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.checkWrap,
-                      {
-                        backgroundColor: isSelected ? colors.primary : 'transparent',
-                        borderWidth: isSelected ? 0 : 1.5,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                  >
-                    {isSelected ? <Check size={16} color="#FFFFFF" /> : null}
-                  </View>
-                </Pressable>
-                {isOthers && selectedPurpose === 'others' && (
-                  <View style={styles.otherInputWrap}>
-                    <TextInput
-                      style={[
-                        styles.otherInput,
-                        {
-                          backgroundColor: colors.backgroundTertiary,
-                          borderColor: colors.border,
-                          color: colors.text,
-                        },
-                      ]}
-                      placeholder="Describe your purpose (optional)"
-                      placeholderTextColor={colors.textTertiary}
-                      value={purposeOtherText}
-                      onChangeText={setPurposeOtherText}
-                    />
-                  </View>
-                )}
-              </View>
-            );
-          })}
-        </View>
-      </KeyboardAvoidingWrapper>
+      <FlatList
+        data={PURPOSE_OPTIONS}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        ListHeaderComponent={listHeader}
+        extraData={selectedPurpose}
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        bounces={false}
+        overScrollMode="never"
+        // Clipping can cause Android scroll hitching with bordered rows
+        removeClippedSubviews={false}
+        initialNumToRender={PURPOSE_OPTIONS.length}
+        windowSize={PURPOSE_OPTIONS.length + 1}
+        maxToRenderPerBatch={PURPOSE_OPTIONS.length}
+        scrollEventThrottle={16}
+      />
 
       <FloatingButton
         title="Continue"
         onPress={handleContinue}
-        disabled={!canContinue}
+        disabled={!selectedPurpose}
         hapticType="medium"
       />
     </SafeAreaView>
   );
 }
 
-const createStyles = (colors: any) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.backgroundSecondary,
-    },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 16,
-      backgroundColor: colors.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    backButton: {
-      width: 40,
-      height: 40,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginRight: 8,
-    },
-    headerTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: colors.text,
-      flex: 1,
-      textAlign: 'center',
-    },
-    cancelButton: {
-      width: 40,
-      height: 40,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginLeft: 8,
-    },
-    progressContainer: {
-      padding: 20,
-      paddingBottom: 0,
-      backgroundColor: colors.surface,
-    },
-    progressBar: {
-      height: 2,
-      backgroundColor: colors.border,
-      borderRadius: 2,
-      marginBottom: 8,
-    },
-    progressFill: {
-      height: '100%',
-      backgroundColor: '#1E3A8A',
-      borderRadius: 2,
-    },
-    stepText: {
-      fontSize: 14,
-      color: colors.textSecondary,
-    },
-    scrollContent: {
-      flexGrow: 1,
-      paddingBottom: 100,
-    },
-    content: {
-      padding: 20,
-      paddingTop: 8,
-    },
-    title: {
-      fontSize: 20,
-      fontWeight: '600',
-      color: colors.text,
-      marginBottom: 8,
-    },
-    description: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      marginBottom: 20,
-    },
-    optionCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: 16,
-      borderRadius: 12,
-      // Keep borderWidth constant — toggling 1.5↔2 causes Android layout jitter
-      borderWidth: 2,
-      marginBottom: 10,
-      gap: 12,
-    },
-    optionIconWrap: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    optionContent: {
-      flex: 1,
-    },
-    optionLabel: {
-      fontSize: 16,
-      fontWeight: '600',
-      marginBottom: 4,
-    },
-    optionDescription: {
-      fontSize: 13,
-      lineHeight: 18,
-    },
-    checkWrap: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginLeft: 12,
-    },
-    otherInputWrap: {
-      marginBottom: 10,
-      marginLeft: 8,
-      marginRight: 8,
-    },
-    otherInput: {
-      borderWidth: 1,
-      borderRadius: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      fontSize: 15,
-    },
-  });
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'center',
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  progressContainer: {
+    padding: 20,
+    paddingBottom: 0,
+  },
+  progressBar: {
+    height: 2,
+    borderRadius: 2,
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: '100%',
+    width: '40%',
+    backgroundColor: '#1E3A8A',
+    borderRadius: 2,
+  },
+  stepText: {
+    fontSize: 14,
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 120,
+  },
+  listHeader: {
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  description: {
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    marginBottom: 10,
+  },
+  optionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  optionContent: {
+    flex: 1,
+    marginRight: 12,
+  },
+  optionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  optionDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  checkWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  otherInputWrap: {
+    marginBottom: 10,
+    marginLeft: 8,
+    marginRight: 8,
+  },
+  otherInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+  },
+});
