@@ -13,6 +13,7 @@ export default function AuthLayout() {
       }}
     >
       <Stack.Screen name="onboarding" />
+      <Stack.Screen name="welcome-back" />
       <Stack.Screen name="forgot-password" />
       <Stack.Screen name="forgot-password-reset" />
     </Stack>

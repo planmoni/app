@@ -13,6 +13,8 @@ import {
 import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
 import { useAppError } from '@/contexts/AppErrorContext';
 import { setAuthExpiredHandler, setSessionRefreshedHandler } from '@/lib/supabase-reconnect';
+import { buildExpiredSessionRecovery, saveExpiredSessionRecovery } from '@/lib/auth-recovery';
+import { clearExpiredAuthState } from '@/lib/auth-cache-reset';
 
 type AuthResult = {
   success: boolean;
@@ -24,6 +26,19 @@ export function useSupabaseAuth() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { setError: setAppError } = useAppError();
+
+  const prepareExpiredSessionState = async (expiredSession: Session | null) => {
+    try {
+      const recovery = await buildExpiredSessionRecovery(expiredSession);
+      if (recovery) {
+        await saveExpiredSessionRecovery(recovery);
+      }
+      await clearExpiredAuthState(expiredSession?.user?.id);
+    } catch (error) {
+      console.warn('useSupabaseAuth: failed to prepare expired-session recovery', error);
+      await clearExpiredAuthState(expiredSession?.user?.id);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -100,11 +115,11 @@ export function useSupabaseAuth() {
               }
             } else {
               console.log('❌ Failed to refresh session, clearing it...');
-              await clearSession();
+              await prepareExpiredSessionState(storedSession);
             }
           } else {
             console.log('❌ Cannot refresh session, clearing it...');
-            await clearSession();
+            await prepareExpiredSessionState(storedSession);
           }
         }
         
@@ -140,11 +155,11 @@ export function useSupabaseAuth() {
             } else if (session && (!session.user?.id || isSessionExpired(session))) {
               // Session exists but is invalid or expired - clear it
               console.log('⚠️ Initial session is invalid or expired, clearing');
+              await prepareExpiredSessionState(session);
               if (mounted) {
                 setSession(null);
                 setError('Session expired or invalid');
               }
-              await clearSession();
             } else {
               // No session at all
               if (mounted) {
@@ -167,7 +182,7 @@ export function useSupabaseAuth() {
           // Expected stale-session path after app reinstalls/device restores.
           // Clear persisted auth and continue to unauthenticated app state.
           try {
-            await clearSession();
+            await prepareExpiredSessionState(session);
           } catch (clearErr) {
             console.warn('useSupabaseAuth: failed to clear stale session', clearErr);
           }
@@ -306,10 +321,10 @@ export function useSupabaseAuth() {
               if (refreshError) {
                 console.error('❌ Failed to refresh session:', refreshError);
                 // Trigger session expired modal
+                await prepareExpiredSessionState(currentAuthSession);
                 if (mounted) {
                   setSession(null);
                   setError('JWT expired');
-                  await clearSession();
                 }
               } else if (data.session) {
                 console.log('✅ Session refreshed proactively');
@@ -336,26 +351,26 @@ export function useSupabaseAuth() {
           } else if (timeUntilExpiry <= 0) {
             // Session has expired
             console.log('⏰ Session has expired');
+            await prepareExpiredSessionState(currentAuthSession);
             if (mounted) {
               setSession(null);
               setError('JWT expired');
-              await clearSession();
             }
           }
         } else if (currentAuthSession && (!currentAuthSession.user?.id || isSessionExpired(currentAuthSession))) {
           console.log('⚠️ Periodic check: Session expired or invalid, clearing');
+          await prepareExpiredSessionState(currentAuthSession);
           if (mounted) {
             setSession(null);
             setError('JWT expired');
-            await clearSession();
           }
         } else if (!currentAuthSession && mounted && session) {
           // No session exists but we had one before - session expired
           console.log('⚠️ Session lost unexpectedly');
+          await prepareExpiredSessionState(session);
           if (mounted) {
             setSession(null);
             setError('JWT expired');
-            await clearSession();
           }
         }
       }, 60000); // Check every minute

@@ -148,6 +148,7 @@ export default function SettingsScreen() {
   const [showLanguage, setShowLanguage] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showTextSize, setShowTextSize] = useState(false);
+  const [isClosingAccount, setIsClosingAccount] = useState(false);
 
   // Log screen view for analytics
   useEffect(() => {
@@ -364,13 +365,63 @@ export default function SettingsScreen() {
         {
           text: "Yes, Close!",
           style: "destructive",
-          onPress: () => {
-            if (Platform.OS !== 'web') {
-              haptics.heavyImpact();
+          onPress: async () => {
+            if (isClosingAccount) {
+              return;
             }
-            logAnalyticsEvent('delete_account_attempt');
-            // Implement account deletion logic here
-            Alert.alert("Account Deletion", "Please contact support to complete account deletion.");
+
+            Alert.alert(
+              "Final confirmation",
+              "Your account will be scheduled for permanent deletion in 30 days. You will be signed out now.",
+              [
+                {
+                  text: "Cancel",
+                  style: "cancel",
+                },
+                {
+                  text: "Schedule Deletion",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      if (Platform.OS !== 'web') {
+                        haptics.heavyImpact();
+                      }
+
+                      setIsClosingAccount(true);
+                      logAnalyticsEvent('delete_account_attempt');
+
+                      const { data, error } = await supabase.rpc('request_account_closure');
+                      if (error) throw error;
+
+                      const scheduledDate = data ? new Date(data) : null;
+                      const formattedDate = scheduledDate
+                        ? scheduledDate.toLocaleDateString()
+                        : 'in 30 days';
+
+                      Alert.alert(
+                        "Account closure scheduled",
+                        `Your account is scheduled for permanent deletion on ${formattedDate}.`
+                      );
+                      logAnalyticsEvent('delete_account_scheduled');
+
+                      await signOut();
+                      router.replace('/logging-out');
+                    } catch (error) {
+                      console.error('Error scheduling account deletion:', error);
+                      if (Platform.OS !== 'web') {
+                        haptics.notification(Haptics.NotificationFeedbackType.Error);
+                      }
+                      Alert.alert(
+                        "Unable to schedule deletion",
+                        "We could not schedule account closure right now. Please try again."
+                      );
+                    } finally {
+                      setIsClosingAccount(false);
+                    }
+                  },
+                },
+              ]
+            );
           }
         }
       ]
@@ -1027,9 +1078,12 @@ export default function SettingsScreen() {
             <Pressable 
               style={styles.deleteAccountButton}
               onPress={handleDeleteAccount}
+              disabled={isClosingAccount}
             >
               <Trash2 size={20} color={colors.textTertiary} />
-              <Text style={styles.deleteAccountText}>Close your account</Text>
+              <Text style={styles.deleteAccountText}>
+                {isClosingAccount ? 'Scheduling closure...' : 'Close your account'}
+              </Text>
             </Pressable>
           </View>
         )}

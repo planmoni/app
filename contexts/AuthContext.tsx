@@ -1,11 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
+import { router } from 'expo-router';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { BiometricService } from '@/lib/biometrics';
 import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
-import SessionExpiredModal from '@/components/SessionExpiredModal';
 import { createUserScopedStorage } from '@/lib/user-scoped-storage';
+import {
+  ExpiredSessionRecovery,
+  clearExpiredSessionRecovery,
+  loadExpiredSessionRecovery,
+} from '@/lib/auth-recovery';
+import { resetStateAfterReauth } from '@/lib/auth-cache-reset';
 
 interface BiometricSettings {
   isAvailable: boolean;
@@ -18,6 +24,7 @@ interface AuthContextType {
   user: any;
   isLoading: boolean;
   error: string | null;
+  sessionRecovery: ExpiredSessionRecovery | null;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signUp: (email: string, password: string, metadata?: any) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
@@ -25,6 +32,7 @@ interface AuthContextType {
   biometricSettings: BiometricSettings | null;
   setBiometricEnabled: (enabled: boolean) => Promise<boolean>;
   refreshBiometricSettings: () => Promise<void>;
+  clearSessionRecovery: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -56,7 +64,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   } = useSupabaseAuth();
 
   const [biometricSettings, setBiometricSettings] = useState<BiometricSettings | null>(null);
-  const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
+  const [sessionRecovery, setSessionRecovery] = useState<ExpiredSessionRecovery | null>(null);
   
   // Helper function to clear all PIN data for a user
   const clearAllPinsForUser = async (userId: string): Promise<void> => {
@@ -88,6 +96,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     refreshBiometricSettings();
   }, []);
 
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    setSessionRecovery(null);
+    void clearExpiredSessionRecovery();
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    if (isLoading || session?.user?.id) return;
+
+    loadExpiredSessionRecovery()
+      .then((recovery) => {
+        if (recovery) {
+          setSessionRecovery(recovery);
+          router.replace('/(auth)/welcome-back');
+        }
+      })
+      .catch((loadError) => {
+        console.warn('Failed to hydrate session recovery payload:', loadError);
+      });
+  }, [isLoading, session?.user?.id]);
+
 
   // Save profile snapshots when session changes
   useEffect(() => {
@@ -107,6 +136,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [session?.user?.id]);
 
+  const clearSessionRecoveryState = useCallback(async () => {
+    await clearExpiredSessionRecovery();
+    setSessionRecovery(null);
+  }, []);
+
   // Monitor for session expiration
   useEffect(() => {
     if (error && (
@@ -116,8 +150,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       error.includes('Session expired') ||
       error.includes('Session expired or invalid')
     )) {
-      console.log('🔴 Session expired detected, showing modal');
-      setShowSessionExpiredModal(true);
+      console.log('🔴 Session expired detected, checking recovery payload');
+      loadExpiredSessionRecovery()
+        .then((recovery) => {
+          if (recovery) {
+            setSessionRecovery(recovery);
+            router.replace('/(auth)/welcome-back');
+          }
+        })
+        .catch((loadError) => {
+          console.warn('Failed to load session recovery payload:', loadError);
+        });
     }
   }, [error]);
 
@@ -130,8 +173,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       error.includes('Invalid Refresh Token') ||
       error.includes('Session expired')
     )) {
-      console.log('🔴 Session lost with error, showing modal');
-      setShowSessionExpiredModal(true);
+      console.log('🔴 Session lost with error, routing to welcome-back if possible');
+      loadExpiredSessionRecovery()
+        .then((recovery) => {
+          if (recovery) {
+            setSessionRecovery(recovery);
+            router.replace('/(auth)/welcome-back');
+          }
+        })
+        .catch((loadError) => {
+          console.warn('Failed to load session recovery payload:', loadError);
+        });
     }
   }, [session, error]);
 
@@ -176,6 +228,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const result = await supabaseSignIn(email, password);
 
       if (result.success) {
+        await clearExpiredSessionRecovery();
+        setSessionRecovery(null);
+        await resetStateAfterReauth();
         // Get the session directly from Supabase since state might not be updated yet
         const { supabase } = await import('@/lib/supabase');
         const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -312,6 +367,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // Sign out from Supabase (handle missing session gracefully)
     try {
+      await clearExpiredSessionRecovery();
+      setSessionRecovery(null);
       await supabaseSignOut();
     } catch (error) {
       // If session is already missing/invalid, that's fine - user is already logged out
@@ -326,16 +383,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [session?.user?.id, session?.access_token, supabaseSignOut]);
 
-  const handleSessionExpiredModalClose = useCallback(() => {
-    setShowSessionExpiredModal(false);
-  }, []);
-
   // Memoize context value to prevent unnecessary re-renders
   const value: AuthContextType = useMemo(() => ({
     session,
     user,
     isLoading,
     error,
+    sessionRecovery,
     signIn,
     signUp,
     resetPassword,
@@ -343,11 +397,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     biometricSettings,
     setBiometricEnabled,
     refreshBiometricSettings,
+    clearSessionRecovery: clearSessionRecoveryState,
   }), [
     session,
     user,
     isLoading,
     error,
+    sessionRecovery,
     signIn,
     signUp,
     resetPassword,
@@ -355,15 +411,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     biometricSettings,
     setBiometricEnabled,
     refreshBiometricSettings,
+    clearSessionRecoveryState,
   ]);
 
   return (
     <AuthContext.Provider value={value}>
       {children}
-      <SessionExpiredModal 
-        isVisible={showSessionExpiredModal}
-        onClose={handleSessionExpiredModalClose}
-      />
     </AuthContext.Provider>
   );
 };

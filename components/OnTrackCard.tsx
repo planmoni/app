@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -329,6 +330,14 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     }
   }, [calculation, lightImpact]);
 
+  const handleOpenPayouts = useCallback(() => {
+    lightImpact();
+    router.push({
+      pathname: '/(tabs)',
+      params: { balanceTab: 'payouts' },
+    });
+  }, [lightImpact]);
+
   const formatAmount = useCallback((amount: number) => {
     if (amount >= 1000000) {
       return `₦${(amount / 1000000).toFixed(1)}M`;
@@ -346,7 +355,7 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
+      <Pressable style={styles.card} onPress={handleOpenPayouts}>
         <View style={styles.header}>
           <View style={styles.iconContainer}>
             {/* <Lightbulb size={16} color={colors.text} /> */}
@@ -363,7 +372,7 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
         <Pressable style={styles.closeButton} onPress={handleClose}>
           <X size={16} color={colors.text} />
         </Pressable>
-      </View>
+      </Pressable>
     </View>
   );
 }

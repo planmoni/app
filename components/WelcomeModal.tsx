@@ -16,6 +16,20 @@ import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useEffect, useState, useRef } from 'react';
 
+const WELCOME_IMAGES = {
+  logoDark: require('../assets/images/logo-dark.png'),
+  logoLight: require('../assets/images/logo-light.png'),
+  awardDark: require('../assets/images/award-dark.png'),
+  awardLight: require('../assets/images/award-light.png'),
+  partnershipDark: require('../assets/images/partnership-dark.png'),
+  partnershipLight: require('../assets/images/partnership-light.png'),
+  slide2: require('../assets/images/slide-2.png'),
+  slide3: require('../assets/images/slide-3.png'),
+  slide4: require('../assets/images/slide-4.png'),
+  slide5: require('../assets/images/slide-5.png'),
+  slide6: require('../assets/images/slide-6.png'),
+} as const;
+
 // Slide Item Component
 function SlideItem({ 
   slide, 
@@ -87,17 +101,17 @@ function SlideItem({
         <View style={[styles.introSlideContent, { height: slideHeight }]}>
           <Text style={styles.introWelcomeText}>Welcome to</Text>
           <Image
-            source={isDark ? require('@/assets/images/logo-dark.png') : require('@/assets/images/logo-light.png')}
+            source={isDark ? WELCOME_IMAGES.logoDark : WELCOME_IMAGES.logoLight}
             style={styles.introLogo}
             resizeMode="contain"
           />
           <Image
-            source={isDark ? require('@/assets/images/award-light.png') : require('@/assets/images/award-dark.png')}
+            source={isDark ? WELCOME_IMAGES.awardLight : WELCOME_IMAGES.awardDark}
             style={styles.introAwardImage}
             resizeMode="contain"
           />
           <Image
-            source={isDark ? require('@/assets/images/partnership-light.png') : require('@/assets/images/partnership-dark.png')}
+            source={isDark ? WELCOME_IMAGES.partnershipLight : WELCOME_IMAGES.partnershipDark}
             style={styles.introPartnershipImage}
             resizeMode="contain"
           />
@@ -114,7 +128,7 @@ function SlideItem({
           <View style={styles.imageContainer}>
             {slide.showLogo ? (
               <Image
-                source={isDark ? require('@/assets/images/logo-dark.png') : require('@/assets/images/logo-light.png')}
+                source={isDark ? WELCOME_IMAGES.logoDark : WELCOME_IMAGES.logoLight}
                 style={styles.logoImage}
                 resizeMode="contain"
               />
@@ -201,12 +215,11 @@ function PaginationDot({
 }
 
 const SLIDES = [
-  
   {
     id: '1',
     title: 'Welcome to Financial Control',
-    description: "Turn your one-time funds into regular auto payouts, create a consistent cash flow that sorts everyday expenses.",
-    image: require('@/assets/images/StayInControl.png'),
+    description:
+      'Turn your one-time funds into regular auto payouts, create a consistent cash flow that sorts everyday expenses.',
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
   },
@@ -214,7 +227,7 @@ const SLIDES = [
     id: '2',
     title: 'Secure your money in vaults, access them when due',
     description: '',
-    image: require('@/assets/images/slide-2.png'),
+    image: WELCOME_IMAGES.slide2,
     gradient: ['#059669', '#10B981'],
     accentColor: '#34D399',
     rawImage: true,
@@ -223,7 +236,7 @@ const SLIDES = [
     id: '3',
     title: 'Plan your every money move',
     description: '',
-    image: require('@/assets/images/slide-3.png'),
+    image: WELCOME_IMAGES.slide3,
     gradient: ['#1E3A8A', '#3B82F6'],
     accentColor: '#60A5FA',
     rawImage: true,
@@ -232,7 +245,7 @@ const SLIDES = [
     id: '4',
     title: 'Create payouts, control timing',
     description: '',
-    image: require('@/assets/images/slide-4.png'),
+    image: WELCOME_IMAGES.slide4,
     gradient: ['#7C3AED', '#A855F7'],
     accentColor: '#C084FC',
     rawImage: true,
@@ -241,7 +254,7 @@ const SLIDES = [
     id: '5',
     title: 'Timely payouts, 24/7/365',
     description: '',
-    image: require('@/assets/images/slide-5.png'),
+    image: WELCOME_IMAGES.slide5,
     gradient: ['#EC4899', '#F97316'],
     accentColor: '#F9A8D4',
     rawImage: true,
@@ -250,7 +263,7 @@ const SLIDES = [
     id: '6',
     title: 'Join thousands of users who love Planmoni',
     description: '',
-    image: require('@/assets/images/slide-6.png'),
+    image: WELCOME_IMAGES.slide6,
     gradient: ['#0EA5E9', '#2563EB'],
     accentColor: '#7DD3FC',
     rawImage: true,

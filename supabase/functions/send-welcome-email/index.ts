@@ -21,6 +21,9 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  let claimedUserId: string | null = null;
+  let claimedAt: string | null = null;
+
   try {
     const { userId, email, firstName }: WelcomeEmailRequest = await req.json();
 
@@ -39,19 +42,28 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if welcome email has already been sent for this user
-    // Using a simple approach: check if welcome_email_sent_at exists in profiles
-    const { data: profile, error: profileError } = await supabase
+    // Atomically claim the welcome email send so concurrent callers cannot both send it.
+    claimedAt = new Date().toISOString();
+    const { data: claimedProfiles, error: claimError } = await supabase
       .from("profiles")
-      .select("welcome_email_sent_at")
+      .update({ welcome_email_sent_at: claimedAt })
       .eq("id", userId)
-      .single();
+      .is("welcome_email_sent_at", null)
+      .select("id");
 
-    if (profileError && profileError.code !== "PGRST116") {
-      console.error("Error checking profile:", profileError);
-      // Continue anyway - don't block email sending due to check error
-    } else if (profile?.welcome_email_sent_at) {
-      console.log(`Welcome email already sent to ${email} (User ID: ${userId}) at ${profile.welcome_email_sent_at}`);
+    if (claimError) {
+      console.error("Error claiming welcome email send:", claimError);
+      return new Response(
+        JSON.stringify({ error: "Failed to claim welcome email send" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (!claimedProfiles || claimedProfiles.length === 0) {
+      console.log(`Welcome email already claimed or sent for ${email} (User ID: ${userId})`);
       return new Response(
         JSON.stringify({
           success: true,
@@ -64,6 +76,8 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
+
+    claimedUserId = userId;
 
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
@@ -98,6 +112,12 @@ Deno.serve(async (req: Request) => {
 
     if (!response.ok) {
       console.error("Error from Resend API:", responseData);
+      await supabase
+        .from("profiles")
+        .update({ welcome_email_sent_at: null })
+        .eq("id", userId)
+        .eq("welcome_email_sent_at", claimedAt);
+
       return new Response(
         JSON.stringify({
           error: "Failed to send welcome email",
@@ -112,18 +132,20 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Welcome email sent successfully to ${email} (User ID: ${userId})`);
 
-    // Mark welcome email as sent in the database to prevent duplicates
-    try {
-      // Try to update the profiles table with welcome_email_sent_at
-      // If the column doesn't exist, this will fail gracefully
-      await supabase
-        .from("profiles")
-        .update({ welcome_email_sent_at: new Date().toISOString() })
-        .eq("id", userId);
-    } catch (updateError) {
-      // If the column doesn't exist, log but don't fail
-      console.warn("Could not update welcome_email_sent_at (column may not exist):", updateError);
-    }
+    await supabase
+      .from("welcome_emails_sent")
+      .upsert(
+        {
+          user_id: userId,
+          email,
+          sent_at: claimedAt,
+          resend_id: responseData.id ?? null,
+          status: "sent",
+          error_message: null,
+          updated_at: claimedAt,
+        },
+        { onConflict: "user_id" }
+      );
 
     return new Response(
       JSON.stringify({
@@ -138,6 +160,20 @@ Deno.serve(async (req: Request) => {
     );
   } catch (error) {
     console.error("Error sending welcome email:", error);
+    try {
+      if (claimedUserId && claimedAt) {
+        await createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+        )
+          .from("profiles")
+          .update({ welcome_email_sent_at: null })
+          .eq("id", claimedUserId)
+          .eq("welcome_email_sent_at", claimedAt);
+      }
+    } catch (_rollbackError) {
+      // Best effort rollback only.
+    }
     return new Response(
       JSON.stringify({ error: error.message || "Failed to send welcome email" }),
       {

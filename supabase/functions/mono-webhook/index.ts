@@ -559,6 +559,7 @@ async function handleDirectPaySuccess(data: any) {
     }
 
     await sendDepositPush(userId, amountNaira, reference, 'mono_directpay');
+    await sendDepositEmail(userId, amountNaira, reference, 'Mono DirectPay');
 
     console.log('✅ Direct Pay processed: ₦' + amountNaira + ' for user', userId, result?.already_processed ? '(already_processed)' : '');
   } catch (err) {
@@ -672,6 +673,7 @@ async function handleDebitSuccessful(data: any) {
     );
 
     await sendDepositPush(userId, amountInNaira, reference, 'mono_directdebit');
+    await sendDepositEmail(userId, amountInNaira, reference, 'Mono DirectDebit');
 
     console.log(`✅ Successfully processed DirectDebit: ₦${amountInNaira} for user ${userId}`);
   } catch (error) {
@@ -710,6 +712,113 @@ async function sendDepositPush(
     });
   } catch (error) {
     console.warn('Failed to send Mono deposit push:', error);
+  }
+}
+
+function generateDepositEmailHtml(data: {
+  firstName: string;
+  amount: string;
+  source: string;
+  date: string;
+  reference: string;
+}) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Funds Received - Planmoni</title>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+    .amount { font-size: 32px; font-weight: bold; color: #059669; text-align: center; margin: 20px 0; }
+    .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+    .detail-row { display: flex; justify-content: space-between; margin: 10px 0; }
+    .label { font-weight: 600; color: #6b7280; }
+    .value { color: #111827; }
+    .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>💰 Funds Received!</h1>
+      <p>Hello ${data.firstName}, money has been added to your Planmoni wallet</p>
+    </div>
+    <div class="content">
+      <div class="amount">${data.amount}</div>
+      <div class="details">
+        <div class="detail-row"><span class="label">Source:</span><span class="value">${data.source}</span></div>
+        <div class="detail-row"><span class="label">Date & Time:</span><span class="value">${data.date}</span></div>
+        <div class="detail-row"><span class="label">Reference:</span><span class="value">${data.reference}</span></div>
+      </div>
+      <p style="color: #6b7280; font-size: 14px;">Your funds are now available in your wallet.</p>
+    </div>
+    <div class="footer">
+      <p>This is an automated notification from Planmoni</p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+async function sendDepositEmail(
+  userId: string,
+  amountInNaira: number,
+  reference: string,
+  source: string,
+) {
+  try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('email, first_name, email_notifications')
+      .eq('id', userId)
+      .single();
+
+    if (error || !profile?.email) {
+      console.warn('Failed to load profile for Mono deposit email:', error);
+      return;
+    }
+
+    if (profile.email_notifications?.deposit_alerts === false) {
+      return;
+    }
+
+    const emailHtml = generateDepositEmailHtml({
+      firstName: profile.first_name || 'User',
+      amount: `₦${amountInNaira.toLocaleString()}`,
+      source,
+      date: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      reference,
+    });
+
+    const response = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: profile.email,
+        subject: 'Funds Received - Planmoni',
+        html: emailHtml,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('Failed to send Mono deposit email:', response.status, await response.text());
+    }
+  } catch (error) {
+    console.warn('Failed to send Mono deposit email notification:', error);
   }
 }
 
