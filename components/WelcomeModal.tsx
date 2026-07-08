@@ -437,27 +437,58 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
           </View>
 
           {/* Footer Buttons */}
-          <BlurView intensity={2} tint={isDark ? 'dark' : 'light'} style={styles.footer}>
-            <View style={styles.footerContent}>
-              <Pressable
-                style={styles.signInButton}
-                onPress={handleSignIn}
-                disabled={isNavigating}
-              >
-                <Text style={styles.signInButtonText}>Sign In</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.signUpButton, {
-                  backgroundColor: colors.primary,
-                  opacity: isNavigating ? 0.6 : 1
-                }]}
-                onPress={handleSignUp}
-                disabled={isNavigating}
-              >
-                <Text style={styles.signUpButtonText}>Sign Up</Text>
-              </Pressable>
+          {Platform.OS === 'ios' ? (
+            <BlurView intensity={2} tint={isDark ? 'dark' : 'light'} style={styles.footer}>
+              <View style={styles.footerContent}>
+                <Pressable
+                  style={styles.signInButton}
+                  onPress={handleSignIn}
+                  disabled={isNavigating}
+                >
+                  <Text style={styles.signInButtonText}>Sign In</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.signUpButton, {
+                    backgroundColor: colors.primary,
+                    opacity: isNavigating ? 0.6 : 1
+                  }]}
+                  onPress={handleSignUp}
+                  disabled={isNavigating}
+                >
+                  <Text style={styles.signUpButtonText}>Sign Up</Text>
+                </Pressable>
+              </View>
+            </BlurView>
+          ) : (
+            <View
+              style={[
+                styles.footer,
+                {
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.92)' : 'rgba(255,255,255,0.96)',
+                },
+              ]}
+            >
+              <View style={styles.footerContent}>
+                <Pressable
+                  style={styles.signInButton}
+                  onPress={handleSignIn}
+                  disabled={isNavigating}
+                >
+                  <Text style={styles.signInButtonText}>Sign In</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.signUpButton, {
+                    backgroundColor: colors.primary,
+                    opacity: isNavigating ? 0.6 : 1
+                  }]}
+                  onPress={handleSignUp}
+                  disabled={isNavigating}
+                >
+                  <Text style={styles.signUpButtonText}>Sign Up</Text>
+                </Pressable>
+              </View>
             </View>
-          </BlurView>
+          )}
         </View>
       </View>
     </Modal>

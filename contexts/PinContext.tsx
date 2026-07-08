@@ -1,12 +1,18 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+} from 'react';
 import { Platform } from 'react-native';
-import { saveItem, getItem, deleteItem, BIOMETRIC_ENABLED_KEY } from '@/lib/secure-storage';
+import { BIOMETRIC_ENABLED_KEY } from '@/lib/secure-storage';
 import { BiometricService } from '@/lib/biometrics';
-import { UserScopedStorage, createUserScopedStorage } from '@/lib/user-scoped-storage';
+import { createUserScopedStorage } from '@/lib/user-scoped-storage';
 import { useAuth } from '@/contexts/AuthContext';
 import { withTimeout } from '@/lib/with-timeout';
 
-// Storage keys (will be scoped by user ID)
 const APP_LOCK_PIN_KEY = 'app_lock_pin';
 const PAYOUT_PIN_KEY = 'payout_pin';
 const EMERGENCY_PIN_KEY = 'emergency_pin';
@@ -14,46 +20,50 @@ const PAYOUT_BIOMETRIC_KEY = 'payout_biometric_enabled';
 const EMERGENCY_BIOMETRIC_KEY = 'emergency_biometric_enabled';
 
 interface PinContextType {
-  // App Lock PIN
   hasAppLockPin: boolean;
   setupAppLockPin: (pin: string) => Promise<boolean>;
   verifyAppLockPin: (pin: string) => Promise<boolean>;
   verifyAppLockPinWithBiometrics: () => Promise<boolean>;
   updateAppLockPin: (pin: string) => Promise<boolean>;
   removeAppLockPin: () => Promise<boolean>;
-  
-  // Payout PIN
+
   hasPayoutPin: boolean;
   setupPayoutPin: (pin: string) => Promise<boolean>;
   verifyPayoutPin: (pin: string) => Promise<boolean>;
   updatePayoutPin: (pin: string) => Promise<boolean>;
   removePayoutPin: () => Promise<boolean>;
-  
-  // Emergency Withdrawal PIN
+
   hasEmergencyPin: boolean;
   setupEmergencyPin: (pin: string) => Promise<boolean>;
   verifyEmergencyPin: (pin: string) => Promise<boolean>;
   updateEmergencyPin: (pin: string) => Promise<boolean>;
   removeEmergencyPin: () => Promise<boolean>;
-  
-  // Biometric Settings
+
   biometricEnabled: boolean;
   payoutBiometricEnabled: boolean;
   emergencyBiometricEnabled: boolean;
   enableBiometric: (type: 'app' | 'payout' | 'emergency') => Promise<boolean>;
   disableBiometric: (type: 'app' | 'payout' | 'emergency') => Promise<boolean>;
   verifyBiometric: (reason?: string) => Promise<boolean>;
-  
-  // General
+
   isLoading: boolean;
   checkBiometricSupport: () => Promise<any>;
-  // Backwards-compatible alias used by some screens
   setupPin: (pin: string) => Promise<boolean>;
-  // Clear all PINs (called on logout)
   clearAllPins: () => Promise<void>;
 }
 
 const PinContext = createContext<PinContextType | undefined>(undefined);
+
+const softGet = async (
+  storage: ReturnType<typeof createUserScopedStorage>,
+  key: string
+): Promise<string | null> => {
+  try {
+    return await storage.getItem(key);
+  } catch {
+    return null;
+  }
+};
 
 export function usePin() {
   const context = useContext(PinContext);
@@ -66,7 +76,7 @@ export function usePin() {
 export function PinProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
   const userId = session?.user?.id;
-  
+
   const [hasAppLockPin, setHasAppLockPin] = useState(false);
   const [hasPayoutPin, setHasPayoutPin] = useState(false);
   const [hasEmergencyPin, setHasEmergencyPin] = useState(false);
@@ -75,19 +85,18 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
   const [emergencyBiometricEnabled, setEmergencyBiometricEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Create user-scoped storage instance when user ID is available
-  // Wrap in try-catch to prevent crashes if storage creation fails
   const userStorage = useMemo(() => {
     if (!userId) return null;
     try {
       return createUserScopedStorage(userId);
     } catch (error) {
-      console.error('PinContext - Error creating user storage:', error);
+      if (__DEV__) {
+        console.error('PinContext - Error creating user storage:', error);
+      }
       return null;
     }
   }, [userId]);
 
-  // Load PIN state when user ID changes - memoized to prevent unnecessary re-renders
   const loadPinState = useCallback(async () => {
     if (!userStorage || !userId) {
       setIsLoading(false);
@@ -95,78 +104,50 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      console.log(`🔐 PinContext - Loading PIN state for user: ${userId}`);
       setIsLoading(true);
 
       await withTimeout(
         (async () => {
-      // Check if PINs exist using user-scoped storage (each user has their own PIN)
-      // Wrap in try-catch for each operation to prevent crashes
-      let appLockPin: string | null = null;
-      let payoutPin: string | null = null;
-      let emergencyPin: string | null = null;
-      
-      try {
-        appLockPin = await userStorage.getItem(APP_LOCK_PIN_KEY);
-      } catch (error) {
-        console.warn('PinContext - Error loading app lock PIN:', error);
-      }
-      
-      try {
-        payoutPin = await userStorage.getItem(PAYOUT_PIN_KEY);
-      } catch (error) {
-        console.warn('PinContext - Error loading payout PIN:', error);
-      }
-      
-      try {
-        emergencyPin = await userStorage.getItem(EMERGENCY_PIN_KEY);
-      } catch (error) {
-        console.warn('PinContext - Error loading emergency PIN:', error);
-      }
-      
-      console.log(`🔐 PinContext - PIN state loaded for user ${userId}:`, {
-        hasAppLockPin: !!appLockPin,
-        hasPayoutPin: !!payoutPin,
-        hasEmergencyPin: !!emergencyPin
-      });
-      
-      setHasAppLockPin(!!appLockPin);
-      setHasPayoutPin(!!payoutPin);
-      setHasEmergencyPin(!!emergencyPin);
-      
-      // Check if biometric is enabled (also user-scoped)
-      let biometric: string | null = null;
-      let payoutBiometric: string | null = null;
-      let emergencyBiometric: string | null = null;
-      
-      try {
-        biometric = await userStorage.getItem(BIOMETRIC_ENABLED_KEY);
-      } catch (error) {
-        console.warn('PinContext - Error loading biometric setting:', error);
-      }
-      
-      try {
-        payoutBiometric = await userStorage.getItem(PAYOUT_BIOMETRIC_KEY);
-      } catch (error) {
-        console.warn('PinContext - Error loading payout biometric setting:', error);
-      }
-      
-      try {
-        emergencyBiometric = await userStorage.getItem(EMERGENCY_BIOMETRIC_KEY);
-      } catch (error) {
-        console.warn('PinContext - Error loading emergency biometric setting:', error);
-      }
-      
-      setBiometricEnabled(biometric === 'true');
-      setPayoutBiometricEnabled(payoutBiometric === 'true');
-      setEmergencyBiometricEnabled(emergencyBiometric === 'true');
+          const [
+            appLockPin,
+            payoutPin,
+            emergencyPin,
+            biometric,
+            payoutBiometric,
+            emergencyBiometric,
+          ] = await Promise.all([
+            softGet(userStorage, APP_LOCK_PIN_KEY),
+            softGet(userStorage, PAYOUT_PIN_KEY),
+            softGet(userStorage, EMERGENCY_PIN_KEY),
+            softGet(userStorage, BIOMETRIC_ENABLED_KEY),
+            softGet(userStorage, PAYOUT_BIOMETRIC_KEY),
+            softGet(userStorage, EMERGENCY_BIOMETRIC_KEY),
+          ]);
+
+          setHasAppLockPin(!!appLockPin);
+          setHasPayoutPin(!!payoutPin);
+          setHasEmergencyPin(!!emergencyPin);
+          setBiometricEnabled(biometric === 'true');
+          setPayoutBiometricEnabled(payoutBiometric === 'true');
+          setEmergencyBiometricEnabled(emergencyBiometric === 'true');
         })(),
         8000,
         'PIN state load'
       );
     } catch (error) {
-      console.error(`❌ PinContext - Error loading PIN state for user ${userId}:`, error);
-      // Don't crash - set safe defaults
+      const isTimeoutError =
+        error instanceof Error && error.message.includes('PIN state load timed out');
+
+      if (isTimeoutError) {
+        if (__DEV__) {
+          console.warn(
+            `PinContext - PIN state load timed out for user ${userId}; using safe defaults.`
+          );
+        }
+      } else if (__DEV__) {
+        console.error(`PinContext - Error loading PIN state for user ${userId}:`, error);
+      }
+
       setHasAppLockPin(false);
       setHasPayoutPin(false);
       setHasEmergencyPin(false);
@@ -178,558 +159,381 @@ export function PinProvider({ children }: { children: React.ReactNode }) {
     }
   }, [userStorage, userId]);
 
-  // Load PIN state when user ID changes (switching accounts)
   useEffect(() => {
     let isMounted = true;
-    
+
     const loadState = async () => {
       if (userId && userStorage) {
-        console.log(`🔄 PinContext - User changed, loading PIN state for user: ${userId}`);
         try {
           await loadPinState();
         } catch (error) {
-          console.error('PinContext - Error in loadPinState during useEffect:', error);
+          if (__DEV__) {
+            console.error('PinContext - Error in loadPinState during useEffect:', error);
+          }
           if (isMounted) {
             setIsLoading(false);
           }
         }
-      } else {
-        // Clear PIN state when no user is logged in
-        console.log('🔄 PinContext - No user logged in, clearing PIN state');
-        if (isMounted) {
-          setHasAppLockPin(false);
-          setHasPayoutPin(false);
-          setHasEmergencyPin(false);
-          setBiometricEnabled(false);
-          setPayoutBiometricEnabled(false);
-          setEmergencyBiometricEnabled(false);
-          setIsLoading(false);
-        }
+      } else if (isMounted) {
+        setHasAppLockPin(false);
+        setHasPayoutPin(false);
+        setHasEmergencyPin(false);
+        setBiometricEnabled(false);
+        setPayoutBiometricEnabled(false);
+        setEmergencyBiometricEnabled(false);
+        setIsLoading(false);
       }
     };
-    
-    loadState();
-    
+
+    void loadState();
+
     return () => {
       isMounted = false;
     };
   }, [userId, userStorage, loadPinState]);
 
-  const setupAppLockPin = async (pin: string): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot setup PIN: no user logged in');
-      return false;
-    }
+  const setupAppLockPin = useCallback(async (pin: string): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log('PinContext - setupAppLockPin called with:', pin);
-      console.log('PinContext - PIN details:', {
-        value: pin,
-        type: typeof pin,
-        length: pin?.length,
-        userId
-      });
-      
       await userStorage.setItem(APP_LOCK_PIN_KEY, pin);
       setHasAppLockPin(true);
-      
-      // Verify what was actually saved
-      const savedPin = await userStorage.getItem(APP_LOCK_PIN_KEY);
-      console.log('PinContext - PIN saved and verified:', {
-        original: pin,
-        saved: savedPin,
-        match: pin === savedPin
-      });
-      
-      console.log('PinContext - App Lock PIN setup completed successfully');
       return true;
     } catch (error) {
-      console.error('PinContext - Error setting up App Lock PIN:', error);
+      if (__DEV__) {
+        console.error('PinContext - Error setting up App Lock PIN:', error);
+      }
       return false;
     }
-  };
+  }, [userStorage]);
 
-  const verifyAppLockPin = async (pin: string): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot verify PIN: no user logged in');
-      return false;
-    }
+  const verifyAppLockPin = useCallback(async (pin: string): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log('PinContext - verifyAppLockPin called with:', pin);
       const storedPin = await userStorage.getItem(APP_LOCK_PIN_KEY);
-      console.log('PinContext - Stored PIN retrieved:', storedPin);
-      console.log('PinContext - PIN comparison:', {
-        input: pin,
-        stored: storedPin,
-        inputType: typeof pin,
-        storedType: typeof storedPin,
-        inputLength: pin?.length,
-        storedLength: storedPin?.length,
-        match: storedPin === pin,
-        exactMatch: storedPin === pin
-      });
-      
-      const isValid = storedPin === pin;
-      console.log('PinContext - PIN verification result:', isValid);
-      return isValid;
+      return storedPin === pin;
     } catch (error) {
-      console.error('PinContext - Error verifying App Lock PIN:', error);
+      if (__DEV__) {
+        console.error('PinContext - Error verifying App Lock PIN:', error);
+      }
       return false;
     }
-  };
+  }, [userStorage]);
 
-  const updateAppLockPin = async (pin: string): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot update PIN: no user logged in');
-      return false;
-    }
+  const updateAppLockPin = useCallback(async (pin: string): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log('Updating App Lock PIN...');
       await userStorage.setItem(APP_LOCK_PIN_KEY, pin);
       setHasAppLockPin(true);
-      console.log('App Lock PIN updated successfully');
       return true;
-    } catch (error) {
-      console.error('Error updating App Lock PIN:', error);
+    } catch {
       return false;
     }
-  };
+  }, [userStorage]);
 
-  const removeAppLockPin = async (): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot remove PIN: no user logged in');
-      return false;
-    }
+  const removeAppLockPin = useCallback(async (): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log('Removing App Lock PIN...');
       await userStorage.deleteItem(APP_LOCK_PIN_KEY);
       setHasAppLockPin(false);
-      console.log('App Lock PIN removed successfully');
       return true;
-    } catch (error) {
-      console.error('Error removing App Lock PIN:', error);
+    } catch {
       return false;
     }
-  };
+  }, [userStorage]);
 
-  const setupPayoutPin = async (pin: string): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot setup payout PIN: no user logged in');
-      return false;
-    }
+  const setupPayoutPin = useCallback(async (pin: string): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log('Setting up Payout PIN...');
       await userStorage.setItem(PAYOUT_PIN_KEY, pin);
       setHasPayoutPin(true);
-      console.log('Payout PIN setup completed successfully');
       return true;
-    } catch (error) {
-      console.error('Error setting up Payout PIN:', error);
+    } catch {
       return false;
     }
-  };
+  }, [userStorage]);
 
-  const verifyPayoutPin = async (pin: string): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot verify payout PIN: no user logged in');
-      return false;
-    }
+  const verifyPayoutPin = useCallback(async (pin: string): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log('Verifying Payout PIN...');
       const storedPayoutPin = await userStorage.getItem(PAYOUT_PIN_KEY);
-      
-      // If payout PIN is set, use it
       if (storedPayoutPin) {
-        console.log('Payout PIN found, verifying against payout PIN');
         return storedPayoutPin === pin;
       }
-      
-      // Fall back to app lock PIN if no payout PIN is set
-      console.log('No payout PIN set, falling back to app lock PIN');
-      const storedAppLockPin = await userStorage.getItem(APP_LOCK_PIN_KEY);
-      if (storedAppLockPin) {
-        console.log('App lock PIN found, verifying against app lock PIN');
-        return storedAppLockPin === pin;
-      }
-      
-      console.log('No PIN found for payout verification');
-      return false;
-    } catch (error) {
-      console.error('Error verifying Payout PIN:', error);
-      return false;
-    }
-  };
 
-  const updatePayoutPin = async (pin: string): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot update payout PIN: no user logged in');
+      const storedAppLockPin = await userStorage.getItem(APP_LOCK_PIN_KEY);
+      return storedAppLockPin === pin;
+    } catch {
       return false;
     }
+  }, [userStorage]);
+
+  const updatePayoutPin = useCallback(async (pin: string): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log('Updating Payout PIN...');
       await userStorage.setItem(PAYOUT_PIN_KEY, pin);
       setHasPayoutPin(true);
-      console.log('Payout PIN updated successfully');
       return true;
-    } catch (error) {
-      console.error('Error updating Payout PIN:', error);
+    } catch {
       return false;
     }
-  };
+  }, [userStorage]);
 
-  const removePayoutPin = async (): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot remove payout PIN: no user logged in');
-      return false;
-    }
+  const removePayoutPin = useCallback(async (): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log('Removing Payout PIN...');
       await userStorage.deleteItem(PAYOUT_PIN_KEY);
       setHasPayoutPin(false);
-      console.log('Payout PIN removed successfully');
       return true;
-    } catch (error) {
-      console.error('Error removing Payout PIN:', error);
+    } catch {
       return false;
     }
-  };
+  }, [userStorage]);
 
-  const setupEmergencyPin = async (pin: string): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot setup emergency PIN: no user logged in');
-      return false;
-    }
+  const setupEmergencyPin = useCallback(async (pin: string): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log('Setting up Emergency PIN...');
       await userStorage.setItem(EMERGENCY_PIN_KEY, pin);
       setHasEmergencyPin(true);
-      console.log('Emergency PIN setup completed successfully');
       return true;
-    } catch (error) {
-      console.error('Error setting up Emergency PIN:', error);
+    } catch {
       return false;
     }
-  };
+  }, [userStorage]);
 
-  const verifyEmergencyPin = async (pin: string): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot verify emergency PIN: no user logged in');
-      return false;
-    }
+  const verifyEmergencyPin = useCallback(async (pin: string): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log('Verifying Emergency PIN...');
       const storedEmergencyPin = await userStorage.getItem(EMERGENCY_PIN_KEY);
-      
-      // If emergency PIN is set, use it
       if (storedEmergencyPin) {
-        console.log('Emergency PIN found, verifying against emergency PIN');
         return storedEmergencyPin === pin;
       }
-      
-      // Fall back to app lock PIN if no emergency PIN is set
-      console.log('No emergency PIN set, falling back to app lock PIN');
-      const storedAppLockPin = await userStorage.getItem(APP_LOCK_PIN_KEY);
-      if (storedAppLockPin) {
-        console.log('App lock PIN found, verifying against app lock PIN');
-        return storedAppLockPin === pin;
-      }
-      
-      console.log('No PIN found for emergency verification');
-      return false;
-    } catch (error) {
-      console.error('Error verifying Emergency PIN:', error);
-      return false;
-    }
-  };
 
-  const updateEmergencyPin = async (pin: string): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot update emergency PIN: no user logged in');
+      const storedAppLockPin = await userStorage.getItem(APP_LOCK_PIN_KEY);
+      return storedAppLockPin === pin;
+    } catch {
       return false;
     }
+  }, [userStorage]);
+
+  const updateEmergencyPin = useCallback(async (pin: string): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log('Updating Emergency PIN...');
       await userStorage.setItem(EMERGENCY_PIN_KEY, pin);
       setHasEmergencyPin(true);
-      console.log('Emergency PIN updated successfully');
       return true;
-    } catch (error) {
-      console.error('Error updating Emergency PIN:', error);
+    } catch {
       return false;
     }
-  };
+  }, [userStorage]);
 
-  const removeEmergencyPin = async (): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot remove emergency PIN: no user logged in');
-      return false;
-    }
+  const removeEmergencyPin = useCallback(async (): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log('Removing Emergency PIN...');
       await userStorage.deleteItem(EMERGENCY_PIN_KEY);
       setHasEmergencyPin(false);
-      console.log('Emergency PIN removed successfully');
       return true;
-    } catch (error) {
-      console.error('Error removing Emergency PIN:', error);
+    } catch {
       return false;
     }
-  };
+  }, [userStorage]);
 
-  const enableBiometric = async (type: 'app' | 'payout' | 'emergency'): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot enable biometric: no user logged in');
-      return false;
-    }
+  const enableBiometric = useCallback(async (type: 'app' | 'payout' | 'emergency'): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log(`PinContext - enableBiometric called for type: ${type}`);
-      
-      if (Platform.OS === 'web') {
-        console.log('PinContext - Web platform detected, biometric not available');
-        return false;
-      }
+      if (Platform.OS === 'web') return false;
 
       const support = await BiometricService.checkBiometricSupport();
-      console.log('PinContext - Biometric support check result:', support);
-      
-      if (!support.isAvailable || !support.isEnrolled) {
-        console.log('PinContext - Biometrics not available or not enrolled');
-        return false;
-      }
+      if (!support.isAvailable || !support.isEnrolled) return false;
 
-      // Test biometric authentication
-      console.log(`PinContext - Testing biometric authentication for ${type}`);
       const result = await BiometricService.authenticateWithBiometrics(
         `Enable ${type} biometric authentication for Planmoni?`
       );
-      
-      console.log(`PinContext - Biometric authentication result:`, result);
 
-      if (result.success) {
-        console.log(`PinContext - Biometric authentication successful, saving settings for ${type}`);
-        
-        if (type === 'app') {
-          await userStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
-          setBiometricEnabled(true);
-          console.log('PinContext - App biometric enabled and saved');
-        } else if (type === 'payout') {
-          await userStorage.setItem(PAYOUT_BIOMETRIC_KEY, 'true');
-          setPayoutBiometricEnabled(true);
-          console.log('PinContext - Payout biometric enabled and saved');
-        } else if (type === 'emergency') {
-          await userStorage.setItem(EMERGENCY_BIOMETRIC_KEY, 'true');
-          setEmergencyBiometricEnabled(true);
-          console.log('PinContext - Emergency biometric enabled and saved');
-        }
-        
-        // Verify the save operation
-        const savedValue = await userStorage.getItem(type === 'app' ? BIOMETRIC_ENABLED_KEY : 
-                                       type === 'payout' ? PAYOUT_BIOMETRIC_KEY : 
-                                       EMERGENCY_BIOMETRIC_KEY);
-        console.log(`PinContext - Verification of saved value for ${type}:`, savedValue);
-        
-        return true;
+      if (!result.success) return false;
+
+      if (type === 'app') {
+        await userStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
+        setBiometricEnabled(true);
+      } else if (type === 'payout') {
+        await userStorage.setItem(PAYOUT_BIOMETRIC_KEY, 'true');
+        setPayoutBiometricEnabled(true);
       } else {
-        console.log(`PinContext - Biometric authentication failed for ${type}:`, result.error);
-        return false;
+        await userStorage.setItem(EMERGENCY_BIOMETRIC_KEY, 'true');
+        setEmergencyBiometricEnabled(true);
       }
-    } catch (error) {
-      console.error(`PinContext - Error enabling biometric for ${type}:`, error);
-      return false;
-    }
-  };
 
-  const disableBiometric = async (type: 'app' | 'payout' | 'emergency'): Promise<boolean> => {
-    if (!userStorage) {
-      console.error('PinContext - Cannot disable biometric: no user logged in');
+      return true;
+    } catch (error) {
+      if (__DEV__) {
+        console.error(`PinContext - Error enabling biometric for ${type}:`, error);
+      }
       return false;
     }
+  }, [userStorage]);
+
+  const disableBiometric = useCallback(async (type: 'app' | 'payout' | 'emergency'): Promise<boolean> => {
+    if (!userStorage) return false;
 
     try {
-      console.log(`PinContext - disableBiometric called for type: ${type}`);
-      
       if (type === 'app') {
         await userStorage.deleteItem(BIOMETRIC_ENABLED_KEY);
         setBiometricEnabled(false);
-        console.log('PinContext - App biometric disabled and removed from storage');
       } else if (type === 'payout') {
         await userStorage.deleteItem(PAYOUT_BIOMETRIC_KEY);
         setPayoutBiometricEnabled(false);
-        console.log('PinContext - Payout biometric disabled and removed from storage');
-      } else if (type === 'emergency') {
+      } else {
         await userStorage.deleteItem(EMERGENCY_BIOMETRIC_KEY);
         setEmergencyBiometricEnabled(false);
-        console.log('PinContext - Emergency biometric disabled and removed from storage');
       }
-      
-      // Verify the delete operation
-      const savedValue = await userStorage.getItem(type === 'app' ? BIOMETRIC_ENABLED_KEY : 
-                                     type === 'payout' ? PAYOUT_BIOMETRIC_KEY : 
-                                     EMERGENCY_BIOMETRIC_KEY);
-      console.log(`PinContext - Verification of deleted value for ${type}:`, savedValue);
-      
       return true;
-    } catch (error) {
-      console.error(`PinContext - Error disabling biometric for ${type}:`, error);
+    } catch {
       return false;
     }
-  };
+  }, [userStorage]);
 
-  const verifyBiometric = async (reason = "Verify your identity"): Promise<boolean> => {
+  const verifyBiometric = useCallback(async (reason = 'Verify your identity'): Promise<boolean> => {
     try {
-      if (Platform.OS === 'web' || !biometricEnabled) {
-        return false;
-      }
-
+      if (Platform.OS === 'web' || !biometricEnabled) return false;
       const result = await BiometricService.authenticateWithBiometrics(reason);
       return result.success;
-    } catch (error) {
-      console.error('Error verifying biometric:', error);
+    } catch {
       return false;
     }
-  };
+  }, [biometricEnabled]);
 
-  const verifyAppLockPinWithBiometrics = async (): Promise<boolean> => {
+  const verifyAppLockPinWithBiometrics = useCallback(async (): Promise<boolean> => {
     try {
-      console.log('PinContext - Verifying App Lock PIN with biometrics...');
-      
-      // First, check if biometrics are enabled
-      if (!biometricEnabled) {
-        console.log('PinContext - Biometrics not enabled');
-        return false;
-      }
-      
-      // Perform biometric authentication
+      if (!biometricEnabled) return false;
       const result = await BiometricService.authenticateWithBiometrics(
         'Verify your identity to access your Planmoni account'
       );
-      
-      console.log('PinContext - Biometric authentication result:', result);
-      
-      if (result.success) {
-        // Biometric authentication successful - this means the user is verified
-        // Since biometrics are enabled and working, we can consider this as PIN verification
-        console.log('PinContext - App Lock PIN verified successfully with biometrics');
-        return true;
-      } else {
-        console.log('PinContext - App Lock PIN verification failed with biometrics:', result.error);
-        return false;
-      }
-    } catch (error) {
-      console.error('PinContext - Error verifying App Lock PIN with biometrics:', error);
+      return result.success;
+    } catch {
       return false;
     }
-  };
+  }, [biometricEnabled]);
 
-
-  const checkBiometricSupport = async () => {
+  const checkBiometricSupport = useCallback(async () => {
     try {
       if (Platform.OS === 'web') {
         return {
           isAvailable: false,
           isEnrolled: false,
-          supportedTypes: []
+          supportedTypes: [],
         };
       }
-      
+
       return await BiometricService.checkBiometricSupport();
-    } catch (error) {
-      console.error('Error checking biometric support:', error);
+    } catch {
       return {
         isAvailable: false,
         isEnrolled: false,
-        supportedTypes: []
+        supportedTypes: [],
       };
     }
-  };
+  }, []);
 
-  // Clear all PIN data for the current user (called on logout)
-  const clearAllPins = async (): Promise<void> => {
-    if (!userStorage) {
-      console.log('PinContext - No user storage to clear');
-      return;
-    }
+  const clearAllPins = useCallback(async (): Promise<void> => {
+    if (!userStorage) return;
 
     try {
-      console.log('🗑️ PinContext - Clearing all PIN data for user:', userId);
-      
-      // Clear all PINs
-      await userStorage.deleteItem(APP_LOCK_PIN_KEY);
-      await userStorage.deleteItem(PAYOUT_PIN_KEY);
-      await userStorage.deleteItem(EMERGENCY_PIN_KEY);
-      
-      // Clear all biometric settings
-      await userStorage.deleteItem(BIOMETRIC_ENABLED_KEY);
-      await userStorage.deleteItem(PAYOUT_BIOMETRIC_KEY);
-      await userStorage.deleteItem(EMERGENCY_BIOMETRIC_KEY);
-      
-      // Reset all state
+      await Promise.all([
+        userStorage.deleteItem(APP_LOCK_PIN_KEY),
+        userStorage.deleteItem(PAYOUT_PIN_KEY),
+        userStorage.deleteItem(EMERGENCY_PIN_KEY),
+        userStorage.deleteItem(BIOMETRIC_ENABLED_KEY),
+        userStorage.deleteItem(PAYOUT_BIOMETRIC_KEY),
+        userStorage.deleteItem(EMERGENCY_BIOMETRIC_KEY),
+      ]);
+
       setHasAppLockPin(false);
       setHasPayoutPin(false);
       setHasEmergencyPin(false);
       setBiometricEnabled(false);
       setPayoutBiometricEnabled(false);
       setEmergencyBiometricEnabled(false);
-      
-      console.log('✅ PinContext - All PIN data cleared successfully');
     } catch (error) {
-      console.error('❌ PinContext - Error clearing PIN data:', error);
+      if (__DEV__) {
+        console.error('PinContext - Error clearing PIN data:', error);
+      }
       throw error;
     }
-  };
+  }, [userStorage]);
 
-  return (
-    <PinContext.Provider value={{
-      // App Lock PIN
+  const value = useMemo<PinContextType>(
+    () => ({
       hasAppLockPin,
       setupAppLockPin,
-      // Backwards-compatible alias
       setupPin: setupAppLockPin,
       verifyAppLockPin,
       verifyAppLockPinWithBiometrics,
       updateAppLockPin,
       removeAppLockPin,
-      
-      // Payout PIN
+
       hasPayoutPin,
       setupPayoutPin,
       verifyPayoutPin,
       updatePayoutPin,
       removePayoutPin,
-      
-      // Emergency Withdrawal PIN
+
       hasEmergencyPin,
       setupEmergencyPin,
       verifyEmergencyPin,
       updateEmergencyPin,
       removeEmergencyPin,
-      
-      // Biometric Settings
+
       biometricEnabled,
       payoutBiometricEnabled,
       emergencyBiometricEnabled,
       enableBiometric,
       disableBiometric,
       verifyBiometric,
-      
-      // General
+
       isLoading,
       checkBiometricSupport,
       clearAllPins,
-    }}>
-      {children}
-    </PinContext.Provider>
+    }),
+    [
+      hasAppLockPin,
+      setupAppLockPin,
+      verifyAppLockPin,
+      verifyAppLockPinWithBiometrics,
+      updateAppLockPin,
+      removeAppLockPin,
+      hasPayoutPin,
+      setupPayoutPin,
+      verifyPayoutPin,
+      updatePayoutPin,
+      removePayoutPin,
+      hasEmergencyPin,
+      setupEmergencyPin,
+      verifyEmergencyPin,
+      updateEmergencyPin,
+      removeEmergencyPin,
+      biometricEnabled,
+      payoutBiometricEnabled,
+      emergencyBiometricEnabled,
+      enableBiometric,
+      disableBiometric,
+      verifyBiometric,
+      isLoading,
+      checkBiometricSupport,
+      clearAllPins,
+    ]
   );
+
+  return <PinContext.Provider value={value}>{children}</PinContext.Provider>;
 }

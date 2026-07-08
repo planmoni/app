@@ -161,43 +161,81 @@ export default function Toast({
           }
         ]}
       >
-        <BlurView
-          intensity={isDark ? 20 : 30}
-          tint={isDark ? 'dark' : 'light'}
-          style={[
-            styles.blurContainer,
-            {
-              backgroundColor: toastConfig.backgroundColor,
-              borderColor: toastConfig.borderColor,
-            }
-          ]}
-        >
-          <View style={styles.content}>
-            <View style={[styles.iconContainer, { backgroundColor: toastConfig.accentColor }]}>
-              <IconComponent size={20} color="#FFFFFF" />
-            </View>
-            
-            <View style={styles.textContainer}>
-              <Text 
-                style={[
-                  styles.message,
-                  { color: toastConfig.textColor }
-                ]}
-                numberOfLines={3}
+        {Platform.OS === 'ios' ? (
+          <BlurView
+            intensity={isDark ? 20 : 30}
+            tint={isDark ? 'dark' : 'light'}
+            style={[
+              styles.blurContainer,
+              {
+                backgroundColor: toastConfig.backgroundColor,
+                borderColor: toastConfig.borderColor,
+              }
+            ]}
+          >
+            <View style={styles.content}>
+              <View style={[styles.iconContainer, { backgroundColor: toastConfig.accentColor }]}>
+                <IconComponent size={20} color="#FFFFFF" />
+              </View>
+              
+              <View style={styles.textContainer}>
+                <Text 
+                  style={[
+                    styles.message,
+                    { color: toastConfig.textColor }
+                  ]}
+                  numberOfLines={3}
+                >
+                  {message}
+                </Text>
+              </View>
+              
+              <Pressable 
+                onPress={hideToast} 
+                style={styles.closeButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                {message}
-              </Text>
+                <X size={18} color={toastConfig.textColor} />
+              </Pressable>
             </View>
-            
-            <Pressable 
-              onPress={hideToast} 
-              style={styles.closeButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <X size={18} color={toastConfig.textColor} />
-            </Pressable>
+          </BlurView>
+        ) : (
+          <View
+            style={[
+              styles.blurContainer,
+              {
+                backgroundColor: toastConfig.backgroundColor,
+                borderColor: toastConfig.borderColor,
+              }
+            ]}
+          >
+            <View style={styles.content}>
+              <View style={[styles.iconContainer, { backgroundColor: toastConfig.accentColor }]}>
+                <IconComponent size={20} color="#FFFFFF" />
+              </View>
+              
+              <View style={styles.textContainer}>
+                <Text 
+                  style={[
+                    styles.message,
+                    { color: toastConfig.textColor }
+                  ]}
+                  numberOfLines={3}
+                >
+                  {message}
+                </Text>
+              </View>
+              
+              <Pressable 
+                onPress={hideToast} 
+                style={styles.closeButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={18} color={toastConfig.textColor} />
+              </Pressable>
+            </View>
           </View>
-        </BlurView>
+        )}
       </Animated.View>
     </View>
   );

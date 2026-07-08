@@ -69,21 +69,32 @@ export default function FloatingButton({
       ]}
       pointerEvents="box-none"
     >
-      {/* Blurred underlay that extends below the button */}
-      <BlurView
-        intensity={Platform.OS === 'android' ? 40 : 60}
-        tint={isDark ? 'dark' : 'light'}
-        style={styles.blurUnderlay}
-        pointerEvents="none"
-      />
-      
-      {/* Main blur background for the button area */}
-      <BlurView
-        intensity={Platform.OS === 'android' ? 60 : 80}
-        tint={isDark ? 'dark' : 'light'}
-        style={styles.blurBackground}
-        pointerEvents="none"
-      />
+      {Platform.OS === 'ios' ? (
+        <>
+          <BlurView
+            intensity={60}
+            tint={isDark ? 'dark' : 'light'}
+            style={styles.blurUnderlay}
+            pointerEvents="none"
+          />
+          <BlurView
+            intensity={80}
+            tint={isDark ? 'dark' : 'light'}
+            style={styles.blurBackground}
+            pointerEvents="none"
+          />
+        </>
+      ) : (
+        <View
+          style={[
+            styles.blurBackground,
+            {
+              backgroundColor: isDark ? 'rgba(0,0,0,0.92)' : 'rgba(255,255,255,0.96)',
+            },
+          ]}
+          pointerEvents="none"
+        />
+      )}
       
       {/* Content overlay */}
       <View style={[

@@ -592,14 +592,16 @@ function RootLayoutNav() {
       }
 
       initCompleteTimerRef.current = setTimeout(() => {
-        console.log('✅ App initialization complete - fonts, auth, and PIN context ready');
+        if (__DEV__) {
+          console.log('App initialization complete - fonts, auth, and PIN context ready');
+        }
         setIsInitializing(false);
         hasInitializedRef.current = true;
         if (forceInitTimeoutRef.current) {
           clearTimeout(forceInitTimeoutRef.current);
           forceInitTimeoutRef.current = null;
         }
-      }, 800);
+      }, 150);
     }
   }, [fontsLoaded, fontError, isLoading, isPinLoading, hasAppLockPin, session?.user?.id, isAppLocked]);
 

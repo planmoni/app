@@ -12,14 +12,15 @@ type Options = {
   onDepositReceived?: (amount: number) => void;
 };
 
-const DEFAULT_POLL_MS = 10_000;
+const DEFAULT_POLL_MS = 120_000;
 
 /**
  * Keeps wallet balance fresh after SafeHaven bank transfers.
- * Uses existing Supabase realtime (events + wallets when enabled) and periodic refresh.
+ * Uses existing Supabase realtime (events + wallets when enabled).
+ * Polling is a slow fallback only — prefer realtime for deposits.
  */
 export function useSafehavenDepositWatcher(options: Options = {}) {
-  const { enabled = true, pollIntervalMs = DEFAULT_POLL_MS, onDepositReceived } = options;
+  const { enabled = true, pollIntervalMs = 120_000, onDepositReceived } = options;
   const { session } = useAuth();
   const { refreshWallet, balance } = useBalance();
   const userId = session?.user?.id;
@@ -67,7 +68,7 @@ export function useSafehavenDepositWatcher(options: Options = {}) {
 
     // events is already on supabase_realtime — deposit_successful fires when tx is recorded
     const channel = supabase
-      .channel(`safehaven-deposits-${userId}-${Date.now()}`)
+      .channel(`safehaven-deposits-${userId}`)
       .on(
         'postgres_changes',
         {

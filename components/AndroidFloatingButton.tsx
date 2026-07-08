@@ -83,13 +83,24 @@ export default function AndroidFloatingButton({
       ]}
       pointerEvents="box-none"
     >
-      {/* Enhanced blur for Android */}
-      <BlurView
-        intensity={Platform.OS === 'android' ? 40 : 80}
-        tint={isDark ? 'dark' : 'light'}
-        style={styles.blurBackground}
-        pointerEvents="none"
-      />
+      {Platform.OS === 'ios' ? (
+        <BlurView
+          intensity={80}
+          tint={isDark ? 'dark' : 'light'}
+          style={styles.blurBackground}
+          pointerEvents="none"
+        />
+      ) : (
+        <View
+          style={[
+            styles.blurBackground,
+            {
+              backgroundColor: isDark ? 'rgba(0,0,0,0.92)' : 'rgba(255,255,255,0.96)',
+            },
+          ]}
+          pointerEvents="none"
+        />
+      )}
       
       {/* Content overlay with Android-specific styling */}
       <View style={[

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Switch, StyleSheet } from 'react-native';
+import { View, Text, Switch, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getItem, saveItem } from '@/lib/secure-storage';
 
@@ -11,11 +11,16 @@ interface AppBlurSettingsProps {
 
 export default function AppBlurSettings({ onToggle }: AppBlurSettingsProps) {
   const { colors } = useTheme();
-  const [isEnabled, setIsEnabled] = useState(true); // Default to enabled
+  const [isEnabled, setIsEnabled] = useState(true);
 
   useEffect(() => {
+    if (Platform.OS !== 'ios') return;
     loadSettings();
   }, []);
+
+  if (Platform.OS !== 'ios') {
+    return null;
+  }
 
   const loadSettings = async () => {
     try {
@@ -61,6 +66,10 @@ export default function AppBlurSettings({ onToggle }: AppBlurSettingsProps) {
 }
 
 export const isAppBlurEnabled = async (): Promise<boolean> => {
+  if (Platform.OS !== 'ios') {
+    return false;
+  }
+
   try {
     const enabled = await getItem(APP_BLUR_ENABLED_KEY);
     return enabled === null ? true : enabled === 'true'; // Default to enabled

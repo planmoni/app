@@ -400,7 +400,7 @@ export default function SettingsScreen() {
 
                       Alert.alert(
                         "Account closure scheduled",
-                        `Your account is scheduled for permanent deletion on ${formattedDate}.`
+                        `Your account is scheduled for permanent deletion on ${formattedDate}.\n\nIf you change your mind, contact support@planmoni.com to cancel this deletion and restore your account.`
                       );
                       logAnalyticsEvent('delete_account_scheduled');
 

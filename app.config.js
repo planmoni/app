@@ -6,7 +6,7 @@ module.exports = {
     name: "Planmoni",
     owner: "planmoni", // 👈 Add this line
     slug: "planmoni",
-    version: "2.0.4",
+    version: "2.0.5",
     scheme: "myapp",
     userInterfaceStyle: "automatic", // Allow system to control theme
     newArchEnabled: true,
@@ -79,6 +79,8 @@ module.exports = {
       "expo-router",
       "expo-font",
       "expo-secure-store",
+      // After secure-store: force tools:replace so AppsFlyer backup rules don't break manifest merge
+      "./plugins/withAndroidBackupRulesConflictFix",
       "expo-web-browser",
       // Configure org + project (and EAS SENTRY_AUTH_TOKEN) before enabling uploads.
       // See: https://docs.sentry.io/platforms/react-native/manual-setup/

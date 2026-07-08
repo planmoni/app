@@ -60,7 +60,6 @@ import { useBalance } from '@/contexts/BalanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
-import { useAppLock } from '@/contexts/AppLockContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { usePin } from '@/contexts/PinContext';
 import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
@@ -280,11 +279,11 @@ export default function HomeScreen() {
   const { session, isLoading: authLoading } = useAuth();
   const { checkNow: checkSafehavenDeposits } = useSafehavenDepositWatcher({
     enabled: !!session?.user?.id,
-    pollIntervalMs: 15_000,
+    // Keep realtime; avoid idle 15s wallet polling on Android.
+    pollIntervalMs: 120_000,
   });
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
-  const { updateLastActiveOnInteraction } = useAppLock();
   const insets = useSafeAreaInsets();
   const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
@@ -295,6 +294,9 @@ export default function HomeScreen() {
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
   const { expensePlans, fetchExpensePlans } = useExpensePlans();
   const [activeBalanceTab, setActiveBalanceTab] = useState<'home' | 'plans' | 'payouts'>('home');
+  const [visitedTabs, setVisitedTabs] = useState<Set<'home' | 'plans' | 'payouts'>>(
+    () => new Set(['home'])
+  );
   const { width: screenWidth } = useWindowDimensions();
   const tabScrollViewRef = useRef<ScrollView>(null);
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
@@ -302,6 +304,12 @@ export default function HomeScreen() {
   // Tab labels + state; horizontal pager position is synced in useLayoutEffect / useEffect below
   const handleTabChange = useCallback((tab: 'home' | 'plans' | 'payouts') => {
     impact();
+    setVisitedTabs((prev) => {
+      if (prev.has(tab)) return prev;
+      const next = new Set(prev);
+      next.add(tab);
+      return next;
+    });
     setActiveBalanceTab(tab);
   }, [impact]);
 
@@ -310,6 +318,12 @@ export default function HomeScreen() {
     const offsetX = event.nativeEvent.contentOffset.x;
     const tabIndex = Math.min(2, Math.max(0, Math.round(offsetX / screenWidth)));
     const newTab = tabIndex === 0 ? 'home' : tabIndex === 1 ? 'plans' : 'payouts';
+    setVisitedTabs((prev) => {
+      if (prev.has(newTab)) return prev;
+      const next = new Set(prev);
+      next.add(newTab);
+      return next;
+    });
     setActiveBalanceTab((prev) => {
       if (newTab !== prev) {
         selection();
@@ -389,7 +403,24 @@ export default function HomeScreen() {
   const [showBalanceActionsModal, setShowBalanceActionsModal] = useState(false);
   const { hasAppLockPin } = usePin();
   const scrollY = useRef(new Animated.Value(0)).current;
+  const stickyButtonsInteractiveRef = useRef(false);
   const [stickyButtonsInteractive, setStickyButtonsInteractive] = useState(false);
+
+  const handleHomeScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        // opacity + translateY only — safe for the native driver
+        useNativeDriver: true,
+        listener: (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+          const interactive = event.nativeEvent.contentOffset.y > 100;
+          if (stickyButtonsInteractiveRef.current !== interactive) {
+            stickyButtonsInteractiveRef.current = interactive;
+            setStickyButtonsInteractive(interactive);
+          }
+        },
+      }),
+    [scrollY]
+  );
 
   const ensureAuthenticatedOrWelcome = useCallback(() => {
     if (!isAuthenticated) {
@@ -697,6 +728,12 @@ export default function HomeScreen() {
     const raw = params.balanceTab ?? globalSearchParams.balanceTab;
     const tab = Array.isArray(raw) ? raw[0] : raw;
     if (tab !== 'plans' && tab !== 'payouts' && tab !== 'home') return;
+    setVisitedTabs((prev) => {
+      if (prev.has(tab as 'home' | 'plans' | 'payouts')) return prev;
+      const next = new Set(prev);
+      next.add(tab as 'home' | 'plans' | 'payouts');
+      return next;
+    });
     setActiveBalanceTab(tab as 'home' | 'plans' | 'payouts');
     requestAnimationFrame(() => {
       router.setParams({ balanceTab: undefined });
@@ -1504,7 +1541,10 @@ export default function HomeScreen() {
     return nextPayoutDates.length > 0 ? nextPayoutDates[0] : null;
   }, [activePlans]);
 
-  const styles = createStyles(colors, isDark, textSizeMultiplier);
+  const styles = useMemo(
+    () => createStyles(colors, isDark, textSizeMultiplier),
+    [colors, isDark, textSizeMultiplier]
+  );
 
   // Intercom not supported on web - check after all hooks
   if (!isSupported) {
@@ -1646,26 +1686,13 @@ export default function HomeScreen() {
         >
           {/* Home Tab Content */}
           <View style={[styles.tabPage, { width: screenWidth }]}>
-            <ScrollView
+            <Animated.ScrollView
               style={styles.tabScrollView}
               contentContainerStyle={styles.tabScrollContent}
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled
-              onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                {
-                  useNativeDriver: false,
-                  listener: (event: { nativeEvent: { contentOffset: { y: number } } }) => {
-                    const interactive = event.nativeEvent.contentOffset.y > 100;
-                    setStickyButtonsInteractive((prev) =>
-                      prev !== interactive ? interactive : prev
-                    );
-                  },
-                }
-              )}
-              onScrollBeginDrag={() => updateLastActiveOnInteraction()}
-              onTouchStart={() => updateLastActiveOnInteraction()}
-              scrollEventThrottle={16}
+              onScroll={handleHomeScroll}
+              scrollEventThrottle={32}
               refreshControl={
                 <RefreshControl
                   refreshing={isRefreshing}
@@ -1796,10 +1823,11 @@ export default function HomeScreen() {
 
                 {/* <RatingCard /> */}
               </>
-            </ScrollView>
+            </Animated.ScrollView>
           </View>
 
-          {/* Plans Tab Content */}
+          {/* Plans Tab Content - lazy mount after first visit */}
+          {visitedTabs.has('plans') ? (
           <PlansTabContent
             screenWidth={screenWidth}
             styles={styles}
@@ -1817,8 +1845,12 @@ export default function HomeScreen() {
             onRefresh={handleRefresh}
             onRequireAuth={ensureAuthenticatedOrWelcome}
           />
+          ) : (
+            <View style={[styles.tabPage, { width: screenWidth }]} />
+          )}
 
-          {/* Payouts Tab Content */}
+          {/* Payouts Tab Content - lazy mount after first visit */}
+          {visitedTabs.has('payouts') ? (
           <PayoutsTabContent
             screenWidth={screenWidth}
             styles={styles}
@@ -1840,6 +1872,9 @@ export default function HomeScreen() {
             isRefreshing={isRefreshing}
             onRefresh={handleRefresh}
           />
+          ) : (
+            <View style={[styles.tabPage, { width: screenWidth }]} />
+          )}
         </ScrollView>
       </View>
 
