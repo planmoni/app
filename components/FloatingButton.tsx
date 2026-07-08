@@ -1,15 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  View,
+import React from 'react';
+import { 
+  View, 
   StyleSheet,
-  Platform,
-  Keyboard,
-  Animated,
-  Easing,
-  KeyboardEvent,
+  Platform
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useFabKeyboardOffset } from '@/hooks/useFabKeyboardOffset';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '@/components/Button';
 
@@ -26,7 +23,7 @@ type FloatingButtonProps = {
    */
   tabBarHeight?: number;
   /**
-   * Extra gap above the keyboard when it is open
+   * Additional gap above keyboard (default: platform-specific)
    */
   keyboardGap?: number;
 };
@@ -40,100 +37,37 @@ export default function FloatingButton({
   variant = 'primary',
   hapticType = 'medium',
   tabBarHeight = 0,
-  keyboardGap = 8,
+  keyboardGap = Platform.OS === 'android' ? -180 : -20, // Platform-specific default
 }: FloatingButtonProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  
+  // Only use keyboard offset on iOS - Android maintains constant position
+  const { bottomOffset } = useFabKeyboardOffset({
+    gap: keyboardGap,
+    tabBarHeight,
+  });
 
-  // Resting position: above Android system nav / iOS home indicator
-  const restingBottom =
-    (Platform.OS === 'android' ? Math.max(insets.bottom, 16) : insets.bottom) +
-    tabBarHeight;
+  const styles = createStyles(colors, isDark);
 
-  const animatedBottom = useRef(new Animated.Value(restingBottom)).current;
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-
-  useEffect(() => {
-    // Keep resting position in sync when insets change
-    if (!keyboardVisible) {
-      animatedBottom.setValue(restingBottom);
+  // Calculate the final bottom position
+  const getBottomPosition = () => {
+    if (Platform.OS === 'android') {
+      // Android: constant position at bottom with safe area
+      return insets.bottom + tabBarHeight;
+    } else {
+      // iOS: floating behavior with keyboard awareness
+      return bottomOffset;
     }
-  }, [restingBottom, keyboardVisible, animatedBottom]);
-
-  useEffect(() => {
-    const animateTo = (toValue: number, duration: number) => {
-      Animated.timing(animatedBottom, {
-        toValue,
-        duration,
-        easing:
-          Platform.OS === 'ios'
-            ? Easing.bezier(0.17, 0.59, 0.4, 0.77)
-            : Easing.out(Easing.ease),
-        useNativeDriver: false,
-      }).start();
-    };
-
-    const onShow = (e: KeyboardEvent) => {
-      const keyboardHeight = e.endCoordinates?.height ?? 0;
-      if (keyboardHeight <= 0) return;
-
-      setKeyboardVisible(true);
-
-      // With edge-to-edge + adjustResize, the reported keyboard height already
-      // includes the system nav area. Sit just above the keyboard.
-      const nextBottom =
-        Platform.OS === 'android'
-          ? Math.max(keyboardHeight, restingBottom) + keyboardGap
-          : keyboardHeight + keyboardGap + insets.bottom;
-
-      animateTo(nextBottom, Platform.OS === 'ios' ? 250 : 180);
-    };
-
-    const onHide = () => {
-      setKeyboardVisible(false);
-      animateTo(restingBottom, Platform.OS === 'ios' ? 250 : 180);
-    };
-
-    const showSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      onShow
-    );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      onHide
-    );
-
-    // Android also fires frame changes while IME animates.
-    const frameSub =
-      Platform.OS === 'android'
-        ? Keyboard.addListener('keyboardDidChangeFrame', (e) => {
-            const keyboardHeight = e.endCoordinates?.height ?? 0;
-            if (keyboardHeight > 80) {
-              setKeyboardVisible(true);
-              animatedBottom.setValue(
-                Math.max(keyboardHeight, restingBottom) + keyboardGap
-              );
-            } else {
-              setKeyboardVisible(false);
-              animatedBottom.setValue(restingBottom);
-            }
-          })
-        : null;
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-      frameSub?.remove();
-    };
-  }, [animatedBottom, keyboardGap, restingBottom, insets.bottom]);
-
-  const styles = createStyles(colors);
+  };
 
   return (
-    <Animated.View
-      style={[styles.container, { bottom: animatedBottom }]}
+    <View 
+      style={[
+        styles.container, 
+        { bottom: getBottomPosition() }
+      ]}
       pointerEvents="box-none"
-      collapsable={false}
     >
       {Platform.OS === 'ios' ? (
         <>
@@ -153,30 +87,30 @@ export default function FloatingButton({
       ) : (
         <View
           style={[
-            styles.androidUnderlay,
+            styles.blurBackground,
             {
-              backgroundColor: isDark ? 'rgba(0,0,0,0.96)' : 'rgba(255,255,255,0.98)',
+              backgroundColor: isDark ? 'rgba(0,0,0,0.92)' : 'rgba(255,255,255,0.96)',
             },
           ]}
           pointerEvents="none"
         />
       )}
-
-      <View
-        style={[
-          styles.contentOverlay,
-          Platform.OS === 'android' && styles.androidContentOverlay,
-        ]}
-        pointerEvents="box-none"
-        collapsable={false}
-      >
-        <View style={styles.buttonContainer} pointerEvents="auto" collapsable={false}>
+      
+      {/* Content overlay */}
+      <View style={[
+        styles.contentOverlay,
+        Platform.OS === 'android' && styles.androidContentOverlay
+      ]}>
+        <View style={styles.buttonContainer}>
           <Button
             title={title}
             onPress={onPress}
             disabled={disabled}
             isLoading={loading}
-            style={[styles.button, Platform.OS === 'android' && styles.androidButton]}
+            style={[
+              styles.button,
+              Platform.OS === 'android' && styles.androidButton
+            ]}
             icon={icon}
             variant={variant}
             hapticType={hapticType}
@@ -185,69 +119,67 @@ export default function FloatingButton({
           />
         </View>
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
-const createStyles = (colors: any) =>
-  StyleSheet.create({
-    container: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      zIndex: 1000,
-      elevation: 24,
-    },
-    blurUnderlay: {
-      position: 'absolute',
-      top: -1,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      height: 200,
-    },
-    blurBackground: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-    },
-    androidUnderlay: {
-      ...StyleSheet.absoluteFillObject,
-    },
-    contentOverlay: {
-      backgroundColor: colors.surface,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      paddingTop: 5,
-      paddingHorizontal: 16,
-      paddingBottom: 5,
-    },
-    androidContentOverlay: {
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-      backgroundColor: 'transparent',
-      paddingTop: 8,
-      paddingBottom: 8,
-      paddingHorizontal: 16,
-    },
-    buttonContainer: {
-      width: '100%',
-    },
-    button: {
-      width: '100%',
-      height: 60,
-      borderRadius: 20,
-      backgroundColor: colors.primary,
-    },
-    androidButton: {
-      height: 52,
-      borderRadius: 20,
-      elevation: 6,
-    },
-    buttonText: {
-      fontSize: 17,
-      fontWeight: '600',
-    },
-  });
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+  container: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+  },
+  blurUnderlay: {
+    position: 'absolute',
+    top: -1, // Extends 100px above the button
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 200, // Total height including the button area
+  },
+  blurBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  contentOverlay: {
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 5,
+    paddingHorizontal: 16,
+    paddingBottom: 5,
+  },
+  androidContentOverlay: {
+    // Android-specific styling for constant position
+    borderTopWidth: 0,
+    backgroundColor: 'transparent',
+    paddingTop: 4,
+    paddingBottom: 4,
+  },
+  buttonContainer: {
+    width: '100%',
+  },
+  button: {
+    width: '100%',
+    height: 60,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+  },
+  androidButton: {
+    // Android-specific button styling for constant position
+    height: 52,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  buttonText: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
+});
