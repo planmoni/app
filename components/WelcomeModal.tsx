@@ -14,6 +14,7 @@ import {
 import { X } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect, useState, useRef } from 'react';
 
 const WELCOME_IMAGES = {
@@ -285,6 +286,7 @@ interface WelcomeModalProps {
 export default function WelcomeModal({ isVisible, onClose, showButtons = false }: WelcomeModalProps) {
   const { width, height } = useWindowDimensions();
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const scrollX = useSharedValue(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -293,6 +295,11 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
   const isClosingRef = useRef(false);
 
   const modalHeight = height * 0.9;
+  // Android Modals often report inset 0 — use a solid fallback for 3-button / gesture nav.
+  const footerSafeBottom =
+    Platform.OS === 'ios'
+      ? Math.max(insets.bottom, 20)
+      : Math.max(insets.bottom, 48);
 
   // Reset scroll position and index when modal opens
   useEffect(() => {
@@ -364,7 +371,8 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
   // Keep these in sync with footer / pagination styles below so the
   // intro slide gets accurate remaining height to space content evenly.
   const buttonHeight = Platform.OS === 'ios' ? 56 : 50;
-  const footerHeight = buttonHeight + (Platform.OS === 'ios' ? 36 : 28);
+  const footerPaddingTop = 8;
+  const footerHeight = buttonHeight + footerPaddingTop + footerSafeBottom;
   const paginationHeight = 32;
   const slideHeight = Math.max(modalHeight - footerHeight - paginationHeight, 320);
 
@@ -377,6 +385,7 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
     width,
     isAndroid,
     isSmallScreen,
+    footerSafeBottom,
   });
 
   return (
@@ -446,9 +455,13 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
             ))}
           </View>
 
-          {/* Footer Buttons */}
+          {/* Footer Buttons — pad bottom for Android edge-to-edge system nav */}
           {Platform.OS === 'ios' ? (
-            <BlurView intensity={2} tint={isDark ? 'dark' : 'light'} style={styles.footer}>
+            <BlurView
+              intensity={2}
+              tint={isDark ? 'dark' : 'light'}
+              style={[styles.footer, { paddingBottom: footerSafeBottom }]}
+            >
               <View style={styles.footerContent}>
                 <Pressable
                   style={styles.signInButton}
@@ -474,6 +487,7 @@ export default function WelcomeModal({ isVisible, onClose, showButtons = false }
               style={[
                 styles.footer,
                 {
+                  paddingBottom: footerSafeBottom,
                   backgroundColor: isDark ? 'rgba(0,0,0,0.92)' : 'rgba(255,255,255,0.96)',
                 },
               ]}
@@ -672,7 +686,7 @@ const createStyles = (colors: any, isDark: boolean, responsive: any) => StyleShe
   },
   footer: {
     paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 20,
+    // paddingBottom applied inline from safe-area insets (edge-to-edge)
     paddingHorizontal: Math.max(responsive.verticalPadding, 20),
   },
   footerContent: {
