@@ -13,6 +13,10 @@ import { fetchWithRetry, CACHE_KEYS, readCache, writeCache } from '@/lib/supabas
 import * as Clipboard from 'expo-clipboard';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import ClaimAccountModal from '@/components/ClaimAccountModal';
+import { useSafehavenDepositWatcher } from '@/hooks/useSafehavenDepositWatcher';
+import { useBalance } from '@/contexts/BalanceContext';
+import Button from '@/components/Button';
+import { RefreshCw } from 'lucide-react-native';
 
 type AccountInfo = {
   account_number: string;
@@ -33,7 +37,13 @@ export default function BankTransferScreen() {
   const [accountLoading, setAccountLoading] = useState(true);
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
   const [showClaimModal, setShowClaimModal] = useState(false);
+  const [refreshingBalance, setRefreshingBalance] = useState(false);
   const hasCachedDataRef = useRef(false);
+  const { refreshWallet } = useBalance();
+  const { checkNow } = useSafehavenDepositWatcher({
+    enabled: hasAccount && !!session?.user?.id,
+    pollIntervalMs: 5000,
+  });
 
   const styles = useMemo(() => createStyles(colors, isDark, isSmallScreen), [colors, isDark, isSmallScreen]);
 
@@ -161,6 +171,20 @@ export default function BankTransferScreen() {
     void fetchAccount();
   };
 
+  const handleRefreshBalance = async () => {
+    haptics.lightImpact();
+    setRefreshingBalance(true);
+    try {
+      await checkNow();
+      await refreshWallet();
+      showToast('Balance updated', 'success');
+    } catch {
+      showToast('Could not refresh balance. Try again shortly.', 'error');
+    } finally {
+      setRefreshingBalance(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -231,9 +255,18 @@ export default function BankTransferScreen() {
               <View style={styles.transferNotice}>
                 <Info size={18} color={colors.primary} />
                 <Text style={styles.transferNoticeText}>
-                  Bank transfers can take up to 2 minutes before reflecting on your wallet. We will notify you immediately when your transfer arrives.
+                  Your balance updates automatically when your transfer arrives—usually within seconds. Tap refresh below if it has not updated yet.
                 </Text>
               </View>
+
+              <Button
+                title={refreshingBalance ? 'Checking…' : 'Refresh balance'}
+                onPress={handleRefreshBalance}
+                disabled={refreshingBalance}
+                variant="outline"
+                style={styles.refreshButton}
+                icon={refreshingBalance ? undefined : RefreshCw}
+              />
             </>
           ) : (
             <>
@@ -410,6 +443,9 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontSize: isSmallScreen ? 13 : 14,
     color: colors.text,
     lineHeight: 20,
+  },
+  refreshButton: {
+    marginTop: 16,
   },
   noAccountContainer: {
     alignItems: 'center',

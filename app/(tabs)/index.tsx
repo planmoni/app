@@ -68,6 +68,7 @@ import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 // import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
+import { useSafehavenDepositWatcher } from '@/hooks/useSafehavenDepositWatcher';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useRecentAccountCreation } from '@/hooks/useRecentAccountCreation';
 import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
@@ -277,6 +278,10 @@ function BalanceActionsModal({
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
   const { session, isLoading: authLoading } = useAuth();
+  const { checkNow: checkSafehavenDeposits } = useSafehavenDepositWatcher({
+    enabled: !!session?.user?.id,
+    pollIntervalMs: 15_000,
+  });
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { updateLastActiveOnInteraction } = useAppLock();
@@ -944,6 +949,7 @@ export default function HomeScreen() {
       await warmConnection();
 
       const refreshWork = Promise.allSettled([
+        checkSafehavenDeposits(),
         refreshWallet(),
         fetchPayoutPlans(),
         fetchTransactions(),
@@ -974,7 +980,7 @@ export default function HomeScreen() {
     } finally {
       endRefresh();
     }
-  }, [session?.user?.id, refreshWallet, fetchExpensePlans, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
+  }, [session?.user?.id, checkSafehavenDeposits, refreshWallet, fetchExpensePlans, fetchPayoutPlans, fetchTransactions, loadProgress, impact]);
 
   const handleHelpPress = useCallback(async () => {
     try {
