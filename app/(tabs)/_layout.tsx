@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { Bell, Calendar, Home as Home, PieChart, Settings, Sparkles } from 'lucide-react-native'; //Do not change the Home to Chrome
 // import CustomAppLayout from '@/components/CustomAppLayout'; //Do not change the Home to Chrome
 import { StyleSheet, View, Platform} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, ThemeContext } from '@/contexts/ThemeContext';
 import { useEffect, useState, useRef, lazy, Suspense, useContext } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -15,8 +16,14 @@ function TabLayoutContent() {
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
   const { isBottomNavVisible } = useBottomNav();
+  const insets = useSafeAreaInsets();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const channelRef = useRef<any>(null);
+
+  // Android 15+/targetSdk 36 draws edge-to-edge; pad tab bar above system controls.
+  const androidBottomInset = Platform.OS === 'android' ? Math.max(insets.bottom, 0) : 0;
+  const tabBarHeight = Platform.OS === 'ios' ? 85 : 56 + androidBottomInset;
+  const tabBarPaddingBottom = Platform.OS === 'ios' ? 15 : 10 + androidBottomInset;
 
   // Track route changes for persistence
   useRouteTracking();
@@ -111,8 +118,17 @@ function TabLayoutContent() {
       screenOptions={{
         tabBarActiveTintColor: isDark ? colors.text : colors.primary,
         tabBarInactiveTintColor: getInactiveTintColor(),
-        tabBarStyle: isBottomNavVisible ? [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }] : { display: 'none' },
-        // tabBarStyle: [styles.tabBar, { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder }],
+        tabBarStyle: isBottomNavVisible
+          ? [
+              styles.tabBar,
+              {
+                height: tabBarHeight,
+                paddingBottom: tabBarPaddingBottom,
+                backgroundColor: colors.tabBar,
+                borderTopColor: colors.tabBarBorder,
+              },
+            ]
+          : { display: 'none' },
         tabBarLabelStyle: styles.tabBarLabel,
         headerShown: false,
       }}>
@@ -158,9 +174,8 @@ function TabLayoutContent() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: Platform.OS === 'ios' ? 85 : 50,
-    paddingBottom: Platform.OS === 'ios' ? 15 : 10 ,
     paddingTop: 5,
+    // height / paddingBottom set dynamically for Android system nav insets
   },
   tabBarLabel: {
     fontSize: Platform.OS === 'ios' ? 12 : 10,

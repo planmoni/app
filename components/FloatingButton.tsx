@@ -37,13 +37,12 @@ export default function FloatingButton({
   variant = 'primary',
   hapticType = 'medium',
   tabBarHeight = 0,
-  keyboardGap = Platform.OS === 'android' ? -180 : -20, // Platform-specific default
+  keyboardGap = Platform.OS === 'android' ? -180 : -20,
 }: FloatingButtonProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
-  // Android keeps a fixed bottom position — skip keyboard listeners so
-  // SoftInput events don't re-render this overlay during list scrolls.
+  // Android stays fixed above the system nav — skip keyboard listeners.
   const { bottomOffset } = useFabKeyboardOffset({
     gap: keyboardGap,
     tabBarHeight,
@@ -52,20 +51,27 @@ export default function FloatingButton({
 
   const styles = createStyles(colors, isDark);
 
-  const getBottomPosition = () => {
-    if (Platform.OS === 'android') {
-      return insets.bottom + tabBarHeight;
-    }
-    return bottomOffset;
-  };
+  // On Android edge-to-edge, pin to the physical bottom and pad the safe area
+  // so the tap target sits above system control / gesture buttons.
+  const androidSafeBottom = Math.max(insets.bottom, 16);
+  const containerBottom =
+    Platform.OS === 'android' ? 0 : bottomOffset;
+  const androidPaddingBottom =
+    Platform.OS === 'android' ? androidSafeBottom + tabBarHeight : undefined;
 
   return (
     <View 
       style={[
         styles.container, 
-        { bottom: getBottomPosition() }
+        {
+          bottom: containerBottom,
+          ...(androidPaddingBottom != null
+            ? { paddingBottom: androidPaddingBottom }
+            : null),
+        },
       ]}
       pointerEvents="box-none"
+      collapsable={false}
     >
       {Platform.OS === 'ios' ? (
         <>
@@ -85,21 +91,24 @@ export default function FloatingButton({
       ) : (
         <View
           style={[
-            styles.blurBackground,
+            styles.androidUnderlay,
             {
-              backgroundColor: isDark ? 'rgba(0,0,0,0.92)' : 'rgba(255,255,255,0.96)',
+              backgroundColor: isDark ? 'rgba(0,0,0,0.96)' : 'rgba(255,255,255,0.98)',
             },
           ]}
           pointerEvents="none"
         />
       )}
       
-      {/* Content overlay */}
-      <View style={[
-        styles.contentOverlay,
-        Platform.OS === 'android' && styles.androidContentOverlay
-      ]}>
-        <View style={styles.buttonContainer}>
+      <View
+        style={[
+          styles.contentOverlay,
+          Platform.OS === 'android' && styles.androidContentOverlay,
+        ]}
+        pointerEvents="box-none"
+        collapsable={false}
+      >
+        <View style={styles.buttonContainer} pointerEvents="auto" collapsable={false}>
           <Button
             title={title}
             onPress={onPress}
@@ -107,7 +116,7 @@ export default function FloatingButton({
             isLoading={loading}
             style={[
               styles.button,
-              Platform.OS === 'android' && styles.androidButton
+              Platform.OS === 'android' && styles.androidButton,
             ]}
             icon={icon}
             variant={variant}
@@ -127,14 +136,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1000,
+    elevation: 24,
   },
   blurUnderlay: {
     position: 'absolute',
-    top: -1, // Extends 100px above the button
+    top: -1,
     left: 0,
     right: 0,
     bottom: 0,
-    height: 200, // Total height including the button area
+    height: 200,
   },
   blurBackground: {
     position: 'absolute',
@@ -142,6 +152,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  androidUnderlay: {
+    ...StyleSheet.absoluteFillObject,
   },
   contentOverlay: {
     backgroundColor: colors.surface,
@@ -152,11 +165,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingBottom: 5,
   },
   androidContentOverlay: {
-    // Android-specific styling for constant position
-    borderTopWidth: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
     backgroundColor: 'transparent',
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingHorizontal: 16,
   },
   buttonContainer: {
     width: '100%',
@@ -168,13 +182,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   androidButton: {
-    // Android-specific button styling for constant position
     height: 52,
     borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    elevation: 6,
   },
   buttonText: {
     fontSize: 17,
