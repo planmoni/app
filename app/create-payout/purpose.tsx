@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, Platform, ScrollView, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   ArrowLeft,
@@ -120,78 +120,101 @@ export default function PurposeScreen() {
         <Text style={styles.stepText}>Step 2 of 5</Text>
       </View>
 
-      <KeyboardAvoidingWrapper contentContainerStyle={styles.scrollContent}>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={styles.content}>
-            <Text style={styles.title}>What is this plan for?</Text>
-            <Text style={styles.description}>
-              Choose a purpose that best describes this payout plan.
-            </Text>
+      {/* Single ScrollView via KeyboardAvoidingWrapper — nested ScrollViews glitch on Android */}
+      <KeyboardAvoidingWrapper
+        contentContainerStyle={styles.scrollContent}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.content}>
+          <Text style={styles.title}>What is this plan for?</Text>
+          <Text style={styles.description}>
+            Choose a purpose that best describes this payout plan.
+          </Text>
 
-            {PURPOSE_OPTIONS.map((option) => {
-              const isSelected = selectedPurpose === option.value;
-              const isOthers = option.value === 'others';
-              return (
-                <View key={option.value}>
-                  <Pressable
-                    style={[
-                      styles.optionCard,
-                      isSelected && styles.optionCardSelected,
-                      { borderColor: isSelected ? colors.primary : colors.border },
-                    ]}
-                    onPress={() => {
-                      if (Platform.OS !== 'web') haptics.selection();
-                      setSelectedPurpose(option.value);
-                    }}
-                  >
-                    {(() => {
-                      const IconComponent = PURPOSE_ICONS[option.value];
-                      return IconComponent ? (
-                        <View style={[styles.optionIconWrap, { backgroundColor: isSelected ? colors.primary + '20' : colors.backgroundTertiary }]}>
-                          <IconComponent size={22} color={isSelected ? colors.primary : colors.textSecondary} />
-                        </View>
-                      ) : null;
-                    })()}
-                    <View style={styles.optionContent}>
-                      <Text style={[styles.optionLabel, { color: colors.text }]}>
-                        {option.label}
-                      </Text>
-                      <Text
-                        style={[styles.optionDescription, { color: colors.textSecondary }]}
-                        numberOfLines={2}
-                      >
-                        {option.description}
-                      </Text>
-                    </View>
-                    {isSelected && (
-                      <View style={[styles.checkWrap, { backgroundColor: colors.primary }]}>
-                        <Check size={16} color="#FFFFFF" />
-                      </View>
-                    )}
-                  </Pressable>
-                  {isOthers && selectedPurpose === 'others' && (
-                    <View style={styles.otherInputWrap}>
-                      <TextInput
-                        style={[
-                          styles.otherInput,
-                          {
-                            backgroundColor: colors.backgroundTertiary,
-                            borderColor: colors.border,
-                            color: colors.text,
-                          },
-                        ]}
-                        placeholder="Describe your purpose (optional)"
-                        placeholderTextColor={colors.textTertiary}
-                        value={purposeOtherText}
-                        onChangeText={setPurposeOtherText}
+          {PURPOSE_OPTIONS.map((option) => {
+            const isSelected = selectedPurpose === option.value;
+            const isOthers = option.value === 'others';
+            const IconComponent = PURPOSE_ICONS[option.value];
+            return (
+              <View key={option.value}>
+                <Pressable
+                  style={[
+                    styles.optionCard,
+                    {
+                      borderColor: isSelected ? colors.primary : colors.border,
+                      backgroundColor: isSelected
+                        ? colors.primary + '08'
+                        : colors.surface,
+                    },
+                  ]}
+                  onPress={() => {
+                    if (Platform.OS !== 'web') haptics.selection();
+                    setSelectedPurpose(option.value);
+                  }}
+                >
+                  {IconComponent ? (
+                    <View
+                      style={[
+                        styles.optionIconWrap,
+                        {
+                          backgroundColor: isSelected
+                            ? colors.primary + '20'
+                            : colors.backgroundTertiary,
+                        },
+                      ]}
+                    >
+                      <IconComponent
+                        size={22}
+                        color={isSelected ? colors.primary : colors.textSecondary}
                       />
                     </View>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        </ScrollView>
+                  ) : null}
+                  <View style={styles.optionContent}>
+                    <Text style={[styles.optionLabel, { color: colors.text }]}>
+                      {option.label}
+                    </Text>
+                    <Text
+                      style={[styles.optionDescription, { color: colors.textSecondary }]}
+                      numberOfLines={2}
+                    >
+                      {option.description}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.checkWrap,
+                      {
+                        backgroundColor: isSelected ? colors.primary : 'transparent',
+                        borderWidth: isSelected ? 0 : 1.5,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    {isSelected ? <Check size={16} color="#FFFFFF" /> : null}
+                  </View>
+                </Pressable>
+                {isOthers && selectedPurpose === 'others' && (
+                  <View style={styles.otherInputWrap}>
+                    <TextInput
+                      style={[
+                        styles.otherInput,
+                        {
+                          backgroundColor: colors.backgroundTertiary,
+                          borderColor: colors.border,
+                          color: colors.text,
+                        },
+                      ]}
+                      placeholder="Describe your purpose (optional)"
+                      placeholderTextColor={colors.textTertiary}
+                      value={purposeOtherText}
+                      onChangeText={setPurposeOtherText}
+                    />
+                  </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
       </KeyboardAvoidingWrapper>
 
       <FloatingButton
@@ -285,12 +308,10 @@ const createStyles = (colors: any) =>
       alignItems: 'center',
       padding: 16,
       borderRadius: 12,
-      borderWidth: 1.5,
+      // Keep borderWidth constant — toggling 1.5↔2 causes Android layout jitter
+      borderWidth: 2,
       marginBottom: 10,
       gap: 12,
-    },
-    optionCardSelected: {
-      borderWidth: 2,
     },
     optionIconWrap: {
       width: 44,
