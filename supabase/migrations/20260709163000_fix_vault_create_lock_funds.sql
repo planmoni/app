@@ -1,20 +1,4 @@
-/*
-  Vault payout schedule: stage committed funds on main wallet, then lock after payout_plans exists.
-
-  Flow (single DB transaction, atomic):
-  1) Idempotency: optional metadata.idempotency_key — return existing row if replayed.
-  2) Withdraw p_total_amount from vault (plan_transactions).
-  3) Credit user main wallet balance by p_total_amount (funds land as available = balance - locked).
-  4) Deduct schedule fees from main wallet balance (vault_schedule skips deduct_plan_fee_on_insert).
-  5) Insert payout_plans + custom_payout_dates + vault_payout_schedules.
-  6) Lock net_payout_amount on main wallet (same semantics as lock_funds).
-
-  Concurrent duplicate idempotency_key: unique index + unique_violation handler re-selects winner row.
-*/
-
-CREATE UNIQUE INDEX IF NOT EXISTS ux_vault_payout_schedules_user_idempotency
-  ON public.vault_payout_schedules (user_id, ((metadata->>'idempotency_key')))
-  WHERE COALESCE(NULLIF(trim(metadata->>'idempotency_key'), ''), '') IS NOT NULL;
+-- create_vault_payout_schedule: use 2-param lock_funds (5-param dropped in 20260707160000).
 
 CREATE OR REPLACE FUNCTION public.create_vault_payout_schedule(
   p_budget_plan_id uuid,

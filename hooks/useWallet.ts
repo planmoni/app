@@ -56,8 +56,8 @@ export function useWallet() {
     try {
       setError(null);
       const { error: walletError } = await supabase.rpc('lock_funds', {
-        p_amount: amount,
-        p_user_id: session?.user?.id
+        arg_user_id: session?.user?.id,
+        arg_amount: amount,
       });
 
       if (walletError) throw walletError;
