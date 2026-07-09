@@ -23,6 +23,7 @@ interface AuthContextType {
   session: Session | null;
   user: any;
   isLoading: boolean;
+  isAuthReady: boolean;
   error: string | null;
   sessionRecovery: ExpiredSessionRecovery | null;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -56,6 +57,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const {
     session,
     isLoading,
+    isAuthReady,
     signIn: supabaseSignIn,
     signUp,
     resetPassword,
@@ -388,6 +390,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     session,
     user,
     isLoading,
+    isAuthReady,
     error,
     sessionRecovery,
     signIn,
@@ -402,6 +405,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     session,
     user,
     isLoading,
+    isAuthReady,
     error,
     sessionRecovery,
     signIn,

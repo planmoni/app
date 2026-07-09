@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { 
@@ -15,6 +15,23 @@ import { useAppError } from '@/contexts/AppErrorContext';
 import { setAuthExpiredHandler, setSessionRefreshedHandler } from '@/lib/supabase-reconnect';
 import { buildExpiredSessionRecovery, saveExpiredSessionRecovery } from '@/lib/auth-recovery';
 import { clearExpiredAuthState } from '@/lib/auth-cache-reset';
+import {
+  invalidateFinancialQueries,
+  removeFinancialQueries,
+} from '@/lib/queries/invalidateFinancialQueries';
+import { logAuthTelemetry } from '@/lib/auth-telemetry';
+import { AUTH_READY_GUARD_MS } from '@/lib/auth-ready-guard';
+
+function sessionIsReadyForApi(session: Session | null): boolean {
+  if (!session?.user?.id || !session.access_token) return false;
+  return !isSessionExpired(session);
+}
+
+/** True when auth init is done and the session (if any) has a usable access token. */
+export function resolveAuthReady(session: Session | null): boolean {
+  if (!session?.user?.id) return true;
+  return sessionIsReadyForApi(session);
+}
 
 type AuthResult = {
   success: boolean;
@@ -51,10 +68,48 @@ function isTransientSessionError(message: string): boolean {
 export function useSupabaseAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { setError: setAppError } = useAppError();
 
-  const prepareExpiredSessionState = async (expiredSession: Session | null) => {
+  const sessionRef = useRef<Session | null>(null);
+  const isAuthReadyRef = useRef(false);
+  const authReadyGuardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    isAuthReadyRef.current = isAuthReady;
+  }, [isAuthReady]);
+
+  const clearAuthReadyGuard = useCallback(() => {
+    if (authReadyGuardRef.current) {
+      clearTimeout(authReadyGuardRef.current);
+      authReadyGuardRef.current = null;
+    }
+  }, []);
+
+  const markAuthReady = useCallback(
+    (ready: boolean, source: string, sess: Session | null) => {
+      isAuthReadyRef.current = ready;
+      setIsAuthReady(ready);
+      logAuthTelemetry('ready_change', {
+        isAuthReady: ready,
+        source,
+        hasSession: !!sess?.user?.id,
+        tokenExpired: sess ? isSessionExpired(sess) : false,
+      });
+      if (ready) {
+        clearAuthReadyGuard();
+      }
+    },
+    [clearAuthReadyGuard]
+  );
+
+  const prepareExpiredSessionState = useCallback(async (expiredSession: Session | null) => {
     try {
       const recovery = await buildExpiredSessionRecovery(expiredSession);
       if (recovery) {
@@ -65,14 +120,47 @@ export function useSupabaseAuth() {
       console.warn('useSupabaseAuth: failed to prepare expired-session recovery', error);
       await clearExpiredAuthState(expiredSession?.user?.id);
     }
-  };
+  }, []);
+
+  const scheduleAuthReadyGuard = useCallback(() => {
+    clearAuthReadyGuard();
+    authReadyGuardRef.current = setTimeout(() => {
+      void (async () => {
+        if (!mountedRef.current) return;
+        if (isAuthReadyRef.current) return;
+
+        const stuckSession = sessionRef.current;
+        if (!stuckSession?.user?.id) return;
+
+        logAuthTelemetry('stuck_timeout', {
+          userId: stuckSession.user.id,
+          waitedMs: AUTH_READY_GUARD_MS,
+        });
+        console.warn(
+          '⚠️ Auth ready guard: token refresh did not complete, clearing session'
+        );
+
+        try {
+          await prepareExpiredSessionState(stuckSession);
+        } catch (guardErr) {
+          console.warn('useSupabaseAuth: auth ready guard cleanup failed', guardErr);
+        }
+
+        if (!mountedRef.current) return;
+
+        setSession(null);
+        setError('Session expired or invalid');
+        markAuthReady(true, 'stuck_timeout', null);
+        removeFinancialQueries();
+      })();
+    }, AUTH_READY_GUARD_MS);
+  }, [clearAuthReadyGuard, markAuthReady, prepareExpiredSessionState]);
 
   useEffect(() => {
     let mounted = true;
+    mountedRef.current = true;
 
-    // Safety net: if session restore hangs (e.g. a token-refresh network call
-    // that never resolves), release the splash screen anyway. Auth state will
-    // settle in the background via onAuthStateChange.
+    // Safety net: if session restore hangs
     const loadingGuard = setTimeout(() => {
       if (mounted) {
         console.warn('⚠️ Auth initialization exceeded 6s, releasing loading state');
@@ -81,6 +169,10 @@ export function useSupabaseAuth() {
     }, 6000);
 
     const initializeAuth = async () => {
+      let resolvedSession: Session | null = null;
+      const initStartedAt = Date.now();
+      logAuthTelemetry('init_start');
+
       try {
         console.log('🔐 Initializing auth session...');
         console.log('📱 App started - checking for persistent session...');
@@ -106,6 +198,7 @@ export function useSupabaseAuth() {
             const restored = await restoreSessionInSupabase(storedSession);
             
             if (restored && mounted) {
+              resolvedSession = storedSession;
               setSession(storedSession);
               console.log('✅ Session fully restored and set in state');
               console.log('🎉 User should now be logged in after device restart');
@@ -130,6 +223,7 @@ export function useSupabaseAuth() {
             const refreshedSession = await refreshExpiredSession(storedSession);
             
             if (refreshedSession && mounted) {
+              resolvedSession = refreshedSession;
               setSession(refreshedSession);
               console.log('✅ Session refreshed and restored successfully');
               
@@ -142,10 +236,12 @@ export function useSupabaseAuth() {
               }
             } else {
               console.log('❌ Failed to refresh session, clearing it...');
+              resolvedSession = null;
               await prepareExpiredSessionState(storedSession);
             }
           } else {
             console.log('❌ Cannot refresh session, clearing it...');
+            resolvedSession = null;
             await prepareExpiredSessionState(storedSession);
           }
         }
@@ -168,6 +264,7 @@ export function useSupabaseAuth() {
             // Validate session has valid user before setting it
             if (session?.user?.id && !isSessionExpired(session)) {
               if (mounted) {
+                resolvedSession = session;
                 setSession(session);
               }
               
@@ -184,12 +281,14 @@ export function useSupabaseAuth() {
               console.log('⚠️ Initial session is invalid or expired, clearing');
               await prepareExpiredSessionState(session);
               if (mounted) {
+                resolvedSession = null;
                 setSession(null);
                 setError('Session expired or invalid');
               }
             } else {
               // No session at all
               if (mounted) {
+                resolvedSession = null;
                 setSession(null);
               }
             }
@@ -216,6 +315,7 @@ export function useSupabaseAuth() {
           if (mounted) {
             setSession(null);
             setError(null);
+            resolvedSession = null;
           }
         } else {
           setError(message);
@@ -230,6 +330,16 @@ export function useSupabaseAuth() {
         clearTimeout(loadingGuard);
         if (mounted) {
           setIsLoading(false);
+          const ready = resolveAuthReady(resolvedSession);
+          markAuthReady(ready, 'init_finally', resolvedSession);
+          logAuthTelemetry('init_ready', {
+            hasSession: !!resolvedSession?.user?.id,
+            isAuthReady: ready,
+            durationMs: Date.now() - initStartedAt,
+          });
+          if (!ready && resolvedSession?.user?.id) {
+            scheduleAuthReadyGuard();
+          }
         }
       }
     };
@@ -241,14 +351,14 @@ export function useSupabaseAuth() {
       
       if (!mounted) return;
 
-      // Handle different auth events
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        console.log('✅ User signed in or token refreshed');
-        
-        // Validate session has valid user before setting it
-        if (session?.user?.id) {
+      const readyEvents = ['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED'];
+
+      if (readyEvents.includes(event)) {
+        if (session?.user?.id && sessionIsReadyForApi(session)) {
+          console.log(`✅ Auth ready (${event})`);
           setSession(session);
           setError(null);
+          markAuthReady(true, `onAuthStateChange:${event}`, session);
           await saveSession(session);
 
           if (event === 'TOKEN_REFRESHED' && session.access_token) {
@@ -262,24 +372,33 @@ export function useSupabaseAuth() {
               console.log('Note: Could not sync active session token after refresh');
             }
           }
-          
-          // Load profile snapshot for new/refreshed session
+
           const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(session.user.id);
           if (profileSnapshot) {
             console.log('📸 Profile snapshot loaded for auth state change');
           }
+
+          await invalidateFinancialQueries();
+        } else if (session?.user?.id) {
+          console.log(`⏳ Session present but not ready (${event}), waiting for refresh`);
+          setSession(session);
+          markAuthReady(false, `onAuthStateChange:${event}:pending`, session);
+          scheduleAuthReadyGuard();
         } else {
-          // Session exists but no valid user - treat as logged out
           console.log('⚠️ Session exists but user is invalid, clearing session');
           setSession(null);
+          markAuthReady(true, `onAuthStateChange:${event}:invalid`, null);
           setError('Session expired or invalid');
           await clearSession();
+          removeFinancialQueries();
         }
       } else if (event === 'SIGNED_OUT') {
         console.log('🚪 User signed out');
         setSession(null);
         setError(null);
+        markAuthReady(true, 'onAuthStateChange:SIGNED_OUT', null);
         await clearSession();
+        removeFinancialQueries();
         
         // Clear profile snapshots on sign out
         if (session?.user?.id) {
@@ -421,11 +540,13 @@ export function useSupabaseAuth() {
 
     return () => {
       mounted = false;
+      mountedRef.current = false;
       clearTimeout(loadingGuard);
+      clearAuthReadyGuard();
       subscription.unsubscribe();
       validationCleanup();
     };
-  }, []);
+  }, [clearAuthReadyGuard, markAuthReady, prepareExpiredSessionState, scheduleAuthReadyGuard]);
 
   // Auth refresh on resume is handled by ensureSupabaseConnection via the foreground coordinator.
   useEffect(() => {
@@ -434,13 +555,19 @@ export function useSupabaseAuth() {
     });
     setSessionRefreshedHandler((refreshedSession) => {
       setSession(refreshedSession);
+      markAuthReady(
+        sessionIsReadyForApi(refreshedSession),
+        'session_refreshed_handler',
+        refreshedSession
+      );
       void saveSession(refreshedSession);
+      void invalidateFinancialQueries();
     });
     return () => {
       setAuthExpiredHandler(null);
       setSessionRefreshedHandler(null);
     };
-  }, []);
+  }, [markAuthReady]);
 
   const signIn = async (email: string, password: string): Promise<AuthResult> => {
     try {
@@ -610,6 +737,7 @@ export function useSupabaseAuth() {
   return {
     session,
     isLoading,
+    isAuthReady,
     error,
     signIn,
     signUp,

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useAppForeground } from '@/hooks/useAppForeground';
 import { ensureSupabaseConnection } from '@/lib/supabase-connection';
 import { queryClient } from '@/contexts/QueryClientProvider';
@@ -95,15 +96,25 @@ async function runForegroundRefresh(): Promise<void> {
  * then invalidate shared financial queries and run legacy refetches.
  */
 export function useForegroundRefreshCoordinator(): void {
+  const { isAuthReady } = useAuth();
   const foregroundTick = useAppForeground();
   const runningRef = useRef(false);
   const wasOfflineRef = useRef(false);
   const hasResumedOnceRef = useRef(false);
+  const bootRefreshDoneRef = useRef(false);
 
   useEffect(() => {
-    if (foregroundTick === 0) return;
+    if (!isAuthReady) return;
 
-    hasResumedOnceRef.current = true;
+    const isColdStart = !bootRefreshDoneRef.current;
+    const isResume = foregroundTick > 0;
+
+    if (!isColdStart && !isResume) return;
+
+    bootRefreshDoneRef.current = true;
+    if (isResume) {
+      hasResumedOnceRef.current = true;
+    }
 
     if (runningRef.current) return;
     runningRef.current = true;
@@ -111,10 +122,12 @@ export function useForegroundRefreshCoordinator(): void {
     void runForegroundRefresh().finally(() => {
       runningRef.current = false;
     });
-  }, [foregroundTick]);
+  }, [foregroundTick, isAuthReady]);
 
-  // Reconnect when network returns — only after at least one real foreground resume.
+  // Reconnect when network returns — only after auth is ready and at least one resume.
   useEffect(() => {
+    if (!isAuthReady) return;
+
     const unsubscribe = NetInfo.addEventListener((state) => {
       const online = state.isConnected === true && state.isInternetReachable !== false;
       if (!online) {
@@ -135,7 +148,7 @@ export function useForegroundRefreshCoordinator(): void {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [isAuthReady]);
 }
 
 /**

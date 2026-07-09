@@ -5,11 +5,12 @@ import { financialQueryKeys } from '@/lib/queries/keys';
 import { fetchWallet, readWalletCache, type WalletData } from '@/lib/queries/walletQueries';
 import { useHydrateFinancialCache } from '@/lib/queries/hydrateFinancialCache';
 import { useLoadingGuard } from '@/hooks/useLoadingGuard';
+import { logAuthQueryGateViolation } from '@/lib/auth-telemetry';
 
 const STALE_TIME_MS = 5 * 60 * 1000;
 
 export function useWalletQuery() {
-  const { session } = useAuth();
+  const { session, isAuthReady } = useAuth();
   const userId = session?.user?.id;
   const queryClient = useQueryClient();
   const queryKey = useMemo(
@@ -21,8 +22,11 @@ export function useWalletQuery() {
 
   const query = useQuery({
     queryKey,
-    queryFn: () => fetchWallet(userId!),
-    enabled: !!userId,
+    queryFn: () => {
+      logAuthQueryGateViolation('wallet', isAuthReady, userId);
+      return fetchWallet(userId!);
+    },
+    enabled: isAuthReady && !!userId,
     staleTime: STALE_TIME_MS,
     placeholderData: (previous) => previous,
   });

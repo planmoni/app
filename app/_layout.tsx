@@ -69,7 +69,7 @@ SplashScreen.preventAutoHideAsync().catch((e) =>
 );
 
 function RootLayoutNav() {
-  const { session, isLoading, error } = useAuth();
+  const { session, isLoading, isAuthReady, error } = useAuth();
   const { isDark, colors } = useTheme();
   const { isAppLocked, isPinResetMode, lockApp } = useAppLock();
   const { isLoading: isPinLoading, hasAppLockPin } = usePin();
@@ -93,6 +93,10 @@ function RootLayoutNav() {
   
   // Track page changes for redirect after unlock
   usePageTracking();
+
+  // Auth startup is complete when the initial check finished and any logged-in
+  // user has a non-expired access token (isAuthReady).
+  const authStartupComplete = !isLoading && (!session?.user?.id || isAuthReady);
 
   // Staggered foreground data refresh (wallet, plans, transactions, etc.)
   useForegroundRefreshCoordinator();
@@ -551,18 +555,18 @@ function RootLayoutNav() {
   useEffect(() => {
     // Hide native splash screen when we show our custom splash screen
     // This ensures smooth transition from native to custom splash
-    if ((!fontsLoaded && !fontError) || isLoading) {
+    if ((!fontsLoaded && !fontError) || !authStartupComplete) {
       // Hide native splash to show our custom one
       SplashScreen.hideAsync().catch((e) =>
         console.warn("Failed to hide native splash screen:", e)
       );
-    } else if (fontsLoaded && !isLoading) {
+    } else if (fontsLoaded && authStartupComplete) {
       // Hide native splash when app is ready
       SplashScreen.hideAsync().catch((e) =>
         console.warn("Failed to hide splash screen:", e)
       );
     }
-  }, [fontsLoaded, isLoading, fontError]);
+  }, [fontsLoaded, authStartupComplete, fontError]);
 
   // Initialize app once; use a force-timeout to avoid infinite splash deadlocks.
   useEffect(() => {
@@ -572,6 +576,13 @@ function RootLayoutNav() {
     if (!forceInitTimeoutRef.current) {
       forceInitTimeoutRef.current = setTimeout(() => {
         if (!hasInitializedRef.current) {
+          // Never force the dashboard for authenticated users still restoring tokens.
+          if (session?.user?.id && !isAuthReady) {
+            console.warn(
+              '⚠️ RootLayoutNav - Auth restore still in progress, keeping splash visible'
+            );
+            return;
+          }
           console.warn('⚠️ RootLayoutNav - Startup initialization timed out, forcing app start');
           hasInitializedRef.current = true;
           setIsInitializing(false);
@@ -580,10 +591,9 @@ function RootLayoutNav() {
     }
 
     const fontsReady = fontsLoaded || fontError;
-    const authReady = !isLoading;
     const pinReady = !isPinLoading;
 
-    if (fontsReady && authReady && pinReady) {
+    if (fontsReady && authStartupComplete && pinReady) {
       if (initCompleteTimerRef.current) return;
 
       // Lock app immediately if PIN is set.
@@ -604,7 +614,7 @@ function RootLayoutNav() {
         }
       }, 150);
     }
-  }, [fontsLoaded, fontError, isLoading, isPinLoading, hasAppLockPin, session?.user?.id, isAppLocked]);
+  }, [fontsLoaded, fontError, authStartupComplete, isPinLoading, hasAppLockPin, session?.user?.id, isAuthReady, isAppLocked]);
 
   useEffect(() => {
     return () => {
@@ -639,7 +649,12 @@ function RootLayoutNav() {
 
   // Always render Stack to ensure navigation context is available
   // Show splash screen on top during initialization
-  const showSplashOverlay = isInitializing || (!fontsLoaded && !fontError) || isLoading || isPinLoading || (showSplash && !session?.user?.id);
+  const showSplashOverlay =
+    isInitializing ||
+    (!fontsLoaded && !fontError) ||
+    !authStartupComplete ||
+    isPinLoading ||
+    (showSplash && !session?.user?.id);
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>

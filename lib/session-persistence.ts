@@ -130,10 +130,12 @@ export async function refreshExpiredSession(session: Session): Promise<Session |
  * Check if session can be refreshed (has valid refresh token)
  */
 export function canRefreshSession(session: Session | null): boolean {
-  if (!session) return false;
+  if (!session?.refresh_token) return false;
+
+  const refreshExpiresAt = (session as Session & { refresh_token_expires_at?: number })
+    .refresh_token_expires_at;
+  if (!refreshExpiresAt) return true;
 
   const now = Math.floor(Date.now() / 1000);
-  const refreshExpiresAt = (session as any).refresh_token_expires_at || 0;
-
-  return !!session.refresh_token && now < refreshExpiresAt;
+  return now < refreshExpiresAt;
 }
