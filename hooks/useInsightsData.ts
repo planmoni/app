@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPayoutDateTime } from '@/lib/formatters';
 import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordinator';
+import { useLoadingGuard } from '@/hooks/useLoadingGuard';
 import { fetchWithRetry, CACHE_KEYS, readCache, writeCache } from '@/lib/supabase-fetch';
 
 export type Metric = {
@@ -445,11 +446,17 @@ export function useInsightsData(payoutPlans: any[] = []) {
 
   useRegisterForegroundRefetch('insights', 2, fetchInsightsData, !!session?.user?.id);
 
+  const { isLoading: guardedLoading, isTimedOut } = useLoadingGuard(
+    isLoading,
+    hasCachedDataRef.current || metrics.length > 0
+  );
+
   return {
     metrics,
     trends,
     vaultStats,
-    isLoading,
+    isLoading: guardedLoading,
+    isTimedOut,
     error,
     refreshInsights: fetchInsightsData,
   };

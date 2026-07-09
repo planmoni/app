@@ -16,6 +16,7 @@ import UpdateAppModal from '@/components/UpdateAppModal';
 import { UserActivityTracker } from '@/hooks/useUserActivityTracking';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { QueryClientProvider } from '@/contexts/QueryClientProvider';
+import { RealtimeSyncProvider } from '@/contexts/RealtimeSyncProvider';
 import { PaystackProvider } from 'react-native-paystack-webview';
 import Constants from 'expo-constants';
 
@@ -880,6 +881,7 @@ export default function RootLayout() {
                 defaultChannels={['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer']}
               >
                 <AuthProvider>
+                  <RealtimeSyncProvider>
                   <AppVersionProvider>
                     <PinProvider>
                       <AppLockProvider>
@@ -899,6 +901,7 @@ export default function RootLayout() {
                       </AppLockProvider>
                     </PinProvider>
                   </AppVersionProvider>
+                  </RealtimeSyncProvider>
                 </AuthProvider>
               </PaystackProvider>
             </ToastProvider>

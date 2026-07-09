@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRealtimeWallet } from '@/hooks/useRealtimeWallet';
+import { useWalletQuery } from '@/hooks/queries/useWalletQuery';
 import { useAuth } from '@/contexts/AuthContext';
 import { logAnalyticsEvent } from '@/lib/firebase';
 
@@ -22,7 +22,7 @@ const BalanceContext = createContext<BalanceContextType | undefined>(undefined);
 
 export function BalanceProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
-  const wallet = useRealtimeWallet();
+  const wallet = useWalletQuery();
   
   // Return mock data when unauthenticated
   const isAuthenticated = !!session?.user?.id;

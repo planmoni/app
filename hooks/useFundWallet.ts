@@ -12,6 +12,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import axiosInstance from '@/lib/axios';
 import { useAuth } from '@/contexts/AuthContext';
+import { financialQueryKeys } from '@/lib/queries/keys';
 
 export interface FundWalletParams {
   mandateId: string; // Internal mandate ID
@@ -54,10 +55,12 @@ export function useFundWallet() {
       }
     },
     onSuccess: () => {
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['wallet'] });
-      queryClient.invalidateQueries({ queryKey: ['mandates'] });
+      const userId = session?.user?.id;
+      if (userId) {
+        void queryClient.invalidateQueries({ queryKey: financialQueryKeys.wallet(userId) });
+        void queryClient.invalidateQueries({ queryKey: ['transactions', userId] });
+      }
+      void queryClient.invalidateQueries({ queryKey: ['mandates'] });
     },
   });
 }

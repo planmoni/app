@@ -1,18 +1,29 @@
 /**
  * React Query Provider
- * 
+ *
  * Provides QueryClient for React Query hooks
  */
 
-import React from 'react';
-import { QueryClient, QueryClientProvider as TanStackQueryClientProvider } from '@tanstack/react-query';
+import React, { useEffect } from 'react';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
+import {
+  QueryClient,
+  QueryClientProvider as TanStackQueryClientProvider,
+  focusManager,
+} from '@tanstack/react-query';
+
+function onAppStateChange(status: AppStateStatus) {
+  if (Platform.OS !== 'web') {
+    focusManager.setFocused(status === 'active');
+  }
+}
 
 // Create a client with default options
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
       refetchOnReconnect: true,
       staleTime: 5 * 60 * 1000,
       networkMode: 'offlineFirst',
@@ -28,6 +39,11 @@ interface QueryClientProviderProps {
 }
 
 export function QueryClientProvider({ children }: QueryClientProviderProps) {
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', onAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
   return (
     <TanStackQueryClientProvider client={queryClient}>
       {children}
@@ -36,5 +52,3 @@ export function QueryClientProvider({ children }: QueryClientProviderProps) {
 }
 
 export { queryClient };
-
-

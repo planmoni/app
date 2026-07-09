@@ -9,7 +9,7 @@ import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
-import { useRealtimeWallet } from '@/hooks/useRealtimeWallet';
+import { useWalletQuery } from '@/hooks/queries/useWalletQuery';
 import BucketAllocationSummary from '@/components/expense-planner/BucketAllocationSummary';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { supabase } from '@/lib/supabase';
@@ -58,7 +58,7 @@ export default function FundSpendingPlanScreen() {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
   const params = useLocalSearchParams();
-  const { availableBalance } = useRealtimeWallet();
+  const { availableBalance } = useWalletQuery();
   const { lockExpenseFunds, getExpenseBuckets, saveDraftExpensePlan, saveLastStep } = useExpensePlans();
   
   const totalAmount = parseFloat((params.totalAmount as string) || '0');

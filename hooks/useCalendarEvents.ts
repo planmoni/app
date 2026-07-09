@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
-import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
+import { usePayoutPlansQuery } from '@/hooks/queries/usePayoutPlansQuery';
+import { useTransactionsQuery } from '@/hooks/queries/useTransactionsQuery';
 import { buildCalendarEvents, CalendarEvent } from '@/lib/calendar/buildCalendarEvents';
 import {
   CACHE_KEYS,
@@ -17,9 +17,9 @@ export type { CalendarEvent };
 
 export function useCalendarEvents() {
   const { session } = useAuth();
-  const { payoutPlans, isLoading: plansLoading, error: plansError, fetchPayoutPlans } = useRealtimePayoutPlans();
-  const { transactions, isLoading: transactionsLoading, error: transactionsError, fetchTransactions } =
-    useRealtimeTransactions();
+  const { payoutPlans, isLoading: plansLoading, isTimedOut: plansTimedOut, error: plansError, fetchPayoutPlans } = usePayoutPlansQuery();
+  const { transactions, isLoading: transactionsLoading, isTimedOut: transactionsTimedOut, error: transactionsError, fetchTransactions } =
+    useTransactionsQuery();
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +32,13 @@ export function useCalendarEvents() {
   const customDatesFetchedRef = useRef<string>('');
 
   const isLoading =
-    !cacheReady ||
-    (!hasCachedDataRef.current && (plansLoading || transactionsLoading) && events.length === 0);
+    events.length === 0 && (plansLoading || transactionsLoading);
+
+  const isTimedOut =
+    events.length === 0 &&
+    !plansLoading &&
+    !transactionsLoading &&
+    (plansTimedOut || transactionsTimedOut);
 
   useEffect(() => {
     if (!session?.user?.id) {
@@ -174,6 +179,7 @@ export function useCalendarEvents() {
   return {
     events,
     isLoading,
+    isTimedOut,
     error: events.length > 0 ? (isStale ? displayError ?? "Couldn't refresh. Showing saved data." : null) : displayError,
     isStale,
     refreshEvents,

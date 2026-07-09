@@ -19,7 +19,7 @@ import {
 } from 'lucide-react-native';
 import { useHaptics } from '@/hooks/useHaptics';
 import { logAnalyticsEvent } from '@/lib/firebase';
-import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { usePayoutPlansQuery } from '@/hooks/queries/usePayoutPlansQuery';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -60,7 +60,7 @@ function AISuggestionCard({
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
-  const { payoutPlans } = useRealtimePayoutPlans();
+  const { payoutPlans } = usePayoutPlansQuery();
 
   // Analyze user's payout patterns to make intelligent suggestions
   const analyzeUserPatterns = useCallback(() => {

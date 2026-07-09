@@ -10,6 +10,7 @@ import OnboardingQuestionnaireModal from '@/components/OnboardingQuestionnaireMo
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
+import Button from '@/components/Button';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import KYCCard from '@/components/KYCCard';
 const ImageCarousel = React.lazy(() =>
@@ -19,7 +20,7 @@ const ImageCarousel = React.lazy(() =>
 );
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
-import { warmConnection } from '@/lib/supabase-fetch';
+import { warmConnection, ensureSupabaseConnection } from '@/lib/supabase-fetch';
 import { router, useGlobalSearchParams, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
 import {
   HelpCircleIcon,
@@ -62,8 +63,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { usePin } from '@/contexts/PinContext';
-import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
-import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions';
+import { usePayoutPlansQuery } from '@/hooks/queries/usePayoutPlansQuery';
+import { useTransactionsQuery } from '@/hooks/queries/useTransactionsQuery';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 // import { usePaystackTransactions } from '@/hooks/usePaystackTransactions';
@@ -285,13 +286,13 @@ export default function HomeScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const insets = useSafeAreaInsets();
-  const { payoutPlans, isLoading: payoutPlansLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
+  const { payoutPlans, isLoading: payoutPlansLoading, isTimedOut: payoutPlansTimedOut, fetchPayoutPlans } = usePayoutPlansQuery();
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress, currentTier } = useKYCProgress();
   const { hasCreatedPayoutPlan, isLoading: hasCreatedPayoutPlanLoading } = useHasCreatedPayoutPlan();
   const navigation = useNavigation();
   const { requireAuth, isAuthenticated } = useRequireAuth();
-  const { transactions, isLoading: transactionsLoading, fetchTransactions } = useRealtimeTransactions();
+  const { transactions, isLoading: transactionsLoading, isTimedOut: transactionsTimedOut, fetchTransactions } = useTransactionsQuery();
   const { expensePlans, fetchExpensePlans } = useExpensePlans();
   const [activeBalanceTab, setActiveBalanceTab] = useState<'home' | 'plans' | 'payouts'>('home');
   const [visitedTabs, setVisitedTabs] = useState<Set<'home' | 'plans' | 'payouts'>>(
@@ -1546,23 +1547,47 @@ export default function HomeScreen() {
     [colors, isDark, textSizeMultiplier]
   );
 
+  const handleRetryFinancialData = useCallback(async () => {
+    if (!session?.user?.id) return;
+    await ensureSupabaseConnection({ skipProbe: true });
+    await Promise.allSettled([fetchPayoutPlans(), fetchTransactions()]);
+  }, [session?.user?.id, fetchPayoutPlans, fetchTransactions]);
+
+  const hasFinancialData = payoutPlans.length > 0 || transactions.length > 0;
+  const showFinancialLoader =
+    !hasFinancialData && (payoutPlansLoading || transactionsLoading);
+  const showFinancialRetry =
+    !hasFinancialData &&
+    !payoutPlansLoading &&
+    !transactionsLoading &&
+    (payoutPlansTimedOut || transactionsTimedOut);
+
   // Intercom not supported on web - check after all hooks
   if (!isSupported) {
     return null; // Don't render on web
   }
 
-  // Show loader only when we have no cached data to display yet.
-  if (
-    (payoutPlansLoading && payoutPlans.length === 0) ||
-    (transactionsLoading && transactions.length === 0)
-  ) {
+  if (showFinancialLoader) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <PlanmoniLoader 
-          blurBackground={true} 
-          size="medium" 
+        <PlanmoniLoader
+          blurBackground={true}
+          size="medium"
           description="Loading your financial data..."
         />
+      </SafeAreaView>
+    );
+  }
+
+  if (showFinancialRetry) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.loadRetryContainer}>
+          <Text style={[styles.loadRetryText, { color: colors.textSecondary }]}>
+            Couldn&apos;t load your data. Check your connection and try again.
+          </Text>
+          <Button title="Retry" onPress={handleRetryFinancialData} />
+        </View>
       </SafeAreaView>
     );
   }
@@ -3407,6 +3432,18 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   quickTopupSubtitle: {
     fontSize: getScaledFontSize(14, textSizeMultiplier),
+  },
+  loadRetryContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    gap: 16,
+  },
+  loadRetryText: {
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
+    textAlign: 'center',
+    lineHeight: 24,
   },
 
 });

@@ -9,7 +9,7 @@ import { EmergencyWithdrawalOption, useEmergencyWithdrawalOptions } from '@/hook
 import Button from '@/components/Button';
 import SafeFooter from '@/components/SafeFooter';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { usePayoutPlansQuery } from '@/hooks/queries/usePayoutPlansQuery';
 import { usePin } from '@/contexts/PinContext';
 import { BiometricService } from '@/lib/biometrics';
 import PinVerificationModal from '@/components/PinVerificationModal';
@@ -22,7 +22,7 @@ export default function EmergencyWithdrawalScreen() {
   const planAmount = params.amount as string;
   const haptics = useHaptics();
   const { processEmergencyWithdrawal, isLoading, calculateFee, calculateNetAmount } = useEmergencyWithdrawal();
-  const { payoutPlans } = useRealtimePayoutPlans();
+  const { payoutPlans } = usePayoutPlansQuery();
   const { emergencyBiometricEnabled, verifyEmergencyPin, checkBiometricSupport, hasEmergencyPin, hasAppLockPin } = usePin();
   const { options: withdrawalOptions, loading: optionsLoading, getDisplayName, getColorForType } = useEmergencyWithdrawalOptions();
   

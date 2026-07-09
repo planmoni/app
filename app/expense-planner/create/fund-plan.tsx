@@ -7,7 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useRealtimeWallet } from '@/hooks/useRealtimeWallet';
+import { useWalletQuery } from '@/hooks/queries/useWalletQuery';
 import PaystackLogo from '@/assets/banks/paystack.svg';
 
 export default function FundPlanScreen() {
@@ -16,7 +16,7 @@ export default function FundPlanScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const haptics = useHaptics();
-  const { availableBalance } = useRealtimeWallet();
+  const { availableBalance } = useWalletQuery();
   const params = useLocalSearchParams();
   const isSmallScreen = screenWidth < 380;
 

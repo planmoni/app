@@ -9,7 +9,7 @@ import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
-import { useRealtimeWallet } from '@/hooks/useRealtimeWallet';
+import { useWalletQuery } from '@/hooks/queries/useWalletQuery';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 
 export default function FundAmountScreen() {
@@ -18,7 +18,7 @@ export default function FundAmountScreen() {
   const haptics = useHaptics();
   const params = useLocalSearchParams();
   const { width: screenWidth } = useWindowDimensions();
-  const { availableBalance } = useRealtimeWallet();
+  const { availableBalance } = useWalletQuery();
   const { addFundsToPlan } = useExpensePlans();
   
   const planId = params.planId as string;

@@ -5,7 +5,8 @@ import { useMemo, useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useInsightsData } from '@/hooks/useInsightsData';
-import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { usePayoutPlansQuery } from '@/hooks/queries/usePayoutPlansQuery';
+import { ensureSupabaseConnection } from '@/lib/supabase-fetch';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import Button from '@/components/Button';
@@ -25,8 +26,8 @@ export default function InsightsScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { isAuthenticated } = useRequireAuth();
-  const { payoutPlans, isLoading: payoutPlansLoading } = useRealtimePayoutPlans();
-  const { metrics, trends, vaultStats, isLoading, error, refreshInsights } = useInsightsData(payoutPlans);
+  const { payoutPlans, isLoading: payoutPlansLoading, isTimedOut: payoutPlansTimedOut, fetchPayoutPlans } = usePayoutPlansQuery();
+  const { metrics, trends, vaultStats, isLoading, isTimedOut: insightsTimedOut, error, refreshInsights } = useInsightsData(payoutPlans);
   const { expensePlans } = useExpensePlans();
   const [customPayoutDates, setCustomPayoutDates] = useState<Record<string, string[]>>({});
   const [vaultStatsLimit, setVaultStatsLimit] = useState(5);
@@ -223,9 +224,19 @@ export default function InsightsScreen() {
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
+  const hasInsightsData = metrics.length > 0 || payoutPlans.length > 0;
   const showInitialLoader =
-    (isLoading && metrics.length === 0) ||
-    (payoutPlansLoading && payoutPlans.length === 0);
+    !hasInsightsData && (isLoading || payoutPlansLoading);
+  const showInsightsRetry =
+    !hasInsightsData &&
+    !isLoading &&
+    !payoutPlansLoading &&
+    (insightsTimedOut || payoutPlansTimedOut);
+
+  const handleRetryInsights = async () => {
+    await ensureSupabaseConnection({ skipProbe: true });
+    await Promise.allSettled([fetchPayoutPlans(), refreshInsights()]);
+  };
 
   if (showInitialLoader) {
     return (
@@ -243,6 +254,20 @@ export default function InsightsScreen() {
         </View>
         <View style={styles.loadingContainer}>
           <PlanmoniLoader size="medium" description="Loading insights data..." />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (showInsightsRetry) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Insights</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Couldn&apos;t load insights. Check your connection and try again.</Text>
+          <Button title="Retry" onPress={handleRetryInsights} style={styles.retryButton} />
         </View>
       </SafeAreaView>
     );

@@ -96,9 +96,35 @@ try {
   fail('expo install --check failed');
 }
 
+// 8. Financial data uses shared React Query layer (no per-hook realtime channels)
+const realtimeHookFiles = [
+  'hooks/useRealtimePayoutPlans.ts',
+  'hooks/useRealtimeTransactions.ts',
+  'hooks/useRealtimeWallet.ts',
+];
+for (const file of realtimeHookFiles) {
+  const src = read(file);
+  if (/\.channel\(/.test(src)) {
+    fail(`${file} still opens its own Supabase realtime channel`);
+  } else {
+    pass(`${file} delegates realtime to subscription manager`);
+  }
+}
+
+const layout = read('app/_layout.tsx');
+if (layout.includes('RealtimeSyncProvider')) {
+  pass('RealtimeSyncProvider mounted in app root');
+} else {
+  fail('RealtimeSyncProvider missing from app/_layout.tsx');
+}
+
 console.log('\nManual QA (device/emulator):');
 console.log('  - Cold start fresh install');
 console.log('  - Warm start / background resume');
+console.log('  - Background 30+ min → Home shows cached data within 1s');
+console.log('  - Background 30+ min → Insights/Calendar never stuck on full-screen loader');
+console.log('  - Airplane mode resume → stale data + retry banner, not infinite spinner');
+console.log('  - Pull-to-refresh on Home caps at 6s');
 console.log('  - Post-OTA reopen');
 console.log('  - Home carousel + AI assistant animations\n');
 

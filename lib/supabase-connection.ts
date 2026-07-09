@@ -3,7 +3,9 @@ import { reconnectSupabase, type ReconnectResult } from '@/lib/supabase-reconnec
 import { withTimeout } from '@/lib/with-timeout';
 
 export const ENSURE_CONNECTION_MAX_MS = 6000;
+export const GET_SESSION_TIMEOUT_MS = 5000;
 export const PROBE_TIMEOUT_MS = 5000;
+export const ENSURE_WALL_CLOCK_MAX_MS = 8000;
 
 export type ConnectionStatus = {
   ok: boolean;
@@ -24,8 +26,19 @@ export function getSupabaseConnectionStatus(): ConnectionStatus {
   return lastStatus;
 }
 
+async function getSessionWithTimeout(): Promise<{
+  session: { user?: { id?: string } } | null;
+}> {
+  const { data } = await withTimeout(
+    supabase.auth.getSession(),
+    GET_SESSION_TIMEOUT_MS,
+    'getSession'
+  );
+  return { session: data.session };
+}
+
 async function runHealthProbe(): Promise<void> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { session } = await getSessionWithTimeout();
   if (!session?.user?.id) {
     return;
   }
@@ -50,7 +63,7 @@ export async function ensureSupabaseConnection(
     return ensureInFlight;
   }
 
-  ensureInFlight = (async () => {
+  const runEnsure = async (): Promise<ConnectionStatus> => {
     let reconnect: ReconnectResult | null = null;
 
     if (!options.lightweight) {
@@ -81,7 +94,23 @@ export async function ensureSupabaseConnection(
       return lastStatus;
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
+    let session: { user?: { id?: string } } | null = null;
+    try {
+      ({ session } = await getSessionWithTimeout());
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (__DEV__) {
+        console.warn('[supabase] getSession timed out during ensure:', message);
+      }
+      lastStatus = {
+        ok: lastStatus.ok,
+        lastError: message,
+        lastSuccessAt: lastStatus.lastSuccessAt,
+        reconnect,
+      };
+      return lastStatus;
+    }
+
     const hasSession = !!session?.user?.id;
 
     if (!options.skipProbe && hasSession) {
@@ -107,7 +136,24 @@ export async function ensureSupabaseConnection(
     }
 
     return lastStatus;
-  })().finally(() => {
+  };
+
+  ensureInFlight = Promise.race([
+    runEnsure(),
+    new Promise<ConnectionStatus>((resolve) =>
+      setTimeout(() => {
+        if (__DEV__) {
+          console.warn('[supabase] ensureSupabaseConnection wall-clock cap reached');
+        }
+        resolve({
+          ok: lastStatus.ok,
+          lastError: 'Connection ensure timed out',
+          lastSuccessAt: lastStatus.lastSuccessAt,
+          reconnect: null,
+        });
+      }, ENSURE_WALL_CLOCK_MAX_MS)
+    ),
+  ]).finally(() => {
     ensureInFlight = null;
   });
 

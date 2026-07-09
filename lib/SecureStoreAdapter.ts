@@ -181,8 +181,7 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
 
   async removeItem(key: string): Promise<void> {
     try {
-      // Clear cache
-      this.clearCache();
+      this.clearCacheEntry(key);
 
       // Remove from appropriate storage
       if (this.isSensitiveKey(key)) {

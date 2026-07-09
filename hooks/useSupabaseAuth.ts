@@ -21,6 +21,33 @@ type AuthResult = {
   error?: string;
 };
 
+const AUTH_EXPIRED_PATTERNS = [
+  'refresh_token_not_found',
+  'invalid refresh token',
+  'jwt expired',
+  'session expired',
+  'session_not_found',
+  'authsessionmissingerror',
+  'session missing',
+];
+
+function isDefinitiveAuthExpiredError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return AUTH_EXPIRED_PATTERNS.some((pattern) => lower.includes(pattern));
+}
+
+function isTransientSessionError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('timed out') ||
+    lower.includes('timeout') ||
+    lower.includes('network') ||
+    lower.includes('fetch failed') ||
+    lower.includes('failed to fetch') ||
+    lower.includes('connection')
+  );
+}
+
 export function useSupabaseAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -291,8 +318,16 @@ export function useSupabaseAuth() {
         const { data: { session: currentAuthSession }, error: sessionError } = currentSession;
 
         if (sessionError) {
-          console.log('⚠️ Session validation error:', sessionError.message);
-          // Session is invalid, trigger session expired modal
+          const message = sessionError.message ?? String(sessionError);
+          if (isTransientSessionError(message)) {
+            console.warn('⚠️ Transient session validation error (keeping session):', message);
+            return;
+          }
+          if (!isDefinitiveAuthExpiredError(message)) {
+            console.warn('⚠️ Unclassified session error (keeping session):', message);
+            return;
+          }
+          console.log('⚠️ Session validation error (expired):', message);
           if (mounted) {
             setSession(null);
             setError('JWT expired');
@@ -319,8 +354,12 @@ export function useSupabaseAuth() {
               const { data, error: refreshError } = await supabase.auth.refreshSession();
 
               if (refreshError) {
+                const refreshMessage = refreshError.message ?? String(refreshError);
+                if (isTransientSessionError(refreshMessage)) {
+                  console.warn('⚠️ Transient refresh error (keeping session):', refreshMessage);
+                  return;
+                }
                 console.error('❌ Failed to refresh session:', refreshError);
-                // Trigger session expired modal
                 await prepareExpiredSessionState(currentAuthSession);
                 if (mounted) {
                   setSession(null);

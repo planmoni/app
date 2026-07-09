@@ -31,7 +31,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { usePayoutPlansQuery } from '@/hooks/queries/usePayoutPlansQuery';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
@@ -51,7 +51,7 @@ type TabType = 'all' | 'active' | 'cancelled' | 'completed';
 
 export default function AllPayoutsScreen() {
   const { colors, isDark } = useTheme();
-  const { payoutPlans, isLoading, fetchPayoutPlans } = useRealtimePayoutPlans();
+  const { payoutPlans, isLoading, fetchPayoutPlans } = usePayoutPlansQuery();
   const { showBalances, balance, availableBalance } = useBalance();
   const haptics = useHaptics();
   const { hasCreatedPayoutPlan } = useHasCreatedPayoutPlan();

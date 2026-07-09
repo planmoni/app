@@ -1,5 +1,6 @@
 import Card from '@/components/Card';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
+import Button from '@/components/Button';
 import { router } from 'expo-router';
 import { TriangleAlert as AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, Plus } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
@@ -22,7 +23,7 @@ export default function CalendarScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { session } = useAuth();
-  const { events, isLoading, error, isStale, refreshEvents } = useCalendarEvents();
+  const { events, isLoading, isTimedOut, error, isStale, refreshEvents } = useCalendarEvents();
   const [activeView, setActiveView] = useState<ViewType>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -226,6 +227,22 @@ export default function CalendarScreen() {
         </View>
         <View style={styles.loadingContainer}>
           <PlanmoniLoader size="medium" description="Loading calendar events..." />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (isTimedOut && events.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Calendar</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.errorText, { color: colors.textSecondary }]}>
+            Couldn&apos;t load calendar events. Check your connection and try again.
+          </Text>
+          <Button title="Retry" onPress={refreshEvents} />
         </View>
       </SafeAreaView>
     );

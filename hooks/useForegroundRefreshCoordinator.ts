@@ -1,6 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAppForeground } from '@/hooks/useAppForeground';
 import { ensureSupabaseConnection } from '@/lib/supabase-connection';
+import { queryClient } from '@/contexts/QueryClientProvider';
+import { isFinancialQueryKey } from '@/lib/queries/keys';
 import NetInfo from '@react-native-community/netinfo';
 
 export type ForegroundRefreshTier = 1 | 2 | 3;
@@ -33,16 +35,13 @@ export function getForegroundRefetchRegistrySize(): number {
   return registry.size;
 }
 
-async function runStaggeredRefresh(): Promise<void> {
-  const status = await ensureSupabaseConnection({ skipProbe: true });
+async function invalidateFinancialQueries(): Promise<void> {
+  await queryClient.invalidateQueries({
+    predicate: (query) => isFinancialQueryKey(query.queryKey),
+  });
+}
 
-  if (!status.ok && status.reconnect?.isAuthExpired) {
-    if (__DEV__) {
-      console.warn('[foreground] Skipping refetch — session expired');
-    }
-    return;
-  }
-
+async function runStaggeredLegacyRefresh(): Promise<void> {
   const tiers: ForegroundRefreshTier[] = [1, 2, 3];
   for (const tier of tiers) {
     const entries = [...registry.entries()].filter(([, e]) => e.tier === tier);
@@ -56,9 +55,44 @@ async function runStaggeredRefresh(): Promise<void> {
   }
 }
 
+async function runForegroundRefresh(): Promise<void> {
+  const startedAt = Date.now();
+
+  if (__DEV__) {
+    console.log('[resume] foreground → reconnect start');
+  }
+
+  const status = await ensureSupabaseConnection({ skipProbe: true });
+  const reconnectMs = Date.now() - startedAt;
+
+  if (!status.ok && status.reconnect?.isAuthExpired) {
+    if (__DEV__) {
+      console.warn(`[resume] reconnect(${reconnectMs}ms) → auth expired, skip refresh`);
+    }
+    return;
+  }
+
+  if (__DEV__) {
+    console.log(`[resume] reconnect(${reconnectMs}ms) → invalidate financial queries`);
+  }
+
+  const invalidateStarted = Date.now();
+  await invalidateFinancialQueries();
+
+  if (__DEV__) {
+    console.log(`[resume] invalidate(${Date.now() - invalidateStarted}ms) → legacy registry`);
+  }
+
+  await runStaggeredLegacyRefresh();
+
+  if (__DEV__) {
+    console.log(`[resume] foreground refresh complete (${Date.now() - startedAt}ms)`);
+  }
+}
+
 /**
  * Mount once at app root. On foreground resume, ensure connection health
- * then run registered refetches in staggered tiers.
+ * then invalidate shared financial queries and run legacy refetches.
  */
 export function useForegroundRefreshCoordinator(): void {
   const foregroundTick = useAppForeground();
@@ -74,7 +108,7 @@ export function useForegroundRefreshCoordinator(): void {
     if (runningRef.current) return;
     runningRef.current = true;
 
-    void runStaggeredRefresh().finally(() => {
+    void runForegroundRefresh().finally(() => {
       runningRef.current = false;
     });
   }, [foregroundTick]);
@@ -94,7 +128,7 @@ export function useForegroundRefreshCoordinator(): void {
         wasOfflineRef.current = false;
         if (runningRef.current) return;
         runningRef.current = true;
-        void runStaggeredRefresh().finally(() => {
+        void runForegroundRefresh().finally(() => {
           runningRef.current = false;
         });
       }

@@ -8,15 +8,16 @@ import { useState, useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useRealtimeTransactions, Transaction } from '@/hooks/useRealtimeTransactions';
-import { useRealtimePayoutPlans } from '@/hooks/useRealtimePayoutPlans';
+import { useTransactionsQuery, type Transaction } from '@/hooks/queries/useTransactionsQuery';
+import { usePayoutPlansQuery } from '@/hooks/queries/usePayoutPlansQuery';
 import { formatTransactionType } from '@/lib/formatters';
 type TransactionType = 'all' | 'deposits' | 'payouts' | 'withdrawals';
 
 export default function TransactionsScreen() {
   const { colors, isDark } = useTheme();
-  const { transactions, isLoading } = useRealtimeTransactions();
-  const { payoutPlans } = useRealtimePayoutPlans();  const [activeType, setActiveType] = useState<TransactionType>('all');
+  const { transactions, isLoading } = useTransactionsQuery();
+  const { payoutPlans } = usePayoutPlansQuery();
+  const [activeType, setActiveType] = useState<TransactionType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
