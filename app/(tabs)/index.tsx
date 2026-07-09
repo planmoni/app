@@ -13,11 +13,7 @@ import PlanmoniLoader from '@/components/PlanmoniLoader';
 import Button from '@/components/Button';
 import PendingActionsCard from '@/components/PendingActionsCard';
 import KYCCard from '@/components/KYCCard';
-const ImageCarousel = React.lazy(() =>
-  import('@/components/ImageCarousel').then((module) => ({
-    default: module.default ?? (() => null),
-  }))
-);
+const ImageCarousel = React.lazy(() => import('@/components/ImageCarousel'));
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 import { warmConnection, ensureSupabaseConnection } from '@/lib/supabase-fetch';
