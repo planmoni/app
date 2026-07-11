@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Modal, View, Text, StyleSheet, Pressable, Dimensions, Image } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { Building2, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -12,7 +12,6 @@ import { router } from 'expo-router';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { safeHavenService } from '@/lib/safehaven-service';
 import SafeHavenOTPModal from '@/components/SafeHavenOTPModal';
-import { supabase } from '@/lib/supabase';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 
 interface ClaimAccountModalProps {
@@ -23,8 +22,6 @@ interface ClaimAccountModalProps {
   accountName?: string;
   onClaim?: () => void;
 }
-
-const { width } = Dimensions.get('window');
 
 export default function ClaimAccountModal({
   isVisible,
@@ -40,7 +37,7 @@ export default function ClaimAccountModal({
   const { session } = useAuth();
   const { requireAuth, isAuthenticated } = useRequireAuth();
   const { formData } = useKYCData();
-  const { checkTierCompletion, progress } = useKYCProgress();
+  const { checkTierCompletion } = useKYCProgress();
   const styles = createStyles(colors, isDark);
   
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
@@ -48,103 +45,21 @@ export default function ClaimAccountModal({
   const [identityId, setIdentityId] = useState<string | null>(null);
   const [nin, setNin] = useState<string>('');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
-  const [isCheckingAccount, setIsCheckingAccount] = useState(false);
-  const [existingAccount, setExistingAccount] = useState<{ account_number: string; account_name?: string; status?: string } | null>(null);
   const hasNavigatedRef = useRef(false);
 
-  // Reset navigation flag when modal closes
   useEffect(() => {
     if (!isVisible) {
       hasNavigatedRef.current = false;
+      setShowOTPModal(false);
+      setIdentityId(null);
+      return;
     }
-  }, [isVisible]);
 
-  // Get NIN and phone number from KYC data when modal opens
-  useEffect(() => {
-    if (isVisible && formData) {
+    if (formData) {
       setNin(formData.nin || '');
       setPhoneNumber(formData.phone_number || session?.user?.user_metadata?.phone_number || '');
     }
   }, [isVisible, formData, session]);
-
-  // Check for existing account when modal opens
-  // Skip this check for unauthenticated users
-  useEffect(() => {
-    let isMounted = true;
-    
-    if (isVisible && session?.user?.id && isAuthenticated) {
-      const checkBeforeShowing = async () => {
-        setIsCheckingAccount(true);
-        try {
-          const { data, error } = await supabase
-            .from('safehaven_accounts')
-            .select('id, account_number, account_name, status, is_deleted')
-            .eq('user_id', session.user.id)
-            .eq('is_deleted', false)
-            .not('account_number', 'ilike', 'PENDING_%')
-            .maybeSingle();
-
-          if (!isMounted) return;
-
-          if (!error && data && data.account_number && !data.account_number.startsWith('PENDING_')) {
-            // Account exists - close modal immediately
-            console.log('[ClaimAccountModal] Account exists, closing modal immediately');
-            
-            // Prevent duplicate navigation
-            if (hasNavigatedRef.current) {
-              setIsCheckingAccount(false);
-              return;
-            }
-            
-            setExistingAccount({
-              account_number: data.account_number,
-              account_name: data.account_name,
-              status: data.status
-            });
-            
-            // Close modal first
-            onClose();
-            
-            // Only navigate if onClaim callback is provided (let parent handle navigation)
-            if (onClaim && !hasNavigatedRef.current) {
-              hasNavigatedRef.current = true;
-              setTimeout(() => {
-                if (isMounted) {
-                  onClaim();
-                }
-              }, 150);
-            }
-            setIsCheckingAccount(false);
-            return;
-          }
-          
-          // No account exists - allow modal to show
-          if (isMounted) {
-            setExistingAccount(null);
-            setIsCheckingAccount(false);
-          }
-        } catch (error) {
-          console.error('[ClaimAccountModal] Error checking account:', error);
-          if (isMounted) {
-            setExistingAccount(null);
-            setIsCheckingAccount(false);
-          }
-        }
-      };
-      
-      checkBeforeShowing();
-    } else if (!isVisible) {
-      // Reset state when modal closes
-      setExistingAccount(null);
-      setIsCheckingAccount(false);
-    }
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [isVisible, session?.user?.id, isAuthenticated, onClose, onClaim]);
-
-
   const handleClose = () => {
     if (isCreatingAccount) return; // Prevent closing while creating account
     haptics.lightImpact();
@@ -278,26 +193,12 @@ export default function ClaimAccountModal({
       router.push('/kyc/tier1');
       return;
     }
-    
-    // First check if account already exists
-    if (existingAccount?.account_number && !existingAccount.account_number.startsWith('PENDING_')) {
-      showToast('Your account is already available!', 'success');
-      onClose();
-      if (onClaim) {
-        onClaim();
-      } else {
-        router.push('/add-funds');
-      }
-      return;
-    }
 
-    // Check if we have required data
     if (!nin || !phoneNumber) {
       showToast('NIN and phone number are required. Please complete your KYC first.', 'error');
       return;
     }
 
-    // Start the account creation process only if no account exists
     await initializeNINVerification();
   };
 
@@ -307,23 +208,9 @@ export default function ClaimAccountModal({
     router.push('/kyc/tier1');
   };
 
-  // Don't show modal if we're still checking for account or if account exists
-  // Also reset state when modal becomes invisible
-  useEffect(() => {
-    if (!isVisible) {
-      setExistingAccount(null);
-      setIsCheckingAccount(false);
-      setShowOTPModal(false);
-      setIdentityId(null);
-      hasNavigatedRef.current = false;
-    }
-  }, [isVisible]);
-
-  const shouldShowModal = isVisible && !isCheckingAccount && !existingAccount?.account_number;
-
   return (
     <Modal
-      visible={shouldShowModal}
+      visible={isVisible}
       animationType="slide"
       transparent={true}
       onRequestClose={onClose}
@@ -435,27 +322,15 @@ export default function ClaimAccountModal({
               return (
                 <>
             <Button
-              title={
-                isCheckingAccount 
-                  ? 'Checking account...' 
-                  : isCreatingAccount 
-                    ? 'Creating account...' 
-                    : existingAccount?.account_number && !existingAccount.account_number.startsWith('PENDING_')
-                      ? 'View Account'
-                      : 'Claim bank account'
-              }
+              title={isCreatingAccount ? 'Creating account...' : 'Claim bank account'}
               onPress={handleClaim}
               hapticType="medium"
               variant="primary"
-              disabled={
-                isCreatingAccount || 
-                isCheckingAccount || 
-                (!existingAccount?.account_number && (!nin || !phoneNumber))
-              }
-              isLoading={(isCreatingAccount && !showOTPModal) || isCheckingAccount}
+              disabled={isCreatingAccount || !nin || !phoneNumber}
+              isLoading={isCreatingAccount && !showOTPModal}
             />
             
-            {!existingAccount?.account_number && (!nin || !phoneNumber) && (
+            {(!nin || !phoneNumber) && (
               <Text style={styles.warningText}>
                 Please complete Tier 1 verification (NIN and phone number) to create your account.
               </Text>
