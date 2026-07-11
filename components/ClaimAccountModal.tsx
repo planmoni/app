@@ -51,11 +51,22 @@ export default function ClaimAccountModal({
   const [isCheckingAccount, setIsCheckingAccount] = useState(false);
   const [existingAccount, setExistingAccount] = useState<{ account_number: string; account_name?: string; status?: string } | null>(null);
   const hasNavigatedRef = useRef(false);
+  const accountCheckStartedRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  const onClaimRef = useRef(onClaim);
 
-  // Reset navigation flag when modal closes
+  onCloseRef.current = onClose;
+  onClaimRef.current = onClaim;
+
+  // Reset state when modal closes
   useEffect(() => {
     if (!isVisible) {
       hasNavigatedRef.current = false;
+      accountCheckStartedRef.current = false;
+      setExistingAccount(null);
+      setIsCheckingAccount(false);
+      setShowOTPModal(false);
+      setIdentityId(null);
     }
   }, [isVisible]);
 
@@ -67,82 +78,77 @@ export default function ClaimAccountModal({
     }
   }, [isVisible, formData, session]);
 
-  // Check for existing account when modal opens
-  // Skip this check for unauthenticated users
+  // Check for existing account once when the modal opens.
+  // Callbacks are read from refs so parent re-renders do not retrigger this check.
   useEffect(() => {
+    if (!isVisible || !session?.user?.id || !isAuthenticated) {
+      return;
+    }
+
+    if (accountCheckStartedRef.current) {
+      return;
+    }
+    accountCheckStartedRef.current = true;
+
     let isMounted = true;
-    
-    if (isVisible && session?.user?.id && isAuthenticated) {
-      const checkBeforeShowing = async () => {
-        setIsCheckingAccount(true);
-        try {
-          const { data, error } = await supabase
-            .from('safehaven_accounts')
-            .select('id, account_number, account_name, status, is_deleted')
-            .eq('user_id', session.user.id)
-            .eq('is_deleted', false)
-            .not('account_number', 'ilike', 'PENDING_%')
-            .maybeSingle();
 
-          if (!isMounted) return;
+    const checkBeforeShowing = async () => {
+      setIsCheckingAccount(true);
+      try {
+        const { data, error } = await supabase
+          .from('safehaven_accounts')
+          .select('id, account_number, account_name, status, is_deleted')
+          .eq('user_id', session.user.id)
+          .eq('is_deleted', false)
+          .not('account_number', 'ilike', 'PENDING_%')
+          .maybeSingle();
 
-          if (!error && data && data.account_number && !data.account_number.startsWith('PENDING_')) {
-            // Account exists - close modal immediately
-            console.log('[ClaimAccountModal] Account exists, closing modal immediately');
-            
-            // Prevent duplicate navigation
-            if (hasNavigatedRef.current) {
-              setIsCheckingAccount(false);
-              return;
-            }
-            
-            setExistingAccount({
-              account_number: data.account_number,
-              account_name: data.account_name,
-              status: data.status
-            });
-            
-            // Close modal first
-            onClose();
-            
-            // Only navigate if onClaim callback is provided (let parent handle navigation)
-            if (onClaim && !hasNavigatedRef.current) {
-              hasNavigatedRef.current = true;
-              setTimeout(() => {
-                if (isMounted) {
-                  onClaim();
-                }
-              }, 150);
-            }
+        if (!isMounted) return;
+
+        if (!error && data && data.account_number && !data.account_number.startsWith('PENDING_')) {
+          if (hasNavigatedRef.current) {
             setIsCheckingAccount(false);
             return;
           }
-          
-          // No account exists - allow modal to show
-          if (isMounted) {
-            setExistingAccount(null);
-            setIsCheckingAccount(false);
+
+          setExistingAccount({
+            account_number: data.account_number,
+            account_name: data.account_name,
+            status: data.status,
+          });
+
+          onCloseRef.current();
+
+          if (onClaimRef.current && !hasNavigatedRef.current) {
+            hasNavigatedRef.current = true;
+            setTimeout(() => {
+              if (isMounted) {
+                onClaimRef.current?.();
+              }
+            }, 150);
           }
-        } catch (error) {
-          console.error('[ClaimAccountModal] Error checking account:', error);
-          if (isMounted) {
-            setExistingAccount(null);
-            setIsCheckingAccount(false);
-          }
+
+          setIsCheckingAccount(false);
+          return;
         }
-      };
-      
-      checkBeforeShowing();
-    } else if (!isVisible) {
-      // Reset state when modal closes
-      setExistingAccount(null);
-      setIsCheckingAccount(false);
-    }
-    
+
+        setExistingAccount(null);
+        setIsCheckingAccount(false);
+      } catch (error) {
+        console.error('[ClaimAccountModal] Error checking account:', error);
+        if (isMounted) {
+          setExistingAccount(null);
+          setIsCheckingAccount(false);
+        }
+      }
+    };
+
+    void checkBeforeShowing();
+
     return () => {
       isMounted = false;
     };
-  }, [isVisible, session?.user?.id, isAuthenticated, onClose, onClaim]);
+  }, [isVisible, session?.user?.id, isAuthenticated]);
 
 
   const handleClose = () => {
@@ -307,23 +313,9 @@ export default function ClaimAccountModal({
     router.push('/kyc/tier1');
   };
 
-  // Don't show modal if we're still checking for account or if account exists
-  // Also reset state when modal becomes invisible
-  useEffect(() => {
-    if (!isVisible) {
-      setExistingAccount(null);
-      setIsCheckingAccount(false);
-      setShowOTPModal(false);
-      setIdentityId(null);
-      hasNavigatedRef.current = false;
-    }
-  }, [isVisible]);
-
-  const shouldShowModal = isVisible && !isCheckingAccount && !existingAccount?.account_number;
-
   return (
     <Modal
-      visible={shouldShowModal}
+      visible={isVisible}
       animationType="slide"
       transparent={true}
       onRequestClose={onClose}

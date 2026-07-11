@@ -166,10 +166,14 @@ export default function BankTransferScreen() {
     setShowClaimModal(true);
   };
 
-  const handleClaimSuccess = () => {
+  const handleClaimSuccess = useCallback(() => {
     setShowClaimModal(false);
     void fetchAccount();
-  };
+  }, [fetchAccount]);
+
+  const handleCloseClaimModal = useCallback(() => {
+    setShowClaimModal(false);
+  }, []);
 
   const handleRefreshBalance = async () => {
     haptics.lightImpact();
@@ -288,7 +292,7 @@ export default function BankTransferScreen() {
 
       <ClaimAccountModal
         isVisible={showClaimModal}
-        onClose={() => setShowClaimModal(false)}
+        onClose={handleCloseClaimModal}
         accountNumber="01177 XXXXX"
         bankName="SAFEHAVEN MFB"
         accountName={`PLANMONI/${(session?.user?.user_metadata?.first_name || 'YOUR').toUpperCase()} ${(session?.user?.user_metadata?.last_name || 'NAME').toUpperCase()}`}
