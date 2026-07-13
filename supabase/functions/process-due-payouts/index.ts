@@ -70,6 +70,26 @@ function isPayoutSkipMessage(msg: string): boolean {
   return /already|duplicate|skipping|manual review required|manual reconciliation/i.test(msg);
 }
 
+function normalizeScheduledDate(value: string | Date | null | undefined): string {
+  if (!value) return new Date().toISOString().split("T")[0];
+  const s = typeof value === "string" ? value : value.toISOString();
+  return s.split("T")[0];
+}
+
+type ClaimPayoutInstallmentResult = {
+  success?: boolean;
+  skip?: boolean;
+  error?: string;
+  already_completed?: boolean;
+  already_claimed?: boolean;
+  claimed?: boolean;
+  automated_payout_id?: string;
+  transaction_id?: string;
+  payment_reference?: string;
+  amount?: number;
+  may_call_safehaven?: boolean;
+};
+
 function buildProcessDuePayoutsResult(summary: ProcessDuePayoutsRunSummary) {
   return {
     executionId: summary.executionId,
@@ -204,7 +224,8 @@ async function processDuePayouts() {
         console.log(`[${executionId}] ✅ Payout done: ${plan.name} in ${Date.now() - planStart}ms`);
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : String(error);
-        const isSkip = isPayoutSkipMessage(msg);
+        const isSkip =
+          isPayoutSkipMessage(msg) || /is not defined|referenceerror/i.test(msg);
         if (isSkip) {
           summary.totals.payouts_skipped++;
           summary.payouts.push({ planId: plan.plan_id, name: plan.name, status: "skipped", error: msg });
@@ -379,136 +400,59 @@ async function processSinglePayout(plan: any) {
   if (planCheck.completed_payouts >= planCheck.duration) {
     throw new Error(`Payout plan ${plan.plan_id} is already completed`);
   }
-  
-  // IDEMPOTENCY CHECK: Check if automated_payout already exists for this plan + scheduled_date
-  // This prevents duplicate processing if the function is called multiple times.
-  // NOTE: "failed" is intentionally included so we can inspect transfer_reference before
-  // deciding whether a retry is safe (no transfer sent yet) or dangerous (money may be in flight).
-  const scheduledDate = plan.next_payout_date || planCheck.next_payout_date;
-  // Eligibility (daily / weekly / biweekly / custom / weekly_specific, etc.) is decided in
-  // get_due_payout_plans + next_payout_date. Re-applying calendar/weekday checks here caused
-  // false "skipping" (UTC vs local, weekly_specific DOW vs stored next_payout_date).
-  const { data: existingPayout, error: existingPayoutError } = await supabase
-    .from("automated_payouts")
-    .select("id, status, transfer_reference, metadata")
-    .eq("payout_plan_id", plan.plan_id)
-    .eq("scheduled_date", scheduledDate)
-    .in("status", ["pending", "processing", "completed", "failed"])
-    .maybeSingle();
-  
-  if (existingPayoutError) {
-    console.error("Error checking for existing payout:", existingPayoutError);
-    // Continue - don't fail on check error, let create_automated_payout handle it
-  }
-  
-  let payoutId: string;
-  
-  if (existingPayout) {
-    // IDEMPOTENCY: Payout already exists - use existing one
-    console.log(`✅ Automated payout already exists for plan ${plan.plan_id} on ${scheduledDate} (id: ${existingPayout.id}, status: ${existingPayout.status})`);
-    payoutId = existingPayout.id;
-    
-    // If already completed, skip processing
-    if (existingPayout.status === "completed") {
-      console.log(`⏭️ Payout ${payoutId} already completed, skipping processing`);
-      return;
-    }
 
-    // SAFETY: If the record is "failed" but a transfer_reference is set, the SafeHaven POST
-    // was accepted before the failure occurred. Re-initiating would cause a double payment.
-    // Log a critical alert and skip — this needs manual reconciliation with SafeHaven.
-    if (existingPayout.status === "failed") {
-      if (existingPayout.transfer_reference) {
-        console.error(
-          `🚨 DOUBLE-PAYMENT GUARD: Payout ${payoutId} is "failed" but has transfer_reference ` +
-          `"${existingPayout.transfer_reference}". The SafeHaven transfer may have succeeded. ` +
-          `Skipping retry to prevent double payment. MANUAL REVIEW REQUIRED for plan ${plan.plan_id}.`
-        );
-        throw new Error(
-          `skipping: daily payout ${payoutId} is failed with an existing transfer_reference — manual reconciliation required`
-        );
-      }
-      // No transfer_reference: transfer was never accepted by SafeHaven. Safe to retry.
-      console.log(`↩️ Payout ${payoutId} is "failed" with no transfer_reference — safe to retry. Resetting to pending.`);
-      await supabase
-        .from("automated_payouts")
-        .update({ status: "pending", error_message: null })
-        .eq("id", payoutId);
-    }
-    
-    // If already processing, check if we should continue or skip.
-    // Use a 4-hour window: SafeHaven interbank transfers routinely stay "Pending" for hours
-    // and a 30-minute retry window was triggering fresh transfers on in-flight payouts.
-    if (existingPayout.status === "processing") {
-      const { data: payoutDetails } = await supabase
-        .from("automated_payouts")
-        .select("updated_at, execution_date")
-        .eq("id", payoutId)
-        .single();
-      
-      if (payoutDetails) {
-        const updatedAt = new Date(payoutDetails.updated_at);
-        const now = new Date();
-        const processingTime = now.getTime() - updatedAt.getTime();
-        const fourHours = 4 * 60 * 60 * 1000; // SafeHaven transfers can stay Pending for hours
-        
-        if (processingTime < fourHours) {
-          console.log(`⏭️ Payout ${payoutId} is processing (${Math.round(processingTime / 60000)}min ago) — skipping to avoid duplicate SafeHaven call`);
-          return;
-        } else {
-          console.log(`⚠️ Payout ${payoutId} has been processing for ${Math.round(processingTime / 60000)} minutes. Checking transfer_reference before continuing...`);
-          // Even when "stuck", only re-initiate if no transfer was ever sent.
-          const { data: stuckCheck } = await supabase
-            .from("automated_payouts")
-            .select("transfer_reference")
-            .eq("id", payoutId)
-            .single();
-          if (stuckCheck?.transfer_reference) {
-            console.error(
-              `🚨 DOUBLE-PAYMENT GUARD: Payout ${payoutId} is stuck in "processing" but already has ` +
-              `transfer_reference "${stuckCheck.transfer_reference}". Skipping re-initiation. MANUAL REVIEW REQUIRED.`
-            );
-            throw new Error(
-              `skipping: payout ${payoutId} stuck in processing with existing transfer_reference — manual reconciliation required`
-            );
-          }
-          console.log(`⚠️ Payout ${payoutId} stuck with no transfer_reference — safe to continue.`);
-        }
-      }
-    }
-  } else {
-    // Create new automated payout record
-    // Note: create_automated_payout RPC function should also have idempotency checks
-    const { data: newPayoutId, error: createError } = await supabase.rpc("create_automated_payout", {
-      p_plan_id: plan.plan_id,
-      p_scheduled_date: scheduledDate
-    });
-    
-    if (createError) {
-      // Check if error is due to duplicate (idempotency)
-      if (createError.message?.includes("already exists") || createError.message?.includes("duplicate")) {
-        // Try to get the existing payout
-        const { data: duplicatePayout } = await supabase
-          .from("automated_payouts")
-          .select("id, status")
-          .eq("payout_plan_id", plan.plan_id)
-          .eq("scheduled_date", scheduledDate)
-          .maybeSingle();
-        
-        if (duplicatePayout) {
-          console.log(`✅ Duplicate detected, using existing payout ${duplicatePayout.id}`);
-          payoutId = duplicatePayout.id;
-        } else {
-          throw new Error(`Failed to create automated payout record: ${createError.message}`);
-        }
-      } else {
-        throw new Error(`Failed to create automated payout record: ${createError.message}`);
-      }
-    } else {
-      payoutId = newPayoutId;
-      console.log(`✅ Created new automated payout record: ${payoutId}`);
-    }
+  // Atomic claim: wallet debit + automated_payouts + transactions (single Postgres transaction).
+  const { data: claimRaw, error: claimError } = await supabase.rpc("claim_payout_installment", {
+    p_plan_id: plan.plan_id,
+    p_payment_reference: null,
+  });
+
+  if (claimError) {
+    throw new Error(`claim_payout_installment failed: ${claimError.message}`);
   }
+
+  const claim = claimRaw as ClaimPayoutInstallmentResult;
+
+  if (!claim?.success) {
+    const err = claim?.error || "claim_payout_installment failed";
+    if (claim?.skip) {
+      throw new Error(`skipping: ${err}`);
+    }
+    throw new Error(err);
+  }
+
+  if (claim.already_completed) {
+    console.log(`⏭️ Installment already completed for plan ${plan.plan_id}`);
+    return;
+  }
+
+  const payoutId = claim.automated_payout_id as string;
+  const actualPayoutAmount = Number(claim.amount);
+  const plannedReference = claim.payment_reference as string;
+  let transactionId: string | undefined = claim.transaction_id;
+  const mayCallSafehaven =
+    claim.claimed === true ||
+    (claim.already_claimed === true && claim.may_call_safehaven === true);
+
+  if (!payoutId || !plannedReference || !Number.isFinite(actualPayoutAmount)) {
+    throw new Error("claim_payout_installment returned incomplete data");
+  }
+
+  if (claim.already_claimed && claim.may_call_safehaven === false) {
+    console.log(
+      `⏭️ Payout ${payoutId} already claimed and SafeHaven transfer already initiated — skipping`
+    );
+    return;
+  }
+
+  if (!mayCallSafehaven) {
+    console.log(`⏭️ No SafeHaven call needed for payout ${payoutId}`);
+    return;
+  }
+
+  console.log(
+    `✅ Claimed installment for plan ${plan.plan_id}: payout=${payoutId} amount=₦${actualPayoutAmount} ref=${plannedReference}`
+  );
 
   // 2. Get payout account details
   const { data: payoutAccount, error: payoutError } = await supabase
@@ -533,11 +477,6 @@ async function processSinglePayout(plan: any) {
     );
   }
   payoutAccount.safehaven_bank_code = safehavenCode;
-
-  if (!mayCallSafehaven) {
-    console.log(`⏭️ No SafeHaven call needed for payout ${payoutId}`);
-    return;
-  }
 
   // 5 & 6. Get SafeHaven token
   let safeHavenToken: any = null;
@@ -667,74 +606,23 @@ async function processSinglePayout(plan: any) {
     }
   }
 
-  // 8. Debit wallet balance (reduce both balance and locked_balance since money is being withdrawn)
-  // TRANSACTIONAL: transfer_funds RPC function handles this atomically
-  // IDEMPOTENCY: Check if wallet was already debited for this payout
-  const { data: payoutRecord, error: payoutRecordError } = await supabase
-    .from("automated_payouts")
-    .select("id, status, metadata")
-    .eq("id", payoutId)
-    .single();
-  
-  if (payoutRecordError) {
-    throw new Error(`Failed to verify payout record: ${payoutRecordError.message}`);
-  }
-  
-  // Check if wallet was already debited (idempotency check)
-  const walletAlreadyDebited = payoutRecord.metadata?.wallet_debited === true || 
-                                payoutRecord.status === "processing" || 
-                                payoutRecord.status === "completed";
-  
-  if (!walletAlreadyDebited) {
-    // TRANSACTIONAL: Deduct wallet balance atomically
-    const { error: reduceError } = await supabase.rpc("transfer_funds", {
-      arg_user_id: plan.user_id,
-      arg_amount: actualPayoutAmount
-    });
-
-    if (reduceError) {
-      console.error("Error reducing wallet balance:", reduceError);
-      throw new Error(`Failed to reduce wallet balance: ${reduceError.message}`);
-    }
-    
-    // Mark wallet as debited in metadata (idempotency marker)
-    await supabase
-      .from("automated_payouts")
-      .update({
-        metadata: {
-          ...(payoutRecord.metadata || {}),
-          wallet_debited: true,
-          wallet_debited_at: new Date().toISOString(),
-          wallet_debited_amount: actualPayoutAmount
-        }
-      })
-      .eq("id", payoutId);
-    
-    console.log(`✅ Wallet balance debited for payout: ₦${actualPayoutAmount}${usingPartialBalance ? ' (partial - final payout)' : ''}`);
-  } else {
-    console.log(`✅ Wallet balance already debited for payout ${payoutId} (idempotency check passed)`);
-  }
-
-  // 9. Initiate transfer via SafeHaven only.
-  // PRE-FLIGHT SAFETY: Check one more time whether a transfer_reference is already stored.
-  // If it is, a prior run already sent the POST to SafeHaven — do NOT send again.
-  // This guards against the scenario where the function was retried after a crash that
-  // occurred between the SafeHaven POST and the subsequent DB update.
+  // 8. Initiate transfer via SafeHaven only.
+  // PRE-FLIGHT: block only when SafeHaven POST was already sent for this installment.
   {
     const { data: preFlightRow } = await supabase
       .from("automated_payouts")
-      .select("transfer_reference")
+      .select("transfer_reference, metadata")
       .eq("id", payoutId)
       .single();
-    if (preFlightRow?.transfer_reference) {
+    const md = (preFlightRow?.metadata as Record<string, unknown> | null) ?? {};
+    const safehavenAlreadyInitiated = md.safehaven_transfer_initiated === true;
+    if (safehavenAlreadyInitiated && preFlightRow?.transfer_reference) {
       console.error(
-        `🚨 DOUBLE-PAYMENT GUARD (pre-flight): Payout ${payoutId} already has ` +
-        `transfer_reference "${preFlightRow.transfer_reference}". ` +
-        `Aborting SafeHaven call to prevent double payment. MANUAL REVIEW REQUIRED.`
+        `🚨 DOUBLE-PAYMENT GUARD (pre-flight): Payout ${payoutId} already has SafeHaven initiated ` +
+        `(ref="${preFlightRow.transfer_reference}"). Skipping duplicate POST.`
       );
-      // Wallet was already debited; transfer already in flight. Leave status as-is.
       throw new Error(
-        `skipping: payout ${payoutId} pre-flight check found existing transfer_reference — manual reconciliation required`
+        `skipping: payout ${payoutId} SafeHaven transfer already initiated — manual reconciliation if stuck`
       );
     }
   }
@@ -2018,27 +1906,28 @@ async function logEmergencyWithdrawalFailure(withdrawal: any, error: any) {
 async function logPayoutFailure(plan: any, error: any) {
   const message = error?.message ?? String(error);
 
-  if (isPayoutSkipMessage(message)) {
+  if (
+    isPayoutSkipMessage(message) ||
+    /is not defined|referenceerror/i.test(message)
+  ) {
     console.log(
-      `⏸️ Payout plan ${plan.plan_id} requires manual review; skipping failure notification`
+      `⏸️ Payout plan ${plan.plan_id} requires manual review or deploy fix; skipping failure notification`
     );
     return;
   }
 
-  // Check whether a transfer was already sent before deciding the target status.
-  const scheduledDate =
-    typeof plan.next_payout_date === "string"
-      ? plan.next_payout_date.split("T")[0]
-      : plan.next_payout_date;
+  const scheduledDate = normalizeScheduledDate(plan.next_payout_date);
 
   const { data: existingRow } = await supabase
     .from("automated_payouts")
-    .select("id, transfer_reference")
+    .select("id, transfer_reference, metadata")
     .eq("payout_plan_id", plan.plan_id)
     .eq("scheduled_date", scheduledDate)
     .maybeSingle();
 
-  const transferAlreadySent = Boolean(existingRow?.transfer_reference);
+  const md = (existingRow?.metadata as Record<string, unknown> | null) ?? {};
+  const safehavenInitiated = md.safehaven_transfer_initiated === true;
+  const transferAlreadySent = safehavenInitiated && Boolean(existingRow?.transfer_reference);
   const newStatus = transferAlreadySent ? "processing" : "failed";
 
   if (transferAlreadySent) {
