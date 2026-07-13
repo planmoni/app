@@ -6,13 +6,15 @@ import { fetchWithRetry, CACHE_KEYS, readCache, writeCache } from '@/lib/supabas
 export function useHasCreatedPayoutPlan() {
   const [hasCreatedPayoutPlan, setHasCreatedPayoutPlan] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
-  const { session } = useAuth();
+  const { session, isAuthReady } = useAuth();
   const hasCachedDataRef = useRef(false);
 
   const checkIfUserHasCreatedPayoutPlan = useCallback(async () => {
-    if (!session?.user?.id) {
-      setHasCreatedPayoutPlan(false);
-      setIsLoading(false);
+    if (!session?.user?.id || !isAuthReady) {
+      if (!session?.user?.id) {
+        setHasCreatedPayoutPlan(false);
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -34,9 +36,7 @@ export function useHasCreatedPayoutPlan() {
 
       if (error) {
         console.warn('Error checking payout transaction history:', error);
-        if (!hasCachedDataRef.current) {
-          setHasCreatedPayoutPlan(false);
-        }
+        // Keep cached value on failure — do not assume user has no history.
       } else {
         const hasPlan = (data?.length ?? 0) > 0;
         setHasCreatedPayoutPlan(hasPlan);
@@ -44,13 +44,10 @@ export function useHasCreatedPayoutPlan() {
       }
     } catch (err) {
       console.warn('Error checking if user has created payout transactions:', err);
-      if (!hasCachedDataRef.current) {
-        setHasCreatedPayoutPlan(false);
-      }
     } finally {
       setIsLoading(false);
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, isAuthReady]);
 
   useEffect(() => {
     if (!session?.user?.id) {
@@ -59,6 +56,8 @@ export function useHasCreatedPayoutPlan() {
       setIsLoading(false);
       return;
     }
+
+    if (!isAuthReady) return;
 
     let isMounted = true;
 
@@ -79,7 +78,7 @@ export function useHasCreatedPayoutPlan() {
     return () => {
       isMounted = false;
     };
-  }, [session?.user?.id, checkIfUserHasCreatedPayoutPlan]);
+  }, [session?.user?.id, isAuthReady, checkIfUserHasCreatedPayoutPlan]);
 
   return {
     hasCreatedPayoutPlan,

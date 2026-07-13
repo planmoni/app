@@ -53,6 +53,16 @@ export async function clearExpiredAuthState(userId?: string | null): Promise<voi
   }
 }
 
+/** Clear persisted financial caches on sign-out (in-memory RQ cleared separately). */
+export async function clearUserCachesOnSignOut(userId?: string | null): Promise<void> {
+  if (!userId) return;
+  try {
+    await AsyncStorage.multiRemove(userCacheKeys(userId));
+  } catch (error) {
+    console.warn('Failed to clear user cache keys on sign-out:', error);
+  }
+}
+
 export async function resetStateAfterReauth(): Promise<void> {
   try {
     queryClient.clear();

@@ -14,7 +14,7 @@ import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
 import { useAppError } from '@/contexts/AppErrorContext';
 import { setAuthExpiredHandler, setSessionRefreshedHandler } from '@/lib/supabase-reconnect';
 import { buildExpiredSessionRecovery, saveExpiredSessionRecovery } from '@/lib/auth-recovery';
-import { clearExpiredAuthState } from '@/lib/auth-cache-reset';
+import { clearExpiredAuthState, clearUserCachesOnSignOut } from '@/lib/auth-cache-reset';
 import {
   invalidateFinancialQueries,
   removeFinancialQueries,
@@ -670,68 +670,47 @@ export function useSupabaseAuth() {
   };
 
   const signOut = async (): Promise<void> => {
-    try {
-      setIsLoading(true);
-      setError(null);
+    const userId = session?.user?.id;
+    const sessionId = session?.access_token;
 
-      const userId = session?.user?.id;
-      const sessionId = session?.access_token;
+    // Optimistic local sign-out — never set isLoading (avoids splash overlay).
+    setSession(null);
+    setError(null);
+    markAuthReady(true, 'sign_out', null);
+    removeFinancialQueries();
+    void clearSession();
+    void clearUserCachesOnSignOut(userId);
 
-      // Deactivate the session before signing out (fail silently)
+    void (async () => {
       if (userId) {
         try {
           const { ActiveSessionService } = await import('@/lib/active-session-service');
           await ActiveSessionService.deactivateSession(sessionId ?? '', userId);
-        } catch (error) {
-          // Silently fail - session might already be invalid
+        } catch {
           console.log('Note: Could not deactivate session (may already be invalid)');
         }
-      }
-
-      // Clear profile snapshots before signing out (fail silently)
-      if (userId) {
         try {
           await ProfileSnapshotManager.clearProfileSnapshot(userId);
-        } catch (error) {
-          // Silently fail - not critical
+        } catch {
           console.log('Note: Could not clear profile snapshot');
         }
       }
 
-      // Sign out from Supabase (handle missing session gracefully)
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        // If session is already missing/invalid, that's fine - user is already logged out
-        const errorMessage = error.message || 'Unknown error';
-        if (errorMessage.includes('session missing') || errorMessage.includes('AuthSessionMissingError')) {
-          console.log('Note: Session already invalid, user is effectively logged out');
-          // Clear session state anyway
-          setSession(null);
-          await clearSession();
-          return;
-        }
-        // For other errors, log but don't throw to avoid console error screens
-        console.warn('Sign-out warning:', errorMessage);
-        setError(null); // Don't set error state for non-critical sign-out issues
-      }
-
-      setSession(null);
-      await clearSession();
-    } catch (err) {
-      // Don't throw errors - just log them and ensure we clear the session state
-      const errorMessage = err instanceof Error ? err.message : 'Sign out failed';
-      console.warn('Sign-out warning:', errorMessage);
-      // Ensure session is cleared even if there was an error
-      setSession(null);
       try {
-        await clearSession();
-      } catch (clearError) {
-        // Ignore errors when clearing session
+        const { error } = await supabase.auth.signOut({ scope: 'local' });
+        if (error) {
+          const errorMessage = error.message || 'Unknown error';
+          if (
+            !errorMessage.includes('session missing') &&
+            !errorMessage.includes('AuthSessionMissingError')
+          ) {
+            console.warn('Sign-out warning:', errorMessage);
+          }
+        }
+      } catch (err) {
+        console.warn('Sign-out warning:', err instanceof Error ? err.message : 'Sign out failed');
       }
-    } finally {
-      setIsLoading(false);
-    }
+    })();
   };
 
   return {

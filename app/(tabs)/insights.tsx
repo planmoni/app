@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useInsightsData } from '@/hooks/useInsightsData';
 import { usePayoutPlansQuery } from '@/hooks/queries/usePayoutPlansQuery';
+import { useTransactionsQuery } from '@/hooks/queries/useTransactionsQuery';
 import { ensureSupabaseConnection } from '@/lib/supabase-fetch';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
@@ -27,7 +28,12 @@ export default function InsightsScreen() {
   const { textSizeMultiplier } = useTextSize();
   const { isAuthenticated } = useRequireAuth();
   const { payoutPlans, isLoading: payoutPlansLoading, isTimedOut: payoutPlansTimedOut, fetchPayoutPlans } = usePayoutPlansQuery();
-  const { metrics, trends, vaultStats, isLoading, isTimedOut: insightsTimedOut, error, refreshInsights } = useInsightsData(payoutPlans);
+  const { transactions, isLoading: transactionsLoading, isTimedOut: transactionsTimedOut, fetchTransactions } = useTransactionsQuery();
+  const { metrics, trends, vaultStats, isLoading, isTimedOut: insightsTimedOut, error, refreshInsights } = useInsightsData(
+    payoutPlans,
+    transactions,
+    transactionsLoading
+  );
   const { expensePlans } = useExpensePlans();
   const [customPayoutDates, setCustomPayoutDates] = useState<Record<string, string[]>>({});
   const [vaultStatsLimit, setVaultStatsLimit] = useState(5);
@@ -181,33 +187,31 @@ export default function InsightsScreen() {
     return finalDate;
   };
 
+  const pickLatestDate = (current: Date | null, candidate: Date | null): Date | null => {
+    if (!candidate) return current;
+    if (!current || candidate > current) return candidate;
+    return current;
+  };
+
   // Find the final payout date - the latest final payout date across all active plans
   const getLastPayoutDate = () => {
     // Priority: Check active plans first (these are the ones with future payouts)
     const activePlans = payoutPlans.filter(plan => plan.status === 'active');
-    
+
     let latestFinalDate: Date | null = null;
 
     if (activePlans.length > 0) {
       // Calculate final payout date for each active plan and find the latest
-      activePlans.forEach(plan => {
-        const planFinalDate = calculatePlanFinalDate(plan);
-        if (planFinalDate && (!latestFinalDate || planFinalDate > latestFinalDate)) {
-          latestFinalDate = planFinalDate;
-        }
-      });
+      for (const plan of activePlans) {
+        latestFinalDate = pickLatestDate(latestFinalDate, calculatePlanFinalDate(plan));
+      }
     }
 
     // If no active plans, check completed plans to show the most recent final payout
     if (!latestFinalDate) {
       const completedPlans = payoutPlans.filter(plan => plan.status === 'completed');
-      if (completedPlans.length > 0) {
-        completedPlans.forEach(plan => {
-          const planFinalDate = calculatePlanFinalDate(plan);
-          if (planFinalDate && (!latestFinalDate || planFinalDate > latestFinalDate)) {
-            latestFinalDate = planFinalDate;
-          }
-        });
+      for (const plan of completedPlans) {
+        latestFinalDate = pickLatestDate(latestFinalDate, calculatePlanFinalDate(plan));
       }
     }
 
@@ -231,11 +235,13 @@ export default function InsightsScreen() {
     !hasInsightsData &&
     !isLoading &&
     !payoutPlansLoading &&
-    (insightsTimedOut || payoutPlansTimedOut);
+    !transactionsLoading &&
+    (insightsTimedOut || payoutPlansTimedOut || transactionsTimedOut);
 
   const handleRetryInsights = async () => {
     await ensureSupabaseConnection({ skipProbe: true });
-    await Promise.allSettled([fetchPayoutPlans(), refreshInsights()]);
+    await Promise.allSettled([fetchPayoutPlans(), fetchTransactions()]);
+    refreshInsights();
   };
 
   if (showInitialLoader) {

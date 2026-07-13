@@ -162,13 +162,15 @@ async function getPendingPayouts() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { action, payout_id } = body;
+    const { action, payout_id, external_reference, notes, unpause_plan } = body;
 
     switch (action) {
       case "retry_payout":
         return await retrySpecificPayout(payout_id);
       case "cancel_payout":
         return await cancelPayout(payout_id);
+      case "complete_manual_payout":
+        return await completeManualPayout(payout_id, external_reference, notes, unpause_plan);
       case "process_due_payouts":
         return await triggerPayoutProcessing();
       default:
@@ -308,6 +310,43 @@ async function cancelPayout(payoutId: string) {
     JSON.stringify({
       success: true,
       message: "Payout cancelled successfully",
+    }),
+    {
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+}
+
+async function completeManualPayout(
+  payoutId: string,
+  externalReference?: string,
+  notes?: string,
+  unpausePlan = true
+) {
+  if (!payoutId) {
+    throw new Error("payout_id is required");
+  }
+
+  const { data, error } = await supabase.rpc("complete_manual_payout_installment", {
+    p_automated_payout_id: payoutId,
+    p_external_reference: externalReference ?? null,
+    p_notes: notes ?? null,
+    p_unpause_plan: unpausePlan !== false,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data?.success) {
+    throw new Error(data?.error ?? "complete_manual_payout_installment failed");
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: "Manual payout recorded; plan advanced for next scheduled payout",
+      data,
     }),
     {
       headers: { "Content-Type": "application/json" },

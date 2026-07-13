@@ -29,7 +29,7 @@ export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
   const params = useLocalSearchParams();
   const { createPayout, isLoading, error } = useCreatePayout();
-  const { balance, lockedBalance, refreshWallet } = useBalance();
+  const { balance, lockedBalance, refreshWallet, isLoading: walletLoading } = useBalance();
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPinVerification, setShowPinVerification] = useState(false);
@@ -72,7 +72,8 @@ export default function ReviewScreen() {
   
   // Parse total amount to number for comparison. Fee is taken from the amount (not added on top).
   const numericTotalAmount = parseFloat(totalAmount.replace(/,/g, ''));
-  const hasInsufficientBalance = numericTotalAmount > availableBalance;
+  const hasInsufficientBalance =
+    !walletLoading && !isRefreshing && numericTotalAmount > availableBalance;
 
   useEffect(() => {
     const fetchBalance = async () => {
@@ -883,8 +884,8 @@ export default function ReviewScreen() {
       <FloatingButton 
         title={isLoading ? "Processing..." : "Start Payout Plan"}
         onPress={handleStartPlan}
-        disabled={isLoading || isRefreshing || hasInsufficientBalance}
-        loading={isLoading}
+        disabled={isLoading || isRefreshing || walletLoading || hasInsufficientBalance}
+        loading={isLoading || walletLoading}
       />
 
       <PinVerificationModal

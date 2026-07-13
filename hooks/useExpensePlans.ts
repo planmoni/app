@@ -7,7 +7,7 @@ import { useRegisterForegroundRefetch } from '@/hooks/useForegroundRefreshCoordi
 import { fetchWithRetry, CACHE_KEYS, readCache, writeCache, toUserFacingError } from '@/lib/supabase-fetch';
 
 export function useExpensePlans() {
-  const { session } = useAuth();
+  const { session, isAuthReady } = useAuth();
   const [expensePlans, setExpensePlans] = useState<ExpensePlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -61,8 +61,8 @@ export function useExpensePlans() {
 
   const fetchExpensePlans = useCallback(async () => {
     const userId = session?.user?.id;
-    if (!userId) {
-      setIsLoading(false);
+    if (!userId || !isAuthReady) {
+      if (!userId) setIsLoading(false);
       return;
     }
 
@@ -157,7 +157,7 @@ export function useExpensePlans() {
       setIsLoading(false);
       fetchInFlightRef.current = false;
     }
-  }, [session?.user?.id, hydrateFromCache]);
+  }, [session?.user?.id, isAuthReady, hydrateFromCache]);
 
   /**
    * Check if error is a retryable network/server error (502, 503, 504, etc.)
@@ -642,9 +642,11 @@ export function useExpensePlans() {
   };
 
   useEffect(() => {
-    if (!session?.user?.id) {
-      hasCachedDataRef.current = false;
-      setIsLoading(false);
+    if (!session?.user?.id || !isAuthReady) {
+      if (!session?.user?.id) {
+        hasCachedDataRef.current = false;
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -700,7 +702,7 @@ export function useExpensePlans() {
         supabase.removeChannel(channel);
       }
     };
-  }, [session?.user?.id, fetchExpensePlans]);
+  }, [session?.user?.id, isAuthReady, fetchExpensePlans]);
 
   /**
    * Save the last step/page the user was on before closing
@@ -1040,7 +1042,7 @@ export function useExpensePlans() {
     'expense-plans',
     3,
     () => fetchExpensePlans(),
-    !!session?.user?.id
+    !!session?.user?.id && isAuthReady
   );
 
   return {

@@ -1275,6 +1275,7 @@ export default function HomeScreen() {
       return;
     }
 
+    void loadProgress();
     impact();
     setShowBalanceActionsModal(false);
 
@@ -1292,7 +1293,7 @@ export default function HomeScreen() {
     setTimeout(() => {
       isNavigatingToAddFundsRef.current = false;
     }, 1000);
-  }, [ensureAuthenticatedOrWelcome, impact, checkTierCompletion]);
+  }, [ensureAuthenticatedOrWelcome, impact, checkTierCompletion, loadProgress]);
 
   const handleWithdraw = () => {
     impact();
@@ -1960,8 +1961,8 @@ export default function HomeScreen() {
           onPress={() => {
             if (!ensureAuthenticatedOrWelcome()) return;
             impact();
-            setShowAddByCodeModal(true);
             logAnalyticsEvent('create_payout_click_modal');
+            router.push('/create-payout/amount');
           }}
         >
           <Plus size={24} color="#fff" />
@@ -2005,18 +2006,15 @@ export default function HomeScreen() {
         onClose={() => setShowAddByCodeModal(false)}
         onCreateNewPlan={() => {
           setShowAddByCodeModal(false);
-          // Only show the "first payout schedule" modal when the user truly has no payout history.
-          // If the user already has payout transactions, go straight to the create payout flow.
           if (hasCreatedPayoutPlanLoading) {
             router.push('/create-payout/amount');
             return;
           }
-
-          if (hasCreatedPayoutPlan) {
-            router.push('/create-payout/amount');
-          } else {
+          if (hasCreatedPayoutPlan === false) {
             setShowNewPlanInfoModal(true);
+            return;
           }
+          router.push('/create-payout/amount');
         }}
       />
       

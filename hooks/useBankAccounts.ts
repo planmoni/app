@@ -26,13 +26,13 @@ export function useBankAccounts() {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { session } = useAuth();
+  const { session, isAuthReady } = useAuth();
   const hasCachedDataRef = useRef(false);
 
   const fetchBankAccounts = useCallback(async () => {
     const userId = session?.user?.id;
-    if (!userId) {
-      setIsLoading(false);
+    if (!userId || !isAuthReady) {
+      if (!userId) setIsLoading(false);
       return;
     }
 
@@ -74,23 +74,25 @@ export function useBankAccounts() {
     } finally {
       setIsLoading(false);
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, isAuthReady]);
 
   useEffect(() => {
-    if (session?.user?.id) {
-      void fetchBankAccounts();
-    } else {
-      hasCachedDataRef.current = false;
-      setBankAccounts([]);
-      setIsLoading(false);
+    if (!session?.user?.id || !isAuthReady) {
+      if (!session?.user?.id) {
+        hasCachedDataRef.current = false;
+        setBankAccounts([]);
+        setIsLoading(false);
+      }
+      return;
     }
-  }, [session?.user?.id, fetchBankAccounts]);
+    void fetchBankAccounts();
+  }, [session?.user?.id, isAuthReady, fetchBankAccounts]);
 
   useRegisterForegroundRefetch(
     'bank-accounts-static',
     2,
     () => fetchBankAccounts(),
-    !!session?.user?.id
+    !!session?.user?.id && isAuthReady
   );
 
   const addBankAccount = async (accountData: {

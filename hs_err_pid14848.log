@@ -1,0 +1,329 @@
+#
+# There is insufficient memory for the Java Runtime Environment to continue.
+# Native memory allocation (malloc) failed to allocate 1048576 bytes. Error detail: AllocateHeap
+# Possible reasons:
+#   The system is out of physical RAM or swap space
+#   This process is running with CompressedOops enabled, and the Java Heap may be blocking the growth of the native heap
+# Possible solutions:
+#   Reduce memory load on the system
+#   Increase physical memory or swap space
+#   Check if swap backing store is full
+#   Decrease Java heap size (-Xmx/-Xms)
+#   Decrease number of Java threads
+#   Decrease Java thread stack sizes (-Xss)
+#   Set larger code cache with -XX:ReservedCodeCacheSize=
+#   JVM is running with Unscaled Compressed Oops mode in which the Java heap is
+#     placed in the first 4GB address space. The Java Heap base address is the
+#     maximum limit for the native heap growth. Please use -XX:HeapBaseMinAddress
+#     to set the Java Heap base and to place the Java Heap above 4GB virtual address.
+# This output file may be truncated or incomplete.
+#
+#  Out of Memory Error (allocation.cpp:44), pid=14848, tid=14128
+#
+# JRE version:  (21.0.11+10) (build )
+# Java VM: OpenJDK 64-Bit Server VM (21.0.11+10-LTS, mixed mode, sharing, tiered, compressed oops, compressed class ptrs, parallel gc, windows-amd64)
+# No core dump will be written. Minidumps are not enabled by default on client versions of Windows
+#
+
+---------------  S U M M A R Y ------------
+
+Command Line: --add-modules=ALL-SYSTEM --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/sun.nio.fs=ALL-UNNAMED -Declipse.application=org.eclipse.jdt.ls.core.id1 -Dosgi.bundles.defaultStartLevel=4 -Declipse.product=org.eclipse.jdt.ls.core.product -Djava.import.generatesMetadataFilesAtProjectRoot=false -DDetectVMInstallationsJob.disabled=true -Dfile.encoding=utf8 -XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx2G -Xms100m -Xlog:disable -javaagent:c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\lombok\lombok-1.18.39-4050.jar -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=c:\Users\LENOVO\AppData\Roaming\Cursor\User\workspaceStorage\a78203c44efd8367260fac9b3c4b3b31\redhat.java -Daether.dependencyCollector.impl=bf c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\server\plugins\org.eclipse.equinox.launcher_1.7.200.v20260619-2039.jar -configuration c:\Users\LENOVO\AppData\Roaming\Cursor\User\globalStorage\redhat.java\1.55.0\config_win -data c:\Users\LENOVO\AppData\Roaming\Cursor\User\workspaceStorage\a78203c44efd8367260fac9b3c4b3b31\redhat.java\jdt_ws --pipe=\\.\pipe\lsp-ac823c12a8f25d689cec0cf09e810381-sock
+
+Host: 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz, 8 cores, 19G,  Windows 11 , 64 bit Build 26100 (10.0.26100.8521)
+Time: Sun Jul 12 23:26:06 2026 W. Central Africa Standard Time elapsed time: 3.554562 seconds (0d 0h 0m 3s)
+
+---------------  T H R E A D  ---------------
+
+Current thread (0x000001d75da69590):  JavaThread "Unknown thread" [_thread_in_vm, id=14128, stack(0x000000922a200000,0x000000922a300000) (1024K)]
+
+Stack: [0x000000922a200000,0x000000922a300000]
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+V  [jvm.dll+0x6d7e19]
+V  [jvm.dll+0x8b5096]
+V  [jvm.dll+0x8b764e]
+V  [jvm.dll+0x8b7d33]
+V  [jvm.dll+0x284596]
+V  [jvm.dll+0xc13c7]
+V  [jvm.dll+0x71554d]
+V  [jvm.dll+0x715c0c]
+V  [jvm.dll+0x6e69b8]
+V  [jvm.dll+0x87f6ec]
+V  [jvm.dll+0x3c4b2c]
+V  [jvm.dll+0x8683db]
+V  [jvm.dll+0x457c41]
+V  [jvm.dll+0x459831]
+C  [jli.dll+0x52dc]
+C  [ucrtbase.dll+0x2cd30]
+C  [KERNEL32.DLL+0x2e957]
+C  [ntdll.dll+0x87c1c]
+
+
+---------------  P R O C E S S  ---------------
+
+Threads class SMR info:
+_java_thread_list=0x000001d75fc2b9b0, length=1, elements={
+0x000001d75da69590
+}
+
+Java Threads: ( => current thread )
+=>0x000001d75da69590 JavaThread "Unknown thread"             [_thread_in_vm, id=14128, stack(0x000000922a200000,0x000000922a300000) (1024K)]
+Total: 1
+
+Other Threads:
+  0x000001d75fe12520 WatcherThread "VM Periodic Task Thread"        [id=22196, stack(0x000000922a400000,0x000000922a500000) (1024K)]
+  0x000001d75fdc25d0 WorkerThread "GC Thread#0"                     [id=21316, stack(0x000000922a300000,0x000000922a400000) (1024K)]
+Total: 2
+
+Threads with active compile tasks:
+Total: 0
+
+VM state: not at safepoint (normal execution)
+
+VM Mutex/Monitor currently owned by a thread: None
+
+Heap address: 0x0000000080000000, size: 2048 MB, Compressed Oops mode: 32-bit
+
+CDS archive(s) mapped at: [0x000001d700000000-0x000001d700ba0000-0x000001d700ba0000), size 12189696, SharedBaseAddress: 0x000001d700000000, ArchiveRelocationMode: 1.
+Compressed class space mapped at: 0x000001d701000000-0x000001d741000000, reserved size: 1073741824
+Narrow klass base: 0x000001d700000000, Narrow klass shift: 0, Narrow klass range: 0x100000000
+
+GC Precious Log:
+ CardTable entry size: 512
+ CPUs: 8 total, 8 available
+ Memory: 20279M
+ Large Page Support: Disabled
+ NUMA Support: Disabled
+ Compressed Oops: Enabled (32-bit)
+ Alignments: Space 512K, Generation 512K, Heap 2M
+ Heap Min Capacity: 100M
+ Heap Initial Capacity: 100M
+ Heap Max Capacity: 2G
+ Pre-touch: Disabled
+ Parallel Workers: 8
+
+Heap:
+ PSYoungGen      total 29696K, used 512K [0x00000000d5580000, 0x00000000d7680000, 0x0000000100000000)
+  eden space 25600K, 2% used [0x00000000d5580000,0x00000000d5600020,0x00000000d6e80000)
+  from space 4096K, 0% used [0x00000000d7280000,0x00000000d7280000,0x00000000d7680000)
+  to   space 4096K, 0% used [0x00000000d6e80000,0x00000000d6e80000,0x00000000d7280000)
+ ParOldGen       total 68608K, used 0K [0x0000000080000000, 0x0000000084300000, 0x00000000d5580000)
+  object space 68608K, 0% used [0x0000000080000000,0x0000000080000000,0x0000000084300000)
+ Metaspace       used 0K, committed 0K, reserved 1048576K
+  class space    used 0K, committed 0K, reserved 1048576K
+
+Card table byte_map: [0x000001d75f740000,0x000001d75fb50000] _byte_map_base: 0x000001d75f340000
+
+Marking Bits: (ParMarkBitMap*) 0x00007ffd9e574460
+ Begin Bits: [0x000001d772250000, 0x000001d774250000)
+ End Bits:   [0x000001d774250000, 0x000001d776250000)
+
+Polling page: 0x000001d75dd20000
+
+Metaspace:
+
+Usage:
+  Non-class:      0 bytes used.
+      Class:      0 bytes used.
+       Both:      0 bytes used.
+
+Virtual space:
+  Non-class space:        0 bytes reserved,       0 bytes (  ?%) committed,  0 nodes.
+      Class space:        1.00 GB reserved,       0 bytes (  0%) committed,  1 nodes.
+             Both:        1.00 GB reserved,       0 bytes (  0%) committed. 
+
+Chunk freelists:
+   Non-Class:  0 bytes
+       Class:  16.00 MB
+        Both:  16.00 MB
+
+MaxMetaspaceSize: unlimited
+CompressedClassSpaceSize: 1.00 GB
+Initial GC threshold: 21.00 MB
+Current GC threshold: 17179869184.00 GB
+CDS: on
+ - commit_granule_bytes: 65536.
+ - commit_granule_words: 8192.
+ - virtual_space_node_default_size: 8388608.
+ - enlarge_chunks_in_place: 1.
+ - use_allocation_guard: 0.
+
+
+Internal statistics:
+
+num_allocs_failed_limit: 0.
+num_arena_births: 0.
+num_arena_deaths: 0.
+num_vsnodes_births: 1.
+num_vsnodes_deaths: 0.
+num_space_committed: 0.
+num_space_uncommitted: 0.
+num_chunks_returned_to_freelist: 0.
+num_chunks_taken_from_freelist: 1.
+num_chunk_merges: 0.
+num_chunk_splits: 1.
+num_chunks_enlarged: 0.
+num_inconsistent_stats: 0.
+
+CodeHeap 'non-profiled nmethods': size=120000Kb used=0Kb max_used=0Kb free=120000Kb
+ bounds [0x000001d76aa70000, 0x000001d76ace0000, 0x000001d771fa0000]
+CodeHeap 'profiled nmethods': size=120000Kb used=0Kb max_used=0Kb free=120000Kb
+ bounds [0x000001d762fa0000, 0x000001d763210000, 0x000001d76a4d0000]
+CodeHeap 'non-nmethods': size=5760Kb used=199Kb max_used=348Kb free=5560Kb
+ bounds [0x000001d76a4d0000, 0x000001d76a740000, 0x000001d76aa70000]
+CodeCache: size=245760Kb, used=199Kb, max_used=348Kb, free=245560Kb
+ total_blobs=70, nmethods=0, adapters=48, full_count=0
+Compilation: enabled, stopped_count=0, restarted_count=0
+
+Compilation events (0 events):
+No events
+
+GC Heap History (0 events):
+No events
+
+Dll operation events (1 events):
+Event: 2.412 Loaded shared library c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64\bin\java.dll
+
+Deoptimization events (0 events):
+No events
+
+Classes loaded (0 events):
+No events
+
+Classes unloaded (0 events):
+No events
+
+Classes redefined (0 events):
+No events
+
+Internal exceptions (0 events):
+No events
+
+ZGC Phase Switch (0 events):
+No events
+
+VM Operations (0 events):
+No events
+
+Memory protections (0 events):
+No events
+
+Nmethod flushes (0 events):
+No events
+
+Events (1 events):
+Event: 2.520 Thread 0x000001d75da69590 Thread added: 0x000001d75da69590
+
+
+Dynamic libraries:
+0x00007ff76f7e0000 - 0x00007ff76f7ee000 	c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64\bin\java.exe
+0x00007ffe5cc00000 - 0x00007ffe5ce66000 	C:\WINDOWS\SYSTEM32\ntdll.dll
+0x00007ffe53460000 - 0x00007ffe53481000 	C:\Program Files\Avast Software\Avast\aswhook.dll
+0x00007ffe5bc40000 - 0x00007ffe5bd09000 	C:\WINDOWS\System32\KERNEL32.DLL
+0x00007ffe5a0a0000 - 0x00007ffe5a49a000 	C:\WINDOWS\System32\KERNELBASE.dll
+0x00007ffe59ec0000 - 0x00007ffe5a00c000 	C:\WINDOWS\System32\ucrtbase.dll
+0x00007ffe3d6c0000 - 0x00007ffe3d6d8000 	c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64\bin\jli.dll
+0x00007ffe3cec0000 - 0x00007ffe3cede000 	c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64\bin\VCRUNTIME140.dll
+0x00007ffe5c950000 - 0x00007ffe5cb17000 	C:\WINDOWS\System32\USER32.dll
+0x00007ffe59e90000 - 0x00007ffe59eb7000 	C:\WINDOWS\System32\win32u.dll
+0x00007ffe5c6f0000 - 0x00007ffe5c71b000 	C:\WINDOWS\System32\GDI32.dll
+0x00007ffe40ff0000 - 0x00007ffe41282000 	C:\WINDOWS\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.8521_none_3e08b75ce33403b3\COMCTL32.dll
+0x00007ffe5a6d0000 - 0x00007ffe5a7fb000 	C:\WINDOWS\System32\gdi32full.dll
+0x00007ffe5a800000 - 0x00007ffe5a8a3000 	C:\WINDOWS\System32\msvcp_win.dll
+0x00007ffe5a970000 - 0x00007ffe5aa19000 	C:\WINDOWS\System32\msvcrt.dll
+0x00007ffe5c6b0000 - 0x00007ffe5c6e2000 	C:\WINDOWS\System32\IMM32.DLL
+0x00007ffe52e20000 - 0x00007ffe52e2c000 	c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64\bin\vcruntime140_1.dll
+0x00007ffe1e1e0000 - 0x00007ffe1e26d000 	c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64\bin\msvcp140.dll
+0x00007ffd9d8b0000 - 0x00007ffd9e652000 	c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64\bin\server\jvm.dll
+0x00007ffe5c720000 - 0x00007ffe5c7d6000 	C:\WINDOWS\System32\ADVAPI32.dll
+0x00007ffe5ab40000 - 0x00007ffe5abea000 	C:\WINDOWS\System32\sechost.dll
+0x00007ffe5aa20000 - 0x00007ffe5ab38000 	C:\WINDOWS\System32\RPCRT4.dll
+0x00007ffe5bbb0000 - 0x00007ffe5bc30000 	C:\WINDOWS\System32\WS2_32.dll
+0x00007ffe554b0000 - 0x00007ffe554bb000 	C:\WINDOWS\SYSTEM32\VERSION.dll
+0x00007ffe42bb0000 - 0x00007ffe42be6000 	C:\WINDOWS\SYSTEM32\WINMM.dll
+0x00007ffe59cf0000 - 0x00007ffe59d4e000 	C:\WINDOWS\SYSTEM32\POWRPROF.dll
+0x00007ffe59cd0000 - 0x00007ffe59ce4000 	C:\WINDOWS\SYSTEM32\UMPDC.dll
+0x00007ffe58be0000 - 0x00007ffe58bfb000 	C:\WINDOWS\SYSTEM32\kernel.appcore.dll
+0x00007ffe41d20000 - 0x00007ffe41d2a000 	c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64\bin\jimage.dll
+0x00007ffe56400000 - 0x00007ffe56642000 	C:\WINDOWS\SYSTEM32\DBGHELP.DLL
+0x00007ffe5aed0000 - 0x00007ffe5b253000 	C:\WINDOWS\System32\combase.dll
+0x00007ffe5b750000 - 0x00007ffe5b829000 	C:\WINDOWS\System32\OLEAUT32.dll
+0x00007ffe483f0000 - 0x00007ffe4842b000 	C:\WINDOWS\SYSTEM32\dbgcore.DLL
+0x00007ffe5a4a0000 - 0x00007ffe5a548000 	C:\WINDOWS\System32\bcryptPrimitives.dll
+0x00007ffe505e0000 - 0x00007ffe505ef000 	c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64\bin\instrument.dll
+0x00007ffe2b190000 - 0x00007ffe2b1b0000 	c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64\bin\java.dll
+
+JVMTI agents:
+c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\lombok\lombok-1.18.39-4050.jar path:none, loaded, not initialized, instrumentlib options:none
+
+dbghelp: loaded successfully - version: 4.0.5 - missing functions: none
+symbol engine: initialized successfully - sym options: 0x614 - pdb path: .;c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64\bin;C:\WINDOWS\SYSTEM32;C:\Program Files\Avast Software\Avast;C:\WINDOWS\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.8521_none_3e08b75ce33403b3;c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\jre\21.0.11-win32-x86_64\bin\server
+
+VM Arguments:
+jvm_args: --add-modules=ALL-SYSTEM --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/sun.nio.fs=ALL-UNNAMED -Declipse.application=org.eclipse.jdt.ls.core.id1 -Dosgi.bundles.defaultStartLevel=4 -Declipse.product=org.eclipse.jdt.ls.core.product -Djava.import.generatesMetadataFilesAtProjectRoot=false -DDetectVMInstallationsJob.disabled=true -Dfile.encoding=utf8 -XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx2G -Xms100m -Xlog:disable -javaagent:c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\lombok\lombok-1.18.39-4050.jar -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=c:\Users\LENOVO\AppData\Roaming\Cursor\User\workspaceStorage\a78203c44efd8367260fac9b3c4b3b31\redhat.java -Daether.dependencyCollector.impl=bf 
+java_command: c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\server\plugins\org.eclipse.equinox.launcher_1.7.200.v20260619-2039.jar -configuration c:\Users\LENOVO\AppData\Roaming\Cursor\User\globalStorage\redhat.java\1.55.0\config_win -data c:\Users\LENOVO\AppData\Roaming\Cursor\User\workspaceStorage\a78203c44efd8367260fac9b3c4b3b31\redhat.java\jdt_ws --pipe=\\.\pipe\lsp-ac823c12a8f25d689cec0cf09e810381-sock
+java_class_path (initial): c:\Users\LENOVO\.cursor\extensions\redhat.java-1.55.0-win32-x64\server\plugins\org.eclipse.equinox.launcher_1.7.200.v20260619-2039.jar
+Launcher Type: SUN_STANDARD
+
+[Global flags]
+    uintx AdaptiveSizePolicyWeight                 = 90                                        {product} {command line}
+     intx CICompilerCount                          = 4                                         {product} {ergonomic}
+    uintx GCTimeRatio                              = 4                                         {product} {command line}
+     bool HeapDumpOnOutOfMemoryError               = true                                   {manageable} {command line}
+    ccstr HeapDumpPath                             = c:\Users\LENOVO\AppData\Roaming\Cursor\User\workspaceStorage\a78203c44efd8367260fac9b3c4b3b31\redhat.java         {manageable} {command line}
+   size_t InitialHeapSize                          = 104857600                                 {product} {command line}
+   size_t MaxHeapSize                              = 2147483648                                {product} {command line}
+   size_t MaxNewSize                               = 715653120                                 {product} {ergonomic}
+   size_t MinHeapDeltaBytes                        = 524288                                    {product} {ergonomic}
+   size_t MinHeapSize                              = 104857600                                 {product} {command line}
+   size_t NewSize                                  = 34603008                                  {product} {ergonomic}
+    uintx NonNMethodCodeHeapSize                   = 5839372                                {pd product} {ergonomic}
+    uintx NonProfiledCodeHeapSize                  = 122909434                              {pd product} {ergonomic}
+   size_t OldSize                                  = 70254592                                  {product} {ergonomic}
+    uintx ProfiledCodeHeapSize                     = 122909434                              {pd product} {ergonomic}
+    uintx ReservedCodeCacheSize                    = 251658240                              {pd product} {ergonomic}
+     bool SegmentedCodeCache                       = true                                      {product} {ergonomic}
+   size_t SoftMaxHeapSize                          = 2147483648                             {manageable} {ergonomic}
+     bool UseCompressedOops                        = true                           {product lp64_product} {ergonomic}
+     bool UseLargePagesIndividualAllocation        = false                                  {pd product} {ergonomic}
+     bool UseParallelGC                            = true                                      {product} {command line}
+
+Logging:
+Log output configuration:
+ #0: stdout all=off uptime,level,tags foldmultilines=false
+ #1: stderr all=off uptime,level,tags foldmultilines=false
+
+Release file:
+<release file has not been read>
+Environment Variables:
+JAVA_HOME=C:\Program Files\Java\jdk-25
+PATH=C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Git\cmd;C:\Program Files\nodejs\;C:\Program Files\Docker\Docker\resources\bin;C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\;C:\Users\LENOVO\AppData\Local\Python\pythoncore-3.14-64\Scripts\;C:\Program Files\Java\jdk-25\bin;C:\Program Files\Go\bin;C:\Users\LENOVO\scoop\apps\openssl\current\bin;C:\Ruby34-x64\bin;C:\Users\LENOVO\scoop\shims;C:\Users\LENOVO\AppData\Local\Microsoft\WindowsApps;C:\Users\LENOVO\AppData\Local\Programs\cursor\resources\app\bin;C:\Users\LENOVO\AppData\Roaming\npm;C:\Users\LENOVO\AppData\Local\JetBrains\Toolbox\scripts;C:\platform-tools;C:\Users\LENOVO\AppData\Local\Python\bin;C:\Users\LENOVO\go\bin;C:\Users\LENOVO\AppData\Local\Microsoft\WinGet\Packages\Ngrok.Ngrok_Microsoft.Winget.Source_8wekyb3d8bbwe;
+USERNAME=LENOVO
+OS=Windows_NT
+PROCESSOR_IDENTIFIER=Intel64 Family 6 Model 140 Stepping 1, GenuineIntel
+TMP=C:\Users\LENOVO\AppData\Local\Temp
+TEMP=C:\Users\LENOVO\AppData\Local\Temp
+
+
+
+
+Periodic native trim disabled
+
+---------------  S Y S T E M  ---------------
+
+OS:
+ Windows 11 , 64 bit Build 26100 (10.0.26100.8521)
+OS uptime: 3 days 16:47 hours
+Hyper-V role detected
+
+CPU: total 8 (initial active 8) (4 cores per cpu, 2 threads per core) family 6 model 140 stepping 1 microcode 0x8a, cx8, cmov, fxsr, ht, mmx, 3dnowpref, sse, sse2, sse3, ssse3, sse4.1, sse4.2, popcnt, lzcnt, tsc, tscinvbit, avx, avx2, aes, erms, clmul, bmi1, bmi2, adx, avx512f, avx512dq, avx512cd, avx512bw, avx512vl, sha, fma, vzeroupper, avx512_vpopcntdq, avx512_vpclmulqdq, avx512_vaes, avx512_vnni, clflush, clflushopt, clwb, avx512_vbmi2, avx512_vbmi, hv, rdtscp, rdpid, fsrm, gfni, avx512_bitalg, f16c, cet_ibt, cet_ss, avx512_ifma
+Processor Information for the first 8 processors :
+  Max Mhz: 2419, Current Mhz: 2419, Mhz Limit: 2419
+
+Memory: 4k page, system-wide physical 20279M (863M free)
+TotalPageFile size 50644M (AvailPageFile size 4M)
+current process WorkingSet (physical memory assigned to process): 26M, peak: 26M
+current process commit charge ("private bytes"): 215M, peak: 216M
+
+vm_info: OpenJDK 64-Bit Server VM (21.0.11+10-LTS) for windows-amd64 JRE (21.0.11+10-LTS), built on 2026-04-21T00:00:00Z by "admin" with MS VC++ 17.12 (VS2022)
+
+END.

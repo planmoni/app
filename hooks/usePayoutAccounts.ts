@@ -111,7 +111,7 @@ export function usePayoutAccounts() {
   const [payoutAccounts, setPayoutAccounts] = useState<PayoutAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { session } = useAuth();
+  const { session, isAuthReady } = useAuth();
   const hasCachedDataRef = useRef(false);
   const fetchInFlightRef = useRef(false);
   const fetchStartedAtRef = useRef(0);
@@ -178,9 +178,11 @@ export function usePayoutAccounts() {
 
   const fetchPayoutAccounts = useCallback(async () => {
     const userId = session?.user?.id;
-    if (!userId) {
-      setPayoutAccounts([]);
-      setIsLoading(false);
+    if (!userId || !isAuthReady) {
+      if (!userId) {
+        setPayoutAccounts([]);
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -235,13 +237,15 @@ export function usePayoutAccounts() {
       setIsLoading(false);
       fetchInFlightRef.current = false;
     }
-  }, [session?.user?.id, enrichPlanCounts, hydrateFromCache]);
+  }, [session?.user?.id, isAuthReady, enrichPlanCounts, hydrateFromCache]);
 
   useEffect(() => {
-    if (!session?.user?.id) {
-      hasCachedDataRef.current = false;
-      setPayoutAccounts([]);
-      setIsLoading(false);
+    if (!session?.user?.id || !isAuthReady) {
+      if (!session?.user?.id) {
+        hasCachedDataRef.current = false;
+        setPayoutAccounts([]);
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -258,9 +262,9 @@ export function usePayoutAccounts() {
     return () => {
       isMounted = false;
     };
-  }, [session?.user?.id, fetchPayoutAccounts, hydrateFromCache]);
+  }, [session?.user?.id, isAuthReady, fetchPayoutAccounts, hydrateFromCache]);
 
-  useRegisterForegroundRefetch('payout-accounts', 3, fetchPayoutAccounts, !!session?.user?.id);
+  useRegisterForegroundRefetch('payout-accounts', 3, fetchPayoutAccounts, !!session?.user?.id && isAuthReady);
 
   useEffect(() => {
     if (!isLoading || payoutAccounts.length > 0) return;

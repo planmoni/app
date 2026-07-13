@@ -46,7 +46,7 @@ export interface KYCTierInfo {
 }
 
 export const useKYCProgress = () => {
-  const { session } = useAuth();
+  const { session, isAuthReady } = useAuth();
   const hasCachedDataRef = useRef(false);
   const [progress, setProgress] = useState<KYCProgress>({
     current_step: 'liveness_verification',
@@ -68,7 +68,7 @@ export const useKYCProgress = () => {
 
   // Load KYC progress
   const loadProgress = useCallback(async () => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id || !isAuthReady) return;
 
     try {
       if (!hasCachedDataRef.current) {
@@ -159,7 +159,7 @@ export const useKYCProgress = () => {
     } finally {
       setLoading(false);
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, isAuthReady]);
 
   // Update KYC progress
   const updateProgress = useCallback(async (updates: Partial<KYCProgress>): Promise<boolean> => {
@@ -336,7 +336,7 @@ export const useKYCProgress = () => {
     return result;
   }, [updateProgress, updateTier]);
 
-  // Load cached progress immediately, then fetch fresh data.
+  // Hydrate cached KYC only at startup — network fetch is lazy (loadProgress on demand).
   useEffect(() => {
     if (!session?.user?.id) {
       hasCachedDataRef.current = false;
@@ -345,7 +345,7 @@ export const useKYCProgress = () => {
 
     let isMounted = true;
 
-    const init = async () => {
+    const hydrate = async () => {
       try {
         const cached = await readCache<KYCProgress>(CACHE_KEYS.kycProgress(session.user.id));
         if (cached && isMounted) {
@@ -353,18 +353,14 @@ export const useKYCProgress = () => {
           hasCachedDataRef.current = true;
         }
       } catch (_) {}
-
-      if (!isMounted) return;
-      await loadProgress();
-      await updateTier();
     };
 
-    void init();
+    void hydrate();
 
     return () => {
       isMounted = false;
     };
-  }, [session?.user?.id, loadProgress, updateTier]);
+  }, [session?.user?.id]);
 
   useRegisterForegroundRefetch(
     'kyc-progress',
@@ -372,7 +368,7 @@ export const useKYCProgress = () => {
     () => {
       void loadProgress().then(() => updateTier());
     },
-    !!session?.user?.id
+    !!session?.user?.id && isAuthReady
   );
 
   // Check tier completion based on progress

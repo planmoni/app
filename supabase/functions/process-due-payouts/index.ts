@@ -65,6 +65,11 @@ type ProcessDuePayoutsRunSummary = {
   };
 };
 
+/** Errors that need ops attention — not user-facing retry failures. */
+function isPayoutSkipMessage(msg: string): boolean {
+  return /already|duplicate|skipping|manual review required|manual reconciliation/i.test(msg);
+}
+
 function buildProcessDuePayoutsResult(summary: ProcessDuePayoutsRunSummary) {
   return {
     executionId: summary.executionId,
@@ -199,7 +204,7 @@ async function processDuePayouts() {
         console.log(`[${executionId}] ✅ Payout done: ${plan.name} in ${Date.now() - planStart}ms`);
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : String(error);
-        const isSkip = /already|duplicate|skipping/i.test(msg);
+        const isSkip = isPayoutSkipMessage(msg);
         if (isSkip) {
           summary.totals.payouts_skipped++;
           summary.payouts.push({ planId: plan.plan_id, name: plan.name, status: "skipped", error: msg });
@@ -223,7 +228,7 @@ async function processDuePayouts() {
         console.log(`[${executionId}] ✅ Withdrawal done: ${withdrawal.id} in ${Date.now() - wStart}ms`);
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : String(error);
-        const isSkip = /already|duplicate|skipping/i.test(msg);
+        const isSkip = isPayoutSkipMessage(msg);
         if (isSkip) {
           summary.totals.withdrawals_skipped++;
           summary.withdrawals.push({ id: withdrawal.id, status: "skipped", error: msg });
@@ -1248,13 +1253,24 @@ async function resolveBankCodes(payoutAccount: any): Promise<BankCodeResolution>
  * Update automated payout record with transfer details
  */
 async function updateAutomatedPayout(payoutId: string, transferResult: any) {
+  const { data: existing, error: fetchError } = await supabase
+    .from("automated_payouts")
+    .select("metadata")
+    .eq("id", payoutId)
+    .single();
+  if (fetchError) {
+    console.error("updateAutomatedPayout: could not load existing metadata", fetchError);
+  }
+  const prior = (existing?.metadata as Record<string, unknown> | null) ?? {};
   const isCompleted = isTransferSuccess(transferResult);
   const metadata: Record<string, any> = {
+    ...prior,
     provider: transferResult.provider,
     transfer_code: transferResult.transfer_code || transferResult.reference,
     transfer_status: transferResult.status,
     response: transferResult.rawResponse || transferResult,
-    automated_payout_id: payoutId
+    automated_payout_id: payoutId,
+    safehaven_transfer_initiated: true,
   };
 
   const updatePayload: Record<string, any> = {
@@ -1264,7 +1280,7 @@ async function updateAutomatedPayout(payoutId: string, transferResult: any) {
     payment_reference: transferResult.paymentReference || transferResult.reference,
     completed_at: isCompleted ? new Date().toISOString() : null,
     transferred_at: new Date().toISOString(),
-    metadata
+    metadata,
   };
 
   if (transferResult.provider === "safehaven") {
@@ -1272,7 +1288,15 @@ async function updateAutomatedPayout(payoutId: string, transferResult: any) {
     updatePayload.session_id = transferResult.sessionId;
   }
 
-  await supabase.from("automated_payouts").update(updatePayload).eq("id", payoutId);
+  const { error: updateError } = await supabase
+    .from("automated_payouts")
+    .update(updatePayload)
+    .eq("id", payoutId);
+
+  if (updateError) {
+    console.error("updateAutomatedPayout: update failed", updateError);
+    throw updateError;
+  }
 }
 
 /**
@@ -1992,12 +2016,26 @@ async function logEmergencyWithdrawalFailure(withdrawal: any, error: any) {
  * critical log so it can be reconciled manually.
  */
 async function logPayoutFailure(plan: any, error: any) {
+  const message = error?.message ?? String(error);
+
+  if (isPayoutSkipMessage(message)) {
+    console.log(
+      `⏸️ Payout plan ${plan.plan_id} requires manual review; skipping failure notification`
+    );
+    return;
+  }
+
   // Check whether a transfer was already sent before deciding the target status.
+  const scheduledDate =
+    typeof plan.next_payout_date === "string"
+      ? plan.next_payout_date.split("T")[0]
+      : plan.next_payout_date;
+
   const { data: existingRow } = await supabase
     .from("automated_payouts")
     .select("id, transfer_reference")
     .eq("payout_plan_id", plan.plan_id)
-    .eq("scheduled_date", plan.next_payout_date)
+    .eq("scheduled_date", scheduledDate)
     .maybeSingle();
 
   const transferAlreadySent = Boolean(existingRow?.transfer_reference);
@@ -2008,20 +2046,20 @@ async function logPayoutFailure(plan: any, error: any) {
       `🚨 CRITICAL: Payout for plan ${plan.plan_id} on ${plan.next_payout_date} ` +
       `has transfer_reference "${existingRow!.transfer_reference}" but an error occurred ` +
       `after the SafeHaven POST. Keeping status "processing" to prevent a double-payment ` +
-      `on the next cron run. Error was: ${error.message}. MANUAL REVIEW REQUIRED.`
+      `on the next cron run. Error was: ${message}. MANUAL REVIEW REQUIRED.`
     );
   }
 
   // Update automated payout record
   await supabase.from("automated_payouts").update({
     status: newStatus,
-    error_message: error.message,
+    error_message: message,
     // Only set retry fields when it is genuinely safe to retry (no transfer in flight)
     ...(newStatus === "failed" ? {
       retry_count: 1,
       retry_after: new Date(Date.now() + 30 * 60 * 1000)
     } : {})
-  }).eq("payout_plan_id", plan.plan_id).eq("scheduled_date", plan.next_payout_date);
+  }).eq("payout_plan_id", plan.plan_id).eq("scheduled_date", scheduledDate);
   
   // Create database event notification for failure
   await supabase.from("events").insert({
@@ -2045,7 +2083,7 @@ async function logPayoutFailure(plan: any, error: any) {
         plan_id: plan.plan_id,
         plan_name: plan.name,
         amount: plan.payout_amount,
-        error_message: error.message,
+        error_message: message,
         retry_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         timestamp: new Date().toISOString()
       }
