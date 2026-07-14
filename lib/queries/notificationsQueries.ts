@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { fetchWithRetry, readCache, writeCache } from '@/lib/supabase-fetch';
+import { readCache, writeCache } from '@/lib/supabase-fetch';
 import { PAGE_SIZE } from '@/lib/queries/keys';
 
 export type NotificationEvent = {
@@ -15,6 +15,9 @@ export type NotificationEvent = {
   metadata?: Record<string, unknown> | null;
 };
 
+const SELECT =
+  'id, user_id, type, title, description, status, payout_plan_id, transaction_id, created_at, metadata';
+
 const cacheKey = (userId: string) => `cache_notifications_${userId}`;
 
 export async function readNotificationsCache(userId: string): Promise<NotificationEvent[] | null> {
@@ -22,6 +25,7 @@ export async function readNotificationsCache(userId: string): Promise<Notificati
   return Array.isArray(cached) ? cached : null;
 }
 
+/** Paginated activities — page 0 = latest 10, then more as user scrolls. */
 export async function fetchNotificationsPage(
   userId: string,
   pageParam = 0,
@@ -30,16 +34,12 @@ export async function fetchNotificationsPage(
   const from = pageParam * pageSize;
   const to = from + pageSize - 1;
 
-  const { data, error } = (await fetchWithRetry(
-    () =>
-      supabase
-        .from('events')
-        .select('id, user_id, type, title, description, status, payout_plan_id, transaction_id, created_at, metadata')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .range(from, to),
-    'Notifications page'
-  )) as { data: NotificationEvent[] | null; error: any };
+  const { data, error } = await supabase
+    .from('events')
+    .select(SELECT)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
   if (error) throw error;
 
@@ -52,6 +52,15 @@ export async function fetchNotificationsPage(
     items,
     nextPage: items.length === pageSize ? pageParam + 1 : undefined,
   };
+}
+
+/** @deprecated Prefer fetchNotificationsPage — kept for any one-shot callers. */
+export async function fetchNotifications(
+  userId: string,
+  limit = PAGE_SIZE.notifications
+): Promise<NotificationEvent[]> {
+  const page = await fetchNotificationsPage(userId, 0, limit);
+  return page.items;
 }
 
 export async function fetchUnreadNotificationsCount(userId: string): Promise<number> {

@@ -1,10 +1,15 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { financialQueryKeys, PAGE_SIZE } from '@/lib/queries/keys';
 import {
   fetchNotificationsPage,
-  fetchUnreadNotificationsCount,
   markAllNotificationsRead,
   markNotificationRead,
   readNotificationsCache,
@@ -12,15 +17,12 @@ import {
 } from '@/lib/queries/notificationsQueries';
 import { useHydrateFinancialCache } from '@/lib/queries/hydrateFinancialCache';
 import { useLoadingGuard } from '@/hooks/useLoadingGuard';
-import { logAuthQueryGateViolation } from '@/lib/auth-telemetry';
 import { syncBadgeCount } from '@/lib/badge-sync';
 
-const STALE_TIME_MS = 5 * 60 * 1000;
+const STALE_TIME_MS = 2 * 60 * 1000;
 
-type InfiniteNotificationsData = {
-  pages: Array<{ items: NotificationEvent[]; nextPage: number | undefined }>;
-  pageParams: number[];
-};
+type NotificationsPage = { items: NotificationEvent[]; nextPage: number | undefined };
+type InfiniteNotificationsData = InfiniteData<NotificationsPage, number>;
 
 async function readInfiniteNotificationsCache(
   userId: string
@@ -28,17 +30,29 @@ async function readInfiniteNotificationsCache(
   const firstPage = await readNotificationsCache(userId);
   if (!firstPage?.length) return null;
   return {
-    pages: [{ items: firstPage, nextPage: firstPage.length === PAGE_SIZE.notifications ? 1 : undefined }],
+    pages: [
+      {
+        items: firstPage,
+        nextPage: firstPage.length === PAGE_SIZE.notifications ? 1 : undefined,
+      },
+    ],
     pageParams: [0],
   };
 }
 
+/**
+ * Activities screen: loads latest 10 first, then more on scroll.
+ * Only runs while this hook is mounted (not from tab bar / app launch).
+ */
 export function useNotificationsQuery() {
   const { session, isAuthReady } = useAuth();
   const userId = session?.user?.id;
   const queryClient = useQueryClient();
   const queryKey = useMemo(
-    () => (userId ? financialQueryKeys.notifications(userId) : (['notifications', 'anonymous'] as const)),
+    () =>
+      userId
+        ? financialQueryKeys.notificationsInfinite(userId)
+        : (['notifications', 'infinite', 'anonymous'] as const),
     [userId]
   );
 
@@ -46,14 +60,14 @@ export function useNotificationsQuery() {
 
   const query = useInfiniteQuery({
     queryKey,
-    queryFn: ({ pageParam = 0 }) => {
-      logAuthQueryGateViolation('notifications', isAuthReady, userId);
-      return fetchNotificationsPage(userId!, pageParam, PAGE_SIZE.notifications);
-    },
+    queryFn: ({ pageParam = 0 }) =>
+      fetchNotificationsPage(userId!, pageParam, PAGE_SIZE.notifications),
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage.nextPage,
     enabled: isAuthReady && !!userId,
     staleTime: STALE_TIME_MS,
+    retry: 1,
+    networkMode: 'online',
   });
 
   const notifications = useMemo(
@@ -65,14 +79,6 @@ export function useNotificationsQuery() {
     query.isLoading,
     notifications.length > 0
   );
-
-  const unreadCountQuery = useQuery({
-    queryKey: userId ? financialQueryKeys.notificationsUnread(userId) : ['notifications', 'unread', 'anonymous'],
-    queryFn: () => fetchUnreadNotificationsCount(userId!),
-    enabled: isAuthReady && !!userId,
-    staleTime: STALE_TIME_MS,
-    refetchInterval: 60_000,
-  });
 
   const patchLocalStatus = useCallback(
     (updater: (items: NotificationEvent[]) => NotificationEvent[]) => {
@@ -96,10 +102,7 @@ export function useNotificationsQuery() {
       patchLocalStatus((items) =>
         items.map((n) => (n.id === id ? { ...n, status: 'read' as const } : n))
       );
-      if (userId) {
-        void queryClient.invalidateQueries({ queryKey: financialQueryKeys.notificationsUnread(userId) });
-        void syncBadgeCount(userId);
-      }
+      if (userId) void syncBadgeCount(userId);
     },
   });
 
@@ -107,10 +110,7 @@ export function useNotificationsQuery() {
     mutationFn: () => markAllNotificationsRead(userId!),
     onSuccess: () => {
       patchLocalStatus((items) => items.map((n) => ({ ...n, status: 'read' as const })));
-      if (userId) {
-        queryClient.setQueryData(financialQueryKeys.notificationsUnread(userId), 0);
-        void syncBadgeCount(userId);
-      }
+      if (userId) void syncBadgeCount(userId);
     },
   });
 
@@ -122,26 +122,36 @@ export function useNotificationsQuery() {
     hasNextPage: !!query.hasNextPage,
     fetchNextPage: query.fetchNextPage,
     refetch: query.refetch,
-    error: query.error ? (query.error instanceof Error ? query.error.message : String(query.error)) : null,
-    unreadCount: unreadCountQuery.data ?? 0,
+    error: query.error
+      ? query.error instanceof Error
+        ? query.error.message
+        : String(query.error)
+      : null,
     markAsRead: (id: string) => markReadMutation.mutateAsync(id),
     markAllAsRead: () => markAllReadMutation.mutateAsync(),
     isMarkingAllAsRead: markAllReadMutation.isPending,
   };
 }
 
-/** Lightweight badge-only hook — count query, not full list. */
-export function useUnreadNotificationsCount() {
+/**
+ * Optional lightweight unread count — call only where a badge is shown.
+ */
+export function useUnreadNotificationsCount(enabled = true) {
   const { session, isAuthReady } = useAuth();
   const userId = session?.user?.id;
 
   const query = useQuery({
-    queryKey: userId ? financialQueryKeys.notificationsUnread(userId) : ['notifications', 'unread', 'anonymous'],
-    queryFn: () => fetchUnreadNotificationsCount(userId!),
-    enabled: isAuthReady && !!userId,
+    queryKey: userId
+      ? financialQueryKeys.notificationsUnread(userId)
+      : ['notifications', 'unread', 'anonymous'],
+    queryFn: () =>
+      import('@/lib/queries/notificationsQueries').then((m) =>
+        m.fetchUnreadNotificationsCount(userId!)
+      ),
+    enabled: enabled && isAuthReady && !!userId,
     staleTime: STALE_TIME_MS,
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
+    retry: 0,
+    refetchOnWindowFocus: false,
   });
 
   return {

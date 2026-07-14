@@ -11,7 +11,8 @@ export const financialQueryKeys = {
   transactions: (userId: string, limit?: number) =>
     ['transactions', userId, limit ?? PAGE_SIZE.transactions] as const,
   transactionsInfinite: (userId: string) => ['transactions', 'infinite', userId] as const,
-  notifications: (userId: string) => ['notifications', 'infinite', userId] as const,
+  notifications: (userId: string) => ['notifications', userId] as const,
+  notificationsInfinite: (userId: string) => ['notifications', 'infinite', userId] as const,
   notificationsUnread: (userId: string) => ['notifications', 'unreadCount', userId] as const,
 };
 

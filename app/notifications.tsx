@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -49,17 +49,23 @@ export default function NotificationsScreen() {
   const {
     notifications,
     isLoading,
-    isFetchingNextPage,
-    hasNextPage,
-    fetchNextPage,
     refetch,
     error,
     markAsRead,
     markAllAsRead,
     isMarkingAllAsRead,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
   } = useNotificationsQuery();
 
-  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleEndReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   useFocusEffect(
     useCallback(() => {
@@ -180,13 +186,36 @@ export default function NotificationsScreen() {
     }
   };
 
-  const onEndReached = () => {
-    if (hasNextPage && !isFetchingNextPage) {
-      void fetchNextPage();
-    }
-  };
-
   const styles = createStyles(colors, isDark);
+
+  const header = (
+    <View style={styles.header}>
+      <View style={styles.headerTop}>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft size={24} color={colors.text} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Activities</Text>
+        <Pressable
+          style={[
+            styles.markAllButton,
+            (isMarkingAllAsRead || !notifications.some((n) => n.status === 'unread')) &&
+              styles.markAllButtonDisabled,
+          ]}
+          onPress={handleMarkAllAsRead}
+          disabled={isMarkingAllAsRead || !notifications.some((n) => n.status === 'unread')}
+        >
+          {isMarkingAllAsRead ? (
+            <>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.markAllText}>Marking...</Text>
+            </>
+          ) : (
+            <Text style={styles.markAllText}>Mark all as read</Text>
+          )}
+        </Pressable>
+      </View>
+    </View>
+  );
 
   const renderItem: ListRenderItem<DisplayNotification> = ({ item: notification }) => (
     <Pressable
@@ -247,36 +276,7 @@ export default function NotificationsScreen() {
     </Pressable>
   );
 
-  const header = (
-    <View style={styles.header}>
-      <View style={styles.headerTop}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color={colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Activities</Text>
-        <Pressable
-          style={[
-            styles.markAllButton,
-            (isMarkingAllAsRead || !notifications.some((n) => n.status === 'unread')) &&
-              styles.markAllButtonDisabled,
-          ]}
-          onPress={handleMarkAllAsRead}
-          disabled={isMarkingAllAsRead || !notifications.some((n) => n.status === 'unread')}
-        >
-          {isMarkingAllAsRead ? (
-            <>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.markAllText}>Marking...</Text>
-            </>
-          ) : (
-            <Text style={styles.markAllText}>Mark all as read</Text>
-          )}
-        </Pressable>
-      </View>
-    </View>
-  );
-
-  // Warm cache: no full-screen spinner when we already have rows
+  // Only full-screen loader on first visit with no cache
   if (isLoading && displayNotifications.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -292,14 +292,7 @@ export default function NotificationsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {header}
 
-      {error && displayNotifications.length === 0 ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={() => void refetch()}>
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </Pressable>
-        </View>
-      ) : !session?.user?.id ? (
+      {!session?.user?.id ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No activities</Text>
           <Text style={styles.emptySubtext}>Login to see activities</Text>
@@ -313,7 +306,7 @@ export default function NotificationsScreen() {
           contentContainerStyle={
             displayNotifications.length === 0 ? styles.emptyListContent : { paddingBottom: 24 }
           }
-          onEndReached={onEndReached}
+          onEndReached={handleEndReached}
           onEndReachedThreshold={0.4}
           refreshControl={
             <RefreshControl
@@ -323,19 +316,26 @@ export default function NotificationsScreen() {
               colors={[colors.primary]}
             />
           }
+          ListHeaderComponent={
+            error && displayNotifications.length === 0 ? (
+              <Text style={styles.softError}>
+                Couldn&apos;t load activities. Pull down to try again.
+              </Text>
+            ) : null
+          }
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <View style={styles.footerLoading}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Bell size={64} color={colors.textTertiary} style={styles.emptyIcon} />
               <Text style={styles.emptyText}>No activities</Text>
               <Text style={styles.emptySubtext}>Your recent activities will appear here</Text>
             </View>
-          }
-          ListFooterComponent={
-            isFetchingNextPage ? (
-              <View style={styles.footerLoader}>
-                <ActivityIndicator size="small" color={colors.primary} />
-              </View>
-            ) : null
           }
         />
       )}
@@ -353,11 +353,6 @@ const createStyles = (colors: any, isDark: boolean) =>
       backgroundColor: colors.surface,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
     },
     headerTop: {
       flexDirection: 'row',
@@ -403,28 +398,17 @@ const createStyles = (colors: any, isDark: boolean) =>
       justifyContent: 'center',
       alignItems: 'center',
     },
-    errorContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 24,
-    },
-    errorText: {
-      fontSize: 16,
-      color: colors.error,
+    softError: {
+      marginHorizontal: 16,
+      marginTop: 12,
+      marginBottom: 4,
+      fontSize: 13,
+      color: colors.textSecondary,
       textAlign: 'center',
-      marginBottom: 16,
     },
-    retryButton: {
-      backgroundColor: colors.primary,
-      paddingHorizontal: 20,
-      paddingVertical: 10,
-      borderRadius: 8,
-    },
-    retryButtonText: {
-      color: '#FFFFFF',
-      fontSize: 14,
-      fontWeight: '600',
+    footerLoading: {
+      paddingVertical: 20,
+      alignItems: 'center',
     },
     emptyContainer: {
       flex: 1,
@@ -532,10 +516,6 @@ const createStyles = (colors: any, isDark: boolean) =>
     emptyIcon: {
       marginBottom: 16,
       opacity: 0.5,
-    },
-    footerLoader: {
-      paddingVertical: 16,
-      alignItems: 'center',
     },
   });
 

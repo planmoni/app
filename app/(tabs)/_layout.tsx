@@ -1,21 +1,17 @@
 import { Tabs } from 'expo-router';
-import { Bell, Calendar, Home as Home, PieChart, Settings, Sparkles } from 'lucide-react-native'; //Do not change the Home to Chrome
-// import CustomAppLayout from '@/components/CustomAppLayout'; //Do not change the Home to Chrome
-import { StyleSheet, View, Platform} from 'react-native';
+import { Calendar, Home as Home, PieChart, Settings, Sparkles } from 'lucide-react-native'; //Do not change the Home to Chrome
+import { StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, ThemeContext } from '@/contexts/ThemeContext';
-import { lazy, Suspense, useContext } from 'react';
-import CustomAppLayout from '../components/CustomAppLayout';
+import { useContext, useEffect, useState } from 'react';
 import { useRouteTracking } from '@/hooks/useRouteTracking';
 import { useBottomNav } from '@/contexts/BottomNavContext';
-import { useUnreadNotificationsCount } from '@/hooks/queries/useNotificationsQuery';
 // WelcomeModal will be lazy loaded when needed
 
 function TabLayoutContent() {
   const { colors, isDark } = useTheme();
   const { isBottomNavVisible } = useBottomNav();
   const insets = useSafeAreaInsets();
-  const { unreadCount: unreadNotifications } = useUnreadNotificationsCount();
 
   // Android 15+/targetSdk 36 draws edge-to-edge; pad tab bar above system controls.
   const androidBottomInset = Platform.OS === 'android' ? Math.max(insets.bottom, 0) : 0;
@@ -102,17 +98,6 @@ const styles = StyleSheet.create({
   tabBarLabel: {
     fontSize: Platform.OS === 'ios' ? 12 : 10,
     fontWeight: '500',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
   },
 });
 
