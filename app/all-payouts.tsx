@@ -27,11 +27,12 @@ import {
   Text, 
   View, 
   RefreshControl,
-  TextInput
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { usePayoutPlansQuery } from '@/hooks/queries/usePayoutPlansQuery';
+import { useInfinitePayoutPlansQuery } from '@/hooks/queries/usePayoutPlansQuery';
 import { useBalance } from '@/contexts/BalanceContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useHasCreatedPayoutPlan } from '@/hooks/useHasCreatedPayoutPlan';
@@ -51,7 +52,14 @@ type TabType = 'all' | 'active' | 'cancelled' | 'completed';
 
 export default function AllPayoutsScreen() {
   const { colors, isDark } = useTheme();
-  const { payoutPlans, isLoading, fetchPayoutPlans } = usePayoutPlansQuery();
+  const {
+    payoutPlans,
+    isLoading,
+    fetchPayoutPlans,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfinitePayoutPlansQuery();
   const { showBalances, balance, availableBalance } = useBalance();
   const haptics = useHaptics();
   const { hasCreatedPayoutPlan } = useHasCreatedPayoutPlan();
@@ -670,6 +678,21 @@ export default function AllPayoutsScreen() {
             );
           })
         )}
+        {hasNextPage && (
+          <Pressable
+            style={[styles.loadMoreButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => {
+              if (!isFetchingNextPage) void fetchNextPage();
+            }}
+            disabled={isFetchingNextPage}
+          >
+            {isFetchingNextPage ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={[styles.loadMoreText, { color: colors.primary }]}>Load more plans</Text>
+            )}
+          </Pressable>
+        )}
       </ScrollView>
       
       <SafeFooter />
@@ -1169,5 +1192,19 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.text,
+  },
+  loadMoreButton: {
+    marginTop: 8,
+    marginBottom: 16,
+    marginHorizontal: 4,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

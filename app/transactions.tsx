@@ -4,25 +4,30 @@ import TransactionModal from '@/components/TransactionModal';
 import DateRangeModal from '@/components/DateRangeModal';
 import { router } from 'expo-router';
 import { ArrowDownRight, ArrowLeft, ArrowUpRight, Calendar, Search, X, XCircle, CheckCircle2, Clock } from 'lucide-react-native';
-import { useState, useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useTransactionsQuery, type Transaction } from '@/hooks/queries/useTransactionsQuery';
+import { useInfiniteTransactionsQuery, type Transaction } from '@/hooks/queries/useTransactionsQuery';
 import { usePayoutPlansQuery } from '@/hooks/queries/usePayoutPlansQuery';
 import { formatTransactionType } from '@/lib/formatters';
 type TransactionType = 'all' | 'deposits' | 'payouts' | 'withdrawals';
 
 export default function TransactionsScreen() {
   const { colors, isDark } = useTheme();
-  const { transactions, isLoading } = useTransactionsQuery();
-  const { payoutPlans } = usePayoutPlansQuery();
+  const {
+    transactions,
+    isLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfiniteTransactionsQuery();
+  const { payoutPlans } = usePayoutPlansQuery(20);
   const [activeType, setActiveType] = useState<TransactionType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [isTransactionModalVisible, setIsTransactionModalVisible] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [isDateRangeModalVisible, setIsDateRangeModalVisible] = useState(false);
   const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({
     start: null,
@@ -55,10 +60,9 @@ export default function TransactionsScreen() {
   };
 
   const handleLoadMore = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-    }, 1000);
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
   };
 
   const handleDateRangeSelect = (startDate: Date | null, endDate: Date | null) => {
@@ -403,11 +407,11 @@ export default function TransactionsScreen() {
           ))
         )}
 
-        {filteredTransactions.length > 0 && (
-          <Pressable style={styles.loadMoreButton} onPress={handleLoadMore}>
-            {loading ? (
+        {filteredTransactions.length > 0 && hasNextPage && (
+          <Pressable style={styles.loadMoreButton} onPress={handleLoadMore} disabled={isFetchingNextPage}>
+            {isFetchingNextPage ? (
               <View style={styles.loadingMoreContainer}>
-                <PlanmoniLoader size="small" />
+                <ActivityIndicator size="small" color={colors.primary} />
                 <Text style={styles.loadMoreText}>Loading...</Text>
               </View>
             ) : (

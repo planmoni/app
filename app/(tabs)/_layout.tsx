@@ -4,21 +4,18 @@ import { Bell, Calendar, Home as Home, PieChart, Settings, Sparkles } from 'luci
 import { StyleSheet, View, Platform} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, ThemeContext } from '@/contexts/ThemeContext';
-import { useEffect, useState, useRef, lazy, Suspense, useContext } from 'react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
+import { lazy, Suspense, useContext } from 'react';
 import CustomAppLayout from '../components/CustomAppLayout';
 import { useRouteTracking } from '@/hooks/useRouteTracking';
 import { useBottomNav } from '@/contexts/BottomNavContext';
+import { useUnreadNotificationsCount } from '@/hooks/queries/useNotificationsQuery';
 // WelcomeModal will be lazy loaded when needed
 
 function TabLayoutContent() {
   const { colors, isDark } = useTheme();
-  const { session } = useAuth();
   const { isBottomNavVisible } = useBottomNav();
   const insets = useSafeAreaInsets();
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const channelRef = useRef<any>(null);
+  const { unreadCount: unreadNotifications } = useUnreadNotificationsCount();
 
   // Android 15+/targetSdk 36 draws edge-to-edge; pad tab bar above system controls.
   const androidBottomInset = Platform.OS === 'android' ? Math.max(insets.bottom, 0) : 0;
@@ -27,81 +24,6 @@ function TabLayoutContent() {
 
   // Track route changes for persistence
   useRouteTracking();
-
-  useEffect(() => {
-    // Check if Supabase is properly configured
-    const isConfigured = isSupabaseConfigured();
-    if (!isConfigured) {
-      console.log('Supabase config check completed');
-      return;
-    }
-
-    if (!session?.user?.id) return;
-
-    // Clean up any existing channel
-    if (channelRef.current) {
-      try {
-        supabase.removeChannel(channelRef.current);
-      } catch (err) {
-        // Ignore errors
-      }
-      channelRef.current = null;
-    }
-
-    // Initial fetch of unread notifications count
-    fetchUnreadNotificationsCount();
-
-    // Poll for updates every 30 seconds instead of real-time subscription
-    // Server-side push notifications handle delivery when app is closed
-    const pollInterval = setInterval(() => {
-      fetchUnreadNotificationsCount();
-    }, 30000); // Poll every 30 seconds
-
-    return () => {
-      clearInterval(pollInterval);
-      if (channelRef.current) {
-        try {
-          supabase.removeChannel(channelRef.current);
-        } catch (err) {
-          // Ignore errors
-        }
-        channelRef.current = null;
-      }
-    };
-  }, [session?.user?.id]);
-
-  const fetchUnreadNotificationsCount = async () => {
-    try {
-      // Check if Supabase is properly configured
-      const isConfigured = isSupabaseConfigured();
-      if (!isConfigured) {
-        console.log('Notifications fetch skipped');
-        return;
-      }
-
-      if (!session?.user?.id) {
-        console.warn('No user session available for fetching notifications');
-        return;
-      }
-
-      const { count, error } = await supabase
-        .from('events')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', session.user.id)
-        .eq('status', 'unread');
-
-      if (error) {
-        console.error('Supabase error fetching unread notifications:', error);
-        return;
-      }
-
-      setUnreadNotifications(count || 0);
-    } catch (error) {
-      console.error('Error fetching unread notifications count:', error);
-      // Don't throw the error, just log it and continue
-      // This prevents the app from crashing due to network issues
-    }
-  };
 
   // Use darker color for inactive icons on Android in light mode for better visibility
   const getInactiveTintColor = () => {

@@ -26,6 +26,7 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
       staleTime: 5 * 60 * 1000,
+      // Wallet overrides this with networkMode: 'online' + staleTime: 0
       networkMode: 'offlineFirst',
     },
     mutations: {

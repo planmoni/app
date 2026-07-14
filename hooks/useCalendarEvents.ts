@@ -17,9 +17,9 @@ export type { CalendarEvent };
 
 export function useCalendarEvents() {
   const { session } = useAuth();
-  const { payoutPlans, isLoading: plansLoading, isTimedOut: plansTimedOut, error: plansError, fetchPayoutPlans } = usePayoutPlansQuery();
+  const { payoutPlans, isLoading: plansLoading, isTimedOut: plansTimedOut, error: plansError, fetchPayoutPlans } = usePayoutPlansQuery(40);
   const { transactions, isLoading: transactionsLoading, isTimedOut: transactionsTimedOut, error: transactionsError, fetchTransactions } =
-    useTransactionsQuery();
+    useTransactionsQuery(30);
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [error, setError] = useState<string | null>(null);

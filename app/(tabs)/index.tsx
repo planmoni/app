@@ -282,13 +282,13 @@ export default function HomeScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const insets = useSafeAreaInsets();
-  const { payoutPlans, isLoading: payoutPlansLoading, isTimedOut: payoutPlansTimedOut, fetchPayoutPlans } = usePayoutPlansQuery();
+  const { payoutPlans, isLoading: payoutPlansLoading, isTimedOut: payoutPlansTimedOut, fetchPayoutPlans } = usePayoutPlansQuery(20);
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress, currentTier } = useKYCProgress();
   const { hasCreatedPayoutPlan, isLoading: hasCreatedPayoutPlanLoading } = useHasCreatedPayoutPlan();
   const navigation = useNavigation();
   const { requireAuth, isAuthenticated } = useRequireAuth();
-  const { transactions, isLoading: transactionsLoading, isTimedOut: transactionsTimedOut, fetchTransactions } = useTransactionsQuery();
+  const { transactions, isLoading: transactionsLoading, isTimedOut: transactionsTimedOut, fetchTransactions } = useTransactionsQuery(10);
   const { expensePlans, fetchExpensePlans } = useExpensePlans();
   const [activeBalanceTab, setActiveBalanceTab] = useState<'home' | 'plans' | 'payouts'>('home');
   const [visitedTabs, setVisitedTabs] = useState<Set<'home' | 'plans' | 'payouts'>>(
@@ -945,8 +945,7 @@ export default function HomeScreen() {
     logAnalyticsEvent('profile_click');
   }, []);
 
-  // Handle pull-to-refresh — reconnect first, refresh everything in parallel,
-  // and cap the spinner so a stale/hung query never blocks the UI for 25s+.
+  // Pull-to-refresh: wallet FIRST (money UX), then everything else in parallel.
   const REFRESH_SPINNER_CAP_MS = 6000;
 
   const handleRefresh = useCallback(async () => {
@@ -976,19 +975,29 @@ export default function HomeScreen() {
       isRefreshingRef.current = false;
     };
 
-    // Absolute failsafe — spinner must never stick
     refreshTimeoutRef.current = setTimeout(endRefresh, REFRESH_SPINNER_CAP_MS + 3000);
 
     try {
       await warmConnection();
 
+      // Priority #1: wallet — await briefly so balance updates before spinner ends
+      try {
+        await Promise.race([
+          refreshWallet(),
+          new Promise<void>((resolve) => setTimeout(resolve, 4000)),
+        ]);
+      } catch (walletErr) {
+        console.warn('Priority wallet refresh failed:', walletErr);
+      }
+
       const refreshWork = Promise.allSettled([
         checkSafehavenDeposits(),
-        refreshWallet(),
         fetchPayoutPlans(),
         fetchTransactions(),
         fetchExpensePlans(),
         loadProgress(),
+        // Second wallet pass in case deposit webhook landed mid-refresh
+        refreshWallet(),
       ]);
 
       await Promise.race([
@@ -998,14 +1007,18 @@ export default function HomeScreen() {
 
       impact();
 
-      // If the spinner cap fired first, let remaining fetches finish silently
       void refreshWork.then((results) => {
+        const labels = [
+          'safehaven deposits',
+          'payout plans',
+          'transactions',
+          'expense plans',
+          'KYC',
+          'wallet',
+        ];
         results.forEach((r, i) => {
           if (r.status === 'rejected') {
-            console.warn(
-              `Refresh failed for ${['wallet', 'payout plans', 'transactions', 'expense plans', 'KYC'][i]}:`,
-              r.reason
-            );
+            console.warn(`Refresh failed for ${labels[i]}:`, r.reason);
           }
         });
       });

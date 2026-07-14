@@ -27,8 +27,8 @@ export default function InsightsScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { isAuthenticated } = useRequireAuth();
-  const { payoutPlans, isLoading: payoutPlansLoading, isTimedOut: payoutPlansTimedOut, fetchPayoutPlans } = usePayoutPlansQuery();
-  const { transactions, isLoading: transactionsLoading, isTimedOut: transactionsTimedOut, fetchTransactions } = useTransactionsQuery();
+  const { payoutPlans, isLoading: payoutPlansLoading, isTimedOut: payoutPlansTimedOut, fetchPayoutPlans } = usePayoutPlansQuery(20);
+  const { transactions, isLoading: transactionsLoading, isTimedOut: transactionsTimedOut, fetchTransactions } = useTransactionsQuery(20);
   const { metrics, trends, vaultStats, isLoading, isTimedOut: insightsTimedOut, error, refreshInsights } = useInsightsData(
     payoutPlans,
     transactions,

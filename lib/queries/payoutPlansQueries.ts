@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { fetchWithRetry, CACHE_KEYS, readCache, writeCache } from '@/lib/supabase-fetch';
+import { PAGE_SIZE } from '@/lib/queries/keys';
 import type { PayoutPlan } from '@/hooks/useRealtimePayoutPlans';
 
 const select = `
@@ -21,50 +22,20 @@ export async function readPayoutPlansCache(userId: string): Promise<PayoutPlan[]
   return Array.isArray(cached) ? cached : null;
 }
 
-export async function fetchPayoutPlans(userId: string): Promise<PayoutPlan[]> {
-  const [ownedResult, pairingResult] = (await Promise.all([
-    fetchWithRetry(
-      () =>
-        supabase
-          .from('payout_plans')
-          .select(select)
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false }),
-      'Payout plans'
-    ),
-    fetchWithRetry(
-      () =>
-        supabase
-          .from('payout_plan_pairings')
-          .select('payout_plan_id')
-          .eq('paired_user_id', userId),
-      'Payout plan pairings'
-    ),
-  ])) as [
-    { data: any[] | null; error: any },
-    { data: { payout_plan_id: string }[] | null; error: any },
-  ];
+async function fetchPairedPlans(userId: string): Promise<PayoutPlan[]> {
+  const { data: pairingRows, error: pairingError } = (await fetchWithRetry(
+    () =>
+      supabase
+        .from('payout_plan_pairings')
+        .select('payout_plan_id')
+        .eq('paired_user_id', userId),
+    'Payout plan pairings'
+  )) as { data: { payout_plan_id: string }[] | null; error: any };
 
-  const { data: ownedData, error: ownedError } = ownedResult;
-  const { data: pairingRows, error: pairingError } = pairingResult;
+  if (pairingError || !pairingRows?.length) return [];
 
-  if (ownedError) throw ownedError;
-
-  const owned: PayoutPlan[] = (ownedData || []).map((p: any) => ({ ...p, is_paired: false }));
-
-  if (pairingError) {
-    void writeCache(CACHE_KEYS.payoutPlans(userId), owned);
-    return owned;
-  }
-
-  const pairedIds = (pairingRows || [])
-    .map((r: { payout_plan_id: string }) => r.payout_plan_id)
-    .filter(Boolean);
-
-  if (pairedIds.length === 0) {
-    void writeCache(CACHE_KEYS.payoutPlans(userId), owned);
-    return owned;
-  }
+  const pairedIds = pairingRows.map((r) => r.payout_plan_id).filter(Boolean);
+  if (pairedIds.length === 0) return [];
 
   const { data: pairedData, error: pairedError } = (await fetchWithRetry(
     () =>
@@ -76,12 +47,35 @@ export async function fetchPayoutPlans(userId: string): Promise<PayoutPlan[]> {
     'Paired payout plans'
   )) as { data: any[] | null; error: any };
 
-  if (pairedError) {
-    void writeCache(CACHE_KEYS.payoutPlans(userId), owned);
-    return owned;
-  }
+  if (pairedError) return [];
+  return (pairedData || []).map((p: any) => ({ ...p, is_paired: true }));
+}
 
-  const paired: PayoutPlan[] = (pairedData || []).map((p: any) => ({ ...p, is_paired: true }));
+/**
+ * Bounded payout plans for home / calendar / insights.
+ * Paired plans are always included (usually few).
+ */
+export async function fetchPayoutPlans(
+  userId: string,
+  limit: number = PAGE_SIZE.payoutPlans
+): Promise<PayoutPlan[]> {
+  const [ownedResult, paired] = await Promise.all([
+    fetchWithRetry(
+      () =>
+        supabase
+          .from('payout_plans')
+          .select(select)
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(limit),
+      'Payout plans'
+    ) as Promise<{ data: any[] | null; error: any }>,
+    fetchPairedPlans(userId),
+  ]);
+
+  if (ownedResult.error) throw ownedResult.error;
+
+  const owned: PayoutPlan[] = (ownedResult.data || []).map((p: any) => ({ ...p, is_paired: false }));
   const merged = [...owned];
   for (const p of paired) {
     if (!merged.some((m) => m.id === p.id)) merged.push(p);
@@ -90,4 +84,44 @@ export async function fetchPayoutPlans(userId: string): Promise<PayoutPlan[]> {
 
   void writeCache(CACHE_KEYS.payoutPlans(userId), merged);
   return merged;
+}
+
+/** Paginated owned plans for All Payouts screen. Paired plans only on page 0. */
+export async function fetchPayoutPlansPage(
+  userId: string,
+  pageParam = 0,
+  pageSize = PAGE_SIZE.payoutPlans
+): Promise<{ items: PayoutPlan[]; nextPage: number | undefined }> {
+  const from = pageParam * pageSize;
+  const to = from + pageSize - 1;
+
+  const { data, error } = (await fetchWithRetry(
+    () =>
+      supabase
+        .from('payout_plans')
+        .select(select)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .range(from, to),
+    'Payout plans page'
+  )) as { data: any[] | null; error: any };
+
+  if (error) throw error;
+
+  let items: PayoutPlan[] = (data || []).map((p: any) => ({ ...p, is_paired: false }));
+
+  if (pageParam === 0) {
+    const paired = await fetchPairedPlans(userId);
+    for (const p of paired) {
+      if (!items.some((m) => m.id === p.id)) items.push(p);
+    }
+    items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    void writeCache(CACHE_KEYS.payoutPlans(userId), items);
+  }
+
+  const ownedCount = (data || []).length;
+  return {
+    items,
+    nextPage: ownedCount === pageSize ? pageParam + 1 : undefined,
+  };
 }
