@@ -73,6 +73,11 @@ import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
 import { LifecycleEventName } from '@/lib/lifecycleEvents';
 import { updateNextPayoutWidget } from '@/lib/widgetStorage';
 import { setWelcomeModalOpener } from '@/lib/welcomeModalOpener';
+import {
+  markGuestWelcomeShown,
+  resetGuestWelcomeGate,
+  wasGuestWelcomeShown,
+} from '@/lib/welcome-guest-gate';
 // import { intercomInstant } from '@/lib/IntercomInstant';
 import NotificationIcon from '@/components/NotificationIcon';
 import { supabase } from '@/lib/supabase';
@@ -421,6 +426,7 @@ export default function HomeScreen() {
 
   const ensureAuthenticatedOrWelcome = useCallback(() => {
     if (!isAuthenticated) {
+      markGuestWelcomeShown();
       setShowWelcomeModal(true);
       return false;
     }
@@ -429,29 +435,44 @@ export default function HomeScreen() {
 
   useEffect(() => {
     setWelcomeModalOpener(() => {
+      markGuestWelcomeShown();
       setShowWelcomeModal(true);
     });
     return () => setWelcomeModalOpener(null);
   }, []);
 
-  // Show welcome modal once auth has resolved and the user is signed out
+  // Show welcome modal once after auth resolves as signed-out (survives Home remounts).
   useEffect(() => {
     if (authLoading) return;
+
     if (session?.user?.id) {
+      resetGuestWelcomeGate();
+      setHasShownWelcomeModal(false);
       setShowWelcomeModal(false);
+      if (welcomeAutoTimerRef.current) {
+        clearTimeout(welcomeAutoTimerRef.current);
+        welcomeAutoTimerRef.current = null;
+      }
       return;
     }
+
+    if (wasGuestWelcomeShown() || showWelcomeModal) return;
+
     welcomeAutoTimerRef.current = setTimeout(() => {
       welcomeAutoTimerRef.current = null;
+      if (wasGuestWelcomeShown()) return;
+      markGuestWelcomeShown();
+      setHasShownWelcomeModal(true);
       setShowWelcomeModal(true);
-    }, 400);
+    }, 700);
+
     return () => {
       if (welcomeAutoTimerRef.current) {
         clearTimeout(welcomeAutoTimerRef.current);
         welcomeAutoTimerRef.current = null;
       }
     };
-  }, [authLoading, session?.user?.id]);
+  }, [authLoading, session?.user?.id, showWelcomeModal]);
 
   // Lazy load heavy modals
   const [TransactionModalComponent, setTransactionModalComponent] = useState<React.ComponentType<any> | null>(null);
@@ -1433,6 +1454,7 @@ export default function HomeScreen() {
 
     setShowWelcomeModal(false);
     setHasShownWelcomeModal(true);
+    markGuestWelcomeShown();
     // Route new users to Tier 1 flow
     router.push('/kyc/tier1');
   };
@@ -1440,6 +1462,7 @@ export default function HomeScreen() {
   const handleGoToDashboard = () => {
     setShowWelcomeModal(false);
     setHasShownWelcomeModal(true);
+    markGuestWelcomeShown();
     // Modal is already on dashboard, just close it
   };
 
@@ -2162,6 +2185,7 @@ export default function HomeScreen() {
               clearTimeout(welcomeAutoTimerRef.current);
               welcomeAutoTimerRef.current = null;
             }
+            markGuestWelcomeShown();
             setShowWelcomeModal(false);
             setHasShownWelcomeModal(true);
           }}

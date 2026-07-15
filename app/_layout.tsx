@@ -184,62 +184,32 @@ function RootLayoutNav() {
     })();
   }, [pathname]);
 
-  // Handle authentication state transitions
+  // Logout: cover with splash to avoid white flash. Login navigates itself (no splash here).
   useEffect(() => {
-    // Skip on initial load when we're still loading
     if (isLoading) return;
-    
+
     const previousSession = previousSessionRef.current;
     const currentSession = session;
-    
-    console.log('🔍 Auth transition check:', {
-      previousSession: previousSession ? 'exists' : 'null',
-      currentSession: currentSession ? 'exists' : 'null',
-      isLoading,
-      showSplash,
-      isAuthTransitioning
-    });
-    
-    // Detect authentication state changes (login/logout)
-    // Check for valid user, not just session existence
     const wasLoggedIn = !!(previousSession?.user?.id);
     const isLoggedIn = !!(currentSession?.user?.id);
-    
-    // More robust transition detection
-    if (previousSession !== null && wasLoggedIn !== isLoggedIn) {
-      console.log('🔄 Authentication state transition detected:', {
-        from: wasLoggedIn ? 'logged in' : 'logged out',
-        to: isLoggedIn ? 'logged in' : 'logged out',
-        previousUserId: previousSession?.user?.id,
-        currentUserId: currentSession?.user?.id
-      });
-      
-      // Show splash screen during transition immediately (disabled for login transitions)
-      // setIsAuthTransitioning(true); // Disabled for login transitions
-      // setShowSplash(true); // Disabled for login transitions
-      
-      // For login transitions, show splash screen a bit longer to ensure smooth transition
-      const transitionDuration = isLoggedIn ? 2000 : 1500; // 2 seconds for login, 1.5 for logout
-      
-      // Hide splash screen after transition duration
+
+    if (previousSession !== null && wasLoggedIn && !isLoggedIn) {
+      setIsAuthTransitioning(true);
+      setShowSplash(true);
       const timer = setTimeout(() => {
-        console.log('✅ Auth transition complete, hiding splash screen');
         setIsAuthTransitioning(false);
         setShowSplash(false);
-      }, transitionDuration);
-      
+      }, 1200);
+      previousSessionRef.current = currentSession;
       return () => clearTimeout(timer);
     }
-    
-    // Update previous session reference
+
     previousSessionRef.current = currentSession;
   }, [session, isLoading]);
 
-  // Additional effect to handle the case where splash screen should stay visible during transitions
   useEffect(() => {
     if (isAuthTransitioning && !showSplash) {
-      console.log('🔄 Forcing splash screen to stay visible during transition');
-      // setShowSplash(true); // Disabled for login transitions
+      setShowSplash(true);
     }
   }, [isAuthTransitioning, showSplash]);
 
