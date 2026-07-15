@@ -359,11 +359,38 @@ class AccountCreationHandler {
         console.warn('Failed to update email verification status:', error);
       }
 
-      // Add any additional setup steps here
+      // Create Bunce customer — await so JWT is still warm; errors never fail signup
+      await this.createBunceCustomer(userId);
+
       return { success: true };
     } catch (error) {
       console.warn('Account finalization failed:', error);
       return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Register the new user in Bunce for engagement / messaging.
+   */
+  async createBunceCustomer(userId) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const firstName = user?.user_metadata?.first_name || '';
+      const lastName = user?.user_metadata?.last_name || '';
+      const email = user?.email || '';
+
+      // Silent to the user: edge function always resolves calmly and logs failures to bunce_customer_errors.
+      await supabase.functions.invoke('create-bunce-customer', {
+        body: {
+          userId,
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          devices: null,
+        },
+      });
+    } catch (_) {
+      // Never surface Bunce issues during signup.
     }
   }
 

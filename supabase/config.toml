@@ -1,3 +1,7 @@
+# Called from app after signup (user JWT); creates Bunce customer for engagement
+[functions.create-bunce-customer]
+verify_jwt = true
+
 # Mono webhook: called by Mono servers without a JWT; auth is via MONO_WEBHOOK_SECRET signature
 [functions.mono-webhook]
 verify_jwt = false
