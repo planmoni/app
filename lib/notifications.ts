@@ -294,7 +294,10 @@ export async function registerPushToken(userId: string, promptForPermission: boo
       return false;
     }
   } catch (error: any) {
-    console.error('❌ Error registering push token:', error);
+    console.warn(
+      '⚠️ Push token registration skipped/failed (local notifications still work):',
+      error instanceof Error ? error.message : error
+    );
     return false;
   }
 }

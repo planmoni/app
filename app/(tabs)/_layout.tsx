@@ -3,7 +3,7 @@ import { Calendar, Home as Home, PieChart, Settings, Sparkles } from 'lucide-rea
 import { StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, ThemeContext } from '@/contexts/ThemeContext';
-import { useContext, useEffect, useState } from 'react';
+import { useContext } from 'react';
 import { useRouteTracking } from '@/hooks/useRouteTracking';
 import { useBottomNav } from '@/contexts/BottomNavContext';
 // WelcomeModal will be lazy loaded when needed
@@ -101,24 +101,11 @@ const styles = StyleSheet.create({
   },
 });
 
-// Wrapper component to safely handle theme context initialization
+// Wrapper — render tabs as soon as theme exists (no artificial delay; delay caused password flash under tabs).
 export default function TabLayout() {
   const themeContext = useContext(ThemeContext);
-  const [isReady, setIsReady] = useState(false);
 
-  // Wait for theme context to be available
-  useEffect(() => {
-    if (themeContext !== undefined) {
-      // Small delay to ensure context is fully initialized
-      const timer = setTimeout(() => {
-        setIsReady(true);
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [themeContext]);
-
-  // Return null if context is not ready yet
-  if (!isReady || themeContext === undefined) {
+  if (themeContext === undefined) {
     return null;
   }
 

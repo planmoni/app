@@ -87,19 +87,32 @@ export class SupabaseImageManager {
       if (!url || typeof url !== 'string') return null;
 
       const urlObj = new URL(url);
-      
+
       // Check if it's a Supabase Storage URL
-      if (urlObj.hostname.includes('supabase') || urlObj.hostname.includes('storage')) {
-        const pathParts = urlObj.pathname.split('/').filter(part => part.length > 0);
-        
-        if (pathParts.length >= 2) {
-          const bucket = pathParts[0];
-          const path = pathParts.slice(1).join('/');
-          
-          return { bucket, path };
+      if (urlObj.hostname.includes('supabase') || urlObj.pathname.includes('/storage/')) {
+        const pathParts = urlObj.pathname.split('/').filter((part) => part.length > 0);
+
+        // .../storage/v1/object/public/<bucket>/<path>
+        // .../storage/v1/object/sign/<bucket>/<path>
+        const objectIdx = pathParts.indexOf('object');
+        if (objectIdx >= 0 && pathParts[objectIdx - 1] === 'v1') {
+          const mode = pathParts[objectIdx + 1]; // public | sign
+          if ((mode === 'public' || mode === 'sign') && pathParts.length > objectIdx + 3) {
+            const bucket = pathParts[objectIdx + 2];
+            const path = pathParts.slice(objectIdx + 3).join('/');
+            return { bucket, path };
+          }
+        }
+
+        // Legacy fallback: /<bucket>/<path>
+        if (pathParts.length >= 2 && pathParts[0] !== 'storage') {
+          return {
+            bucket: pathParts[0],
+            path: pathParts.slice(1).join('/'),
+          };
         }
       }
-      
+
       return null;
     } catch (error) {
       console.warn('Failed to parse image URL:', url);

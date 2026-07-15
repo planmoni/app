@@ -243,37 +243,41 @@ function RootLayoutNav() {
     }
   }, [isAuthTransitioning, showSplash]);
 
-  // Initialize notifications when user is authenticated
+  // Initialize notifications after login UI has left auth screens (push must not race password).
   useEffect(() => {
-    if (session?.user?.id) {
-      let tokenRefreshCleanup: (() => void) | null = null;
-      
-      const setupNotifications = async () => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    const onAuthLogin =
+      !!pathname &&
+      (pathname.includes('/login') || pathname.includes('welcome-back'));
+
+    if (onAuthLogin) return;
+
+    let tokenRefreshCleanup: (() => void) | null = null;
+    let cancelled = false;
+
+    const timer = setTimeout(() => {
+      void (async () => {
         try {
-          const cleanup = await initializeNotifications(session.user.id);
-          
-          // Set up periodic token refresh (every 60 minutes)
-          tokenRefreshCleanup = setupTokenRefresh(session.user.id, 60);
-          
-          return () => {
-            if (cleanup) cleanup();
-            if (tokenRefreshCleanup) tokenRefreshCleanup();
-          };
+          const cleanup = await initializeNotifications(userId);
+          if (cancelled) {
+            cleanup?.();
+            return;
+          }
+          tokenRefreshCleanup = setupTokenRefresh(userId, 60);
         } catch (error) {
           console.warn('Failed to initialize notifications:', error);
-          return null;
         }
-      };
-      
-      setupNotifications().catch(error => {
-        console.warn('Failed to setup notifications:', error);
-      });
-      
-      return () => {
-        if (tokenRefreshCleanup) tokenRefreshCleanup();
-      };
-    }
-  }, [session?.user?.id]);
+      })();
+    }, 800);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      if (tokenRefreshCleanup) tokenRefreshCleanup();
+    };
+  }, [session?.user?.id, pathname]);
 
   // Update last_seen_at on app open and when app comes to foreground (for re-engagement and daily digest)
   const lastSeenAppStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -758,10 +762,6 @@ function RootLayoutNav() {
           options={{ headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen
-          name="deposit-flow"
-          options={{ headerShown: false, gestureEnabled: false }}
-        />
-        <Stack.Screen
           name="linked-accounts"
           options={{ headerShown: false, gestureEnabled: false }}
         />
@@ -807,10 +807,6 @@ function RootLayoutNav() {
         />
         <Stack.Screen 
           name="plan/[code]" 
-          options={{ headerShown: false, gestureEnabled: false }} 
-        />
-        <Stack.Screen 
-          name="app-lock-setup" 
           options={{ headerShown: false, gestureEnabled: false }} 
         />
         <Stack.Screen 

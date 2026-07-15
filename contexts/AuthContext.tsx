@@ -12,6 +12,7 @@ import {
   loadExpiredSessionRecovery,
 } from '@/lib/auth-recovery';
 import { resetStateAfterReauth } from '@/lib/auth-cache-reset';
+import { useToast } from '@/contexts/ToastContext';
 
 interface BiometricSettings {
   isAvailable: boolean;
@@ -64,6 +65,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     signOut: supabaseSignOut,
     error
   } = useSupabaseAuth();
+  const { showToast } = useToast();
 
   const [biometricSettings, setBiometricSettings] = useState<BiometricSettings | null>(null);
   const [sessionRecovery, setSessionRecovery] = useState<ExpiredSessionRecovery | null>(null);
@@ -223,79 +225,72 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [refreshBiometricSettings]);
 
-  // Enhanced signIn function that sends login notification and tracks login sessions
+  // Sign-in: return + navigate as soon as credentials succeed. Device/post work is background.
   const signIn = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // First, sign in to get the session and userId
       const result = await supabaseSignIn(email, password);
 
-      if (result.success) {
-        await clearExpiredSessionRecovery();
-        setSessionRecovery(null);
-        await resetStateAfterReauth();
-        // Get the session directly from Supabase since state might not be updated yet
-        const { supabase } = await import('@/lib/supabase');
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
 
-        if (currentSession?.user?.id) {
-          // Generate device fingerprint for this login attempt
+      // Leave password screen immediately — do not await device / email / cache work.
+      router.replace('/(tabs)');
+
+      const currentSession = result.session ?? null;
+      void (async () => {
+        try {
+          await clearExpiredSessionRecovery();
+          setSessionRecovery(null);
+          await resetStateAfterReauth();
+        } catch (error) {
+          console.warn('Post-login cache reset failed:', error);
+        }
+
+        if (!currentSession?.user?.id) return;
+
+        try {
           const { DeviceInfoService } = await import('@/lib/device-info');
           const { ActiveSessionService } = await import('@/lib/active-session-service');
-          
+
           const deviceFingerprint = await DeviceInfoService.generateDeviceFingerprint();
-          
-          // Check if user has an active session on another device
           const sessionCheck = await ActiveSessionService.checkActiveSession(
             currentSession.user.id,
             deviceFingerprint
           );
 
-          // If there's an active session on a different device, sign out and return error
           if (sessionCheck.hasActiveSession && !sessionCheck.isSameDevice) {
             console.log('⚠️ Active session found on different device, signing out...');
-            
-            // Sign out the current session
-            await supabaseSignOut();
-            
-            // Get device info for error message
             const deviceInfo = sessionCheck.activeSessionInfo?.deviceInfo;
             const deviceDescription = deviceInfo
               ? `${deviceInfo.device_manufacturer} ${deviceInfo.device_model} (${deviceInfo.os_name})`
               : 'another device';
-            
-            return {
-              success: false,
-              error: `You are already logged in on ${deviceDescription}. Please log out from that device first.`,
-            };
+
+            await supabaseSignOut();
+            showToast(
+              `You are already logged in on ${deviceDescription}. Please log out from that device first.`,
+              'error',
+              5000
+            );
+            router.replace('/(auth)/login');
+            return;
           }
 
-          // Track login session with device and location info
-          // This will create the session record with device fingerprint
           try {
             const loginSession = await DeviceInfoService.createLoginSession(
               currentSession.user.id,
               currentSession.access_token
             );
-            
-            // Activate this session (will deactivate others automatically)
             if (loginSession?.id) {
-              await ActiveSessionService.activateSession(
-                loginSession.id,
-                currentSession.user.id
-              );
+              await ActiveSessionService.activateSession(loginSession.id, currentSession.user.id);
             }
           } catch (error) {
             console.error('Failed to track login session:', error);
           }
 
-          // Send login notification
           try {
-            const { DeviceInfoService } = await import('@/lib/device-info');
-
             const deviceInfo = await DeviceInfoService.getDeviceInfo();
             const locationInfo = await DeviceInfoService.getLocationInfo();
-
-            // Use direct fetch like OTP emails
             const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
             const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -304,7 +299,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${supabaseAnonKey}`,
-                'apikey': supabaseAnonKey || ''
+                'apikey': supabaseAnonKey || '',
               },
               body: JSON.stringify({
                 userId: currentSession.user.id,
@@ -312,29 +307,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   device: `${deviceInfo.device_manufacturer} ${deviceInfo.device_model}`,
                   location: `${locationInfo.city}, ${locationInfo.country}`,
                   time: new Date().toLocaleString(),
-                  ip: locationInfo.ip_address
-                }
-              })
+                  ip: locationInfo.ip_address,
+                },
+              }),
             });
-
             const data = await response.json();
-            if (data.success) {
-              console.log('Login notification sent successfully');
-            } else {
-              console.log('Login notification attempted:', data.message);
-            }
+            if (data.success) console.log('Login notification sent successfully');
+            else console.log('Login notification attempted:', data.message);
           } catch (error) {
             console.error('Failed to send login notification:', error);
           }
+        } catch (error) {
+          console.warn('Background post-login work failed:', error);
         }
-      }
+      })();
 
-      return result;
+      return { success: true };
     } catch (error) {
       console.error('Sign-in error:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Sign-in failed' };
     }
-  }, [supabaseSignIn]);
+  }, [supabaseSignIn, supabaseSignOut, showToast]);
 
   // Enhanced signOut function that clears profile snapshots
   // NOTE: PIN and biometric settings are NOT cleared on logout - they persist per user account

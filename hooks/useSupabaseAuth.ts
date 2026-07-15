@@ -36,6 +36,7 @@ export function resolveAuthReady(session: Session | null): boolean {
 type AuthResult = {
   success: boolean;
   error?: string;
+  session?: Session | null;
 };
 
 const AUTH_EXPIRED_PATTERNS = [
@@ -373,17 +374,27 @@ export function useSupabaseAuth() {
             }
           }
 
-          const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(session.user.id);
-          if (profileSnapshot) {
-            console.log('📸 Profile snapshot loaded for auth state change');
-          }
-
-          await invalidateFinancialQueries();
+          // Never block auth callbacks on profile/RQ — that holds password login on-screen.
+          void ProfileSnapshotManager.loadProfileSnapshot(session.user.id).then((profileSnapshot) => {
+            if (profileSnapshot) {
+              console.log('📸 Profile snapshot loaded for auth state change');
+            }
+          });
+          void invalidateFinancialQueries();
         } else if (session?.user?.id) {
-          console.log(`⏳ Session present but not ready (${event}), waiting for refresh`);
-          setSession(session);
-          markAuthReady(false, `onAuthStateChange:${event}:pending`, session);
-          scheduleAuthReadyGuard();
+          // Do not flip ready→false during an in-flight password login (causes splash → password flash).
+          if (isAuthReadyRef.current && sessionRef.current?.user?.id === session.user.id) {
+            console.log(
+              `⏳ Session refresh pending (${event}), keeping auth ready to avoid login splash bounce`
+            );
+            setSession(session);
+            scheduleAuthReadyGuard();
+          } else {
+            console.log(`⏳ Session present but not ready (${event}), waiting for refresh`);
+            setSession(session);
+            markAuthReady(false, `onAuthStateChange:${event}:pending`, session);
+            scheduleAuthReadyGuard();
+          }
         } else {
           console.log('⚠️ Session exists but user is invalid, clearing session');
           setSession(null);
@@ -590,18 +601,18 @@ export function useSupabaseAuth() {
       if (data.session) {
         console.log('✅ useSupabaseAuth.signIn - Session received, setting session...');
         setSession(data.session);
-        await saveSession(data.session);
-        
-        // Load profile snapshot for signed in user
+        // Keep auth ready so root splash does not flicker back over the password screen.
+        markAuthReady(sessionIsReadyForApi(data.session), 'signIn', data.session);
+        void saveSession(data.session);
+
         if (data.session.user?.id) {
-          const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(data.session.user.id);
-          if (profileSnapshot) {
-            console.log('📸 Profile snapshot loaded for sign in');
-          }
+          void ProfileSnapshotManager.loadProfileSnapshot(data.session.user.id).then((snapshot) => {
+            if (snapshot) console.log('📸 Profile snapshot loaded for sign in');
+          });
         }
-        
+
         console.log('✅ useSupabaseAuth.signIn - Sign in successful');
-        return { success: true };
+        return { success: true, session: data.session };
       }
 
       console.log('❌ useSupabaseAuth.signIn - No session returned');

@@ -57,9 +57,9 @@ export default function LoginPasswordScreen() {
       
       if (result.success) {
         haptics.notification(Haptics.NotificationFeedbackType.Success);
-        // Keep loader visible for 4 seconds before navigating
-        // await new Promise(resolve => setTimeout(resolve, 4000));
+        // Navigation already started in AuthContext on credential success.
         router.replace('/(tabs)');
+        return;
       } else {
         haptics.notification(Haptics.NotificationFeedbackType.Error);
         const errorMessage = result.error || 'Failed to sign in';
