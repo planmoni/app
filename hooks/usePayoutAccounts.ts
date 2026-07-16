@@ -34,16 +34,25 @@ export function payoutAccountDeleteErrorMessage(error: unknown): string {
       'message' in error && typeof (error as { message?: string }).message === 'string'
         ? (error as { message: string }).message
         : '';
+    const lower = message.toLowerCase();
 
-    if (message.includes('safe_delete_payout_account')) {
-      return 'Account removal is not available yet. Please update the app or try again shortly.';
-    }
     if (
-      code === '23503' ||
+      lower.includes('active or paused payout plan') ||
       code === '23514' ||
       message.includes('payout_plans_account_check')
     ) {
       return ACTIVE_PLAN_BLOCK_MESSAGE;
+    }
+    if (
+      code === '23503' ||
+      lower.includes('foreign key') ||
+      lower.includes('emergency_withdrawals') ||
+      lower.includes('vault_payout_schedules')
+    ) {
+      return 'This account is still linked to withdrawal history. Please try again in a moment.';
+    }
+    if (message.includes('safe_delete_payout_account') && lower.includes('does not exist')) {
+      return 'Account removal is not available yet. Please update the app or try again shortly.';
     }
     if (message) return message;
   }
@@ -391,7 +400,23 @@ export function usePayoutAccounts() {
 
       return data;
     } catch (err) {
-      const errorMessage = toUserFacingError(err, false);
+      const raw =
+        err && typeof err === 'object' && 'message' in err && typeof (err as { message?: string }).message === 'string'
+          ? (err as { message: string }).message
+          : err instanceof Error
+            ? err.message
+            : '';
+      const lower = raw.toLowerCase();
+      let errorMessage = toUserFacingError(err, false);
+
+      if (lower.includes('does not match your name')) {
+        errorMessage = 'The payout account does not match your name, please contact support';
+      } else if (lower.includes('profiles') || lower.includes('user_id_fkey')) {
+        errorMessage = 'Your profile is incomplete. Please restart the app and try again.';
+      } else if (lower.includes('duplicate') || lower.includes('unique')) {
+        errorMessage = 'This payout account already exists.';
+      }
+
       setError(errorMessage);
       throw new Error(errorMessage);
     }
