@@ -1,11 +1,14 @@
 import { supabase } from '@/lib/supabase';
 import { reconnectSupabase, type ReconnectResult } from '@/lib/supabase-reconnect';
+import { getSessionSerialized, peekCachedSession } from '@/lib/supabase-session';
 import { withTimeout } from '@/lib/with-timeout';
 
 export const ENSURE_CONNECTION_MAX_MS = 6000;
 export const GET_SESSION_TIMEOUT_MS = 5000;
 export const PROBE_TIMEOUT_MS = 5000;
 export const ENSURE_WALL_CLOCK_MAX_MS = 8000;
+/** Skip a full ensure if one just succeeded (resume stampede). */
+const ENSURE_SUCCESS_COOLDOWN_MS = 12_000;
 
 export type ConnectionStatus = {
   ok: boolean;
@@ -29,11 +32,9 @@ export function getSupabaseConnectionStatus(): ConnectionStatus {
 async function getSessionWithTimeout(): Promise<{
   session: { user?: { id?: string } } | null;
 }> {
-  const { data } = await withTimeout(
-    supabase.auth.getSession(),
-    GET_SESSION_TIMEOUT_MS,
-    'getSession'
-  );
+  const { data } = await getSessionSerialized({
+    timeoutMs: GET_SESSION_TIMEOUT_MS,
+  });
   return { session: data.session };
 }
 
@@ -50,15 +51,28 @@ export type EnsureConnectionOptions = {
   skipProbe?: boolean;
   /** Skip channel teardown + auth refresh (e.g. before a single retry). */
   lightweight?: boolean;
+  /** Ignore recent success cooldown. */
+  force?: boolean;
 };
 
 /**
  * Reconnect Supabase (channels + conditional auth refresh) then optionally probe REST API.
  * Returns ok when a local session exists — refresh timeouts do not block data fetches.
+ * Dedupes concurrent callers and short-circuits shortly after a successful ensure.
  */
 export async function ensureSupabaseConnection(
   options: EnsureConnectionOptions = {}
 ): Promise<ConnectionStatus> {
+  const now = Date.now();
+  if (
+    !options.force &&
+    lastStatus.ok &&
+    lastStatus.lastSuccessAt != null &&
+    now - lastStatus.lastSuccessAt < ENSURE_SUCCESS_COOLDOWN_MS
+  ) {
+    return lastStatus;
+  }
+
   if (ensureInFlight) {
     return ensureInFlight;
   }
@@ -102,8 +116,10 @@ export async function ensureSupabaseConnection(
       if (__DEV__) {
         console.warn('[supabase] getSession timed out during ensure:', message);
       }
+      // Prefer brief cache / last known ok so data fetches can proceed.
+      const cached = peekCachedSession();
       lastStatus = {
-        ok: lastStatus.ok,
+        ok: !!cached?.user?.id || lastStatus.ok,
         lastError: message,
         lastSuccessAt: lastStatus.lastSuccessAt,
         reconnect,

@@ -23,9 +23,14 @@ export function withTimeout<T>(
   });
 }
 
+/** Min gap between ensure calls triggered by fetch timeouts (ms). */
+const RETRY_ENSURE_COOLDOWN_MS = 15_000;
+let lastRetryEnsureAt = 0;
+
 /**
  * Like withTimeout, but retries once after `retryDelayMs` if the first attempt
- * times out. On timeout, reconnects before retry.
+ * times out. Only lightly reconnects if we have not just done so (avoids
+ * getSession stampede on resume).
  */
 export async function withRetryOnTimeout<T>(
   factory: () => Promise<T>,
@@ -39,8 +44,16 @@ export async function withRetryOnTimeout<T>(
     if (err instanceof Error && err.message.includes('timed out')) {
       await new Promise<void>((r) => setTimeout(r, retryDelayMs));
 
-      const { ensureSupabaseConnection } = await import('@/lib/supabase-connection');
-      await ensureSupabaseConnection({ skipProbe: true, lightweight: true });
+      const now = Date.now();
+      if (now - lastRetryEnsureAt >= RETRY_ENSURE_COOLDOWN_MS) {
+        lastRetryEnsureAt = now;
+        try {
+          const { ensureSupabaseConnection } = await import('@/lib/supabase-connection');
+          await ensureSupabaseConnection({ skipProbe: true, lightweight: true });
+        } catch {
+          // Non-fatal — still attempt the data retry.
+        }
+      }
 
       return withTimeout(factory(), ms, `${label} (retry)`);
     }

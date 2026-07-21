@@ -32,7 +32,8 @@
       "buildNumber": "1",
       "infoPlist": {
         "UIBackgroundModes": [
-          "remote-notification"
+          "remote-notification",
+          "processing"
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "This app uses location services to provide a better experience.",
@@ -67,6 +68,7 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
+      "expo-background-task",
       "expo-web-browser",
       [
         "expo-build-properties",

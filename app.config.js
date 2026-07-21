@@ -51,7 +51,7 @@ module.exports = {
       bundleIdentifier: "app.planmoni",
       associatedDomains: ["applinks:planmoni.com"],
       infoPlist: {
-        UIBackgroundModes: ["remote-notification"],
+        UIBackgroundModes: ["remote-notification", "processing"],
         LSApplicationQueriesSchemes: ["paystack", "opay", "https", "http"],
         CFBundleURLTypes: [
           {
@@ -79,6 +79,7 @@ module.exports = {
       "expo-router",
       "expo-font",
       "expo-secure-store",
+      "expo-background-task",
       // After secure-store: force tools:replace so AppsFlyer backup rules don't break manifest merge
       "./plugins/withAndroidBackupRulesConflictFix",
       "expo-web-browser",

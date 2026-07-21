@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { getSessionSerialized } from '@/lib/supabase-session';
 import type { Session } from '@supabase/supabase-js';
 
 const AUTH_EXPIRED_PATTERNS = [
@@ -87,7 +88,7 @@ async function refreshSessionIfNeeded(): Promise<{
   timedOut: boolean;
   skipped: boolean;
 }> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await getSessionSerialized();
   if (!session?.access_token) {
     return { session: null, error: null, timedOut: false, skipped: false };
   }
@@ -126,6 +127,28 @@ async function refreshSessionIfNeeded(): Promise<{
     return { session, error: refresh.error, timedOut: refresh.timedOut, skipped: false };
   }
   return { ...refresh, skipped: false };
+}
+
+/**
+ * Lightweight path for background task — refresh only if near expiry.
+ * Avoids clearing realtime channels (not meaningful when suspended).
+ */
+export async function refreshSessionIfNeededForBackground(): Promise<{
+  refreshed: boolean;
+  skipped: boolean;
+  error: string | null;
+}> {
+  const refresh = await refreshSessionIfNeeded();
+  if (refresh.error && !refresh.timedOut && isAuthExpiredError(refresh.error)) {
+    authExpiredHandler?.();
+  } else if (refresh.session && !refresh.skipped) {
+    sessionRefreshedHandler?.(refresh.session);
+  }
+  return {
+    refreshed: !!refresh.session && !refresh.skipped,
+    skipped: refresh.skipped,
+    error: refresh.error,
+  };
 }
 
 /**

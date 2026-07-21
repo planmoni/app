@@ -4,6 +4,7 @@ import { CACHE_KEYS } from '@/lib/supabase-fetch';
 import { clearSession } from '@/lib/session-persistence';
 import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
 import { secureStoreAdapter } from '@/lib/SecureStoreAdapter';
+import { clearSessionCache } from '@/lib/supabase-session';
 
 function userCacheKeys(userId: string): string[] {
   return [
@@ -31,6 +32,7 @@ export async function clearExpiredAuthState(userId?: string | null): Promise<voi
   }
 
   secureStoreAdapter.clearCache();
+  clearSessionCache();
 
   try {
     await clearSession();
@@ -71,4 +73,5 @@ export async function resetStateAfterReauth(): Promise<void> {
   }
 
   secureStoreAdapter.clearCache();
+  clearSessionCache();
 }

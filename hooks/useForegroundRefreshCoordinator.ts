@@ -13,11 +13,16 @@ type RefetchEntry = {
   fn: () => void | Promise<void>;
 };
 
+/** Wider stagger reduces auth/storage lock contention on weak networks. */
 const TIER_DELAYS_MS: Record<ForegroundRefreshTier, number> = {
   1: 0,
-  2: 750,
-  3: 1500,
+  2: 1200,
+  3: 2500,
 };
+
+const TIER_CONCURRENCY = 2;
+/** Hard cap so a jammed resume cannot run for ~85s. */
+const FOREGROUND_REFRESH_MAX_MS = 25_000;
 
 const registry = new Map<string, RefetchEntry>();
 
@@ -42,6 +47,26 @@ async function invalidateFinancialQueries(): Promise<void> {
   });
 }
 
+async function mapPool<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  if (items.length === 0) return;
+  const limit = Math.max(1, concurrency);
+  let next = 0;
+
+  async function runOne(): Promise<void> {
+    while (next < items.length) {
+      const index = next++;
+      await worker(items[index]);
+    }
+  }
+
+  const runners = Array.from({ length: Math.min(limit, items.length) }, () => runOne());
+  await Promise.allSettled(runners);
+}
+
 async function runStaggeredLegacyRefresh(): Promise<void> {
   const tiers: ForegroundRefreshTier[] = [1, 2, 3];
   for (const tier of tiers) {
@@ -52,7 +77,9 @@ async function runStaggeredLegacyRefresh(): Promise<void> {
       await new Promise((r) => setTimeout(r, TIER_DELAYS_MS[tier]));
     }
 
-    await Promise.allSettled(entries.map(([, e]) => Promise.resolve(e.fn())));
+    await mapPool(entries, TIER_CONCURRENCY, async ([, e]) => {
+      await Promise.resolve(e.fn());
+    });
   }
 }
 
@@ -63,28 +90,44 @@ async function runForegroundRefresh(): Promise<void> {
     console.log('[resume] foreground → reconnect start');
   }
 
-  const status = await ensureSupabaseConnection({ skipProbe: true });
-  const reconnectMs = Date.now() - startedAt;
+  const refreshWork = (async () => {
+    const status = await ensureSupabaseConnection({ skipProbe: true });
+    const reconnectMs = Date.now() - startedAt;
 
-  if (!status.ok && status.reconnect?.isAuthExpired) {
-    if (__DEV__) {
-      console.warn(`[resume] reconnect(${reconnectMs}ms) → auth expired, skip refresh`);
+    if (!status.ok && status.reconnect?.isAuthExpired) {
+      if (__DEV__) {
+        console.warn(`[resume] reconnect(${reconnectMs}ms) → auth expired, skip refresh`);
+      }
+      return;
     }
-    return;
-  }
 
-  if (__DEV__) {
-    console.log(`[resume] reconnect(${reconnectMs}ms) → invalidate financial queries`);
-  }
+    if (__DEV__) {
+      console.log(`[resume] reconnect(${reconnectMs}ms) → invalidate financial queries`);
+    }
 
-  const invalidateStarted = Date.now();
-  await invalidateFinancialQueries();
+    const invalidateStarted = Date.now();
+    await invalidateFinancialQueries();
 
-  if (__DEV__) {
-    console.log(`[resume] invalidate(${Date.now() - invalidateStarted}ms) → legacy registry`);
-  }
+    if (__DEV__) {
+      console.log(`[resume] invalidate(${Date.now() - invalidateStarted}ms) → legacy registry`);
+    }
 
-  await runStaggeredLegacyRefresh();
+    await runStaggeredLegacyRefresh();
+  })();
+
+  await Promise.race([
+    refreshWork,
+    new Promise<void>((resolve) =>
+      setTimeout(() => {
+        if (__DEV__) {
+          console.warn(
+            `[resume] foreground refresh hit ${FOREGROUND_REFRESH_MAX_MS}ms cap — continuing with cache`
+          );
+        }
+        resolve();
+      }, FOREGROUND_REFRESH_MAX_MS)
+    ),
+  ]);
 
   if (__DEV__) {
     console.log(`[resume] foreground refresh complete (${Date.now() - startedAt}ms)`);
