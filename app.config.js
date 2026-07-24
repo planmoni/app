@@ -79,7 +79,9 @@ module.exports = {
       "expo-router",
       "expo-font",
       "expo-secure-store",
-      "expo-background-task",
+      // Native-only: re-add after EAS build/prebuild links expo-task-manager.
+      // Shipping this plugin in OTA without a matching binary crashes Android.
+      // "expo-background-task",
       // After secure-store: force tools:replace so AppsFlyer backup rules don't break manifest merge
       "./plugins/withAndroidBackupRulesConflictFix",
       "expo-web-browser",
