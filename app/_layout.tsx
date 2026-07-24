@@ -75,6 +75,8 @@ function RootLayoutNav() {
   const { isLoading: isPinLoading, hasAppLockPin } = usePin();
   const [showSplash, setShowSplash] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  /** After hard timeout, never keep users on the logo forever due to hung auth. */
+  const [forceHideSplash, setForceHideSplash] = useState(false);
   const hasInitializedRef = useRef(false);
   const lockAppRef = useRef(lockApp);
   const initCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -542,25 +544,46 @@ function RootLayoutNav() {
     }
   }, [fontsLoaded, authStartupComplete, fontError]);
 
-  // Initialize app once; use a force-timeout to avoid infinite splash deadlocks.
+  // Initialize app once; use force-timeouts to avoid infinite splash deadlocks.
   useEffect(() => {
     if (hasInitializedRef.current) return;
 
-    // Force-complete initialization if something hangs unexpectedly.
+    const finishInitializing = (reason: string) => {
+      if (hasInitializedRef.current) return;
+      console.warn(`⚠️ RootLayoutNav - ${reason}`);
+      hasInitializedRef.current = true;
+      setIsInitializing(false);
+      if (reason.includes('hard-timeout') || reason.includes('timed out')) {
+        setForceHideSplash(true);
+      }
+      if (forceInitTimeoutRef.current) {
+        clearTimeout(forceInitTimeoutRef.current);
+        forceInitTimeoutRef.current = null;
+      }
+      if (initCompleteTimerRef.current) {
+        clearTimeout(initCompleteTimerRef.current);
+        initCompleteTimerRef.current = null;
+      }
+    };
+
+    // Soft timeout: prefer waiting on auth restore, but schedule a hard fallback.
     if (!forceInitTimeoutRef.current) {
       forceInitTimeoutRef.current = setTimeout(() => {
-        if (!hasInitializedRef.current) {
-          // Never force the dashboard for authenticated users still restoring tokens.
-          if (session?.user?.id && !isAuthReady) {
-            console.warn(
-              '⚠️ RootLayoutNav - Auth restore still in progress, keeping splash visible'
+        if (hasInitializedRef.current) return;
+
+        if (session?.user?.id && !isAuthReady) {
+          console.warn(
+            '⚠️ RootLayoutNav - Auth restore still in progress at 8s; hard-dismiss splash at 12s'
+          );
+          forceInitTimeoutRef.current = setTimeout(() => {
+            finishInitializing(
+              'Startup hard-timeout (12s) — dismissing splash despite incomplete auth restore'
             );
-            return;
-          }
-          console.warn('⚠️ RootLayoutNav - Startup initialization timed out, forcing app start');
-          hasInitializedRef.current = true;
-          setIsInitializing(false);
+          }, 4000);
+          return;
         }
+
+        finishInitializing('Startup initialization timed out (8s), forcing app start');
       }, 8000);
     }
 
@@ -580,12 +603,7 @@ function RootLayoutNav() {
         if (__DEV__) {
           console.log('App initialization complete - fonts, auth, and PIN context ready');
         }
-        setIsInitializing(false);
-        hasInitializedRef.current = true;
-        if (forceInitTimeoutRef.current) {
-          clearTimeout(forceInitTimeoutRef.current);
-          forceInitTimeoutRef.current = null;
-        }
+        finishInitializing('App initialization complete');
       }, 150);
     }
   }, [fontsLoaded, fontError, authStartupComplete, isPinLoading, hasAppLockPin, session?.user?.id, isAuthReady, isAppLocked]);
@@ -624,11 +642,12 @@ function RootLayoutNav() {
   // Always render Stack to ensure navigation context is available
   // Show splash screen on top during initialization
   const showSplashOverlay =
-    isInitializing ||
-    (!fontsLoaded && !fontError) ||
-    !authStartupComplete ||
-    isPinLoading ||
-    (showSplash && !session?.user?.id);
+    !forceHideSplash &&
+    (isInitializing ||
+      (!fontsLoaded && !fontError) ||
+      !authStartupComplete ||
+      isPinLoading ||
+      (showSplash && !session?.user?.id));
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
