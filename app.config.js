@@ -123,7 +123,10 @@ module.exports = {
           "ios": {
             "deploymentTarget": "15.1",
             "useFrameworks": "static",
-            "forceStaticLinking": ["RNFBApp", "RNFBMessaging"]
+            "forceStaticLinking": ["RNFBApp", "RNFBMessaging"],
+            // Prebuilt React.xcframework is headers-only under static frameworks
+            // (ld: framework 'React' not found). Build RN from source instead.
+            "buildReactNativeFromSource": true
           }
         }
       ],
