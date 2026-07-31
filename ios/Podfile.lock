@@ -215,6 +215,8 @@ PODS:
     - Yoga
   - ExpoAsset (12.0.13):
     - ExpoModulesCore
+  - ExpoBackgroundTask (1.0.10):
+    - ExpoModulesCore
   - ExpoBlur (15.0.8):
     - ExpoModulesCore
   - ExpoCamera (17.0.10):
@@ -291,6 +293,9 @@ PODS:
   - ExpoWebBrowser (15.0.11):
     - ExpoModulesCore
   - EXStructuredHeaders (5.0.0)
+  - EXTaskManager (14.0.9):
+    - ExpoModulesCore
+    - UMAppLoader
   - ExtensionStorage (1.0.0):
     - ExpoModulesCore
   - EXUpdates (29.0.18):
@@ -381,10 +386,10 @@ PODS:
   - hermes-engine (0.81.5):
     - hermes-engine/Pre-built (= 0.81.5)
   - hermes-engine/Pre-built (0.81.5)
-  - Intercom (19.6.1)
-  - intercom-react-native (10.2.0):
+  - Intercom (19.6.5)
+  - intercom-react-native (10.3.2):
     - hermes-engine
-    - Intercom (~> 19.6.0)
+    - Intercom (~> 19.6.3)
     - RCTRequired
     - RCTTypeSafety
     - React-Core
@@ -446,11 +451,11 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - Mixpanel-swift (5.2.0):
-    - Mixpanel-swift/Complete (= 5.2.0)
-  - Mixpanel-swift/Complete (5.2.0)
-  - MixpanelReactNative (3.3.0):
-    - Mixpanel-swift (= 5.2.0)
+  - Mixpanel-swift (5.1.3):
+    - Mixpanel-swift/Complete (= 5.1.3)
+  - Mixpanel-swift/Complete (5.1.3)
+  - MixpanelReactNative (3.2.1):
+    - Mixpanel-swift (= 5.1.3)
     - React-Core
   - nanopb (3.30910.0):
     - nanopb/decode (= 3.30910.0)
@@ -1903,28 +1908,6 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-worklets-core (1.6.2):
-    - hermes-engine
-    - RCTRequired
-    - RCTTypeSafety
-    - React-Core
-    - React-Core-prebuilt
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - React-jsi
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-renderercss
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - ReactNativeDependencies
-    - Yoga
   - React-NativeModulesApple (0.81.5):
     - hermes-engine
     - React-callinvoker
@@ -2341,7 +2324,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - RNFBApp (24.0.0):
+  - RNFBApp (24.1.1):
     - Firebase/CoreOnly (= 12.10.0)
     - hermes-engine
     - RCTRequired
@@ -2364,7 +2347,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - RNFBMessaging (24.0.0):
+  - RNFBMessaging (24.1.1):
     - Firebase/Messaging (= 12.10.0)
     - FirebaseCoreExtension
     - hermes-engine
@@ -2690,6 +2673,7 @@ PODS:
     - libwebp (~> 1.0)
     - SDWebImage/Core (~> 5.17)
   - Sentry/HybridSDK (8.56.1)
+  - UMAppLoader (6.0.8)
   - Yoga (0.0.0)
   - ZXingObjC/Core (3.6.9)
   - ZXingObjC/OneD (3.6.9):
@@ -2711,6 +2695,7 @@ DEPENDENCIES:
   - expo-dev-menu (from `../node_modules/expo-dev-menu`)
   - expo-dev-menu-interface (from `../node_modules/expo-dev-menu-interface/ios`)
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
+  - ExpoBackgroundTask (from `../node_modules/expo-background-task/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoCamera (from `../node_modules/expo-camera/ios`)
   - ExpoClipboard (from `../node_modules/expo-clipboard/ios`)
@@ -2735,6 +2720,7 @@ DEPENDENCIES:
   - ExpoSystemUI (from `../node_modules/expo-system-ui/ios`)
   - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - EXStructuredHeaders (from `../node_modules/expo-structured-headers/ios`)
+  - EXTaskManager (from `../node_modules/expo-task-manager/ios`)
   - "ExtensionStorage (from `../node_modules/@bacons/apple-targets/ios`)"
   - EXUpdates (from `../node_modules/expo-updates/ios`)
   - EXUpdatesInterface (from `../node_modules/expo-updates-interface/ios`)
@@ -2784,7 +2770,6 @@ DEPENDENCIES:
   - "react-native-slider (from `../node_modules/@react-native-community/slider`)"
   - react-native-view-shot (from `../node_modules/react-native-view-shot`)
   - react-native-webview (from `../node_modules/react-native-webview`)
-  - react-native-worklets-core (from `../node_modules/react-native-worklets-core`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-oscompat (from `../node_modules/react-native/ReactCommon/oscompat`)
   - React-perflogger (from `../node_modules/react-native/ReactCommon/reactperflogger`)
@@ -2828,6 +2813,7 @@ DEPENDENCIES:
   - "RNSentry (from `../node_modules/@sentry/react-native`)"
   - RNSVG (from `../node_modules/react-native-svg`)
   - RNWorklets (from `../node_modules/react-native-worklets`)
+  - UMAppLoader (from `../node_modules/unimodules-app-loader/ios`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 SPEC REPOS:
@@ -2884,6 +2870,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-dev-menu-interface/ios"
   ExpoAsset:
     :path: "../node_modules/expo-asset/ios"
+  ExpoBackgroundTask:
+    :path: "../node_modules/expo-background-task/ios"
   ExpoBlur:
     :path: "../node_modules/expo-blur/ios"
   ExpoCamera:
@@ -2932,6 +2920,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-web-browser/ios"
   EXStructuredHeaders:
     :path: "../node_modules/expo-structured-headers/ios"
+  EXTaskManager:
+    :path: "../node_modules/expo-task-manager/ios"
   ExtensionStorage:
     :path: "../node_modules/@bacons/apple-targets/ios"
   EXUpdates:
@@ -3029,8 +3019,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-view-shot"
   react-native-webview:
     :path: "../node_modules/react-native-webview"
-  react-native-worklets-core:
-    :path: "../node_modules/react-native-worklets-core"
   React-NativeModulesApple:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios"
   React-oscompat:
@@ -3117,6 +3105,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-svg"
   RNWorklets:
     :path: "../node_modules/react-native-worklets"
+  UMAppLoader:
+    :path: "../node_modules/unimodules-app-loader/ios"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
@@ -3135,6 +3125,7 @@ SPEC CHECKSUMS:
   expo-dev-menu: 0afa04b862f369caa98ca7ac5055d491f1d3d38c
   expo-dev-menu-interface: 600df12ea01efecdd822daaf13cc0ac091775533
   ExpoAsset: 9e5a7c9c0a9fb83ad5b2bb365141f2bd7f289b66
+  ExpoBackgroundTask: 835449414ab9f0e551de1f6d382fadbfad191dc7
   ExpoBlur: b90747a3f22a8b6ceffd9cb0dc41a4184efdc656
   ExpoCamera: 6a326deb45ba840749652e4c15198317aa78497e
   ExpoClipboard: b36b287d8356887844bb08ed5c84b5979bb4dd1e
@@ -3159,6 +3150,7 @@ SPEC CHECKSUMS:
   ExpoSystemUI: 2ad325f361a2fcd96a464e8574e19935c461c9cc
   ExpoWebBrowser: 970dd4c64c29c955c3af664c8058ba768a4c9187
   EXStructuredHeaders: c951e77f2d936f88637421e9588c976da5827368
+  EXTaskManager: 6f1a66e4c8cc6df6e24c3d90928704bc3013eae5
   ExtensionStorage: 5796de20bf181317c376d693fedb64c6781a33ba
   EXUpdates: 3be674499e30f26d080a01b2e45f9598a0cfb00d
   EXUpdatesInterface: 5adf50cb41e079c861da6d9b4b954c3db9a50734
@@ -3172,15 +3164,15 @@ SPEC CHECKSUMS:
   GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   hermes-engine: 9f4dfe93326146a1c99eb535b1cb0b857a3cd172
-  Intercom: 7ced46307270409b0183a61145cda4274751bed9
-  intercom-react-native: 20e1220370ca6e1937b6910a3a6675c2b7321e23
+  Intercom: b545425e0fd1332d357d0d32dfb412680d5b46ca
+  intercom-react-native: 6c4ae74fca1b65350de7d612b5dbcc1d3d12d82d
   libavif: 5f8e715bea24debec477006f21ef9e95432e254d
   libdav1d: 23581a4d8ec811ff171ed5e2e05cd27bad64c39f
   libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
   lottie-ios: 8f959969761e9c45d70353667d00af0e5b9cadb3
   lottie-react-native: 9df5f829ef3320a209f5c7c4a2e07e3b8d789401
-  Mixpanel-swift: de454db5987bf6f601106520a44663fc556e8cfa
-  MixpanelReactNative: 1f0d8718b2be7174f719ed5db8e8f75d7975dea4
+  Mixpanel-swift: 630484a1b61cb90820aa34492798d542d9f1d0f1
+  MixpanelReactNative: 2a57c42a7475e61b8d45cd862737195fbf0eac0d
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   RCTDeprecation: 943572d4be82d480a48f4884f670135ae30bf990
@@ -3224,7 +3216,6 @@ SPEC CHECKSUMS:
   react-native-slider: ae14f6462a8a9afd94cdf269f23a365e19976645
   react-native-view-shot: 8853a6bacbf77899d550773a84986f251f509ffc
   react-native-webview: ea441b2e73f711c183580fb6db89aa587f0dd92a
-  react-native-worklets-core: cec1e5dc5da1017b0586136ab79ef1b422684ac2
   React-NativeModulesApple: 8969913947d5b576de4ed371a939455a8daf28aa
   React-oscompat: ce47230ed20185e91de62d8c6d139ae61763d09c
   React-perflogger: 02b010e665772c7dcb859d85d44c1bfc5ac7c0e4
@@ -3259,8 +3250,8 @@ SPEC CHECKSUMS:
   ReactNativeDependencies: 71ce9c28beb282aa720ea7b46980fff9669f428a
   RNCAsyncStorage: c8407cc394627a3a4cf56b457d594bfa822b6ab8
   RNCMaskedView: ee2fc4739eb35be50bcf4f95daca19f316b5d50c
-  RNFBApp: d3d00521ed4a8d47be861fc810f87d2a81a2ead9
-  RNFBMessaging: 593596543909c2a5f937ec4830c0c1f46e05dad3
+  RNFBApp: 8718b1a39fe5bc4b374433d59482f0ec9479aafa
+  RNFBMessaging: 1c46131f5d881a92d3b2e452b906a99e8db87001
   RNGestureHandler: c3831b3b1b5014c6afab7fff7e4171394a3419ab
   RNNotifee: 5e3b271e8ea7456a36eec994085543c9adca9168
   RNReanimated: 6ea55ec55f86624cbc5da0f0cd56e2770cb0fe15
@@ -3273,6 +3264,7 @@ SPEC CHECKSUMS:
   SDWebImageSVGCoder: 15a300a97ec1c8ac958f009c02220ac0402e936c
   SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380
   Sentry: b3ec44d01708fce73f99b544beb57e890eca4406
+  UMAppLoader: 145337733539f9af9b3dd97eeaa7f3bd97cacb23
   Yoga: 65431d43277b661ebc7289c6c5d82f64ce42cfe0
   ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5
 
