@@ -261,6 +261,44 @@ export interface Database {
           created_at?: string
         }
       }
+      payout_plan_schedule_dates: {
+        Row: {
+          id: string
+          payout_plan_id: string
+          user_id: string
+          installment_index: number
+          scheduled_date: string
+          scheduled_time: string | null
+          amount: number | null
+          source: 'custom' | 'generated'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          payout_plan_id: string
+          user_id: string
+          installment_index: number
+          scheduled_date: string
+          scheduled_time?: string | null
+          amount?: number | null
+          source: 'custom' | 'generated'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          payout_plan_id?: string
+          user_id?: string
+          installment_index?: number
+          scheduled_date?: string
+          scheduled_time?: string | null
+          amount?: number | null
+          source?: 'custom' | 'generated'
+          created_at?: string
+          updated_at?: string
+        }
+      }
       bank_accounts: {
         Row: {
           id: string
