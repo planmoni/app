@@ -44,7 +44,7 @@
         "NSMicrophoneUsageDescription": "This app uses the microphone to provide a better experience."
       },
       "entitlements": {
-        "aps-environment": "development",
+        "aps-environment": "production",
         "keychain-access-groups": [
           "$(AppIdentifierPrefix)app.planmoni"
         ]
@@ -118,7 +118,7 @@
         "projectId": "05caad20-9b74-4ba8-8280-dc5939b7ca83"
       },
       "INTERCOM": {
-        "iosApiKey": "ios_sdk-de52645ae34ab0f059890a422f90b18092032115",
+        "iosApiKey": "ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4",
         "androidApiKey": "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",
         "appId": "tf4dp3qt"
       }

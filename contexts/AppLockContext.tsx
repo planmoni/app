@@ -12,13 +12,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePin } from './PinContext';
 import { isNavigationInProgress } from '@/hooks/useSafeNavigation';
 
-let Updates: any = null;
-try {
-  Updates = require('expo-updates');
-} catch {
-  // Native module not available yet
-}
-
 interface AppLockContextType {
   isAppLocked: boolean;
   unlockApp: () => void;
@@ -69,7 +62,6 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const hasCheckedLaunchLockRef = useRef(false);
   const backgroundLockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backgroundTimestampRef = useRef<number | null>(null);
-  const REFRESH_THRESHOLD_MS = 5 * 60 * 1000;
 
   const hasAppLockPinRef = useRef(hasAppLockPin);
   const isAppLockedRef = useRef(isAppLocked);
@@ -239,22 +231,6 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       if (backgroundTimestampRef.current) {
-        const timeInBackground = Date.now() - backgroundTimestampRef.current;
-
-        if (timeInBackground >= REFRESH_THRESHOLD_MS) {
-          backgroundTimestampRef.current = null;
-          try {
-            if (Updates?.reloadAsync) {
-              Updates.reloadAsync().catch((error: unknown) => {
-                console.error('AppLock - Failed to reload app:', error);
-              });
-            }
-          } catch (error) {
-            console.error('AppLock - Error calling Updates.reloadAsync:', error);
-          }
-          return;
-        }
-
         backgroundTimestampRef.current = null;
       }
 

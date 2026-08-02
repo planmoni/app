@@ -69,7 +69,7 @@ module.exports = {
         NSPhotoLibraryUsageDescription: "This app uses the photo library to provide a better experience."
       },
       entitlements: {
-        "aps-environment": "development", // ✅ Required for push notification, change to "production" for Testflight and App Store builds
+        "aps-environment": "production",
         "keychain-access-groups": ["$(AppIdentifierPrefix)app.planmoni"],
         "com.apple.security.application-groups": ["group.app.planmoni.widget"]
       },
@@ -160,7 +160,7 @@ module.exports = {
       // - OPENAI_API_KEY (use Supabase Edge Function: openai-proxy)
       // - RESEND_API_KEY (already server-side in Supabase functions)
       // Intercom configuration
-      INTERCOM_IOS_API_KEY: "ios_sdk-de52645ae34ab0f059890a422f90b18092032115",
+      INTERCOM_IOS_API_KEY: "ios_sdk-0defee459efb13cd27f68001a4f66ca6b468d9f4",
       INTERCOM_ANDROID_API_KEY: "android_sdk-c13200a10981c64eb6e2b4030551b67de50243bf",
       INTERCOM_APP_ID: "tf4dp3qt",
     },

@@ -83,25 +83,36 @@ const nativeModulesEnabled =
   process.env.EXPO_PUBLIC_USE_REANIMATED === 'true';
 
 if (nativeModulesEnabled) {
-  const reanimated = require('react-native-reanimated');
-  if (reanimated?.default) {
-    Animated = reanimated.default;
-    FadeIn = reanimated.FadeIn;
-    FadeInDown = reanimated.FadeInDown;
-    FadeOut = reanimated.FadeOut;
-    Layout = reanimated.Layout;
-    Easing = reanimated.Easing;
-    useSharedValue = reanimated.useSharedValue;
-    useAnimatedScrollHandler = reanimated.useAnimatedScrollHandler;
-    useAnimatedStyle = reanimated.useAnimatedStyle;
-    useAnimatedProps = reanimated.useAnimatedProps;
-    useAnimatedReaction = reanimated.useAnimatedReaction;
-    withTiming = reanimated.withTiming;
-    cancelAnimation = reanimated.cancelAnimation;
-    interpolate = reanimated.interpolate;
-    runOnJS = reanimated.runOnJS;
-    Extrapolate = reanimated.Extrapolate;
-    reanimatedAvailable = true;
+  try {
+    const reanimated = require('react-native-reanimated');
+    if (reanimated?.default) {
+      Animated = reanimated.default;
+      FadeIn = reanimated.FadeIn;
+      FadeInDown = reanimated.FadeInDown;
+      FadeOut = reanimated.FadeOut;
+      Layout = reanimated.Layout;
+      Easing = reanimated.Easing;
+      useSharedValue = reanimated.useSharedValue;
+      useAnimatedScrollHandler = reanimated.useAnimatedScrollHandler;
+      useAnimatedStyle = reanimated.useAnimatedStyle;
+      useAnimatedProps = reanimated.useAnimatedProps;
+      useAnimatedReaction = reanimated.useAnimatedReaction;
+      withTiming = reanimated.withTiming;
+      cancelAnimation = reanimated.cancelAnimation;
+      interpolate = reanimated.interpolate;
+      runOnJS = reanimated.runOnJS;
+      Extrapolate = reanimated.Extrapolate;
+      reanimatedAvailable = true;
+    }
+  } catch (error) {
+    // Native ABI mismatch must not brick OTA startups — keep JS stubs.
+    reanimatedAvailable = false;
+    if (__DEV__) {
+      console.warn(
+        '[reanimatedSafe] native module failed to load; using stubs',
+        error instanceof Error ? error.message : error
+      );
+    }
   }
 }
 
