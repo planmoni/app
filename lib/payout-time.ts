@@ -27,6 +27,29 @@ export function parseLocalDateString(dateStr: string): Date {
   return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0);
 }
 
+/** Local calendar YYYY-MM-DD for a Date. */
+export function toLocalDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Days from `fromDate` until `targetDayOfWeek` (0=Sun..6=Sat).
+ * When they already match: returns 0 unless `excludeSameDay` is true (then 7),
+ * so first weekly payout created on Sunday for "every Sunday" starts next week.
+ */
+export function daysUntilWeekday(
+  fromDate: Date,
+  targetDayOfWeek: number,
+  options?: { excludeSameDay?: boolean }
+): number {
+  const delta = (targetDayOfWeek - fromDate.getDay() + 7) % 7;
+  if (delta !== 0) return delta;
+  return options?.excludeSameDay ? 7 : 0;
+}
+
 /** Combine YYYY-MM-DD + HH:mm into an ISO string using local timezone. */
 export function buildDateTimeISO(dateStr: string, timeStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);

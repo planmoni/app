@@ -22,7 +22,7 @@ import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee
 import type { PayoutFeeResult } from '@/lib/payout-fee-calculator';
 import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
 import { LifecycleEventName } from '@/lib/lifecycleEvents';
-import { buildCustomDateTimesMap, formatTimeForDisplay } from '@/lib/payout-time';
+import { buildCustomDateTimesMap, formatTimeForDisplay, daysUntilWeekday, toLocalDateString, parseLocalDateString } from '@/lib/payout-time';
 import { formatPayoutMoney, hasCustomPayoutAmounts } from '@/lib/custom-payout-amounts';
 
 export default function ReviewScreen() {
@@ -302,11 +302,10 @@ export default function ReviewScreen() {
 
     if (frequency === 'weekly_specific' && typeof dayOfWeek === 'number') {
       const today = new Date();
-      const currentDay = today.getDay();
-      const daysToAdd = (dayOfWeek - currentDay + 7) % 7;
+      const daysToAdd = daysUntilWeekday(today, dayOfWeek, { excludeSameDay: true });
       const first = new Date(today);
       first.setDate(today.getDate() + daysToAdd);
-      return first.toISOString().split('T')[0];
+      return toLocalDateString(first);
     }
 
     if (frequency === 'daily') {
@@ -359,7 +358,7 @@ export default function ReviewScreen() {
       return formatDisplayDate(customDates[0]);
     }
 
-    const start = new Date(startDate);
+    const start = parseLocalDateString(startDate);
     const next = new Date(start);
     if (frequency === 'daily') {
       next.setDate(start.getDate() + 1);
@@ -367,13 +366,13 @@ export default function ReviewScreen() {
     }
 
     if (frequency === 'weekly_specific' && typeof dayOfWeek === 'number') {
-      // Find the next occurrence of the selected dayOfWeek (0=Sunday, 6=Saturday) on or after startDate
-      const currentDay = start.getDay();
-      let daysToAdd = (dayOfWeek - currentDay + 7) % 7;
-      // If startDate is already the correct day, keep it as the first payout
-      if (daysToAdd === 0) daysToAdd = 0;
+      // Next selected weekday after start; if start is that weekday and is today, use next week
+      const startIsToday = toLocalDateString(start) === toLocalDateString(new Date());
+      const daysToAdd = daysUntilWeekday(start, dayOfWeek, {
+        excludeSameDay: startIsToday,
+      });
       next.setDate(start.getDate() + daysToAdd);
-      return formatDisplayDate(next.toISOString());
+      return formatDisplayDate(toLocalDateString(next));
     }
 
     switch (frequency) {

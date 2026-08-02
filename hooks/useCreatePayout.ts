@@ -7,7 +7,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { inAppNotificationService } from '@/lib/in-app-notifications';
 import { calculatePayoutFees } from '@/lib/payout-fee-calculator';
 import { PLAN_CREATION_FEE_PERCENT } from '@/types/payout-fees';
-import { buildCustomDateTimesMap, buildDateTimeISO, parseTimeString, formatTimeString, parseLocalDateString, toPayoutTimestampISO } from '@/lib/payout-time';
+import { buildCustomDateTimesMap, buildDateTimeISO, parseTimeString, formatTimeString, parseLocalDateString, toLocalDateString, toPayoutTimestampISO, daysUntilWeekday } from '@/lib/payout-time';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
@@ -173,9 +173,11 @@ export function useCreatePayout() {
       } else if (frequency === 'weekly') {
         nextPayoutDate.setDate(startDateObj.getDate() + 7);
       } else if (frequency === "weekly_specific" && dayOfWeek !== undefined) {
-        // First payout: next occurrence of the selected day on or after start date (0 = start is that day)
-        const currentDayOfWeek = startDateObj.getDay();
-        const daysToAdd = (7 + dayOfWeek - currentDayOfWeek) % 7;
+        // First payout: next selected weekday. If start is today and today is that day, wait until next week.
+        const startIsToday = toLocalDateString(startDateObj) === toLocalDateString(new Date());
+        const daysToAdd = daysUntilWeekday(startDateObj, dayOfWeek, {
+          excludeSameDay: startIsToday,
+        });
         nextPayoutDate.setDate(startDateObj.getDate() + daysToAdd);
       } else if (frequency === "biweekly") {
         // First payout on start_date; update_payout_plan_progress advances by 2 weeks from last payout

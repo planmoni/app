@@ -8,6 +8,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
+import { daysUntilWeekday, toLocalDateString } from '@/lib/payout-time';
 
 type DatePickerProps = {
   isVisible: boolean;
@@ -1003,13 +1004,11 @@ export default function ScheduleScreen() {
       startDate = customDates[0];
     } else if ((selectedSchedule || '') === 'weekly_specific' && typeof selectedDayOfWeek === 'number') {
       const today = new Date();
-      const currentDay = today.getDay();
-      let daysToAdd = (selectedDayOfWeek - currentDay + 7) % 7;
-      // If today is the selected day, use today
-      if (daysToAdd === 0) daysToAdd = 0;
+      // If today is the selected day, first payout is next week (not today)
+      const daysToAdd = daysUntilWeekday(today, selectedDayOfWeek, { excludeSameDay: true });
       const firstPayoutDate = new Date(today);
       firstPayoutDate.setDate(today.getDate() + daysToAdd);
-      startDate = firstPayoutDate.toISOString().split('T')[0];
+      startDate = toLocalDateString(firstPayoutDate);
     } else if ((selectedSchedule || '') === 'daily') {
       // For daily, start tomorrow at the selected time
       const tomorrow = new Date();

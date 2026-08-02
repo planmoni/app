@@ -19,7 +19,7 @@ import {
   STAMP_DUTY_THRESHOLD_NAIRA,
   TRANSACTION_FEE_NAIRA,
 } from '@/types/payout-fees';
-import { buildCustomDateTimesMap } from '@/lib/payout-time';
+import { buildCustomDateTimesMap, daysUntilWeekday, toLocalDateString } from '@/lib/payout-time';
 
 type FrequencyOption = {
   value: string;
@@ -1189,12 +1189,13 @@ export default function FrequencySelectionScreen() {
     let startDate: string;
     const scheduleBaseDate = getVaultScheduleBaseDate();
     if (selectedFrequency === 'weekly_specific' && typeof selectedDayOfWeek === 'number') {
-      const currentDay = scheduleBaseDate.getDay();
-      let daysToAdd = (selectedDayOfWeek - currentDay + 7) % 7;
-      if (daysToAdd === 0) daysToAdd = 0;
+      // If base day is the selected weekday, first payout is next week (not today)
+      const daysToAdd = daysUntilWeekday(scheduleBaseDate, selectedDayOfWeek, {
+        excludeSameDay: true,
+      });
       const firstPayoutDate = new Date(scheduleBaseDate);
       firstPayoutDate.setDate(scheduleBaseDate.getDate() + daysToAdd);
-      startDate = firstPayoutDate.toISOString().split('T')[0];
+      startDate = toLocalDateString(firstPayoutDate);
     } else if (selectedFrequency === 'daily') {
       const tomorrow = new Date(scheduleBaseDate);
       tomorrow.setDate(tomorrow.getDate() + 1);

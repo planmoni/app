@@ -36,7 +36,7 @@ import PinVerificationModal from '@/components/PinVerificationModal';
 import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee-calculator';
 import type { PayoutFeeResult } from '@/lib/payout-fee-calculator';
 import { useCreateVaultPayoutSchedule } from '@/hooks/useCreateVaultPayoutSchedule';
-import { parseTimeString } from '@/lib/payout-time';
+import { parseTimeString, daysUntilWeekday, toLocalDateString, parseLocalDateString } from '@/lib/payout-time';
 
 export default function VaultScheduleReviewScreen() {
   const { colors, isDark } = useTheme();
@@ -206,12 +206,14 @@ export default function VaultScheduleReviewScreen() {
       const next = new Date(start);
 
       if (freq === 'weekly_specific' && typeof selectedDayOfWeek === 'number') {
-        const currentDay = start.getDay();
-        let daysToAdd = (selectedDayOfWeek - currentDay + 7) % 7;
-        // For recurring schedules, if today matches selected weekday, push to next week.
-        if (daysToAdd === 0) daysToAdd = 7;
-        next.setDate(start.getDate() + daysToAdd);
-        return formatDisplayDate(next.toISOString());
+        const startLocal = parseLocalDateString(startDateValue);
+        const startIsToday = toLocalDateString(startLocal) === toLocalDateString(new Date());
+        const daysToAdd = daysUntilWeekday(startLocal, selectedDayOfWeek, {
+          excludeSameDay: startIsToday,
+        });
+        next.setTime(startLocal.getTime());
+        next.setDate(startLocal.getDate() + daysToAdd);
+        return toLocalDateString(next);
       }
 
       switch (freq) {
