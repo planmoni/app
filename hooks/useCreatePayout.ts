@@ -271,8 +271,31 @@ export function useCreatePayout() {
       console.log('Fee calculation (processing + stamp + transaction):', { feeAmount, netPayoutAmount, totalAmount });
 
       // ➕ SECURITY: Now create payout plan AFTER funds are locked
-      // If this fails, we'll unlock the funds in the catch block
+      // If this fails, unlock once in the catch (never double-unlock).
+      // Time lives in next_payout_date (+ metadata); payout_plans has no payout_time column.
       let payoutPlan: any = null;
+      let fundsUnlockedAfterFailure = false;
+      const unlockLockedFunds = async () => {
+        if (fundsUnlockedAfterFailure) return;
+        fundsUnlockedAfterFailure = true;
+        try {
+          const unlockResult = await supabase.rpc('unlock_funds', {
+            arg_user_id: session.user.id,
+            arg_amount: netPayoutAmount,
+          });
+          if (unlockResult?.error) {
+            console.error('Error unlocking funds after plan creation failure:', unlockResult.error);
+            fundsUnlockedAfterFailure = false;
+          } else if (unlockResult?.data && unlockResult.data.success === false) {
+            console.error('unlock_funds failed after plan creation failure:', unlockResult.data.error);
+            fundsUnlockedAfterFailure = false;
+          }
+        } catch (unlockErr: any) {
+          console.error('Error unlocking funds after plan creation failure:', unlockErr);
+          fundsUnlockedAfterFailure = false;
+        }
+      };
+
       try {
         const { data: planData, error: payoutError } = await supabase
           .from("payout_plans")
@@ -291,8 +314,10 @@ export function useCreatePayout() {
             completed_payouts: 0,
             emergency_withdrawal_enabled: emergencyWithdrawalEnabled,
             next_payout_date: nextPayoutDateStr,
-            payout_time: payoutTime,
-            metadata: metadata,
+            metadata: {
+              ...metadata,
+              payoutTime,
+            },
             fee_percentage: PLAN_CREATION_FEE_PERCENT,
             fee_amount: feeAmount,
             net_payout_amount: netPayoutAmount,
@@ -304,20 +329,7 @@ export function useCreatePayout() {
 
         if (payoutError) {
           console.error('Error creating payout plan:', payoutError);
-          
-          // SECURITY: Unlock funds if plan creation fails
-        try {
-          const unlockResult = await supabase.rpc('unlock_funds', {
-            arg_user_id: session.user.id,
-            arg_amount: netPayoutAmount
-          });
-            if (unlockResult?.error) {
-              console.error('Error unlocking funds after plan creation failure:', unlockResult.error);
-            }
-          } catch (unlockErr: any) {
-            console.error('Error unlocking funds after plan creation failure:', unlockErr);
-          }
-          
+          await unlockLockedFunds();
           throw payoutError;
         }
 
@@ -354,19 +366,10 @@ export function useCreatePayout() {
           throw new Error(feeChargeResult.error || 'Failed to charge plan fee');
         }
       } catch (planError) {
-        // SECURITY: Ensure funds are unlocked if plan creation fails (we locked netPayoutAmount)
-        try {
-          const unlockResult = await supabase.rpc('unlock_funds', {
-          arg_user_id: session.user.id,
-          arg_amount: netPayoutAmount
-          });
-          if (unlockResult?.error) {
-            console.error('Error unlocking funds after plan creation failure:', unlockResult.error);
-          }
-        } catch (unlockErr: any) {
-          console.error('Error unlocking funds after plan creation failure:', unlockErr);
+        // Unlock only if plan was never created (funds still locked for this attempt)
+        if (!payoutPlan) {
+          await unlockLockedFunds();
         }
-        
         throw planError;
       }
 
