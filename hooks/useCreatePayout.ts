@@ -7,7 +7,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { inAppNotificationService } from '@/lib/in-app-notifications';
 import { calculatePayoutFees } from '@/lib/payout-fee-calculator';
 import { PLAN_CREATION_FEE_PERCENT } from '@/types/payout-fees';
-import { buildCustomDateTimesMap, buildDateTimeISO, parseTimeString, formatTimeString } from '@/lib/payout-time';
+import { buildCustomDateTimesMap, buildDateTimeISO, parseTimeString, formatTimeString, parseLocalDateString, toPayoutTimestampISO } from '@/lib/payout-time';
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
@@ -162,15 +162,14 @@ export function useCreatePayout() {
       // All frequency values are now supported in the database
       const dbFrequency = frequency;
 
-      // 📅 Calculate next payout date
-      const startDateObj = new Date(startDate);
+      // 📅 Calculate next payout date (local calendar + wall-clock hour; never Date("YYYY-MM-DD") UTC midnight)
+      const startDateObj = parseLocalDateString(startDate);
       let nextPayoutDate = new Date(startDateObj);
+      const resolvedHour = payoutHour !== undefined ? payoutHour : 9;
+      const resolvedMinute = payoutMinute !== undefined ? payoutMinute : 0;
 
       if (frequency === 'daily') {
-        // For daily payouts, the first payout should be on the start date at the selected time
-        if (payoutHour !== undefined && payoutMinute !== undefined) {
-          nextPayoutDate.setHours(payoutHour, payoutMinute, 0, 0);
-        }
+        // First payout on start date at the selected time
       } else if (frequency === 'weekly') {
         nextPayoutDate.setDate(startDateObj.getDate() + 7);
       } else if (frequency === "weekly_specific" && dayOfWeek !== undefined) {
@@ -180,7 +179,6 @@ export function useCreatePayout() {
         nextPayoutDate.setDate(startDateObj.getDate() + daysToAdd);
       } else if (frequency === "biweekly") {
         // First payout on start_date; update_payout_plan_progress advances by 2 weeks from last payout
-        // nextPayoutDate is already a copy of startDateObj, no change needed
       } else if (frequency === "monthly") {
         nextPayoutDate.setMonth(startDateObj.getMonth() + 1);
       } else if (frequency === "end_of_month") {
@@ -189,10 +187,10 @@ export function useCreatePayout() {
         nextPayoutDate.setDate(0); // Setting to 0 gets the last day of the previous month
       } else if (frequency === "quarterly" || frequency === "biannual" || frequency === "annually") {
         // startDate is already the first payout date (see create-payout review / schedule).
-        // Do not add another quarter / half-year / year here or next_payout_date lands one full interval too late.
       }
 
-      let nextPayoutDateStr = nextPayoutDate.toISOString();
+      let nextPayoutDateStr = toPayoutTimestampISO(nextPayoutDate, resolvedHour, resolvedMinute);
+      let payoutTime = `${formatTimeString(resolvedHour, resolvedMinute)}:00`;
 
       const resolvedCustomDateTimes =
         dbFrequency === 'custom' && customDates?.length
@@ -202,6 +200,8 @@ export function useCreatePayout() {
       if (resolvedCustomDateTimes && customDates?.length) {
         const firstCustomDate = [...customDates].sort()[0];
         nextPayoutDateStr = buildDateTimeISO(firstCustomDate, resolvedCustomDateTimes[firstCustomDate]);
+        const firstCustomTime = parseTimeString(resolvedCustomDateTimes[firstCustomDate]);
+        payoutTime = `${formatTimeString(firstCustomTime.hour, firstCustomTime.minute)}:00`;
       }
 
       // Store the original frequency in the description for display purposes
@@ -211,8 +211,8 @@ export function useCreatePayout() {
       const metadata: Record<string, unknown> = {
         originalFrequency: frequency,
         dayOfWeek: dayOfWeek,
-        payoutHour: payoutHour,
-        payoutMinute: payoutMinute
+        payoutHour: resolvedHour,
+        payoutMinute: resolvedMinute
       };
 
       // 🔒 SECURITY: Lock only the net payout amount (fees are taken from totalAmount, not added on top)
@@ -289,6 +289,7 @@ export function useCreatePayout() {
             completed_payouts: 0,
             emergency_withdrawal_enabled: emergencyWithdrawalEnabled,
             next_payout_date: nextPayoutDateStr,
+            payout_time: payoutTime,
             metadata: metadata,
             fee_percentage: PLAN_CREATION_FEE_PERCENT,
             fee_amount: feeAmount,

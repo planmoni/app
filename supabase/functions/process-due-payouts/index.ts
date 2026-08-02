@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { lagosHoursMinutes, lagosWallClockToISO } from "../_shared/payout-lagos-time.ts";
 
 /**
  * Automated Payout Processing Function
@@ -865,19 +866,24 @@ function computeNextPayoutDateWithTime(
     const start = new Date(startDate);
     let next = new Date(start);
 
-    // Preserve time: from prev next date if not midnight, else from provided hour/minute, else default 09:00
+    // Preserve time: from prev next date (Lagos wall-clock), else provided hour/minute, else default 09:00
     let useHour = 9, useMinute = 0;
     if (typeof payoutHour === 'number' && typeof payoutMinute === 'number') {
       useHour = payoutHour; useMinute = payoutMinute;
     }
     if (prevNextPayoutDate) {
       const prev = new Date(prevNextPayoutDate);
-      const h = prev.getHours();
-      const m = prev.getMinutes();
-      if (!(h === 0 && m === 0)) { useHour = h; useMinute = m; }
+      if (!isNaN(prev.getTime())) {
+        const { hours: h, minutes: m } = lagosHoursMinutes(prev);
+        useHour = h;
+        useMinute = m;
+      }
     }
 
-    const setTime = (d: Date) => { d.setHours(useHour, useMinute, 0, 0); };
+    const setTime = (d: Date) => {
+      const iso = lagosWallClockToISO(d, useHour, useMinute);
+      d.setTime(new Date(iso).getTime());
+    };
 
     // custom / unknown complex schedules: DB update_payout_plan_progress + custom_payout_dates
     if (f === "custom") {

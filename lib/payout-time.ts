@@ -1,5 +1,8 @@
 /**
  * Helpers for custom payout date/time handling (local calendar dates + HH:mm).
+ *
+ * Nigeria runs on Africa/Lagos (UTC+1, no DST). Selected payout hours are wall-clock
+ * local times — never treat them as UTC or you get a permanent +1h display shift.
  */
 
 export function parseTimeString(
@@ -18,11 +21,35 @@ export function formatTimeString(hour: number, minute: number): string {
   return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
 
+/** Parse YYYY-MM-DD as a local calendar date (avoids UTC midnight from Date("YYYY-MM-DD")). */
+export function parseLocalDateString(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('T')[0].split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0);
+}
+
 /** Combine YYYY-MM-DD + HH:mm into an ISO string using local timezone. */
 export function buildDateTimeISO(dateStr: string, timeStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);
   const { hour, minute } = parseTimeString(timeStr);
   const dt = new Date(y, m - 1, d, hour, minute, 0, 0);
+  return dt.toISOString();
+}
+
+/** Apply wall-clock hour/minute on a local Date, then serialize to ISO (UTC). */
+export function toPayoutTimestampISO(
+  date: Date,
+  hour = 9,
+  minute = 0
+): string {
+  const dt = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    hour % 24,
+    minute % 60,
+    0,
+    0
+  );
   return dt.toISOString();
 }
 

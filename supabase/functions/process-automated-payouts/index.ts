@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "npm:@supabase/supabase-js@2"
+import { lagosHoursMinutes, lagosWallClockToISO } from "../_shared/payout-lagos-time.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -477,17 +478,12 @@ serve(async (req) => {
           const startDate = new Date(plan.start_date)
           let nextDate = new Date(startDate)
           
-          // Extract payout time from current next_payout_date if available, otherwise default to 9:00 AM
+          // Extract Lagos wall-clock time (edge runtime is UTC — do not use getHours())
           let payoutTime = { hours: 9, minutes: 0 }
           if (plan.next_payout_date) {
             const currentNextDate = new Date(plan.next_payout_date)
             if (!isNaN(currentNextDate.getTime())) {
-              const hours = currentNextDate.getHours()
-              const minutes = currentNextDate.getMinutes()
-              // Only use the time if it's not midnight (likely a real time, not just a date)
-              if (hours !== 0 || minutes !== 0) {
-                payoutTime = { hours, minutes }
-              }
+              payoutTime = lagosHoursMinutes(currentNextDate)
             }
           }
 
@@ -579,10 +575,12 @@ serve(async (req) => {
           }
 
           if (plan.frequency !== "custom") {
-            // Set the payout time on the calculated date
-            nextDate.setHours(payoutTime.hours, payoutTime.minutes, 0, 0)
-            // Return as ISO string to preserve time component
-            nextPayoutDate = nextDate.toISOString()
+            // Stamp Lagos wall-clock time (not Deno UTC setHours)
+            nextPayoutDate = lagosWallClockToISO(
+              nextDate,
+              payoutTime.hours,
+              payoutTime.minutes
+            )
           }
         }
 
