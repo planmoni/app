@@ -88,7 +88,29 @@ async function refreshSessionIfNeeded(): Promise<{
   timedOut: boolean;
   skipped: boolean;
 }> {
-  const { data: { session } } = await getSessionSerialized();
+  let session: Session | null = null;
+  try {
+    const result = await getSessionSerialized();
+    session = result.data.session;
+    if (result.error && !session) {
+      const timedOut = result.error.message.includes('timed out');
+      return {
+        session: null,
+        error: result.error.message,
+        timedOut,
+        skipped: false,
+      };
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      session: null,
+      error: message,
+      timedOut: message.includes('timed out'),
+      skipped: false,
+    };
+  }
+
   if (!session?.access_token) {
     return { session: null, error: null, timedOut: false, skipped: false };
   }

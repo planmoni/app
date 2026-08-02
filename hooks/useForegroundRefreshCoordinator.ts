@@ -13,16 +13,16 @@ type RefetchEntry = {
   fn: () => void | Promise<void>;
 };
 
-/** Wider stagger reduces auth/storage lock contention on weak networks. */
+/** Short stagger — financial data is primarily refreshed via React Query invalidate. */
 const TIER_DELAYS_MS: Record<ForegroundRefreshTier, number> = {
   1: 0,
-  2: 1200,
-  3: 2500,
+  2: 400,
+  3: 900,
 };
 
 const TIER_CONCURRENCY = 2;
-/** Hard cap so a jammed resume cannot run for ~85s. */
-const FOREGROUND_REFRESH_MAX_MS = 25_000;
+/** Hard cap so a jammed resume cannot block forever. */
+const FOREGROUND_REFRESH_MAX_MS = 15_000;
 
 const registry = new Map<string, RefetchEntry>();
 
@@ -90,29 +90,49 @@ async function runForegroundRefresh(): Promise<void> {
     console.log('[resume] foreground → reconnect start');
   }
 
+  const net = await NetInfo.fetch().catch(() => null);
+  const offline =
+    net != null &&
+    (net.isConnected === false || net.isInternetReachable === false);
+  if (offline) {
+    if (__DEV__) {
+      console.log('[resume] offline — skip foreground refresh, keep cache');
+    }
+    return;
+  }
+
   const refreshWork = (async () => {
-    const status = await ensureSupabaseConnection({ skipProbe: true });
-    const reconnectMs = Date.now() - startedAt;
+    try {
+      const status = await ensureSupabaseConnection({ skipProbe: true });
+      const reconnectMs = Date.now() - startedAt;
 
-    if (!status.ok && status.reconnect?.isAuthExpired) {
-      if (__DEV__) {
-        console.warn(`[resume] reconnect(${reconnectMs}ms) → auth expired, skip refresh`);
+      if (!status.ok && status.reconnect?.isAuthExpired) {
+        if (__DEV__) {
+          console.warn(`[resume] reconnect(${reconnectMs}ms) → auth expired, skip refresh`);
+        }
+        return;
       }
-      return;
+
+      if (__DEV__) {
+        console.log(`[resume] reconnect(${reconnectMs}ms) → invalidate financial queries`);
+      }
+
+      const invalidateStarted = Date.now();
+      await invalidateFinancialQueries();
+
+      if (__DEV__) {
+        console.log(`[resume] invalidate(${Date.now() - invalidateStarted}ms) → legacy registry`);
+      }
+
+      await runStaggeredLegacyRefresh();
+    } catch (err) {
+      if (__DEV__) {
+        console.warn(
+          '[resume] foreground refresh error (continuing with cache):',
+          err instanceof Error ? err.message : err
+        );
+      }
     }
-
-    if (__DEV__) {
-      console.log(`[resume] reconnect(${reconnectMs}ms) → invalidate financial queries`);
-    }
-
-    const invalidateStarted = Date.now();
-    await invalidateFinancialQueries();
-
-    if (__DEV__) {
-      console.log(`[resume] invalidate(${Date.now() - invalidateStarted}ms) → legacy registry`);
-    }
-
-    await runStaggeredLegacyRefresh();
   })();
 
   await Promise.race([

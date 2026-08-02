@@ -102,13 +102,19 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
           }
           return null;
         } else {
-          // On native: try SecureStore (lazy-loaded), then AsyncStorage (lazy-loaded)
+          // On native: try SecureStore (lazy-loaded), then AsyncStorage (lazy-loaded).
+          // Cap SecureStore waits — missing entitlements can hang and starve getSession.
           const SecureStore = await getSecureStore();
           if (SecureStore) {
             try {
-              const value = await SecureStore.getItemAsync(key);
-              if (value) this.setCache(key, value);
-              return value ?? null;
+              const value = await Promise.race([
+                SecureStore.getItemAsync(key),
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+              ]);
+              if (value) {
+                this.setCache(key, value);
+                return value;
+              }
             } catch (_) {}
           }
           const AsyncStorage = await getAsyncStorage();
