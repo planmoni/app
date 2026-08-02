@@ -399,124 +399,111 @@ function RootLayoutNav() {
     }
   }, [fontError]);
 
-  // Check for and apply OTA updates automatically
+  // OTA: never check/fetch during the fragile first-open window.
+  // Pending production OTAs + New Arch have caused native crashes on first
+  // activate ("crashes once, works on reopen"). Native checkAutomatically is
+  // NEVER; JS only downloads after a successful first session, and never reloads.
   useEffect(() => {
+    if (__DEV__) return;
+
+    let cancelled = false;
     let isChecking = false;
+    const FIRST_LAUNCH_OK_KEY = 'planmoni_first_launch_ok';
 
-    const checkForUpdates = async (source: string = 'initial') => {
-      // Only check for updates in production builds (not in development)
-      if (__DEV__) {
-        console.log('🔧 Development mode: Skipping OTA update check');
-        return;
+    const markFirstLaunchOk = async () => {
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        await AsyncStorage.setItem(FIRST_LAUNCH_OK_KEY, '1');
+      } catch {
+        // non-critical
       }
+    };
 
-      // Prevent concurrent update checks
-      if (isChecking) {
-        console.log('⏳ Update check already in progress, skipping...');
+    const hasCompletedFirstLaunch = async () => {
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        return (await AsyncStorage.getItem(FIRST_LAUNCH_OK_KEY)) === '1';
+      } catch {
+        return false;
+      }
+    };
+
+    const checkForUpdates = async (source: string) => {
+      if (cancelled || isChecking) return;
+      if (!Updates.isEnabled) return;
+
+      // Skip until this install has survived one full session.
+      if (!(await hasCompletedFirstLaunch())) {
+        console.log('ℹ️ Skipping OTA check until first launch completes', { source });
         return;
       }
 
       try {
         isChecking = true;
-        
-        // Check if updates are enabled
-        if (!Updates.isEnabled) {
-          console.log('ℹ️ OTA updates are not enabled');
+        const update = await Updates.checkForUpdateAsync();
+        if (!update.isAvailable) {
+          isChecking = false;
           return;
         }
 
-        // Get current update info for debugging
-        const currentlyRunningUpdate = Updates.updateId;
+        const availableManifest = update.manifest as
+          | { id?: string; runtimeVersion?: string }
+          | undefined;
         const runtimeVersion = Updates.runtimeVersion;
-        
-        console.log('🔄 Checking for OTA updates...', {
-          source,
-          currentlyRunningUpdate,
-          runtimeVersion,
-          channel: Updates.channel || 'N/A',
-        });
-        
-        // Check for available updates
-        const update = await Updates.checkForUpdateAsync();
-        
-        if (update.isAvailable) {
-          const availableManifest = update.manifest as { id?: string; createdAt?: string; runtimeVersion?: string } | undefined;
-          const manifestRuntime = availableManifest?.runtimeVersion;
+        const manifestRuntime = availableManifest?.runtimeVersion;
 
-          console.log('✅ Update available!', {
-            manifest: availableManifest?.id || 'N/A',
-            createdAt: availableManifest?.createdAt || 'N/A',
-            runtimeVersion: manifestRuntime || 'N/A',
-          });
-
-          if (manifestRuntime && runtimeVersion && manifestRuntime !== runtimeVersion) {
-            console.warn('Skipping OTA download: runtimeVersion mismatch', {
-              app: runtimeVersion,
-              update: manifestRuntime,
-            });
-            isChecking = false;
-            return;
-          }
-          
-          // Download only — do NOT reloadAsync here.
-          // Immediate reload looks like a launch crash to App Review / first-open testers
-          // ("closes once, works on reopen"). The update applies on the next cold start.
-          const fetchResult = await Updates.fetchUpdateAsync();
-
-          if (fetchResult.isNew) {
-            console.log(
-              '✅ New update downloaded; will apply on next cold start (no mid-session reload)'
-            );
-          } else {
-            console.log('ℹ️ Update downloaded but not new, already have this version');
-          }
-          isChecking = false;
-        } else {
-          console.log('✅ App is up to date', {
-            currentlyRunningUpdate,
-            runtimeVersion
+        if (manifestRuntime && runtimeVersion && manifestRuntime !== runtimeVersion) {
+          console.warn('Skipping OTA download: runtimeVersion mismatch', {
+            app: runtimeVersion,
+            update: manifestRuntime,
           });
           isChecking = false;
+          return;
         }
+
+        // Download only — apply on next cold start. Never reloadAsync (New Arch crash risk).
+        await Updates.fetchUpdateAsync();
+        console.log('✅ OTA downloaded; will apply on next cold start', { source });
       } catch (error) {
         console.error('❌ Error checking for updates:', error);
+      } finally {
         isChecking = false;
-        // Don't block app startup if update check fails
       }
     };
 
-    // Check for updates when app comes to foreground
+    // Mark first launch successful only after the app has stayed up a while.
+    const firstLaunchTimer = setTimeout(() => {
+      void markFirstLaunchOk();
+    }, 15000);
+
+    // First OTA check well after startup (and only if first launch already OK).
+    const initialTimer = setTimeout(() => {
+      void checkForUpdates('initial');
+    }, 30000);
+
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (
         appStateRef.current.match(/inactive|background/) &&
         nextAppState === 'active'
       ) {
-        // App came to foreground - check for updates
-        console.log('📱 App came to foreground, checking for updates...');
         setTimeout(() => {
-          checkForUpdates('foreground');
-        }, 1000);
+          void checkForUpdates('foreground');
+        }, 5000);
       }
       appStateRef.current = nextAppState;
     };
 
-    // Initial check after app initialization
-    const timer = setTimeout(() => {
-      checkForUpdates('initial');
-    }, 2000);
-
-    // Subscribe to app state changes
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-
-    // Periodic check every 30 minutes (as fallback)
     const intervalId = setInterval(() => {
       if (appStateRef.current === 'active') {
-        checkForUpdates('periodic');
+        void checkForUpdates('periodic');
       }
-    }, 30 * 60 * 1000); // 30 minutes
+    }, 30 * 60 * 1000);
 
     return () => {
-      clearTimeout(timer);
+      cancelled = true;
+      clearTimeout(firstLaunchTimer);
+      clearTimeout(initialTimer);
       clearInterval(intervalId);
       subscription?.remove();
     };

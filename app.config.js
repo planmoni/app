@@ -11,7 +11,12 @@ module.exports = {
     userInterfaceStyle: "automatic", // Allow system to control theme
     newArchEnabled: true,
     updates: {
-      url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83"
+      url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83",
+      // NEVER on launch: ON_LOAD + pending OTA has caused native first-open crashes
+      // on New Arch (activate/reload). Updates are checked only after a successful
+      // first session, from JS, and applied on the next cold start (no reloadAsync).
+      checkAutomatically: "NEVER",
+      fallbackToCacheTimeout: 0,
     },
     runtimeVersion: "1.3.7",
     android: {
@@ -69,7 +74,7 @@ module.exports = {
         NSPhotoLibraryUsageDescription: "This app uses the photo library to provide a better experience."
       },
       entitlements: {
-        "aps-environment": "production",
+        "aps-environment": "development", // store/TestFlight signing may still map to production via Apple; keep source aligned with last stable binary
         "keychain-access-groups": ["$(AppIdentifierPrefix)app.planmoni"],
         "com.apple.security.application-groups": ["group.app.planmoni.widget"]
       },
