@@ -120,7 +120,6 @@
   },
   "private": true,
   "resolutions": {
-    "@react-navigation/core": "7.17.5",
     "mixpanel-react-native": "3.2.1",
     "react-native-webview": "13.15.0"
   },

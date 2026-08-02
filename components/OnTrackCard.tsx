@@ -45,18 +45,33 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     );
   }, [payoutPlans, session?.user?.id]);
 
+  // Stable key so effects don't re-fire when parent passes a new array reference
+  // with the same plan identities.
+  const recipientPlanKey = useMemo(
+    () =>
+      recipientPlans
+        .map(
+          (p) =>
+            `${p.id}:${p.frequency}:${p.duration}:${p.completed_payouts}:${p.payout_amount}:${p.next_payout_date ?? ''}`
+        )
+        .join('|'),
+    [recipientPlans]
+  );
+
   // Fetch custom payout dates and amounts for custom plans
   useEffect(() => {
+    let cancelled = false;
+
     const fetchCustomData = async () => {
-      const customPlans = recipientPlans.filter(plan => plan.frequency === 'custom');
+      const customPlans = recipientPlans.filter((plan) => plan.frequency === 'custom');
       if (customPlans.length === 0) {
-        setCustomAmountsByPlan({});
-        setCustomDatesByPlan({});
+        setCustomAmountsByPlan((prev) => (Object.keys(prev).length === 0 ? prev : {}));
+        setCustomDatesByPlan((prev) => (Object.keys(prev).length === 0 ? prev : {}));
         return;
       }
 
       try {
-        const planIds = customPlans.map(plan => plan.id);
+        const planIds = customPlans.map((plan) => plan.id);
         const { data, error } = await supabase
           .from('custom_payout_dates')
           .select('payout_plan_id, payout_date, amount')
@@ -64,19 +79,21 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
           .order('payout_date', { ascending: true });
 
         if (error) throw error;
+        if (cancelled) return;
 
         // Group by plan_id: { planId: { date: amount } }
         const amountsByPlan: Record<string, Record<string, number>> = {};
         const datesByPlan: Record<string, string[]> = {};
-        
+
         data?.forEach((item: any) => {
           if (!amountsByPlan[item.payout_plan_id]) {
             amountsByPlan[item.payout_plan_id] = {};
             datesByPlan[item.payout_plan_id] = [];
           }
-          const amount = item.amount !== null && item.amount !== undefined 
-            ? parseFloat(item.amount.toString()) 
-            : 0;
+          const amount =
+            item.amount !== null && item.amount !== undefined
+              ? parseFloat(item.amount.toString())
+              : 0;
           amountsByPlan[item.payout_plan_id][item.payout_date] = amount > 0 ? amount : 0;
           datesByPlan[item.payout_plan_id].push(item.payout_date);
         });
@@ -85,20 +102,27 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
         setCustomDatesByPlan(datesByPlan);
       } catch (error) {
         console.error('Error fetching custom payout data:', error);
-        setCustomAmountsByPlan({});
-        setCustomDatesByPlan({});
+        if (!cancelled) {
+          setCustomAmountsByPlan((prev) => (Object.keys(prev).length === 0 ? prev : {}));
+          setCustomDatesByPlan((prev) => (Object.keys(prev).length === 0 ? prev : {}));
+        }
       }
     };
 
     fetchCustomData();
-  }, [recipientPlans]);
+    return () => {
+      cancelled = true;
+    };
+    // recipientPlanKey captures identity/content of recipientPlans
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipientPlanKey]);
 
   // Calculate total payout and longest duration (only for plans where current user is the recipient)
   useEffect(() => {
     const activePlans = recipientPlans;
     
     if (activePlans.length === 0) {
-      setCalculation(null);
+      setCalculation((prev) => (prev === null ? prev : null));
       return;
     }
 
@@ -241,7 +265,7 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
     });
 
     if (!lastPayoutDate || totalPayout === 0) {
-      setCalculation(null);
+      setCalculation((prev) => (prev === null ? prev : null));
       return;
     }
 
@@ -270,19 +294,30 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
       timeUnit = 'year';
     }
 
-    setCalculation({
+    const next = {
       totalPayout,
       timeValue,
       timeUnit,
       calculationHash: `${totalPayout}-${lastPayoutTime}`,
-    });
-  }, [recipientPlans, customAmountsByPlan, customDatesByPlan]);
+    };
+    setCalculation((prev) =>
+      prev &&
+      prev.totalPayout === next.totalPayout &&
+      prev.timeValue === next.timeValue &&
+      prev.timeUnit === next.timeUnit &&
+      prev.calculationHash === next.calculationHash
+        ? prev
+        : next
+    );
+    // Intentionally keyed by recipientPlanKey (not recipientPlans array identity)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipientPlanKey, customAmountsByPlan, customDatesByPlan]);
 
   // Check if we should show the card (new calculation)
   useEffect(() => {
     const checkShouldShow = async () => {
       if (!calculation) {
-        setShouldShow(false);
+        setShouldShow((prev) => (prev ? false : prev));
         return;
       }
 
