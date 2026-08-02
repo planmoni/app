@@ -305,14 +305,14 @@ export default function ClaimAccountModal({
                 return (
                   <>
                     <Button
-                      title="Complete Tier 1 Verification"
+                      title="Claim your bank account"
                       onPress={handleStartKYC}
                       hapticType="medium"
                       variant="primary"
                       disabled={false}
                     />
                     <Text style={styles.warningText}>
-                      You need to complete Tier 1 verification (Liveness, BVN, and NIN) to create your account.
+                      You need to complete Account verification (Liveness, BVN, and NIN) to create your account.
                     </Text>
                   </>
                 );
@@ -332,7 +332,7 @@ export default function ClaimAccountModal({
             
             {(!nin || !phoneNumber) && (
               <Text style={styles.warningText}>
-                Please complete Tier 1 verification (NIN and phone number) to create your account.
+                Please complete Account verification (NIN and phone number) to create your account.
               </Text>
             )}
                 </>

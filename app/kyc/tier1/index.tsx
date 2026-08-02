@@ -420,7 +420,7 @@ export default function Tier1KYCScreen() {
           <X size={isSmallScreen ? 20 : 24} color={colors.text} />
         </Pressable>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Tier 1 Verification</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Account Verification</Text>
         </View>
         <Pressable 
           onPress={handleHelpPress}
