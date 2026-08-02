@@ -70,9 +70,14 @@ function updatePackageJson(filePath, oldVersion, newVersion) {
 }
 
 /**
- * Update version in package-lock.json
+ * Update version in package-lock.json (npm). Skipped when using Yarn only.
  */
 function updatePackageLockJson(filePath, oldVersion, newVersion) {
+  if (!fs.existsSync(filePath)) {
+    console.log('ℹ️  Skipping package-lock.json (not present — project uses yarn.lock)');
+    return;
+  }
+
   let content = fs.readFileSync(filePath, 'utf8');
   
   // Update version at root level

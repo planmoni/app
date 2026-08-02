@@ -6,7 +6,7 @@ module.exports = {
     name: "Planmoni",
     owner: "planmoni", // 👈 Add this line
     slug: "planmoni",
-    version: "2.0.7",
+    version: "2.0.8",
     scheme: "myapp",
     userInterfaceStyle: "automatic", // Allow system to control theme
     newArchEnabled: true,
