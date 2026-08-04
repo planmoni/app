@@ -61,7 +61,7 @@ import AppBlur from '@/components/AppBlur';
 
 // import { SessionDebugger } from '@/components/SessionDebugger';
 import AppErrorProvider, { useAppError } from '@/contexts/AppErrorContext';
-import { FeedbackProvider, useFeedback } from '@/contexts/FeedbackContext';
+import { FeedbackProvider } from '@/contexts/FeedbackContext';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync().catch((e) =>
@@ -280,32 +280,7 @@ function RootLayoutNav() {
     return () => sub?.remove();
   }, [session?.user?.id]);
 
-  // Feedback modal: show on second app open (once per user)
-  const { showFeedback } = useFeedback();
-  useEffect(() => {
-    if (!session?.user?.id) return;
-    const run = async () => {
-      try {
-        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-        const countKey = 'planmoni_app_open_count';
-        const shownKey = 'planmoni_feedback_second_open_shown';
-        const raw = await AsyncStorage.getItem(countKey);
-        const count = Math.max(0, parseInt(raw ?? '0', 10) || 0);
-        const next = count + 1;
-        await AsyncStorage.setItem(countKey, String(next));
-        if (next === 2) {
-          const alreadyShown = await AsyncStorage.getItem(shownKey);
-          if (!alreadyShown) {
-            await AsyncStorage.setItem(shownKey, 'true');
-            showFeedback('second_open');
-          }
-        }
-      } catch (e) {
-        console.warn('Feedback second-open check failed:', e);
-      }
-    };
-    run();
-  }, [session?.user?.id, showFeedback]);
+  // Feedback modal on second app open is disabled.
 
   // Handle plan share deep link (myapp://plan/CODE or https://planmoni.com/plan/CODE)
   useEffect(() => {
