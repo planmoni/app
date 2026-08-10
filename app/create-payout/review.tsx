@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform } from 'react-native';
 import { Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X, Target, Info } from 'lucide-react-native';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X, Target, Info, RefreshCw } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCreatePayout } from '@/hooks/useCreatePayout';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -24,19 +24,33 @@ import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
 import { LifecycleEventName } from '@/lib/lifecycleEvents';
 import { buildCustomDateTimesMap, formatTimeForDisplay } from '@/lib/payout-time';
 import { formatPayoutMoney, hasCustomPayoutAmounts } from '@/lib/custom-payout-amounts';
+import { withTimeout } from '@/lib/with-timeout';
+
+const WALLET_REFRESH_CAP_MS = 10_000;
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
   const params = useLocalSearchParams();
   const { createPayout, isLoading, error } = useCreatePayout();
-  const { balance, lockedBalance, refreshWallet, isLoading: walletLoading } = useBalance();
+  const {
+    balance,
+    lockedBalance,
+    refreshWallet,
+    isLoading: walletLoading,
+    hasWalletData,
+    walletStatus,
+    isTimedOut: walletTimedOut,
+    error: walletError,
+  } = useBalance();
   const haptics = useHaptics();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [walletFetchFailed, setWalletFetchFailed] = useState(false);
   const [showPinVerification, setShowPinVerification] = useState(false);
   const [feeBreakdown, setFeeBreakdown] = useState<PayoutFeeResult | null>(null);
   const [showFeesBreakdownModal, setShowFeesBreakdownModal] = useState(false);
   const { banks } = useBanks();
   const { verifyPayoutPin, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin } = usePin();
+  const refreshInFlightRef = useRef(false);
 
   useEffect(() => {
     void trackLifecycleEvent(LifecycleEventName.PAYOUT_PLAN_FLOW_STEP_DETAILS, { screen: 'review' });
@@ -72,26 +86,52 @@ export default function ReviewScreen() {
   
   // Parse total amount to number for comparison. Fee is taken from the amount (not added on top).
   const numericTotalAmount = parseFloat(totalAmount.replace(/,/g, ''));
+  // Only treat as insufficient when we have real wallet data — never block on silent zero after timeout.
+  const walletReady = hasWalletData && walletStatus === 'ready';
   const hasInsufficientBalance =
-    !walletLoading && !isRefreshing && numericTotalAmount > availableBalance;
+    walletReady && !walletLoading && !isRefreshing && numericTotalAmount > availableBalance;
+  const showWalletRetry =
+    !hasWalletData &&
+    (walletFetchFailed || walletTimedOut || walletStatus === 'error' || !!walletError);
 
-  useEffect(() => {
-    const fetchBalance = async () => {
-      setIsRefreshing(true);
+  const refreshBalance = useCallback(
+    async (opts?: { blockUi?: boolean }) => {
+      if (refreshInFlightRef.current) return;
+      refreshInFlightRef.current = true;
+      const blockUi = opts?.blockUi === true && !hasWalletData;
+      if (blockUi) setIsRefreshing(true);
+      setWalletFetchFailed(false);
       try {
-        console.log('Refreshing wallet balance before creating payout plan');
-        await refreshWallet();
-        console.log('Wallet balance refreshed successfully');
-      } catch (error) {
-        console.error('Error refreshing wallet:', error);
+        const result = await withTimeout(
+          refreshWallet(),
+          WALLET_REFRESH_CAP_MS,
+          'Wallet refresh'
+        );
+        if (result === null && !hasWalletData) {
+          setWalletFetchFailed(true);
+        }
+      } catch (err) {
+        console.error('Error refreshing wallet:', err);
+        if (!hasWalletData) setWalletFetchFailed(true);
       } finally {
         setIsRefreshing(false);
+        refreshInFlightRef.current = false;
       }
-    };
-    
-    fetchBalance();
-  }, []);
+    },
+    [refreshWallet, hasWalletData]
+  );
 
+  // Mount: refresh with hard timeout so CTA cannot stay disabled forever.
+  useEffect(() => {
+    void refreshBalance({ blockUi: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only
+
+  // Focus/resume: soft refresh without blocking CTA when cache exists.
+  useFocusEffect(
+    useCallback(() => {
+      void refreshBalance({ blockUi: false });
+    }, [refreshBalance])
+  );
   // Calculate fee breakdown (processing + stamp duty + transaction).
   // Single primitive dep key so effect doesn't re-run when params object reference changes.
   const feeDepsKey = `${totalAmount ?? ''}|${frequency ?? ''}|${duration ?? ''}|${(params as Record<string, unknown>).customDates ?? ''}|${(params as Record<string, unknown>).customDateAmounts ?? ''}`;
@@ -450,6 +490,29 @@ export default function ReviewScreen() {
             </Text>
 
             {error && <ErrorMessage message={error} />}
+
+            {showWalletRetry && (
+              <View style={styles.warningBox}>
+                <AlertTriangle size={20} color={colors.warning ?? colors.error} />
+                <View style={{ flex: 1, gap: 8 }}>
+                  <Text style={styles.warningText}>
+                    Couldn&apos;t load your wallet balance. Check your connection and try again.
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      if (Platform.OS !== 'web') haptics.selection();
+                      void refreshBalance({ blockUi: true });
+                    }}
+                    style={styles.retryBalanceButton}
+                  >
+                    <RefreshCw size={16} color={colors.primary} />
+                    <Text style={styles.retryBalanceText}>
+                      {isRefreshing ? 'Retrying…' : 'Retry'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
             
             {hasInsufficientBalance && (
               <View style={styles.warningBox}>
@@ -884,8 +947,8 @@ export default function ReviewScreen() {
       <FloatingButton 
         title={isLoading ? "Processing..." : "Start Payout Plan"}
         onPress={handleStartPlan}
-        disabled={isLoading || isRefreshing || walletLoading || hasInsufficientBalance}
-        loading={isLoading || walletLoading}
+        disabled={isLoading || hasInsufficientBalance}
+        loading={isLoading}
       />
 
       <PinVerificationModal
@@ -991,6 +1054,17 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.error,
     lineHeight: 20,
+  },
+  retryBalanceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+  retryBalanceText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
   },
   detailsList: {
     gap: 16,

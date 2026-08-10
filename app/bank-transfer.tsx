@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, Info, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, Copy, Info, CheckCircle, RefreshCw } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -16,7 +16,6 @@ import ClaimAccountModal from '@/components/ClaimAccountModal';
 import { useSafehavenDepositWatcher } from '@/hooks/useSafehavenDepositWatcher';
 import { useBalance } from '@/contexts/BalanceContext';
 import Button from '@/components/Button';
-import { RefreshCw } from 'lucide-react-native';
 
 type AccountInfo = {
   account_number: string;
@@ -24,18 +23,21 @@ type AccountInfo = {
   bank_name: string;
 };
 
+const ACCOUNT_LOADING_CAP_MS = 12_000;
+
 export default function BankTransferScreen() {
   const { colors, isDark } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const haptics = useHaptics();
   const { showToast } = useToast();
-  const { session } = useAuth();
+  const { session, isAuthReady } = useAuth();
   const isSmallScreen = screenWidth < 380;
 
   const [hasAccount, setHasAccount] = useState(false);
   const [accountLoading, setAccountLoading] = useState(true);
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [refreshingBalance, setRefreshingBalance] = useState(false);
   const hasCachedDataRef = useRef(false);
@@ -67,10 +69,17 @@ export default function BankTransferScreen() {
       return;
     }
 
+    // Wait for token refresh after long idle before hitting PostgREST.
+    if (!isAuthReady) {
+      return;
+    }
+
     try {
+      // Only show full-screen spinner when we have nothing to paint.
       if (!hasCachedDataRef.current) {
         setAccountLoading(true);
       }
+      setFetchError(null);
 
       const { data, error } = await fetchWithRetry(
         () =>
@@ -87,24 +96,27 @@ export default function BankTransferScreen() {
       if (error && error.code !== 'PGRST116') {
         console.warn('Error checking account:', error);
         if (!hasCachedDataRef.current) {
-          applyAccountData(null);
+          setFetchError(error.message || 'Failed to load account details');
         }
         return;
       }
 
       applyAccountData(data);
       if (data?.account_number) {
+        hasCachedDataRef.current = true;
         void writeCache(CACHE_KEYS.safehavenAccount(session.user.id), data);
+      } else if (!hasCachedDataRef.current) {
+        setFetchError(null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error checking account:', error);
       if (!hasCachedDataRef.current) {
-        applyAccountData(null);
+        setFetchError(error?.message || 'Failed to load account details');
       }
     } finally {
       setAccountLoading(false);
     }
-  }, [session?.user?.id, applyAccountData]);
+  }, [session?.user?.id, isAuthReady, applyAccountData]);
 
   useEffect(() => {
     if (!session?.user?.id) {
@@ -128,7 +140,9 @@ export default function BankTransferScreen() {
       } catch (_) {}
 
       if (!isMounted) return;
-      void fetchAccount();
+      if (isAuthReady) {
+        void fetchAccount();
+      }
     };
 
     void init();
@@ -136,9 +150,26 @@ export default function BankTransferScreen() {
     return () => {
       isMounted = false;
     };
-  }, [session?.user?.id, fetchAccount, applyAccountData]);
+  }, [session?.user?.id, isAuthReady, fetchAccount, applyAccountData]);
 
-  useRegisterForegroundRefetch('bank-transfer', 3, fetchAccount, !!session?.user?.id);
+  // Cap spinner so resume cannot leave the screen loading forever.
+  useEffect(() => {
+    if (!accountLoading || accountInfo) return;
+    const timer = setTimeout(() => {
+      setAccountLoading(false);
+      if (!hasCachedDataRef.current) {
+        setFetchError((prev) => prev || 'Loading timed out. Tap retry.');
+      }
+    }, ACCOUNT_LOADING_CAP_MS);
+    return () => clearTimeout(timer);
+  }, [accountLoading, accountInfo]);
+
+  useRegisterForegroundRefetch(
+    'bank-transfer',
+    3,
+    fetchAccount,
+    !!session?.user?.id && isAuthReady
+  );
 
   const handleBack = () => {
     haptics.lightImpact();
@@ -175,6 +206,13 @@ export default function BankTransferScreen() {
     setShowClaimModal(false);
   }, []);
 
+  const handleRetryFetch = () => {
+    haptics.lightImpact();
+    setFetchError(null);
+    if (!accountInfo) setAccountLoading(true);
+    void fetchAccount();
+  };
+
   const handleRefreshBalance = async () => {
     haptics.lightImpact();
     setRefreshingBalance(true);
@@ -188,6 +226,10 @@ export default function BankTransferScreen() {
       setRefreshingBalance(false);
     }
   };
+
+  const showLoader = accountLoading && !accountInfo && !fetchError;
+  const showError = !!fetchError && !accountInfo;
+  const showClaimCta = !showLoader && !showError && !hasAccount;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -207,9 +249,18 @@ export default function BankTransferScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          {accountLoading && !accountInfo ? (
+          {showLoader ? (
             <View style={styles.loadingContainer}>
               <PlanmoniLoader size="medium" description="Loading account details..." />
+            </View>
+          ) : showError ? (
+            <View style={styles.noAccountContainer}>
+              <Text style={styles.noAccountMessage}>
+                {fetchError || 'Could not load account details.'}
+              </Text>
+              <Pressable style={styles.claimButton} onPress={handleRetryFetch}>
+                <Text style={styles.claimButtonText}>Retry</Text>
+              </Pressable>
             </View>
           ) : hasAccount && accountInfo ? (
             <>
@@ -272,21 +323,19 @@ export default function BankTransferScreen() {
                 icon={refreshingBalance ? undefined : RefreshCw}
               />
             </>
-          ) : (
-            <>
-              <View style={styles.noAccountContainer}>
-                <Text style={styles.noAccountMessage}>
-                  You currently do not have a SafeHaven account, Claim your account now.
-                </Text>
-                <Pressable
-                  style={styles.claimButton}
-                  onPress={handleClaimAccount}
-                >
-                  <Text style={styles.claimButtonText}>Claim your account</Text>
-                </Pressable>
-              </View>
-            </>
-          )}
+          ) : showClaimCta ? (
+            <View style={styles.noAccountContainer}>
+              <Text style={styles.noAccountMessage}>
+                You currently do not have a SafeHaven account, Claim your account now.
+              </Text>
+              <Pressable
+                style={styles.claimButton}
+                onPress={handleClaimAccount}
+              >
+                <Text style={styles.claimButtonText}>Claim your account</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
       </ScrollView>
 
@@ -310,8 +359,8 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: isSmallScreen ? 12 : 16,
-    paddingVertical: isSmallScreen ? 12 : 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -324,9 +373,10 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     marginRight: 8,
   },
   headerTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+    flex: 1,
   },
   scrollView: {
     flex: 1,
@@ -335,148 +385,127 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     flexGrow: 1,
   },
   content: {
-    padding: isSmallScreen ? 16 : 20,
+    padding: isSmallScreen ? 16 : 24,
   },
   loadingContainer: {
-    marginTop: 40,
+    paddingVertical: 60,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   accountDetailsCard: {
     backgroundColor: colors.card,
     borderRadius: 16,
+    padding: isSmallScreen ? 16 : 20,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 24,
-    overflow: 'hidden',
+    marginBottom: 16,
   },
   cardHeader: {
     flexDirection: 'row',
-    padding: isSmallScreen ? 16 : 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.backgroundTertiary,
+    marginBottom: 20,
     gap: 12,
   },
   headerIconContainer: {
     width: 40,
     height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.accentBackground,
+    borderRadius: 20,
+    backgroundColor: isDark ? 'rgba(30, 58, 138, 0.2)' : '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   headerTextContainer: {
     flex: 1,
   },
   cardTitle: {
-    fontSize: isSmallScreen ? 16 : 18,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
   },
   cardSubtitle: {
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: 13,
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   fieldsContainer: {
-    padding: isSmallScreen ? 16 : 20,
-    gap: 20,
+    gap: 16,
   },
   field: {
-    marginBottom: 0,
+    gap: 6,
   },
   fieldLabel: {
-    fontSize: isSmallScreen ? 13 : 14,
-    fontWeight: '500',
+    fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 8,
+    fontWeight: '500',
   },
   accountNumberContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: colors.backgroundTertiary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: isSmallScreen ? 12 : 16,
-    borderRadius: 12,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   accountNumber: {
-    fontSize: isSmallScreen ? 16 : 18,
-    fontWeight: '600',
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.text,
     letterSpacing: 1,
   },
   copyButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.backgroundSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    padding: 4,
   },
   fieldValueContainer: {
     backgroundColor: colors.backgroundTertiary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: isSmallScreen ? 12 : 16,
-    borderRadius: 12,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   fieldValue: {
-    fontSize: isSmallScreen ? 14 : 16,
-    fontWeight: '500',
+    fontSize: 15,
     color: colors.text,
+    fontWeight: '500',
   },
   transferNotice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF',
-    borderWidth: 1,
-    borderColor: colors.primary,
+    gap: 10,
+    backgroundColor: isDark ? 'rgba(30, 58, 138, 0.15)' : '#EFF6FF',
     borderRadius: 12,
-    padding: isSmallScreen ? 14 : 16,
-    gap: 12,
+    padding: 14,
+    marginBottom: 16,
   },
   transferNoticeText: {
     flex: 1,
-    fontSize: isSmallScreen ? 13 : 14,
-    color: colors.text,
-    lineHeight: 20,
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
   refreshButton: {
-    marginTop: 16,
+    marginBottom: 8,
   },
   noAccountContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 60,
-    paddingHorizontal: isSmallScreen ? 16 : 24,
+    paddingVertical: 40,
+    paddingHorizontal: 16,
+    gap: 16,
   },
   noAccountMessage: {
-    fontSize: isSmallScreen ? 16 : 18,
-    fontWeight: '500',
-    color: colors.text,
+    fontSize: 15,
+    color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 26,
-    marginBottom: 32,
+    lineHeight: 22,
   },
   claimButton: {
     backgroundColor: colors.primary,
-    paddingVertical: isSmallScreen ? 14 : 16,
-    paddingHorizontal: isSmallScreen ? 32 : 40,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
     borderRadius: 12,
-    minWidth: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   claimButtonText: {
-    fontSize: isSmallScreen ? 16 : 18,
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '600',
-    color: '#fff',
   },
 });

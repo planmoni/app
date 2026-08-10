@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { withTimeout } from '@/lib/with-timeout';
 
 // Keys for secure storage
 export const APP_LOCK_PIN_KEY = 'app_lock_pin';
@@ -8,6 +9,9 @@ export const BIOMETRIC_TOKEN_KEY = 'biometric_token';
 export const AUTH_SESSION_KEY = 'auth_session';
 export const AUTH_REFRESH_TOKEN_KEY = 'auth_refresh_token';
 export const AUTH_ACCESS_TOKEN_KEY = 'auth_access_token';
+
+/** Cap native keychain reads so missing entitlements / hung Keychain cannot block startup. */
+const SECURE_STORE_TIMEOUT_MS = 3000;
 
 // Web storage implementation
 class WebStorage {
@@ -100,12 +104,16 @@ export async function saveItem(key: string, value: string): Promise<void> {
 
   if (!secureStoreBroken) {
     try {
-      await SecureStore.setItemAsync(key, value);
+      await withTimeout(
+        SecureStore.setItemAsync(key, value),
+        SECURE_STORE_TIMEOUT_MS,
+        `SecureStore.setItem(${key})`
+      );
       return;
     } catch (error) {
-      if (isEntitlementError(error)) {
+      if (isEntitlementError(error) || String(error).includes('timed out')) {
         secureStoreBroken = true;
-        console.warn('SecureStore unavailable (entitlement missing); falling back to AsyncStorage');
+        console.warn('SecureStore failed for key', key, 'falling back to AsyncStorage:', error);
       } else {
         console.error(`Error saving item to secure storage: ${key}`, error);
         throw error;
@@ -128,11 +136,15 @@ export async function getItem(key: string): Promise<string | null> {
 
   if (!secureStoreBroken) {
     try {
-      return await SecureStore.getItemAsync(key);
+      return await withTimeout(
+        SecureStore.getItemAsync(key),
+        SECURE_STORE_TIMEOUT_MS,
+        `SecureStore.getItem(${key})`
+      );
     } catch (error) {
-      if (isEntitlementError(error)) {
+      if (isEntitlementError(error) || String(error).includes('timed out')) {
         secureStoreBroken = true;
-        console.warn('SecureStore unavailable (entitlement missing); falling back to AsyncStorage');
+        console.warn('SecureStore failed for key', key, 'trying AsyncStorage fallback:', error);
       } else {
         console.error(`Error getting item from secure storage: ${key}`, error);
         return null;
@@ -161,11 +173,15 @@ export async function deleteItem(key: string): Promise<void> {
 
   if (!secureStoreBroken) {
     try {
-      await SecureStore.deleteItemAsync(key);
+      await withTimeout(
+        SecureStore.deleteItemAsync(key),
+        SECURE_STORE_TIMEOUT_MS,
+        `SecureStore.deleteItem(${key})`
+      );
     } catch (error) {
-      if (isEntitlementError(error)) {
+      if (isEntitlementError(error) || String(error).includes('timed out')) {
         secureStoreBroken = true;
-        console.warn('SecureStore unavailable (entitlement missing); falling back to AsyncStorage');
+        console.warn('SecureStore failed for key', key, 'falling back to AsyncStorage:', error);
       } else {
         console.error(`Error deleting item from secure storage: ${key}`, error);
         throw error;

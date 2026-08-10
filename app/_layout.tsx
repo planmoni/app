@@ -77,6 +77,8 @@ function RootLayoutNav() {
   const [isInitializing, setIsInitializing] = useState(true);
   /** After hard timeout, never keep users on the logo forever due to hung auth. */
   const [forceHideSplash, setForceHideSplash] = useState(false);
+  /** Once cold-start auth completed once, do not re-cover UI when isAuthReady flips false on resume. */
+  const [initialAuthDone, setInitialAuthDone] = useState(false);
   const hasInitializedRef = useRef(false);
   const lockAppRef = useRef(lockApp);
   const initCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,6 +101,19 @@ function RootLayoutNav() {
   // Auth startup is complete when the initial check finished and any logged-in
   // user has a non-expired access token (isAuthReady).
   const authStartupComplete = !isLoading && (!session?.user?.id || isAuthReady);
+
+  useEffect(() => {
+    if (authStartupComplete) {
+      setInitialAuthDone(true);
+    }
+  }, [authStartupComplete]);
+
+  // Allow splash again after full logout so next login gets a clean cold-start path.
+  useEffect(() => {
+    if (!session?.user?.id && !isLoading) {
+      setInitialAuthDone(false);
+    }
+  }, [session?.user?.id, isLoading]);
 
   // Staggered foreground data refresh (wallet, plans, transactions, etc.)
   useForegroundRefreshCoordinator();
@@ -641,12 +656,14 @@ function RootLayoutNav() {
 
   // Always render Stack to ensure navigation context is available
   // Show splash screen on top during initialization
+  // After initial auth completed once, do not re-cover the tree when isAuthReady
+  // flips false on resume (expired token refresh) — that felt like Bank Transfer hung.
   const showSplashOverlay =
     !forceHideSplash &&
     (isInitializing ||
       (!fontsLoaded && !fontError) ||
-      !authStartupComplete ||
-      isPinLoading ||
+      (!initialAuthDone && !authStartupComplete) ||
+      (!initialAuthDone && isPinLoading) ||
       (showSplash && !session?.user?.id));
 
   return (

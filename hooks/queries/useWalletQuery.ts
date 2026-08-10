@@ -81,14 +81,25 @@ export function useWalletQuery() {
     }
   }, [userId, queryClient]);
 
+  const hasWalletData = hasData;
+
   return {
     ...query,
     balance: query.data?.balance ?? 0,
     lockedBalance: query.data?.lockedBalance ?? 0,
     availableBalance: query.data?.availableBalance ?? 0,
+    hasWalletData,
+    /** ready = real query data; error = timed out / failed with no data; loading otherwise */
+    walletStatus: hasWalletData
+      ? ('ready' as const)
+      : guardedLoading
+        ? ('loading' as const)
+        : isTimedOut || query.error
+          ? ('error' as const)
+          : ('loading' as const),
     isLoading: guardedLoading,
     isTimedOut,
-    error: query.error ? 'Failed to load wallet data' : null,
+    error: query.error ? 'Failed to load wallet data' : isTimedOut && !hasWalletData ? 'Wallet load timed out' : null,
     refreshWallet,
     setWalletData: (data: WalletData) => {
       if (!userId) return;

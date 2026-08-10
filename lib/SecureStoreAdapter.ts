@@ -1,4 +1,7 @@
 import { Platform } from 'react-native';
+import { withTimeout } from '@/lib/with-timeout';
+
+const SECURE_STORE_TIMEOUT_MS = 3000;
 
 /** Lazy-load expo-secure-store so we never throw "Native module not found" at import time (Expo Go/simulator). */
 let secureStoreModule: typeof import('expo-secure-store') | null | false = null;
@@ -106,7 +109,11 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
           const SecureStore = await getSecureStore();
           if (SecureStore) {
             try {
-              const value = await SecureStore.getItemAsync(key);
+              const value = await withTimeout(
+                SecureStore.getItemAsync(key),
+                SECURE_STORE_TIMEOUT_MS,
+                `SecureStoreAdapter.getItem(${key})`
+              );
               if (value) this.setCache(key, value);
               return value ?? null;
             } catch (_) {}
@@ -153,7 +160,11 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
           const SecureStore = await getSecureStore();
           if (SecureStore) {
             try {
-              await SecureStore.setItemAsync(key, value);
+              await withTimeout(
+                SecureStore.setItemAsync(key, value),
+                SECURE_STORE_TIMEOUT_MS,
+                `SecureStoreAdapter.setItem(${key})`
+              );
               return;
             } catch (_) {}
           }
@@ -191,7 +202,13 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
         } else {
           const SecureStore = await getSecureStore();
           if (SecureStore) {
-            try { await SecureStore.deleteItemAsync(key); } catch (_) {}
+            try {
+              await withTimeout(
+                SecureStore.deleteItemAsync(key),
+                SECURE_STORE_TIMEOUT_MS,
+                `SecureStoreAdapter.removeItem(${key})`
+              );
+            } catch (_) {}
           }
           const AsyncStorage = await getAsyncStorage();
           if (AsyncStorage) { try { await AsyncStorage.removeItem(`secure_${key}`); } catch (_) {} }
