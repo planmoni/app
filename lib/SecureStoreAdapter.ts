@@ -3,9 +3,39 @@ import { withTimeout } from '@/lib/with-timeout';
 
 const SECURE_STORE_TIMEOUT_MS = 3000;
 
+/**
+ * Once keychain rejects with missing entitlement (common in Expo Go / some
+ * simulators), every SecureStore call fails the same way. Skip native round-trips
+ * after the first failure so auth getSession is not blocked for 3s each time.
+ */
+let secureStoreBroken = false;
+
+function isEntitlementError(error: unknown): boolean {
+  const message = String(
+    error instanceof Error ? error.message : error ?? ''
+  );
+  return (
+    message.includes('entitlement') ||
+    message.includes('errSecMissingEntitlement')
+  );
+}
+
+function markSecureStoreBroken(error: unknown): void {
+  if (secureStoreBroken) return;
+  if (isEntitlementError(error) || String(error).includes('timed out')) {
+    secureStoreBroken = true;
+    if (__DEV__) {
+      console.warn(
+        '[SecureStoreAdapter] Keychain unavailable; using AsyncStorage for auth session'
+      );
+    }
+  }
+}
+
 /** Lazy-load expo-secure-store so we never throw "Native module not found" at import time (Expo Go/simulator). */
 let secureStoreModule: typeof import('expo-secure-store') | null | false = null;
 async function getSecureStore(): Promise<typeof import('expo-secure-store') | null> {
+  if (secureStoreBroken) return null;
   if (secureStoreModule === false) return null;
   if (secureStoreModule !== null) return secureStoreModule;
   try {
@@ -116,7 +146,9 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
               );
               if (value) this.setCache(key, value);
               return value ?? null;
-            } catch (_) {}
+            } catch (err) {
+              markSecureStoreBroken(err);
+            }
           }
           const AsyncStorage = await getAsyncStorage();
           if (AsyncStorage) {
@@ -165,8 +197,10 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
                 SECURE_STORE_TIMEOUT_MS,
                 `SecureStoreAdapter.setItem(${key})`
               );
-              return;
-            } catch (_) {}
+              // Also mirror to AsyncStorage so session survives if keychain later fails.
+            } catch (err) {
+              markSecureStoreBroken(err);
+            }
           }
           const AsyncStorage = await getAsyncStorage();
           if (AsyncStorage) {
@@ -208,7 +242,9 @@ export class SupabaseSecureStoreAdapter implements SecureStoreAdapter {
                 SECURE_STORE_TIMEOUT_MS,
                 `SecureStoreAdapter.removeItem(${key})`
               );
-            } catch (_) {}
+            } catch (err) {
+              markSecureStoreBroken(err);
+            }
           }
           const AsyncStorage = await getAsyncStorage();
           if (AsyncStorage) { try { await AsyncStorage.removeItem(`secure_${key}`); } catch (_) {} }

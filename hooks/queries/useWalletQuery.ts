@@ -68,7 +68,7 @@ export function useWalletQuery() {
       };
     } catch (err) {
       console.warn('refreshWallet failed:', err);
-      // Fall back to any existing cache so UI can still render
+      // Fall back to any existing memory cache so UI can still render
       const cached = queryClient.getQueryData<WalletData>(financialQueryKeys.wallet(userId));
       if (cached) {
         return {
@@ -76,6 +76,19 @@ export function useWalletQuery() {
           lockedBalance: cached.lockedBalance,
           availableBalance: cached.availableBalance,
         };
+      }
+      try {
+        const disk = await readWalletCache(userId);
+        if (disk) {
+          queryClient.setQueryData(financialQueryKeys.wallet(userId), disk);
+          return {
+            balance: disk.balance,
+            lockedBalance: disk.lockedBalance,
+            availableBalance: disk.availableBalance,
+          };
+        }
+      } catch {
+        // Non-fatal
       }
       return null;
     }

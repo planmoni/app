@@ -8,13 +8,59 @@ import { inAppNotificationService } from '@/lib/in-app-notifications';
 import { calculatePayoutFees } from '@/lib/payout-fee-calculator';
 import { PLAN_CREATION_FEE_PERCENT } from '@/types/payout-fees';
 import { buildCustomDateTimesMap, buildDateTimeISO, parseTimeString, formatTimeString } from '@/lib/payout-time';
+import { withTimeout } from '@/lib/with-timeout';
+import { readWalletCache } from '@/lib/queries/walletQueries';
+
+const CREATE_WALLET_REFRESH_MS = 8_000;
+
+type WalletSnapshot = {
+  balance: number;
+  lockedBalance: number;
+  availableBalance: number;
+};
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
-  const { refreshWallet } = useBalance();
+  const {
+    refreshWallet,
+    balance,
+    lockedBalance,
+    availableBalance,
+    hasWalletData,
+  } = useBalance();
   const { showToast } = useToast();
+
+  const resolveWalletForCreate = async (): Promise<WalletSnapshot | null> => {
+    const memoryCached: WalletSnapshot | null = hasWalletData
+      ? { balance, lockedBalance, availableBalance }
+      : null;
+
+    try {
+      const fresh = await withTimeout(
+        refreshWallet(),
+        CREATE_WALLET_REFRESH_MS,
+        'Create payout wallet refresh'
+      );
+      if (fresh) return fresh;
+    } catch (err) {
+      console.warn('Create payout wallet refresh failed; using cache if available:', err);
+    }
+
+    if (memoryCached) return memoryCached;
+
+    if (session?.user?.id) {
+      try {
+        const disk = await readWalletCache(session.user.id);
+        if (disk) return disk;
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    return null;
+  };
 
   const createPayout = async ({
     name,
@@ -79,8 +125,8 @@ export function useCreatePayout() {
         emergencyWithdrawalEnabled
       );
 
-      // Get the most up-to-date wallet data from the database
-      const walletData = await refreshWallet();
+      // Prefer a fresh wallet read, but don't block create when network/auth is flaky.
+      const walletData = await resolveWalletForCreate();
       // Client audit: before lock snapshot
       try {
         await supabase.from('client_audit_logs').insert({

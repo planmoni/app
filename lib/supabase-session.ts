@@ -3,8 +3,8 @@ import type { Session } from '@supabase/supabase-js';
 import { withTimeout } from '@/lib/with-timeout';
 
 const GET_SESSION_TIMEOUT_MS = 5000;
-/** Short TTL so resume stampede shares one SecureStore read. */
-const SESSION_CACHE_TTL_MS = 2500;
+/** Memory cache so resume / ensure stampedes share one storage read. */
+const SESSION_CACHE_TTL_MS = 30_000;
 
 type SessionResult = {
   data: { session: Session | null };
@@ -53,7 +53,16 @@ export async function getSessionSerialized(
       });
   }
 
-  return withTimeout(inFlight, timeoutMs, 'getSession');
+  try {
+    return await withTimeout(inFlight, timeoutMs, 'getSession');
+  } catch (err) {
+    // Prefer last known session over rejecting — avoids stampede failures when
+    // SecureStore/keychain is slow or broken (Expo Go entitlement issues).
+    if (cached?.result) {
+      return cached.result;
+    }
+    throw err;
+  }
 }
 
 /** Drop memory cache (e.g. after sign-out). */
@@ -63,6 +72,7 @@ export function clearSessionCache(): void {
 
 export function peekCachedSession(): Session | null {
   if (!cached) return null;
-  if (Date.now() - cached.at >= SESSION_CACHE_TTL_MS) return null;
+  // Allow slightly stale peeks for connection ensure during storage contention.
+  if (Date.now() - cached.at >= SESSION_CACHE_TTL_MS * 2) return null;
   return cached.result.data.session;
 }
