@@ -10,6 +10,34 @@ if (Platform.OS !== 'web') {
 }
 
 /**
+ * Once keychain rejects with missing entitlement, every SecureStore call fails.
+ * Skip further native round-trips for this JS runtime (stops nav spam + auth contention).
+ */
+let secureStoreBroken = false;
+
+function isEntitlementError(error: unknown): boolean {
+  const message = String(
+    (error as { message?: string })?.message || error || ''
+  );
+  return (
+    message.includes('entitlement') ||
+    message.includes('errSecMissingEntitlement')
+  );
+}
+
+function markSecureStoreBroken(error: unknown): void {
+  if (secureStoreBroken) return;
+  if (isEntitlementError(error)) {
+    secureStoreBroken = true;
+    if (__DEV__) {
+      console.warn(
+        '[UserScopedStorage] Keychain unavailable; using AsyncStorage only'
+      );
+    }
+  }
+}
+
+/**
  * Device capability detection
  */
 interface DeviceCapabilities {
@@ -183,8 +211,7 @@ export class UserScopedStorage {
         return;
       }
 
-      if (!SecureStore) {
-        // Fallback to AsyncStorage if SecureStore is not available
+      if (!SecureStore || secureStoreBroken) {
         await AsyncStorage.setItem(scopedKey, value);
         return;
       }
@@ -194,9 +221,10 @@ export class UserScopedStorage {
       try {
         await SecureStore.setItemAsync(scopedKey, value, options);
       } catch (secureStoreError: any) {
-        console.warn(`SecureStore failed for key ${key}, falling back to AsyncStorage:`, secureStoreError);
-        
-        // If SecureStore fails (e.g., entitlement issues), fall back to AsyncStorage
+        markSecureStoreBroken(secureStoreError);
+        if (!secureStoreBroken) {
+          console.warn(`SecureStore failed for key ${key}, falling back to AsyncStorage:`, secureStoreError);
+        }
         await AsyncStorage.setItem(scopedKey, value);
       }
     } catch (error) {
@@ -216,17 +244,17 @@ export class UserScopedStorage {
         return await getItem(scopedKey);
       }
 
-      if (!SecureStore) {
-        // Fallback to AsyncStorage if SecureStore is not available
+      if (!SecureStore || secureStoreBroken) {
         return await AsyncStorage.getItem(scopedKey);
       }
 
       try {
         return await SecureStore.getItemAsync(scopedKey, await this.getSecureStorageOptions());
       } catch (secureStoreError: any) {
-        console.warn(`SecureStore failed for key ${key}, trying AsyncStorage fallback:`, secureStoreError);
-        
-        // If SecureStore fails, try AsyncStorage as fallback
+        markSecureStoreBroken(secureStoreError);
+        if (!secureStoreBroken) {
+          console.warn(`SecureStore failed for key ${key}, trying AsyncStorage fallback:`, secureStoreError);
+        }
         return await AsyncStorage.getItem(scopedKey);
       }
     } catch (error) {
@@ -247,8 +275,7 @@ export class UserScopedStorage {
         return;
       }
 
-      if (!SecureStore) {
-        // Fallback to AsyncStorage if SecureStore is not available
+      if (!SecureStore || secureStoreBroken) {
         await AsyncStorage.removeItem(scopedKey);
         return;
       }
@@ -256,9 +283,10 @@ export class UserScopedStorage {
       try {
         await SecureStore.deleteItemAsync(scopedKey, await this.getSecureStorageOptions());
       } catch (secureStoreError: any) {
-        console.warn(`SecureStore delete failed for key ${key}, trying AsyncStorage fallback:`, secureStoreError);
-        
-        // If SecureStore fails, try AsyncStorage as fallback
+        markSecureStoreBroken(secureStoreError);
+        if (!secureStoreBroken) {
+          console.warn(`SecureStore delete failed for key ${key}, trying AsyncStorage fallback:`, secureStoreError);
+        }
         await AsyncStorage.removeItem(scopedKey);
       }
     } catch (error) {

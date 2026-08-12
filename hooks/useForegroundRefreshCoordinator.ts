@@ -1,6 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAppForeground } from '@/hooks/useAppForeground';
+import {
+  useAppForeground,
+  getLastBackgroundDurationMs,
+} from '@/hooks/useAppForeground';
 import { ensureSupabaseConnection } from '@/lib/supabase-connection';
 import { queryClient } from '@/contexts/QueryClientProvider';
 import { isFinancialQueryKey } from '@/lib/queries/keys';
@@ -16,15 +19,21 @@ type RefetchEntry = {
 /** Wider stagger reduces auth/storage lock contention on weak networks. */
 const TIER_DELAYS_MS: Record<ForegroundRefreshTier, number> = {
   1: 0,
-  2: 1200,
-  3: 2500,
+  2: 800,
+  3: 1600,
 };
 
 const TIER_CONCURRENCY = 2;
-/** Hard cap so a jammed resume cannot run for ~85s. */
-const FOREGROUND_REFRESH_MAX_MS = 25_000;
+/** Hard cap so a jammed resume cannot block the coordinator forever. */
+const FOREGROUND_REFRESH_MAX_MS = 15_000;
+/** Ignore Control Center / notification shade blips. */
+const MIN_BACKGROUND_MS_FOR_FULL_REFRESH = 2_500;
+/** Don't stack full resume refreshes more often than this. */
+const RESUME_REFRESH_COOLDOWN_MS = 20_000;
 
 const registry = new Map<string, RefetchEntry>();
+
+let lastForegroundRefreshAt = 0;
 
 export function registerForegroundRefetch(
   id: string,
@@ -42,8 +51,10 @@ export function getForegroundRefetchRegistrySize(): number {
 }
 
 async function invalidateFinancialQueries(): Promise<void> {
+  // Don't cancel in-flight fetches (create payout / wallet).
   await queryClient.invalidateQueries({
     predicate: (query) => isFinancialQueryKey(query.queryKey),
+    cancelRefetch: false,
   });
 }
 
@@ -83,36 +94,79 @@ async function runStaggeredLegacyRefresh(): Promise<void> {
   }
 }
 
-async function runForegroundRefresh(): Promise<void> {
+type RefreshMode = 'full' | 'light' | 'skip';
+
+function resolveRefreshMode(isColdStart: boolean): RefreshMode {
+  if (isColdStart) return 'light';
+
+  const awayMs = getLastBackgroundDurationMs();
+  if (awayMs > 0 && awayMs < MIN_BACKGROUND_MS_FOR_FULL_REFRESH) {
+    return 'skip';
+  }
+
+  const sinceLast = Date.now() - lastForegroundRefreshAt;
+  if (lastForegroundRefreshAt > 0 && sinceLast < RESUME_REFRESH_COOLDOWN_MS) {
+    return 'skip';
+  }
+
+  // Long absence → full reconnect + invalidate + legacy. Short → invalidate only.
+  if (awayMs >= 30_000) return 'full';
+  return 'light';
+}
+
+async function runForegroundRefresh(isColdStart: boolean): Promise<void> {
   const startedAt = Date.now();
+  const mode = resolveRefreshMode(isColdStart);
+
+  if (mode === 'skip') {
+    if (__DEV__) {
+      console.log(
+        `[resume] skip refresh (away=${getLastBackgroundDurationMs()}ms, sinceLast=${Date.now() - lastForegroundRefreshAt}ms)`
+      );
+    }
+    return;
+  }
 
   if (__DEV__) {
-    console.log('[resume] foreground → reconnect start');
+    console.log(`[resume] foreground → ${mode} refresh start`);
   }
 
   const refreshWork = (async () => {
-    const status = await ensureSupabaseConnection({ skipProbe: true });
-    const reconnectMs = Date.now() - startedAt;
+    if (mode === 'full') {
+      const status = await ensureSupabaseConnection({ skipProbe: true });
+      const reconnectMs = Date.now() - startedAt;
 
-    if (!status.ok && status.reconnect?.isAuthExpired) {
-      if (__DEV__) {
-        console.warn(`[resume] reconnect(${reconnectMs}ms) → auth expired, skip refresh`);
+      if (!status.ok && status.reconnect?.isAuthExpired) {
+        if (__DEV__) {
+          console.warn(`[resume] reconnect(${reconnectMs}ms) → auth expired, skip refresh`);
+        }
+        return;
       }
-      return;
-    }
 
-    if (__DEV__) {
-      console.log(`[resume] reconnect(${reconnectMs}ms) → invalidate financial queries`);
+      if (__DEV__) {
+        console.log(`[resume] reconnect(${reconnectMs}ms) → invalidate financial queries`);
+      }
+    } else {
+      // Light: session cache / cooldown handle auth; just refresh money queries.
+      await ensureSupabaseConnection({
+        skipProbe: true,
+        lightweight: true,
+      });
     }
 
     const invalidateStarted = Date.now();
     await invalidateFinancialQueries();
 
     if (__DEV__) {
-      console.log(`[resume] invalidate(${Date.now() - invalidateStarted}ms) → legacy registry`);
+      console.log(`[resume] invalidate(${Date.now() - invalidateStarted}ms)`);
     }
 
-    await runStaggeredLegacyRefresh();
+    if (mode === 'full') {
+      if (__DEV__) {
+        console.log('[resume] → legacy registry');
+      }
+      await runStaggeredLegacyRefresh();
+    }
   })();
 
   await Promise.race([
@@ -129,14 +183,16 @@ async function runForegroundRefresh(): Promise<void> {
     ),
   ]);
 
+  lastForegroundRefreshAt = Date.now();
+
   if (__DEV__) {
-    console.log(`[resume] foreground refresh complete (${Date.now() - startedAt}ms)`);
+    console.log(`[resume] foreground refresh complete (${Date.now() - startedAt}ms, mode=${mode})`);
   }
 }
 
 /**
  * Mount once at app root. On foreground resume, ensure connection health
- * then invalidate shared financial queries and run legacy refetches.
+ * then invalidate shared financial queries (and legacy refetches only after long absence).
  */
 export function useForegroundRefreshCoordinator(): void {
   const { isAuthReady } = useAuth();
@@ -162,7 +218,7 @@ export function useForegroundRefreshCoordinator(): void {
     if (runningRef.current) return;
     runningRef.current = true;
 
-    void runForegroundRefresh().finally(() => {
+    void runForegroundRefresh(isColdStart).finally(() => {
       runningRef.current = false;
     });
   }, [foregroundTick, isAuthReady]);
@@ -184,7 +240,9 @@ export function useForegroundRefreshCoordinator(): void {
         wasOfflineRef.current = false;
         if (runningRef.current) return;
         runningRef.current = true;
-        void runForegroundRefresh().finally(() => {
+        // Treat reconnect-from-offline as a full refresh.
+        lastForegroundRefreshAt = 0;
+        void runForegroundRefresh(false).finally(() => {
           runningRef.current = false;
         });
       }

@@ -62,7 +62,7 @@ if (supabaseUrl && supabaseAnonKey) {
       // The retry logic in individual subscriptions will handle errors
     },
   });
-  console.log('✅ Supabase client initialized successfully with SecureStore adapter');
+  console.log('✅ Supabase client initialized successfully with AsyncStorage auth adapter');
 } else {
   // Missing configuration - create mock client that returns user-friendly errors
   console.log('⚠️  Supabase configuration not found, using mock client');

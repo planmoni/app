@@ -57,7 +57,7 @@ export async function writeCache<T>(key: string, data: T): Promise<void> {
 }
 
 export async function warmConnection() {
-  return ensureSupabaseConnection();
+  return ensureSupabaseConnection({ skipProbe: true, lightweight: true });
 }
 
 export { ensureSupabaseConnection } from '@/lib/supabase-connection';

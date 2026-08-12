@@ -4,7 +4,7 @@ import { withTimeout } from '@/lib/with-timeout';
 
 const GET_SESSION_TIMEOUT_MS = 5000;
 /** Memory cache so resume / ensure stampedes share one storage read. */
-const SESSION_CACHE_TTL_MS = 30_000;
+const SESSION_CACHE_TTL_MS = 60_000;
 
 type SessionResult = {
   data: { session: Session | null };
@@ -23,10 +23,22 @@ async function loadSessionFromAuth(): Promise<SessionResult> {
 }
 
 /**
- * Single-flight getSession with a brief memory cache.
- * Prevents SecureStore / auth-lock contention when many screens resume at once.
- * Timeouts reject the waiter but do not start a second storage read until the
- * in-flight auth call actually settles.
+ * Seed / refresh the in-memory session cache (e.g. from AuthContext on SIGNED_IN).
+ * Prevents getSession storage stampedes after token refresh.
+ */
+export function seedSessionCache(session: Session | null): void {
+  cached = {
+    at: Date.now(),
+    result: {
+      data: { session },
+      error: null,
+    },
+  };
+}
+
+/**
+ * Single-flight getSession with a memory cache.
+ * On timeout, returns last known session instead of throwing when possible.
  */
 export async function getSessionSerialized(
   options: { bypassCache?: boolean; timeoutMs?: number } = {}
@@ -48,6 +60,13 @@ export async function getSessionSerialized(
         cached = { at: Date.now(), result: normalized };
         return normalized;
       })
+      .catch((err) => {
+        const fallback: SessionResult = cached?.result ?? {
+          data: { session: null },
+          error: err instanceof Error ? err : new Error(String(err)),
+        };
+        return fallback;
+      })
       .finally(() => {
         inFlight = null;
       });
@@ -56,12 +75,14 @@ export async function getSessionSerialized(
   try {
     return await withTimeout(inFlight, timeoutMs, 'getSession');
   } catch (err) {
-    // Prefer last known session over rejecting — avoids stampede failures when
-    // SecureStore/keychain is slow or broken (Expo Go entitlement issues).
+    // Prefer last known session over rejecting — avoids stampede failures.
     if (cached?.result) {
       return cached.result;
     }
-    throw err;
+    return {
+      data: { session: null },
+      error: err instanceof Error ? err : new Error(String(err)),
+    };
   }
 }
 

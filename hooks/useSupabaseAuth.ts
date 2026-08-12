@@ -21,6 +21,7 @@ import {
 } from '@/lib/queries/invalidateFinancialQueries';
 import { logAuthTelemetry } from '@/lib/auth-telemetry';
 import { AUTH_READY_GUARD_MS } from '@/lib/auth-ready-guard';
+import { seedSessionCache, clearSessionCache } from '@/lib/supabase-session';
 
 function sessionIsReadyForApi(session: Session | null): boolean {
   if (!session?.user?.id || !session.access_token) return false;
@@ -357,6 +358,7 @@ export function useSupabaseAuth() {
       if (readyEvents.includes(event)) {
         if (session?.user?.id && sessionIsReadyForApi(session)) {
           console.log(`✅ Auth ready (${event})`);
+          seedSessionCache(session);
           setSession(session);
           setError(null);
           markAuthReady(true, `onAuthStateChange:${event}`, session);
@@ -405,6 +407,7 @@ export function useSupabaseAuth() {
         }
       } else if (event === 'SIGNED_OUT') {
         console.log('🚪 User signed out');
+        clearSessionCache();
         setSession(null);
         setError(null);
         markAuthReady(true, 'onAuthStateChange:SIGNED_OUT', null);
@@ -565,6 +568,7 @@ export function useSupabaseAuth() {
       setError('Session expired or invalid');
     });
     setSessionRefreshedHandler((refreshedSession) => {
+      seedSessionCache(refreshedSession);
       setSession(refreshedSession);
       markAuthReady(
         sessionIsReadyForApi(refreshedSession),
