@@ -2,12 +2,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createUserScopedStorage } from './user-scoped-storage';
 
 const LAST_ROUTE_KEY = 'last_active_route';
-const ROUTE_HISTORY_KEY = 'route_history';
 
 export interface RouteHistoryEntry {
   route: string;
   timestamp: number;
   userId: string;
+}
+
+function lastRouteStorageKey(userId: string): string {
+  const sanitizedUserId = userId.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return `planmoni_${sanitizedUserId}_${LAST_ROUTE_KEY}`;
 }
 
 export class RoutePersistence {
@@ -20,29 +24,26 @@ export class RoutePersistence {
   }
 
   /**
-   * Save the last active route for the current user
+   * Save the last active route for the current user.
+   * Routes are not secrets — AsyncStorage only (avoids SecureStore entitlement spam).
    */
   async saveLastRoute(route: string): Promise<void> {
     try {
-      // Save last route in secure storage (small data)
-      await this.userStorage.setItem(LAST_ROUTE_KEY, route);
-      
-      // Save route history in AsyncStorage (large data, not sensitive)
+      await AsyncStorage.setItem(lastRouteStorageKey(this.userId), route);
+
       const historyEntry: RouteHistoryEntry = {
         route,
         timestamp: Date.now(),
-        userId: this.userId
+        userId: this.userId,
       };
-      
+
       const history = await this.getRouteHistory();
       history.push(historyEntry);
-      
-      // Keep only last 50 routes
+
       if (history.length > 50) {
         history.splice(0, history.length - 50);
       }
-      
-      // Use AsyncStorage for route history since it's large and not sensitive
+
       const historyKey = `route_history_${this.userId}`;
       await AsyncStorage.setItem(historyKey, JSON.stringify(history));
     } catch (error) {
@@ -55,6 +56,9 @@ export class RoutePersistence {
    */
   async getLastRoute(): Promise<string | null> {
     try {
+      const fromAsync = await AsyncStorage.getItem(lastRouteStorageKey(this.userId));
+      if (fromAsync) return fromAsync;
+      // Legacy: previously stored via user-scoped SecureStore
       return await this.userStorage.getItem(LAST_ROUTE_KEY);
     } catch (error) {
       console.warn('[RoutePersistence] Failed to get last route:', error);
@@ -67,7 +71,6 @@ export class RoutePersistence {
    */
   async getRouteHistory(): Promise<RouteHistoryEntry[]> {
     try {
-      // Use AsyncStorage for route history since it's large and not sensitive
       const historyKey = `route_history_${this.userId}`;
       const historyStr = await AsyncStorage.getItem(historyKey);
       return historyStr ? JSON.parse(historyStr) : [];
@@ -82,10 +85,11 @@ export class RoutePersistence {
    */
   async clearRouteData(): Promise<void> {
     try {
-      // Clear last route from secure storage
-      await this.userStorage.deleteItem(LAST_ROUTE_KEY);
-      
-      // Clear route history from AsyncStorage
+      await AsyncStorage.removeItem(lastRouteStorageKey(this.userId));
+      try {
+        await this.userStorage.deleteItem(LAST_ROUTE_KEY);
+      } catch (_) {}
+
       const historyKey = `route_history_${this.userId}`;
       await AsyncStorage.removeItem(historyKey);
     } catch (error) {
@@ -99,4 +103,4 @@ export class RoutePersistence {
  */
 export function createRoutePersistence(userId: string): RoutePersistence {
   return new RoutePersistence(userId);
-} 
+}

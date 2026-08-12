@@ -8,13 +8,59 @@ import { inAppNotificationService } from '@/lib/in-app-notifications';
 import { calculatePayoutFees } from '@/lib/payout-fee-calculator';
 import { PLAN_CREATION_FEE_PERCENT } from '@/types/payout-fees';
 import { buildCustomDateTimesMap, buildDateTimeISO, parseTimeString, formatTimeString } from '@/lib/payout-time';
+import { withTimeout } from '@/lib/with-timeout';
+import { readWalletCache } from '@/lib/queries/walletQueries';
+
+const CREATE_WALLET_REFRESH_MS = 8_000;
+
+type WalletSnapshot = {
+  balance: number;
+  lockedBalance: number;
+  availableBalance: number;
+};
 
 export function useCreatePayout() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { session } = useAuth();
-  const { refreshWallet } = useBalance();
+  const {
+    refreshWallet,
+    balance,
+    lockedBalance,
+    availableBalance,
+    hasWalletData,
+  } = useBalance();
   const { showToast } = useToast();
+
+  const resolveWalletForCreate = async (): Promise<WalletSnapshot | null> => {
+    const memoryCached: WalletSnapshot | null = hasWalletData
+      ? { balance, lockedBalance, availableBalance }
+      : null;
+
+    try {
+      const fresh = await withTimeout(
+        refreshWallet(),
+        CREATE_WALLET_REFRESH_MS,
+        'Create payout wallet refresh'
+      );
+      if (fresh) return fresh;
+    } catch (err) {
+      console.warn('Create payout wallet refresh failed; using cache if available:', err);
+    }
+
+    if (memoryCached) return memoryCached;
+
+    if (session?.user?.id) {
+      try {
+        const disk = await readWalletCache(session.user.id);
+        if (disk) return disk;
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    return null;
+  };
 
   const createPayout = async ({
     name,
@@ -79,8 +125,8 @@ export function useCreatePayout() {
         emergencyWithdrawalEnabled
       );
 
-      // Get the most up-to-date wallet data from the database
-      const walletData = await refreshWallet();
+      // Prefer a fresh wallet read, but don't block create when network/auth is flaky.
+      const walletData = await resolveWalletForCreate();
       // Client audit: before lock snapshot
       try {
         await supabase.from('client_audit_logs').insert({
@@ -107,15 +153,15 @@ export function useCreatePayout() {
       }
 
       if (!walletData) {
-        throw new Error(
-          "Unable to fetch current wallet balance. Please try again."
+        console.warn(
+          'No wallet snapshot available; proceeding and relying on lock_funds validation'
         );
+      } else {
+        console.log('- Current Balance:', walletData.balance);
+        console.log('- Locked Balance:', walletData.lockedBalance);
       }
 
-      const { balance, lockedBalance, availableBalance } = walletData;
-      
-      console.log('- Current Balance:', balance);
-      console.log('- Locked Balance:', lockedBalance);
+      const availableBalance = walletData?.availableBalance;
 
       // 💰 Compute fees (processing + stamp duty + transaction).
       // For custom-frequency plans, fees are always calculated on equal-split per payout.
@@ -155,7 +201,11 @@ export function useCreatePayout() {
 
       // Fee is taken from the amount: user only needs totalAmount (fees are deducted from it).
       // Use availableBalance (balance − lockedBalance) so already-locked funds are excluded.
-      if (availableBalance < totalAmount) {
+      // When wallet snapshot is missing, skip client check — lock_funds is the source of truth.
+      if (
+        availableBalance != null &&
+        availableBalance < totalAmount
+      ) {
         throw new Error(`Insufficient available balance to create this payout plan. You need ₦${totalAmount.toLocaleString()} but only have ₦${availableBalance.toLocaleString()} available.`);
       }
 
@@ -216,10 +266,14 @@ export function useCreatePayout() {
       };
 
       // 🔒 SECURITY: Lock only the net payout amount (fees are taken from totalAmount, not added on top)
-      const { data: lockResult, error: lockError } = await supabase.rpc('lock_funds', {
-        arg_user_id: session.user.id,
-        arg_amount: netPayoutAmount
-      });
+      const { data: lockResult, error: lockError } = await withTimeout(
+        supabase.rpc('lock_funds', {
+          arg_user_id: session.user.id,
+          arg_amount: netPayoutAmount
+        }),
+        20_000,
+        'Lock funds'
+      );
       // Client audit: after lock snapshot
       try {
         const walletAfterLock = await refreshWallet();
@@ -272,32 +326,36 @@ export function useCreatePayout() {
       // If this fails, we'll unlock the funds in the catch block
       let payoutPlan: any = null;
       try {
-        const { data: planData, error: payoutError } = await supabase
-          .from("payout_plans")
-          .insert({
-            user_id: session.user.id,
-            name,
-            description: enhancedDescription,
-            total_amount: totalAmount,
-            payout_amount: perPayoutForPlan,
-            frequency: dbFrequency,
-            duration,
-            start_date: startDate,
-            bank_account_id: bankAccountId || null,
-            payout_account_id: payoutAccountId || null,
-            status: "active",
-            completed_payouts: 0,
-            emergency_withdrawal_enabled: emergencyWithdrawalEnabled,
-            next_payout_date: nextPayoutDateStr,
-            metadata: metadata,
-            fee_percentage: PLAN_CREATION_FEE_PERCENT,
-            fee_amount: feeAmount,
-            net_payout_amount: netPayoutAmount,
-            purpose: purpose || null,
-            purpose_other_text: purposeOther || null,
-          })
-          .select()
-          .single();
+        const { data: planData, error: payoutError } = await withTimeout(
+          supabase
+            .from("payout_plans")
+            .insert({
+              user_id: session.user.id,
+              name,
+              description: enhancedDescription,
+              total_amount: totalAmount,
+              payout_amount: perPayoutForPlan,
+              frequency: dbFrequency,
+              duration,
+              start_date: startDate,
+              bank_account_id: bankAccountId || null,
+              payout_account_id: payoutAccountId || null,
+              status: "active",
+              completed_payouts: 0,
+              emergency_withdrawal_enabled: emergencyWithdrawalEnabled,
+              next_payout_date: nextPayoutDateStr,
+              metadata: metadata,
+              fee_percentage: PLAN_CREATION_FEE_PERCENT,
+              fee_amount: feeAmount,
+              net_payout_amount: netPayoutAmount,
+              purpose: purpose || null,
+              purpose_other_text: purposeOther || null,
+            })
+            .select()
+            .single(),
+          20_000,
+          'Create payout plan'
+        );
 
         if (payoutError) {
           console.error('Error creating payout plan:', payoutError);

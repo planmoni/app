@@ -2,7 +2,7 @@
   "expo": {
     "name": "Planmoni",
     "slug": "planmoni",
-    "version": "2.0.9",
+    "version": "2.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/AppIcon.png",
     "scheme": "myapp",
@@ -68,7 +68,6 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "expo-background-task",
       "expo-web-browser",
       [
         "expo-build-properties",
@@ -111,7 +110,7 @@
       "checkAutomatically": "NEVER",
       "fallbackToCacheTimeout": 0
     },
-    "runtimeVersion": "2.0.9",
+    "runtimeVersion": "2.1.0",
     "extra": {
       "router": {},
       "eas": {

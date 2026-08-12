@@ -1,5 +1,7 @@
 /**
  * Reject if a promise does not settle within `ms` milliseconds.
+ * Settles at most once — late underlying resolve/reject cannot cause
+ * unhandled rejections after the timeout already fired.
  */
 export function withTimeout<T>(
   promise: Promise<T>,
@@ -7,16 +9,24 @@ export function withTimeout<T>(
   label = 'Request'
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
+    let settled = false;
+
     const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
       reject(new Error(`${label} timed out after ${ms}ms`));
     }, ms);
 
     promise
       .then((value) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
         resolve(value);
       })
       .catch((err) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
         reject(err);
       });

@@ -5,5 +5,6 @@
   "ios.deploymentTarget": "15.1",
   "ios.useFrameworks": "static",
   "ios.forceStaticLinking": "[\"RNFBApp\",\"RNFBMessaging\"]",
+  "ios.buildReactNativeFromSource": "true",
   "apple.privacyManifestAggregationEnabled": "true"
 }

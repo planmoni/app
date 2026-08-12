@@ -6,13 +6,19 @@ import { logAnalyticsEvent } from '@/lib/firebase';
 
 const BALANCE_VISIBILITY_KEY = 'show_balances_preference';
 
+export type WalletStatus = 'loading' | 'ready' | 'error';
+
 type BalanceContextType = {
   showBalances: boolean;
   toggleBalances: () => void;
   balance: number;
   lockedBalance: number;
   availableBalance: number;
+  /** True only when React Query has real wallet data (not a silent zero fallback). */
+  hasWalletData: boolean;
+  walletStatus: WalletStatus;
   isLoading: boolean;
+  isTimedOut: boolean;
   error: string | null;
   refreshWallet: () => Promise<{ balance: number; lockedBalance: number; availableBalance: number } | null>;
   addFunds?: (amount: number) => Promise<void>;
@@ -113,7 +119,10 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
     balance: isAuthenticated ? wallet.balance : 0,
     lockedBalance: isAuthenticated ? wallet.lockedBalance : 0,
     availableBalance: isAuthenticated ? wallet.availableBalance : 0,
+    hasWalletData: isAuthenticated ? wallet.hasWalletData : false,
+    walletStatus: (isAuthenticated ? wallet.walletStatus : 'ready') as WalletStatus,
     isLoading: isAuthenticated ? wallet.isLoading : false,
+    isTimedOut: isAuthenticated ? wallet.isTimedOut : false,
     error: isAuthenticated ? wallet.error : null,
     refreshWallet: isAuthenticated ? wallet.refreshWallet : refreshWalletStub,
     addFunds: isAuthenticated ? addFundsStub : undefined,
@@ -124,7 +133,10 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
     wallet.balance,
     wallet.lockedBalance,
     wallet.availableBalance,
+    wallet.hasWalletData,
+    wallet.walletStatus,
     wallet.isLoading,
+    wallet.isTimedOut,
     wallet.error,
     wallet.refreshWallet,
     refreshWalletStub,

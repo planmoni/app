@@ -68,7 +68,7 @@ export function useWalletQuery() {
       };
     } catch (err) {
       console.warn('refreshWallet failed:', err);
-      // Fall back to any existing cache so UI can still render
+      // Fall back to any existing memory cache so UI can still render
       const cached = queryClient.getQueryData<WalletData>(financialQueryKeys.wallet(userId));
       if (cached) {
         return {
@@ -77,18 +77,42 @@ export function useWalletQuery() {
           availableBalance: cached.availableBalance,
         };
       }
+      try {
+        const disk = await readWalletCache(userId);
+        if (disk) {
+          queryClient.setQueryData(financialQueryKeys.wallet(userId), disk);
+          return {
+            balance: disk.balance,
+            lockedBalance: disk.lockedBalance,
+            availableBalance: disk.availableBalance,
+          };
+        }
+      } catch {
+        // Non-fatal
+      }
       return null;
     }
   }, [userId, queryClient]);
+
+  const hasWalletData = hasData;
 
   return {
     ...query,
     balance: query.data?.balance ?? 0,
     lockedBalance: query.data?.lockedBalance ?? 0,
     availableBalance: query.data?.availableBalance ?? 0,
+    hasWalletData,
+    /** ready = real query data; error = timed out / failed with no data; loading otherwise */
+    walletStatus: hasWalletData
+      ? ('ready' as const)
+      : guardedLoading
+        ? ('loading' as const)
+        : isTimedOut || query.error
+          ? ('error' as const)
+          : ('loading' as const),
     isLoading: guardedLoading,
     isTimedOut,
-    error: query.error ? 'Failed to load wallet data' : null,
+    error: query.error ? 'Failed to load wallet data' : isTimedOut && !hasWalletData ? 'Wallet load timed out' : null,
     refreshWallet,
     setWalletData: (data: WalletData) => {
       if (!userId) return;

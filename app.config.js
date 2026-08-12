@@ -6,7 +6,7 @@ module.exports = {
     name: "Planmoni",
     owner: "planmoni", // 👈 Add this line
     slug: "planmoni",
-    version: "2.0.9",
+    version: "2.1.0",
     scheme: "myapp",
     userInterfaceStyle: "automatic", // Allow system to control theme
     newArchEnabled: true,
@@ -18,7 +18,7 @@ module.exports = {
       checkAutomatically: "NEVER",
       fallbackToCacheTimeout: 0,
     },
-    runtimeVersion: "2.0.9",
+    runtimeVersion: "2.1.0",
     android: {
       package: "com.planmoni.app", // ← choose your unique package name
       intentFilters: [
@@ -84,7 +84,9 @@ module.exports = {
       "expo-router",
       "expo-font",
       "expo-secure-store",
-      "expo-background-task",
+      // Native-only: re-add after EAS build/prebuild links expo-task-manager.
+      // Shipping this plugin in OTA without a matching binary crashes Android.
+      // "expo-background-task",
       // After secure-store: force tools:replace so AppsFlyer backup rules don't break manifest merge
       "./plugins/withAndroidBackupRulesConflictFix",
       "expo-web-browser",
@@ -126,7 +128,10 @@ module.exports = {
           "ios": {
             "deploymentTarget": "15.1",
             "useFrameworks": "static",
-            "forceStaticLinking": ["RNFBApp", "RNFBMessaging"]
+            "forceStaticLinking": ["RNFBApp", "RNFBMessaging"],
+            // Prebuilt React.xcframework is headers-only under static frameworks
+            // (ld: framework 'React' not found). Build RN from source instead.
+            "buildReactNativeFromSource": true
           }
         }
       ],
