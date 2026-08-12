@@ -2,7 +2,10 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
+
+const bunceDeviceTokenKey = (userId: string) => `bunce_last_device_token:${userId}`;
 
 // Configure notification handler for foreground notifications
 // Note: This will be overridden by in-app-notifications.ts if both are imported
@@ -223,6 +226,32 @@ export async function savePushTokenToDatabase(expoPushToken: string, userId: str
   }
 }
 
+async function syncBunceDeviceToken(userId: string, deviceToken: string): Promise<void> {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') return;
+
+  const storageKey = bunceDeviceTokenKey(userId);
+  const previous = (await AsyncStorage.getItem(storageKey))?.trim() || null;
+
+  if (previous === deviceToken) {
+    return;
+  }
+
+  const { error } = await supabase.functions.invoke('sync-bunce-device', {
+    body: {
+      device_token: deviceToken,
+      device_type: Platform.OS,
+      current_device_token: previous && previous !== deviceToken ? previous : null,
+    },
+  });
+
+  if (error) {
+    console.warn('Bunce device sync invoke failed:', error.message);
+    return;
+  }
+
+  await AsyncStorage.setItem(storageKey, deviceToken);
+}
+
 // Setup notification listeners
 export function setupNotificationListeners() {
   const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
@@ -271,6 +300,12 @@ export async function registerPushToken(userId: string, promptForPermission: boo
       } catch (intercomError) {
         console.warn('⚠️ Failed to register token with Intercom:', intercomError);
         // Don't fail the whole registration if Intercom fails
+      }
+
+      try {
+        await syncBunceDeviceToken(userId, token);
+      } catch (bunceError) {
+        console.warn('⚠️ Failed to sync device token with Bunce:', bunceError);
       }
       
       // Sync badge count on app start/login

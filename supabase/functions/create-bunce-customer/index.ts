@@ -41,6 +41,53 @@ function normalizePhone(raw: string | null | undefined): string | null {
   return cleaned.length >= 8 ? cleaned : null
 }
 
+function extractCustomerId(json: unknown): string | null {
+  if (!json || typeof json !== 'object') return null
+  const root = json as Record<string, unknown>
+  const data = root.data
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const id = (data as Record<string, unknown>).customer_id
+    if (typeof id === 'string' && id.trim()) return id.trim()
+  }
+  return null
+}
+
+async function persistBunceCustomerId(
+  admin: SupabaseClient | null,
+  userId: string,
+  customerId: string,
+) {
+  if (!admin) return
+  const { error } = await admin
+    .from('profiles')
+    .update({ bunce_customer_id: customerId, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+  if (error) console.error('Failed to persist bunce_customer_id:', error.message)
+}
+
+async function lookupBunceCustomerIdByEmail(email: string): Promise<string | null> {
+  if (!BUNCE_API_KEY) return null
+  try {
+    const res = await fetch(
+      `${BUNCE_BASE_URL}/customers?emails=${encodeURIComponent(email)}&per_page=1`,
+      { headers: { 'X-Authorization': BUNCE_API_KEY, 'Content-Type': 'application/json' } },
+    )
+    const json = (await res.json().catch(() => null)) as Record<string, unknown> | null
+    const wrapper = json?.data
+    const list = Array.isArray(wrapper)
+      ? wrapper
+      : wrapper && typeof wrapper === 'object'
+        ? (wrapper as Record<string, unknown>).data
+        : null
+    if (!Array.isArray(list) || list.length === 0) return null
+    const id = (list[0] as Record<string, unknown>)?.customer_id
+    return typeof id === 'string' && id.trim() ? id.trim() : null
+  } catch (e) {
+    console.error('Bunce customer lookup failed:', e)
+    return null
+  }
+}
+
 async function recordBunceError(
   admin: SupabaseClient | null,
   row: {
@@ -184,6 +231,7 @@ Deno.serve(async (req: Request) => {
       '+2340000000000'
 
     payload = {
+      customer_id: userId,
       email,
       first_name,
       last_name,
@@ -218,6 +266,8 @@ Deno.serve(async (req: Request) => {
         lower.includes('exists') ||
         lower.includes('duplicate')
       ) {
+        const existingId = await lookupBunceCustomerIdByEmail(email)
+        if (existingId) await persistBunceCustomerId(admin, userId, existingId)
         return jsonOk({
           success: true,
           skipped: true,
@@ -239,8 +289,10 @@ Deno.serve(async (req: Request) => {
       return jsonOk({ success: true, recorded: true })
     }
 
-    console.log('Bunce customer created for', email)
-    return jsonOk({ success: true })
+    const createdId = extractCustomerId(json) || userId
+    await persistBunceCustomerId(admin, userId, createdId)
+    console.log('Bunce customer created for', email, createdId)
+    return jsonOk({ success: true, customer_id: createdId })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unexpected error'
     console.error('create-bunce-customer error:', message)
