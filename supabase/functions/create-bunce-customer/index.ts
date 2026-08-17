@@ -65,6 +65,93 @@ async function persistBunceCustomerId(
   if (error) console.error('Failed to persist bunce_customer_id:', error.message)
 }
 
+function toUtcIsoZ(value: Date): string {
+  return value.toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
+function unwrapList(json: unknown): unknown[] {
+  if (!json || typeof json !== 'object') return []
+  const root = json as Record<string, unknown>
+  const data = root.data
+  if (Array.isArray(data)) return data
+  if (data && typeof data === 'object') {
+    const inner = (data as Record<string, unknown>).data
+    if (Array.isArray(inner)) return inner
+  }
+  return []
+}
+
+async function triggerUserSignedUpEvent(args: {
+  email: string
+  customer_id: string
+  first_name: string | null
+  last_name: string | null
+  phone_no: string | null
+}): Promise<{ ok: boolean; skipped?: boolean; status?: number; body?: unknown; event_id?: string }> {
+  if (!BUNCE_API_KEY) return { ok: false, skipped: true }
+
+  const eventIdEnv = (Deno.env.get('BUNCE_EVENT_USER_SIGNED_UP') || '').trim()
+  let eventId = eventIdEnv
+
+  if (!eventId) {
+    const listRes = await fetch(`${BUNCE_BASE_URL}/events?per_page=50`, {
+      headers: { 'X-Authorization': BUNCE_API_KEY, Accept: 'application/json' },
+    })
+    const listJson = await listRes.json().catch(() => null)
+    const rows = unwrapList(listJson) as Array<{ id: string; name: string }>
+    const aliases = ['user signed up', 'user sign up', 'user signup', 'signed up']
+    for (const row of rows) {
+      const name = (row?.name || '').toLowerCase().replace(/\s+/g, ' ').trim()
+      if (aliases.includes(name)) {
+        eventId = row.id
+        break
+      }
+    }
+  }
+
+  if (!eventId) return { ok: false, skipped: true, body: { error: 'No Bunce event id for user_signed_up' } }
+
+  const payload = {
+    email: args.email,
+    customer: {
+      customer_id: args.customer_id,
+      email: args.email,
+      first_name: args.first_name || undefined,
+      last_name: args.last_name || undefined,
+      phone_no: args.phone_no || undefined,
+    },
+    datetime: toUtcIsoZ(new Date()),
+  }
+
+  const post = async (body: Record<string, unknown>) => {
+    const res = await fetch(`${BUNCE_BASE_URL}/events/trigger`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Authorization': BUNCE_API_KEY!,
+      },
+      body: JSON.stringify({ event_id: eventId, payload: body }),
+    })
+    const text = await res.text()
+    let json: unknown = null
+    try {
+      json = text ? JSON.parse(text) : null
+    } catch {
+      json = { raw: text }
+    }
+    return { res, json }
+  }
+
+  let { res, json } = await post(payload)
+  if (res.status === 422) {
+    const retry = await post({ email: args.email, customer: payload.customer })
+    res = retry.res
+    json = retry.json
+  }
+
+  return { ok: res.ok, status: res.status, body: json, event_id: eventId }
+}
+
 async function lookupBunceCustomerIdByEmail(email: string): Promise<string | null> {
   if (!BUNCE_API_KEY) return null
   try {
@@ -85,6 +172,69 @@ async function lookupBunceCustomerIdByEmail(email: string): Promise<string | nul
   } catch (e) {
     console.error('Bunce customer lookup failed:', e)
     return null
+  }
+}
+
+async function fireUserSignedUp(
+  admin: SupabaseClient | null,
+  args: {
+    userId: string | null
+    email: string | null
+    first_name: string | null
+    last_name: string | null
+    phone_no: string | null
+    customer_id: string | null
+  },
+) {
+  if (!admin || !args.userId || !args.email || !args.customer_id) return
+  try {
+    const { error } = await admin.from('bunce_event_deliveries').insert({
+      event_key: 'user_signed_up',
+      source_id: args.userId,
+      user_id: args.userId,
+      status: 'pending',
+    })
+    if (error?.code === '23505') return
+    if (error) console.error('bunce_event_deliveries insert failed:', error.message)
+
+    const result = await triggerUserSignedUpEvent({
+      email: args.email,
+      customer_id: args.customer_id,
+      first_name: args.first_name,
+      last_name: args.last_name,
+      phone_no: args.phone_no,
+    })
+
+    if (result.ok) {
+      await admin
+        .from('bunce_event_deliveries')
+        .update({
+          status: 'sent',
+          bunce_event_id: result.event_id ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('event_key', 'user_signed_up')
+        .eq('source_id', args.userId)
+    } else {
+      await admin
+        .from('bunce_event_deliveries')
+        .delete()
+        .eq('event_key', 'user_signed_up')
+        .eq('source_id', args.userId)
+      console.error('Bunce user_signed_up failed:', result.status, result.body)
+    }
+  } catch (e) {
+    try {
+      await admin
+        .from('bunce_event_deliveries')
+        .delete()
+        .eq('event_key', 'user_signed_up')
+        .eq('source_id', args.userId)
+        .eq('status', 'pending')
+    } catch {
+      // ignore
+    }
+    console.error('fireUserSignedUp failed:', e)
   }
 }
 
@@ -268,6 +418,14 @@ Deno.serve(async (req: Request) => {
       ) {
         const existingId = await lookupBunceCustomerIdByEmail(email)
         if (existingId) await persistBunceCustomerId(admin, userId, existingId)
+        await fireUserSignedUp(admin, {
+          userId: userId,
+          email,
+          first_name,
+          last_name,
+          phone_no: phone_no || '+2340000000000',
+          customer_id: existingId || userId,
+        })
         return jsonOk({
           success: true,
           skipped: true,
@@ -291,6 +449,14 @@ Deno.serve(async (req: Request) => {
 
     const createdId = extractCustomerId(json) || userId
     await persistBunceCustomerId(admin, userId, createdId)
+    await fireUserSignedUp(admin, {
+      userId: userId,
+      email,
+      first_name,
+      last_name,
+      phone_no: phone_no || '+2340000000000',
+      customer_id: createdId,
+    })
     console.log('Bunce customer created for', email, createdId)
     return jsonOk({ success: true, customer_id: createdId })
   } catch (error) {

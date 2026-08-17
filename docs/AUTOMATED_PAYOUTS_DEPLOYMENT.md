@@ -51,6 +51,9 @@ npx supabase functions deploy process-due-payouts
 
 # Deploy the retry function
 npx supabase functions deploy retry-failed-payouts
+
+# Deploy payout reconciliation (stuck progress + support email)
+npx supabase functions deploy reconcile-payout-plans
 ```
 
 #### 4. Set Up Cron Scheduling
@@ -59,6 +62,44 @@ In your Supabase dashboard:
 2. Create cron triggers:
    - `process-due-payouts`: Every 30 minutes (`0 */30 * * * *`)
    - `retry-failed-payouts`: Every hour (`0 * * * *`)
+
+**Payout reconciliation** is scheduled by migration `20260811140000_payout_reconciliation_cron.sql` via `pg_cron` (job name `reconcile-payout-plans-15m`, every 15 minutes). It:
+- Auto-advances stuck plans where a completed installment was not reflected on `next_payout_date`
+- Recalculates locked balance for those users
+- Emails `support@planmoni.com` and `sebastine@planmoni.com` when failed installments need manual bank pay / ops (same AP set not re-emailed within 6 hours)
+
+##### User emails on failed + refunded payouts
+When SafeHaven reports Failed/Reversed and the wallet debit is refunded to **locked** balance:
+1. **First failure:** email the user that funds are back in locked balance and Planmoni will **retry automatically**.
+2. **Second failure:** email the user to contact `support@planmoni.com` for a **manual transfer**, and set `manual_hold` so auto-retry stops.
+
+##### Deploy / verify reconciliation
+```bash
+# 1. Apply migration (fixes update_payout_plan_progress + RPCs + cron)
+npx supabase db push
+# Or run supabase/migrations/20260811140000_payout_reconciliation_cron.sql in SQL editor
+
+# 2. Deploy edge function
+npx supabase functions deploy reconcile-payout-plans
+
+# 3. Confirm cron
+SELECT * FROM cron.job WHERE jobname = 'reconcile-payout-plans-15m';
+
+# 4. Manual invoke once
+curl -X POST "$SUPABASE_URL/functions/v1/reconcile-payout-plans" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# 5. Inspect runs
+SELECT id, ran_at, fixed_count, manual_count, email_sent, details
+FROM payout_reconciliation_runs
+ORDER BY ran_at DESC
+LIMIT 10;
+
+# 6. Due queue should include fixed plans again
+SELECT * FROM get_due_payout_plans(now());
+```
 
 #### 5. Configure Paystack Webhooks
 In Paystack dashboard, add webhook URL:

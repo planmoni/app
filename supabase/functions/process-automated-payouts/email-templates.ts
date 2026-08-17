@@ -100,6 +100,7 @@ export function generatePayoutFailedEmailHtml(data: {
   payoutId: string | null;
   failureReason: string;
   planName?: string;
+  variant?: 'retry' | 'contact_support';
 }) {
   return `
     <!DOCTYPE html>
@@ -130,7 +131,7 @@ export function generatePayoutFailedEmailHtml(data: {
       <div class="container">
         <div class="header">
           <div class="error-icon">⚠️</div>
-          <h1>Payout Failed</h1>
+          <h1>${data.variant === 'contact_support' ? 'Payout Failed' : 'Payout Delayed'}</h1>
           <p>Hello ${data.firstName}, we encountered an issue processing your payout</p>
         </div>
         
@@ -139,8 +140,9 @@ export function generatePayoutFailedEmailHtml(data: {
           
           <div class="alert">
             <p><strong>Reason:</strong> ${data.failureReason}</p>
-            <p>We're sorry for the inconvenience. Please try again or contact support if the issue persists.</p>
-          </div>
+            ${data.variant === 'contact_support'
+              ? `<p>We tried this payout again and it still failed. Your funds remain in your <strong>locked wallet balance</strong>. Please email <a href="mailto:support@planmoni.com">support@planmoni.com</a> for a <strong>manual transfer</strong>.</p>`
+              : `<p>The amount has been returned to your <strong>locked wallet balance</strong>. We will <strong>automatically retry</strong> this payout shortly. You do not need to do anything.</p>`}
           
           <div class="details">
             ${data.planName ? `<div class="detail-row">
@@ -162,7 +164,9 @@ export function generatePayoutFailedEmailHtml(data: {
           </p>
           
           <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-            Your funds remain safe in your wallet. You can retry the payout or contact our support team for assistance.
+            ${data.variant === 'contact_support'
+              ? 'Your funds are safe and still locked for this payout. Contact support@planmoni.com for a manual transfer.'
+              : 'Your funds are safe and still locked for this payout. We will retry automatically.'}
           </p>
         </div>
         

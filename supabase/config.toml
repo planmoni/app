@@ -5,6 +5,16 @@ verify_jwt = true
 [functions.sync-bunce-device]
 verify_jwt = true
 
+# Cron + DB triggers (service role JWT)
+[functions.sync-bunce-devices]
+verify_jwt = true
+
+[functions.trigger-bunce-event]
+verify_jwt = true
+
+[functions.sync-bunce-attributes]
+verify_jwt = true
+
 # Mono webhook: called by Mono servers without a JWT; auth is via MONO_WEBHOOK_SECRET signature
 [functions.mono-webhook]
 verify_jwt = false
@@ -19,6 +29,9 @@ verify_jwt = false
 
 # Hourly pg_cron + service role JWT (see NOTIFICATIONS_RUNBOOK)
 [functions.process-lifecycle-retargeting]
+verify_jwt = true
+
+[functions.reconcile-payout-plans]
 verify_jwt = true
 
 [functions.send-push-notification]

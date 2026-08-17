@@ -1042,6 +1042,78 @@ type RefundAfterFailureResult = {
   transactionStatus: 'refunded' | 'failed';
 };
 
+type PayoutFailureNotifyVariant = 'retry' | 'contact_support';
+
+type RefundedFailureState = {
+  metadata: Record<string, unknown>;
+  transferReference: string | null;
+  retryCount: number;
+  variant: PayoutFailureNotifyVariant;
+  shouldNotify: boolean;
+};
+
+function buildRefundedFailureState(args: {
+  existingMeta: Record<string, unknown>;
+  refundPatch: Record<string, unknown>;
+  currentTransferRef: string | null | undefined;
+}): RefundedFailureState {
+  const existing = args.existingMeta || {};
+  const patch = args.refundPatch || {};
+  const prevCount = Number(existing.refunded_failure_count ?? 0) || 0;
+  const refundJustApplied = patch.wallet_refund_applied === true;
+  const alreadyRefunded = existing.wallet_refund_applied === true;
+
+  const failureCount = refundJustApplied ? prevCount + 1 : Math.max(prevCount, 1);
+  const secondOrLater = failureCount >= 2;
+
+  const prevRefs = Array.isArray(existing.previous_transfer_references)
+    ? (existing.previous_transfer_references as unknown[])
+    : [];
+  const oldRef = args.currentTransferRef ? String(args.currentTransferRef) : null;
+
+  if (!refundJustApplied && alreadyRefunded) {
+    return {
+      metadata: { ...existing, ...patch },
+      transferReference: oldRef,
+      retryCount: failureCount,
+      variant: failureCount >= 2 ? 'contact_support' : 'retry',
+      shouldNotify: false,
+    };
+  }
+
+  if (refundJustApplied && !secondOrLater) {
+    return {
+      metadata: {
+        ...existing,
+        ...patch,
+        refunded_failure_count: failureCount,
+        wallet_debited: false,
+        safehaven_transfer_initiated: false,
+        manual_hold: false,
+        previous_transfer_references: oldRef ? [...prevRefs, oldRef] : prevRefs,
+      },
+      transferReference: null,
+      retryCount: failureCount,
+      variant: 'retry',
+      shouldNotify: true,
+    };
+  }
+
+  return {
+    metadata: {
+      ...existing,
+      ...patch,
+      refunded_failure_count: failureCount,
+      manual_hold: true,
+      previous_transfer_references: oldRef ? [...prevRefs, oldRef] : prevRefs,
+    },
+    transferReference: oldRef,
+    retryCount: failureCount,
+    variant: 'contact_support',
+    shouldNotify: true,
+  };
+}
+
 /**
  * Reverse local wallet debit from process-due-payouts (transfer_funds) when SafeHaven reports
  * Failed/Reversed. Restores both balance and locked_balance via refund_payout_wallet_debit.
@@ -1270,26 +1342,37 @@ async function reconcileOutwardPayoutViaTransactionOnly(
       .maybeSingle();
 
     if (payoutPlan) {
-      await supabase.from('events').insert({
-        user_id: userId,
-        type: 'disbursement_failed',
-        title: 'Payout Failed',
-        description: `Your scheduled payout from "${payoutPlan.name}" failed to process: ${transferData.responseMessage || 'Unknown error'}`,
-        status: 'unread',
-        payout_plan_id: payoutPlan.id,
+      const failureState = buildRefundedFailureState({
+        existingMeta: md,
+        refundPatch: refundResult.metadataPatch,
+        currentTransferRef: paymentRef,
       });
+      if (failureState.shouldNotify) {
+        const variant = failureState.variant;
+        await supabase.from('events').insert({
+          user_id: userId,
+          type: 'disbursement_failed',
+          title: variant === 'contact_support' ? 'Payout Failed' : 'Payout Delayed',
+          description: variant === 'contact_support'
+            ? `Your payout from "${payoutPlan.name}" failed again. Please contact support@planmoni.com for a manual transfer.`
+            : `Your payout from "${payoutPlan.name}" could not be processed. Funds are back in your locked balance and we will retry automatically.`,
+          status: 'unread',
+          payout_plan_id: payoutPlan.id,
+        });
 
-      try {
-        await sendPayoutFailedEmailNotification(
-          userId,
-          Number(tx.amount),
-          paymentRef,
-          null,
-          transferData.responseMessage || 'Transfer failed',
-          payoutPlan.name
-        );
-      } catch (emailError) {
-        console.error('Transaction-only reconcile: failure email error:', emailError);
+        try {
+          await sendPayoutFailedEmailNotification(
+            userId,
+            Number(tx.amount),
+            paymentRef,
+            null,
+            transferData.responseMessage || 'Transfer failed',
+            payoutPlan.name,
+            variant
+          );
+        } catch (emailError) {
+          console.error('Transaction-only reconcile: failure email error:', emailError);
+        }
       }
     }
   }
@@ -1309,6 +1392,7 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
       status: string;
       amount: number;
       user_id: string;
+      transfer_reference?: string | null;
       metadata: Record<string, unknown> | null;
     } | null = null;
 
@@ -1331,7 +1415,7 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
       if (apId) {
         const { data: byTxMeta, error: byTxMetaErr } = await supabase
           .from('automated_payouts')
-          .select('id, payout_plan_id, status, amount, user_id, metadata')
+          .select('id, payout_plan_id, status, amount, user_id, transfer_reference, metadata')
           .eq('id', apId)
           .eq('user_id', userId)
           .maybeSingle();
@@ -1352,7 +1436,7 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
       }
       const { data: apRow, error: payoutError } = await supabase
         .from('automated_payouts')
-        .select('id, payout_plan_id, status, amount, user_id, metadata')
+        .select('id, payout_plan_id, status, amount, user_id, transfer_reference, metadata')
         .eq('user_id', userId)
         .or(orParts.join(','))
         .limit(1)
@@ -1474,10 +1558,18 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
           userId,
           transferData.responseMessage || transferData.status || 'Transfer failed'
         );
-        updateData.metadata = {
-          ...((automatedPayout.metadata as Record<string, unknown> | null) || {}),
-          ...refundResult.metadataPatch,
-        };
+        const failureState = buildRefundedFailureState({
+          existingMeta: (automatedPayout.metadata as Record<string, unknown> | null) || {},
+          refundPatch: refundResult.metadataPatch,
+          currentTransferRef: automatedPayout.transfer_reference,
+        });
+        updateData.metadata = failureState.metadata;
+        updateData.retry_count = failureState.retryCount;
+        if (failureState.transferReference === null) {
+          updateData.transfer_reference = null;
+        }
+        (refundResult as RefundAfterFailureResult & { failureState?: RefundedFailureState }).failureState =
+          failureState;
       }
 
       // Update automated payout
@@ -1598,26 +1690,34 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
           }
         }
       } else if (newStatus === 'failed') {
-        // Create failure notification
+        const failureState = (refundResult as RefundAfterFailureResult & {
+          failureState?: RefundedFailureState;
+        })?.failureState;
+        const variant: PayoutFailureNotifyVariant = failureState?.variant || 'retry';
+        const shouldNotify = failureState?.shouldNotify !== false;
+
         const { data: payoutPlan } = await supabase
           .from('payout_plans')
           .select('id, name, payout_amount')
           .eq('id', automatedPayout.payout_plan_id)
           .single();
 
-        if (payoutPlan) {
+        if (payoutPlan && shouldNotify) {
+          const description = variant === 'contact_support'
+            ? `Your payout from "${payoutPlan.name}" failed again. Please contact support@planmoni.com for a manual transfer.`
+            : `Your payout from "${payoutPlan.name}" could not be processed. Funds are back in your locked balance and we will retry automatically.`;
+
           await supabase
             .from('events')
             .insert({
               user_id: userId,
               type: 'disbursement_failed',
-              title: 'Payout Failed',
-              description: `Your scheduled payout from "${payoutPlan.name}" failed to process: ${transferData.responseMessage || 'Unknown error'}`,
+              title: variant === 'contact_support' ? 'Payout Failed' : 'Payout Delayed',
+              description,
               status: 'unread',
               payout_plan_id: payoutPlan.id
             });
 
-          // Send failure email notification
           try {
             await sendPayoutFailedEmailNotification(
               userId,
@@ -1625,7 +1725,8 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
               paymentRef,
               automatedPayout.id,
               transferData.responseMessage || 'Transfer failed',
-              payoutPlan.name
+              payoutPlan.name,
+              variant
             );
           } catch (emailError) {
             console.error('Error sending failure email notification:', emailError);
@@ -1642,7 +1743,7 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
     ) {
       const { data: apLatest, error: apLatestErr } = await supabase
         .from('automated_payouts')
-        .select('id, amount, status, metadata')
+        .select('id, amount, status, transfer_reference, metadata')
         .eq('id', automatedPayout.id)
         .maybeSingle();
 
@@ -1660,19 +1761,59 @@ async function updateAutomatedPayoutFromWebhook(transferData: SafeHavenTransferD
           transferData.responseMessage || transferData.status || 'Transfer failed'
         );
 
-        const mergedApMeta = {
-          ...((apLatest.metadata as Record<string, unknown> | null) || {}),
-          ...refundRetry.metadataPatch,
-        };
+        const failureState = buildRefundedFailureState({
+          existingMeta: (apLatest.metadata as Record<string, unknown> | null) || {},
+          refundPatch: refundRetry.metadataPatch,
+          currentTransferRef: apLatest.transfer_reference,
+        });
 
-        if (Object.keys(refundRetry.metadataPatch).length > 0) {
+        if (Object.keys(refundRetry.metadataPatch).length > 0 || failureState.shouldNotify) {
+          const lateUpdate: Record<string, unknown> = {
+            metadata: failureState.metadata,
+            retry_count: failureState.retryCount,
+            updated_at: new Date().toISOString(),
+          };
+          if (failureState.transferReference === null) {
+            lateUpdate.transfer_reference = null;
+          }
           await supabase
             .from('automated_payouts')
-            .update({
-              metadata: mergedApMeta,
-              updated_at: new Date().toISOString(),
-            })
+            .update(lateUpdate)
             .eq('id', apLatest.id);
+        }
+
+        if (failureState.shouldNotify) {
+          const { data: payoutPlanRetry } = await supabase
+            .from('payout_plans')
+            .select('id, name')
+            .eq('id', automatedPayout.payout_plan_id)
+            .maybeSingle();
+          if (payoutPlanRetry) {
+            const variant = failureState.variant;
+            await supabase.from('events').insert({
+              user_id: userId,
+              type: 'disbursement_failed',
+              title: variant === 'contact_support' ? 'Payout Failed' : 'Payout Delayed',
+              description: variant === 'contact_support'
+                ? `Your payout from "${payoutPlanRetry.name}" failed again. Please contact support@planmoni.com for a manual transfer.`
+                : `Your payout from "${payoutPlanRetry.name}" could not be processed. Funds are back in your locked balance and we will retry automatically.`,
+              status: 'unread',
+              payout_plan_id: payoutPlanRetry.id,
+            });
+            try {
+              await sendPayoutFailedEmailNotification(
+                userId,
+                Number(apLatest.amount),
+                transferData.paymentReference || (transferData as any).reference || '',
+                apLatest.id,
+                transferData.responseMessage || 'Transfer failed',
+                payoutPlanRetry.name,
+                variant
+              );
+            } catch (emailError) {
+              console.error('Late refund failure email error:', emailError);
+            }
+          }
         }
 
         const paymentRefRetry = transferData.paymentReference || (transferData as any).reference || '';
@@ -2437,14 +2578,25 @@ function generatePayoutFailedEmailHtml(data: {
   payoutId: string | null;
   failureReason: string;
   planName?: string;
+  variant?: PayoutFailureNotifyVariant;
 }) {
+  const isRetry = data.variant !== 'contact_support';
+  const title = isRetry ? 'Payout Delayed' : 'Payout Failed';
+  const alertBody = isRetry
+    ? `<p>The amount has been returned to your <strong>locked wallet balance</strong> (still reserved for this plan). We will <strong>automatically retry</strong> this payout shortly. You do not need to do anything.</p>`
+    : `<p>We tried this payout again and it still failed. Your funds remain in your <strong>locked wallet balance</strong> for this plan.</p>
+            <p>Please reach out to us at <a href="mailto:support@planmoni.com">support@planmoni.com</a> and we will process a <strong>manual transfer</strong> for you.</p>`;
+  const footerNote = isRetry
+    ? 'Your funds are safe and still locked for this payout. We will retry automatically.'
+    : 'Your funds are safe and still locked for this payout. Contact support@planmoni.com for a manual transfer.';
+
   return `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Payout Failed - Planmoni</title>
+      <title>${title} - Planmoni</title>
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -2467,7 +2619,7 @@ function generatePayoutFailedEmailHtml(data: {
       <div class="container">
         <div class="header">
           <div class="error-icon">⚠️</div>
-          <h1>Payout Failed</h1>
+          <h1>${title}</h1>
           <p>Hello ${data.firstName}, we encountered an issue processing your payout</p>
         </div>
         
@@ -2476,7 +2628,7 @@ function generatePayoutFailedEmailHtml(data: {
           
           <div class="alert">
             <p><strong>Reason:</strong> ${data.failureReason}</p>
-            <p>We're sorry for the inconvenience. Please try again or contact support if the issue persists.</p>
+            ${alertBody}
           </div>
           
           <div class="details">
@@ -2495,11 +2647,11 @@ function generatePayoutFailedEmailHtml(data: {
           </div>
           
           <p style="text-align: center; margin-top: 30px;">
-            <a href="https://planmoni.com/support" class="button">Contact Support</a>
+            <a href="mailto:support@planmoni.com" class="button">${isRetry ? 'View Support' : 'Email Support'}</a>
           </p>
           
           <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-            Your funds remain safe in your wallet. You can retry the payout or contact our support team for assistance.
+            ${footerNote}
           </p>
         </div>
         
@@ -2570,7 +2722,8 @@ async function sendPayoutFailedEmailNotification(
   reference: string,
   payoutId: string | null,
   failureReason: string,
-  planName: string
+  planName: string,
+  variant: PayoutFailureNotifyVariant = 'retry'
 ) {
   try {
     const { data: userProfile } = await supabase
@@ -2597,12 +2750,17 @@ async function sendPayoutFailedEmailNotification(
       reference,
       payoutId,
       failureReason: failureReason || 'Transfer failed',
-      planName
+      planName,
+      variant,
     }
+
+    const subject = variant === 'contact_support'
+      ? 'Payout failed — please contact us for a manual transfer - Planmoni'
+      : 'Payout delayed — we will retry shortly - Planmoni';
 
     await sendEmail(
       userProfile.email,
-      "Payout Failed - Planmoni",
+      subject,
       generatePayoutFailedEmailHtml(emailData)
     )
   } catch (error) {

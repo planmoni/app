@@ -19,6 +19,8 @@ type Profile = {
 type PayoutPlan = {
   user_id: string
   created_at: string | null
+  status?: string | null
+  updated_at?: string | null
 }
 
 type Txn = {
@@ -75,7 +77,7 @@ const PROFILE_PAGE_SIZE = 500
 const USER_ID_CHUNK_SIZE = 80
 const BUNCE_WRITE_BATCH_SIZE = 50
 
-const TARGET_ATTRIBUTE_NAMES = [
+const REQUIRED_ATTRIBUTE_NAMES = [
   'Created_at',
   'account_verified',
   'kyc_tier',
@@ -89,6 +91,18 @@ const TARGET_ATTRIBUTE_NAMES = [
   'vault_created',
   'last_time_vault_wascreated',
   'funding_method',
+]
+
+/** Create these in Bunce if they do not exist yet. First matching name is used. */
+const OPTIONAL_ATTRIBUTE_GROUPS: { key: string; names: string[] }[] = [
+  {
+    key: 'plan_completed_count',
+    names: ['plan_completed_count', 'no_of_plans_completed', 'plan completed count'],
+  },
+  {
+    key: 'last_plan_completed_at',
+    names: ['last_plan_completed_at', 'last_time_plan_completed', 'last plan completed at'],
+  },
 ]
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -203,16 +217,29 @@ Deno.serve(async (req) => {
     const attrByName = new Map<string, BunceAttribute>()
     for (const a of attrList) attrByName.set(a.name, a)
 
-    const missingAttributes = TARGET_ATTRIBUTE_NAMES.filter((n) => !attrByName.has(n))
-    if (missingAttributes.length > 0) {
+    const missingRequired = REQUIRED_ATTRIBUTE_NAMES.filter((n) => !attrByName.has(n))
+    if (missingRequired.length > 0) {
       return Response.json(
         {
           error: 'Missing Bunce attributes',
-          missing_attributes: missingAttributes,
+          missing_attributes: missingRequired,
         },
         { status: 400 },
       )
     }
+
+    const resolvedOptional: { key: string; name: string }[] = []
+    const missingOptional: string[] = []
+    for (const group of OPTIONAL_ATTRIBUTE_GROUPS) {
+      const name = group.names.find((n) => attrByName.has(n))
+      if (name) resolvedOptional.push({ key: group.key, name })
+      else missingOptional.push(group.names[0])
+    }
+
+    const targetAttributes: { key: string; name: string }[] = [
+      ...REQUIRED_ATTRIBUTE_NAMES.map((name) => ({ key: name, name })),
+      ...resolvedOptional,
+    ]
 
     const profileRows: Profile[] = []
     let from = 0
@@ -247,6 +274,7 @@ Deno.serve(async (req) => {
     const userIds = profileRows.map((p) => p.id)
 
     const planStats = new Map<string, { count: number; last: string | null }>()
+    const completedPlanStats = new Map<string, { count: number; last: string | null }>()
     const depositStats = new Map<string, { total: number; last: string | null }>()
     const budgetStats = new Map<string, { exists: boolean; last: string | null; funding_method: string | null }>()
 
@@ -256,7 +284,7 @@ Deno.serve(async (req) => {
       for (const ids of idChunks) {
         const { data: plans, error: plansErr } = await supabase
           .from('payout_plans')
-          .select('user_id,created_at')
+          .select('user_id,created_at,status,updated_at')
           .in('user_id', ids)
 
         if (plansErr) {
@@ -278,6 +306,13 @@ Deno.serve(async (req) => {
           prev.count += 1
           prev.last = maxIso(prev.last, p.created_at)
           planStats.set(p.user_id, prev)
+
+          if (p.status === 'completed') {
+            const completed = completedPlanStats.get(p.user_id) ?? { count: 0, last: null }
+            completed.count += 1
+            completed.last = maxIso(completed.last, p.updated_at || p.created_at)
+            completedPlanStats.set(p.user_id, completed)
+          }
         }
       }
 
@@ -331,6 +366,7 @@ Deno.serve(async (req) => {
       if (!p.email) continue
 
       const plans = planStats.get(p.id) ?? { count: 0, last: null }
+      const completed = completedPlanStats.get(p.id) ?? { count: 0, last: null }
       const deps = depositStats.get(p.id) ?? { total: 0, last: null }
       const budgets = budgetStats.get(p.id) ?? { exists: false, last: null, funding_method: null }
 
@@ -348,11 +384,13 @@ Deno.serve(async (req) => {
         vault_created: budgets.exists,
         last_time_vault_wascreated: toUtcIsoZ(budgets.last),
         funding_method: budgets.funding_method,
+        plan_completed_count: completed.count,
+        last_plan_completed_at: toUtcIsoZ(completed.last),
       }
 
-      for (const name of TARGET_ATTRIBUTE_NAMES) {
-        const attr = attrByName.get(name)!
-        const formatted = formatBunceValue(values[name], attr.data_type)
+      for (const target of targetAttributes) {
+        const attr = attrByName.get(target.name)!
+        const formatted = formatBunceValue(values[target.key], attr.data_type)
         if (formatted === null) continue
 
         payload.push({
@@ -368,9 +406,10 @@ Deno.serve(async (req) => {
         success: true,
         dry_run: true,
         users_selected: profileRows.length,
-        attributes_per_user: TARGET_ATTRIBUTE_NAMES.length,
+        attributes_per_user: targetAttributes.length,
         records_prepared: payload.length,
-        records_skipped_null: profileRows.length * TARGET_ATTRIBUTE_NAMES.length - payload.length,
+        records_skipped_null: profileRows.length * targetAttributes.length - payload.length,
+        missing_optional_attributes: missingOptional,
       })
     }
 
@@ -403,8 +442,9 @@ Deno.serve(async (req) => {
     return Response.json({
       success: true,
       users_synced: profileRows.length,
-      attributes_per_user: TARGET_ATTRIBUTE_NAMES.length,
+      attributes_per_user: targetAttributes.length,
       records_sent: sent,
+      missing_optional_attributes: missingOptional,
     })
   } catch (err) {
     return Response.json(

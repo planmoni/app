@@ -239,7 +239,7 @@ export async function sendPayoutFinalFailureNotification(
     user_ids: [userId],
     notification_type: "payout_failed",
     title: "Payout Failed ❌",
-    body: `Your ₦${amount.toLocaleString()} payout failed after ${maxAttempts} attempts. Funds have been returned to your wallet.`,
+    body: `Your ₦${amount.toLocaleString()} payout failed after ${maxAttempts} attempts. Funds remain locked for this plan — contact support@planmoni.com for a manual transfer.`,
     data: {
       type: "payout_final_failure",
       amount,
