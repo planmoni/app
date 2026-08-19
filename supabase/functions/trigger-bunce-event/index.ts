@@ -22,7 +22,6 @@ type BunceEventKey =
   | 'vault_created'
 
 type BunceCustomerPayload = {
-  customer_id: string
   email: string
   first_name?: string
   last_name?: string
@@ -53,12 +52,19 @@ const EVENT_ENV: Record<BunceEventKey, string> = {
   vault_created: 'BUNCE_EVENT_VAULT_CREATED',
 }
 
+const EVENT_IDS: Partial<Record<BunceEventKey, string>> = {
+  user_signed_up: 'a23218a6-4e10-49f7-a656-a521dae23fca',
+  wallet_funded: 'a23214bb-bd00-412b-a2b8-1d89899bacb0',
+  vault_created: 'a23216a9-6d5c-4fee-8650-5e0773143b16',
+  plan_completed: 'a24fc44c-91d6-4925-abac-164320815633',
+}
+
 const EVENT_NAME_ALIASES: Record<BunceEventKey, string[]> = {
-  user_signed_up: ['user signed up', 'user sign up', 'user signup', 'signed up'],
+  user_signed_up: ['user_signed_up', 'user signed up', 'user sign up', 'user signup', 'signed up'],
   plan_created: ['plan is created', 'plan created', 'payout plan created'],
-  wallet_funded: ['wallets is funded', 'wallet is funded', 'wallet funded', 'wallets funded'],
-  plan_completed: ['plan completed', 'plan is completed', 'payout plan completed'],
-  vault_created: ['vault is created', 'vault created'],
+  wallet_funded: ['wallet is funded', 'wallets is funded', 'wallet funded', 'wallets funded'],
+  plan_completed: ['plan_completed', 'plan completed', 'plan is completed'],
+  vault_created: ['vault is created', 'vault created', 'vault creation'],
 }
 
 let eventIdCache: Map<BunceEventKey, string> | null = null
@@ -91,6 +97,30 @@ function isAuthorized(req: Request, secret: string): boolean {
 
 function bunceApiKey(): string | undefined {
   return Deno.env.get('BUNCE_API_KEY')
+}
+
+function toUtcIsoZ(value: string | Date | null | undefined): string {
+  const d = value instanceof Date ? value : value ? new Date(value) : new Date()
+  if (Number.isNaN(d.getTime())) return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+  return d.toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+function pickDate(extra: Record<string, unknown>): string {
+  const raw = extra.Date ?? extra.date ?? extra.datetime
+  return toUtcIsoZ(typeof raw === 'string' ? raw : null)
 }
 
 function normalizePhone(raw: string | null | undefined): string | null {
@@ -143,6 +173,8 @@ async function parseJson(res: Response): Promise<unknown> {
 async function resolveBunceEventId(eventKey: BunceEventKey): Promise<string | null> {
   const fromEnv = (Deno.env.get(EVENT_ENV[eventKey]) || '').trim()
   if (fromEnv) return fromEnv
+  const hardcoded = (EVENT_IDS[eventKey] || '').trim()
+  if (hardcoded) return hardcoded
 
   const now = Date.now()
   if (!eventIdCache || now - eventIdCacheAt > 10 * 60 * 1000) {
@@ -196,13 +228,7 @@ async function triggerBunceEvent(args: {
     return { res, body: await parseJson(res) }
   }
 
-  let { res, body } = await post({ email: args.email, customer: args.customer, ...extra })
-  if (res.status === 422 && Object.keys(extra).length > 0) {
-    const retry = await post({ email: args.email, customer: args.customer })
-    res = retry.res
-    body = retry.body
-  }
-
+  const { res, body } = await post({ email: args.email, customer: args.customer, ...extra })
   return { ok: res.ok, status: res.status, body, event_id: eventId }
 }
 
@@ -273,7 +299,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: profile } = await admin
       .from('profiles')
-      .select('id, email, first_name, last_name, bunce_customer_id')
+      .select('id, email, first_name, last_name')
       .eq('id', userId)
       .maybeSingle()
 
@@ -298,23 +324,108 @@ Deno.serve(async (req: Request) => {
       .filter((d) => d.device_type && d.device_token)
       .map((d) => ({ device_type: d.device_type as string, device_token: d.device_token as string }))
 
-    const customerId = (profile?.bunce_customer_id || userId).trim()
     const firstName = (profile?.first_name || kyc?.first_name || '').trim()
     const lastName = (profile?.last_name || kyc?.last_name || '').trim()
     const phone = normalizePhone(kyc?.phone_number) || '+2340000000000'
+
+    const extraIn = { ...(body.extra || {}) } as Record<string, unknown>
+    let extra: Record<string, string | number | boolean | null | undefined> = {}
+
+    if (eventKey === 'plan_created') {
+      let planId = extraIn.plan_id != null ? String(extraIn.plan_id) : sourceId
+      let planName = extraIn.plan_name != null ? String(extraIn.plan_name) : ''
+      let amount = toNumber(extraIn.amount ?? extraIn.Amount)
+
+      if (isUuid(sourceId) || isUuid(planId)) {
+        const lookupId = isUuid(planId) ? planId : sourceId
+        const { data: plan } = await admin
+          .from('payout_plans')
+          .select('id, name, total_amount')
+          .eq('id', lookupId)
+          .maybeSingle()
+        if (plan?.id) planId = String(plan.id)
+        if (!planName && plan?.name) planName = String(plan.name)
+        if (amount == null && plan?.total_amount != null) amount = Number(plan.total_amount)
+      }
+
+      extra = {
+        plan_id: planId,
+        plan_name: planName || 'Payout plan',
+        Date: pickDate(extraIn),
+      }
+      if (amount != null) extra.amount = amount
+    } else if (eventKey === 'wallet_funded') {
+      let amount = toNumber(extraIn.Amount ?? extraIn.amount)
+      let fundingMethod =
+        extraIn['Funding Method'] != null
+          ? String(extraIn['Funding Method'])
+          : extraIn.funding_method != null
+            ? String(extraIn.funding_method)
+            : extraIn.source != null
+              ? String(extraIn.source)
+              : ''
+
+      if (isUuid(sourceId)) {
+        const { data: txn } = await admin
+          .from('transactions')
+          .select('amount, source')
+          .eq('id', sourceId)
+          .maybeSingle()
+        if (amount == null && txn?.amount != null) amount = Number(txn.amount)
+        if (!fundingMethod && txn?.source) fundingMethod = String(txn.source)
+      }
+
+      extra = {
+        Amount: amount ?? 0,
+        'Funding Method': fundingMethod || 'wallet',
+      }
+    } else if (eventKey === 'vault_created') {
+      let vaultId = extraIn.Vault_id != null ? extraIn.Vault_id : extraIn.vault_id != null ? extraIn.vault_id : sourceId
+      let vaultName =
+        extraIn.Vault_name != null
+          ? String(extraIn.Vault_name)
+          : extraIn.vault_name != null
+            ? String(extraIn.vault_name)
+            : ''
+      let amount = toNumber(extraIn.Amount ?? extraIn.amount)
+
+      if (isUuid(sourceId) || (typeof vaultId === 'string' && isUuid(vaultId))) {
+        const lookupId = typeof vaultId === 'string' && isUuid(vaultId) ? vaultId : sourceId
+        const { data: vault } = await admin
+          .from('budget_plans')
+          .select('id, name, plan_name, total_budget')
+          .eq('id', lookupId)
+          .maybeSingle()
+        if (vault?.id) vaultId = String(vault.id)
+        if (!vaultName) vaultName = String(vault?.name || vault?.plan_name || '')
+        if (amount == null && vault?.total_budget != null) amount = Number(vault.total_budget)
+      }
+
+      extra = {
+        Vault_id: typeof vaultId === 'number' ? vaultId : String(vaultId),
+        Vault_name: vaultName || 'Vault',
+        Amount: amount ?? 0,
+        Date: pickDate(extraIn),
+      }
+    } else if (eventKey === 'plan_completed' || eventKey === 'user_signed_up') {
+      extra = {
+        'First name': firstName || 'User',
+        'Last name': lastName || 'Customer',
+        Date: pickDate(extraIn),
+      }
+    }
 
     const result = await triggerBunceEvent({
       eventKey,
       email,
       customer: {
-        customer_id: customerId,
         email,
         first_name: firstName || undefined,
         last_name: lastName || undefined,
         phone_no: phone,
         ...(devices.length > 0 ? { devices } : {}),
       },
-      extra: body.extra,
+      extra,
     })
 
     if (!result.ok) {

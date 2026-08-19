@@ -91,7 +91,7 @@ async function triggerUserSignedUpEvent(args: {
   if (!BUNCE_API_KEY) return { ok: false, skipped: true }
 
   const eventIdEnv = (Deno.env.get('BUNCE_EVENT_USER_SIGNED_UP') || '').trim()
-  let eventId = eventIdEnv
+  let eventId = eventIdEnv || 'a23218a6-4e10-49f7-a656-a521dae23fca'
 
   if (!eventId) {
     const listRes = await fetch(`${BUNCE_BASE_URL}/events?per_page=50`, {
@@ -99,7 +99,13 @@ async function triggerUserSignedUpEvent(args: {
     })
     const listJson = await listRes.json().catch(() => null)
     const rows = unwrapList(listJson) as Array<{ id: string; name: string }>
-    const aliases = ['user signed up', 'user sign up', 'user signup', 'signed up']
+    const aliases = [
+      'user_signed_up',
+      'user signed up',
+      'user sign up',
+      'user signup',
+      'signed up',
+    ]
     for (const row of rows) {
       const name = (row?.name || '').toLowerCase().replace(/\s+/g, ' ').trim()
       if (aliases.includes(name)) {
@@ -114,13 +120,14 @@ async function triggerUserSignedUpEvent(args: {
   const payload = {
     email: args.email,
     customer: {
-      customer_id: args.customer_id,
       email: args.email,
       first_name: args.first_name || undefined,
       last_name: args.last_name || undefined,
       phone_no: args.phone_no || undefined,
     },
-    datetime: toUtcIsoZ(new Date()),
+    'First name': args.first_name || 'User',
+    'Last name': args.last_name || 'Customer',
+    Date: toUtcIsoZ(new Date()),
   }
 
   const post = async (body: Record<string, unknown>) => {

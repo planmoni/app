@@ -97,16 +97,27 @@ BEGIN
 
   IF v_event = 'plan_created' THEN
     v_extra := jsonb_build_object(
+      'plan_id', NEW.id::text,
+      'plan_name', COALESCE(NEW.name, 'Payout plan'),
       'amount', NEW.total_amount,
-      'datetime', to_char(timezone('utc', COALESCE(NEW.created_at, now())), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+      'Date', to_char(timezone('utc', COALESCE(NEW.created_at, now())), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
     );
   ELSIF v_event = 'wallet_funded' THEN
     v_extra := jsonb_build_object(
-      'amount', NEW.amount,
-      'datetime', v_datetime
+      'Amount', NEW.amount,
+      'Funding Method', COALESCE(NEW.source, 'wallet')
     );
-  ELSIF v_event IN ('plan_completed', 'vault_created') THEN
-    v_extra := jsonb_build_object('datetime', v_datetime);
+  ELSIF v_event = 'plan_completed' THEN
+    v_extra := jsonb_build_object(
+      'Date', v_datetime
+    );
+  ELSIF v_event = 'vault_created' THEN
+    v_extra := jsonb_build_object(
+      'Vault_id', NEW.id::text,
+      'Vault_name', COALESCE(NEW.name, NEW.plan_name, 'Vault'),
+      'Amount', NEW.total_budget,
+      'Date', to_char(timezone('utc', COALESCE(NEW.created_at, now())), 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+    );
   END IF;
 
   PERFORM net.http_post(
