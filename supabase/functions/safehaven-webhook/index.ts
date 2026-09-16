@@ -6,9 +6,11 @@
  * 
  * Supported Webhook Types:
  * - transfer: Regular transfer events (Inwards / Outwards in `data.type`)
+ * - account.credit / credit.account: Inwards deposits (SafeHaven eventType; same handler as transfer)
  * - outward.transfer / transfer.outward: Same `data` shape; explicit switch cases (same handler as `transfer`)
  * - virtualAccount.transfer: Virtual account transfer events
  * - account.update: Account balance/status updates
+ * - account.debit: Debit events
  * - transaction.update: Transaction status updates
  * 
  * NOTE: This function does NOT require authentication headers as it's called by SafeHaven's servers.
@@ -2346,9 +2348,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Normalize webhook type (handle "debit" -> "account.debit")
+    // Normalize webhook type (handle "debit"/"credit" aliases)
     if (webhookType === 'debit') {
       webhookType = 'account.debit';
+    }
+    if (webhookType === 'credit') {
+      webhookType = 'account.credit';
     }
 
     console.log('Parsed webhook type:', webhookType);
@@ -2389,6 +2394,11 @@ Deno.serve(async (req) => {
         // Same NIP payload as `transfer`; envelope uses eventType / type from SafeHaven payout webhooks
         case 'outward.transfer':
         case 'transfer.outward':
+          result = await processTransferWebhook(webhookData);
+          break;
+        // Inwards deposit — SafeHaven now sends eventType "account.credit" (data.type still "Inwards")
+        case 'account.credit':
+        case 'credit.account':
           result = await processTransferWebhook(webhookData);
           break;
         case 'virtualAccount.transfer':

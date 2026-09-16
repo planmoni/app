@@ -26,6 +26,8 @@ export type FetchWithRetryOptions = {
   timeoutMs?: number;
   retryDelayMs?: number;
   label?: string;
+  /** Default 1. Set 0 to fail fast after first timeout (no stacked 10s+10s). */
+  maxRetries?: number;
 };
 
 export async function fetchWithRetry<T>(
@@ -35,7 +37,9 @@ export async function fetchWithRetry<T>(
 ): Promise<T> {
   const timeoutMs = options.timeoutMs ?? FETCH_TIMEOUT_MS;
   const retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
-  return withRetryOnTimeout(factory, timeoutMs, label, retryDelayMs);
+  return withRetryOnTimeout(factory, timeoutMs, label, retryDelayMs, {
+    maxRetries: options.maxRetries,
+  });
 }
 
 export async function readCache<T>(key: string): Promise<T | null> {

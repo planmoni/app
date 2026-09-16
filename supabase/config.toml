@@ -34,6 +34,21 @@ verify_jwt = true
 [functions.reconcile-payout-plans]
 verify_jwt = true
 
+[functions.reconcile-payout-provider]
+verify_jwt = true
+
+# Hourly pg_cron — deposit amount / missing credit alerts (email only, no auto-fix)
+[functions.reconcile-deposits]
+verify_jwt = true
+
+# Manual ops: verify Paystack + process_paystack_deposit for one reference (service role)
+[functions.confirm-paystack-deposit]
+verify_jwt = true
+
+# Hourly fraud/activity scan — email + critical→post_no_debit (no money movement)
+[functions.scan-user-risk]
+verify_jwt = true
+
 [functions.send-push-notification]
 enabled = true
 verify_jwt = true

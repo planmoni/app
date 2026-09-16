@@ -1,4 +1,10 @@
 // Follow Deno's ES modules convention
+//
+// DEPRECATED — do not point the Paystack dashboard webhook here.
+// Live deposit webhook: Expo route app/api/paystack-webhook+api.ts
+// This file has known issues (early 200, wrong RPC arg names, NUBAN-only filter).
+// Kept only for reference / emergency rollback.
+//
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { createHmac } from 'https://deno.land/std@0.177.0/node/crypto.ts';
 import { generateDepositEmailHtml, generatePayoutSuccessEmailHtml, generatePayoutFailedEmailHtml, generatePayoutReversedEmailHtml, generateVirtualAccountReadyEmailHtml, generateVirtualAccountFailedEmailHtml } from './email-templates.ts';

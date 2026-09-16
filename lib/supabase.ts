@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
 import { secureStoreAdapter } from './SecureStoreAdapter';
 import { supabaseGlobalFetch } from './supabase-http';
 
@@ -63,6 +64,26 @@ if (supabaseUrl && supabaseAnonKey) {
     },
   });
   console.log('✅ Supabase client initialized successfully with AsyncStorage auth adapter');
+
+  // Supabase RN guidance: pause auto-refresh while backgrounded; resume on foreground.
+  // Without this, cold start after background often has a stale access token until reopen.
+  if (Platform.OS !== 'web' && typeof supabase.auth?.startAutoRefresh === 'function') {
+    const syncAutoRefresh = (state: AppStateStatus) => {
+      try {
+        if (state === 'active') {
+          supabase.auth.startAutoRefresh();
+        } else {
+          supabase.auth.stopAutoRefresh();
+        }
+      } catch (err) {
+        if (__DEV__) {
+          console.warn('[supabase] autoRefresh AppState sync failed', err);
+        }
+      }
+    };
+    syncAutoRefresh(AppState.currentState);
+    AppState.addEventListener('change', syncAutoRefresh);
+  }
 } else {
   // Missing configuration - create mock client that returns user-friendly errors
   console.log('⚠️  Supabase configuration not found, using mock client');

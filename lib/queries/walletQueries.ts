@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { fetchWithRetry, CACHE_KEYS, readCache, writeCache } from '@/lib/supabase-fetch';
+import { timedOperation } from '@/lib/supabase-timing';
 
 export type WalletData = {
   balance: number;
@@ -39,27 +40,68 @@ export async function writeWalletCache(userId: string, wallet: WalletData): Prom
   });
 }
 
-/** Network fetch — no stale reads. Used by query + forced refresh. */
-export async function fetchWallet(userId: string): Promise<WalletData> {
-  const { data, error } = (await fetchWithRetry(
-    () =>
-      supabase
-        .from('wallets')
-        .select('balance, locked_balance, available_balance')
-        .eq('user_id', userId)
-        .single(),
-    'Wallet fetch',
-    { timeoutMs: 8000, retryDelayMs: 800 }
-  )) as {
-    data: { balance: number; locked_balance: number; available_balance: number } | null;
-    error: { message?: string } | null;
-  };
+let inFlight: Promise<WalletData> | null = null;
+let inFlightUserId: string | null = null;
 
-  if (error) {
-    throw error;
+export function isWalletFetchInFlight(): boolean {
+  return inFlight != null;
+}
+
+/**
+ * Network fetch — single-flight + abortable timeout (no stacked retries).
+ * Concurrent callers share one in-flight request.
+ */
+export async function fetchWallet(userId: string): Promise<WalletData> {
+  const { isFinancialMutationActive } = await import('@/lib/financial-mutation-gate');
+  if (isFinancialMutationActive()) {
+    const cached = await readWalletCache(userId);
+    if (cached) return cached;
+    throw new Error('Wallet fetch skipped during financial mutation');
   }
 
-  const wallet = toWalletData(data);
-  void writeWalletCache(userId, wallet);
-  return wallet;
+  if (inFlight && inFlightUserId === userId) {
+    return inFlight;
+  }
+
+  const run = timedOperation(
+    'db.wallets',
+    async () => {
+      const { data, error } = (await fetchWithRetry(
+        () =>
+          supabase
+            .from('wallets')
+            .select('balance, locked_balance, available_balance')
+            .eq('user_id', userId)
+            .single(),
+        'Wallet fetch',
+        { timeoutMs: 8000, retryDelayMs: 400, maxRetries: 0 }
+      )) as {
+        data: { balance: number; locked_balance: number; available_balance: number } | null;
+        error: { message?: string } | null;
+      };
+
+      if (error) {
+        throw error;
+      }
+
+      const wallet = toWalletData(data);
+      void writeWalletCache(userId, wallet);
+      return wallet;
+    },
+    { userId, hasSession: true }
+  );
+
+  inFlight = run;
+  inFlightUserId = userId;
+  try {
+    return await run;
+  } finally {
+    if (inFlight === run) {
+      inFlight = null;
+      inFlightUserId = null;
+    }
+  }
 }
+
+/** @deprecated Prefer fetchWallet — same single-flight path. */
+export const refreshWalletOnce = fetchWallet;

@@ -9,6 +9,72 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/** Keep in sync with lib/paystackDeposit.ts */
+function calculatePaystackFee(amountToCredit: number): number {
+  if (amountToCredit <= 0) return 0;
+  const percentageFee = amountToCredit * 0.015;
+  if (amountToCredit < 2500) {
+    return Math.round(percentageFee * 100) / 100;
+  }
+  return Math.min(Math.round((percentageFee + 100) * 100) / 100, 2000);
+}
+
+function resolveCreditAmount(
+  paidNaira: number,
+  metadata: Record<string, unknown> | null | undefined,
+): { amountToCredit: number; fee: number; source: string } {
+  const paid = Number(paidNaira) || 0;
+  const meta = metadata && typeof metadata === 'object' ? metadata : {};
+
+  const parseNum = (v: unknown): number | null => {
+    if (v === undefined || v === null || v === '') return null;
+    const n = parseFloat(String(v));
+    return Number.isFinite(n) ? n : null;
+  };
+
+  let amountToCredit =
+    parseNum(meta.amount_to_credit) ??
+    parseNum(meta.amountToCredit) ??
+    null;
+  let fee = parseNum(meta.fee) ?? parseNum(meta.fees) ?? null;
+  const paymentType = String(meta.payment_type || '');
+
+  const customFields = (meta as { custom_fields?: Array<{ variable_name?: string; value?: unknown }> }).custom_fields;
+  if (Array.isArray(customFields)) {
+    for (const field of customFields) {
+      if (field.variable_name === 'amount_to_credit' && amountToCredit == null) {
+        amountToCredit = parseNum(field.value);
+      }
+      if (field.variable_name === 'fee' && fee == null) {
+        fee = parseNum(field.value);
+      }
+    }
+  }
+
+  if (amountToCredit != null && amountToCredit > 0) {
+    const credit = Math.min(amountToCredit, paid);
+    const resolvedFee = fee != null ? fee : Math.max(0, Math.round((paid - credit) * 100) / 100);
+    return { amountToCredit: credit, fee: resolvedFee, source: 'metadata' };
+  }
+
+  if (paymentType === 'paystack_checkout' || paid >= 2500) {
+    let candidate = Math.round(((paid - 100) / 1.015) * 100) / 100;
+    if (candidate > 0 && candidate < 2500) {
+      candidate = Math.round((paid / 1.015) * 100) / 100;
+    }
+    const feeForCandidate = calculatePaystackFee(candidate);
+    if (Math.abs(candidate + feeForCandidate - paid) <= 1.5) {
+      return {
+        amountToCredit: Math.min(candidate, paid),
+        fee: feeForCandidate,
+        source: 'reverse_fee',
+      };
+    }
+  }
+
+  return { amountToCredit: paid, fee: 0, source: 'paid_in_full' };
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -101,8 +167,26 @@ serve(async (req) => {
       );
     }
 
-    // Convert amount from kobo to naira
-    const amountInNaira = transaction.amount / 100;
+    // Convert amount from kobo to naira (what customer actually paid)
+    const paidInNaira = transaction.amount / 100;
+    const metadata = (transaction.metadata && typeof transaction.metadata === 'object')
+      ? transaction.metadata as Record<string, unknown>
+      : {};
+
+    // Bind payment to the authenticated user when metadata says who paid
+    const metadataUserId = metadata.user_id ? String(metadata.user_id) : null;
+    if (metadataUserId && metadataUserId !== user.id) {
+      console.error(`User mismatch for ${reference}: jwt=${user.id} metadata=${metadataUserId}`);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Payment does not belong to this user' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { amountToCredit, fee, source: creditSource } = resolveCreditAmount(paidInNaira, metadata);
+    console.log(
+      `Credit resolve for ${reference}: paid=₦${paidInNaira}, credit=₦${amountToCredit}, fee=₦${fee}, via=${creditSource}`
+    );
 
     // Prepare Paystack data
     const paystackData = {
@@ -115,18 +199,22 @@ serve(async (req) => {
       gateway_response: transaction.gateway_response,
       processed_by: 'verify-paystack-payment',
       processed_at: new Date().toISOString(),
+      amount_paid: paidInNaira,
+      amount_to_credit: amountToCredit,
+      fee,
+      credit_source: creditSource,
       paystack_data: transaction,
     };
 
     // Route to plan deposit or wallet deposit based on planId
     if (planId) {
-      // Process plan deposit
-      console.log(`Processing plan deposit: ₦${amountInNaira} for plan ${planId}, user ${user.id}, reference: ${reference}`);
+      // Process plan deposit — credit net amount, not gross charge
+      console.log(`Processing plan deposit: ₦${amountToCredit} for plan ${planId}, user ${user.id}, reference: ${reference}`);
       
       const { data: result, error: processError } = await supabase.rpc('process_paystack_plan_deposit', {
         arg_user_id: user.id,
         arg_plan_id: planId,
-        arg_amount: amountInNaira,
+        arg_amount: amountToCredit,
         arg_reference: reference,
         arg_paystack_data: paystackData,
       });
@@ -165,8 +253,8 @@ serve(async (req) => {
         );
       }
 
-      console.log(`Successfully processed plan deposit: ₦${amountInNaira} for plan ${planId}`);
-      await sendDepositPushNotification(supabaseUrl, user.id, amountInNaira, reference, true);
+      console.log(`Successfully processed plan deposit: ₦${amountToCredit} for plan ${planId}`);
+      await sendDepositPushNotification(supabaseUrl, user.id, amountToCredit, reference, true);
 
       return new Response(
         JSON.stringify({
@@ -175,40 +263,19 @@ serve(async (req) => {
           transaction_id: result.transaction_id,
           plan_id: planId,
           new_balance: result.new_balance,
-          amount: amountInNaira,
+          amount: amountToCredit,
+          amount_paid: paidInNaira,
           is_plan_deposit: true,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      // Process wallet deposit (existing flow)
-      // Check if transaction already exists
-      const { data: existingTransaction } = await supabase
-        .from('transactions')
-        .select('id, status')
-        .eq('reference', reference)
-        .eq('type', 'deposit')
-        .single();
-
-      if (existingTransaction) {
-        if (existingTransaction.status === 'completed') {
-          console.log(`Transaction ${reference} already processed`);
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              message: 'Transaction already processed',
-              already_processed: true 
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-
-      console.log(`Processing wallet deposit: ₦${amountInNaira} for user ${user.id}, reference: ${reference}`);
+      // Process wallet deposit — credit net amount; RPC upgrades pending refs atomically
+      console.log(`Processing wallet deposit: ₦${amountToCredit} for user ${user.id}, reference: ${reference}`);
       
       const { data: result, error: processError } = await supabase.rpc('process_paystack_deposit', {
         arg_user_id: user.id,
-        arg_amount: amountInNaira,
+        arg_amount: amountToCredit,
         arg_reference: reference,
         arg_paystack_data: paystackData,
       });
@@ -247,9 +314,9 @@ serve(async (req) => {
         );
       }
 
-      console.log(`Successfully processed deposit: ₦${amountInNaira} for user ${user.id}`);
-      await sendDepositPushNotification(supabaseUrl, user.id, amountInNaira, reference, false);
-      await sendDepositEmailNotification(supabaseUrl, user.id, amountInNaira, reference, 'Paystack');
+      console.log(`Successfully processed deposit: ₦${amountToCredit} for user ${user.id}`);
+      await sendDepositPushNotification(supabaseUrl, user.id, amountToCredit, reference, false);
+      await sendDepositEmailNotification(supabaseUrl, user.id, amountToCredit, reference, 'Paystack');
 
       return new Response(
         JSON.stringify({
@@ -257,7 +324,8 @@ serve(async (req) => {
           message: 'Payment verified and processed successfully',
           transaction_id: result.transaction_id,
           new_balance: result.new_balance,
-          amount: amountInNaira,
+          amount: amountToCredit,
+          amount_paid: paidInNaira,
           is_plan_deposit: false,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

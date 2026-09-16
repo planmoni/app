@@ -2,7 +2,6 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { QueryClient } from '@tanstack/react-query';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { financialQueryKeys } from '@/lib/queries/keys';
-import type { WalletData } from '@/lib/queries/walletQueries';
 
 type ActiveSubscription = {
   userId: string;
@@ -47,28 +46,12 @@ export function subscribeFinancialRealtime(userId: string, queryClient: QueryCli
         table: 'wallets',
         filter: `user_id=eq.${userId}`,
       },
-      (payload: {
-        eventType: string;
-        new?: { balance: number; locked_balance: number; available_balance: number };
-      }) => {
-        if (payload.eventType === 'UPDATE' && payload.new) {
-          const balance = Number(payload.new.balance) || 0;
-          const lockedBalance = Number(payload.new.locked_balance) || 0;
-          const wallet: WalletData = {
-            balance,
-            lockedBalance,
-            availableBalance: Math.max(0, balance - lockedBalance),
-          };
-          queryClient.setQueryData(financialQueryKeys.wallet(userId), wallet);
-          void import('@/lib/queries/walletQueries').then(({ writeWalletCache }) =>
-            writeWalletCache(userId, wallet)
-          );
-        } else {
-          void queryClient.invalidateQueries({
-            queryKey: financialQueryKeys.wallet(userId),
-            refetchType: 'active',
-          });
-        }
+      () => {
+        // Realtime is a hint only — refetch authoritative row (deduped by React Query / fetchWallet).
+        void queryClient.invalidateQueries({
+          queryKey: financialQueryKeys.wallet(userId),
+          refetchType: 'active',
+        });
       }
     )
     .subscribe();
@@ -84,8 +67,7 @@ export function subscribeFinancialRealtime(userId: string, queryClient: QueryCli
         table: 'payout_plans',
         filter: `user_id=eq.${userId}`,
       },
-      (payload: { eventType?: string; event?: string; new?: unknown; old?: unknown }) => {
-        // Invalidate all limited + infinite payout plan caches for this user.
+      () => {
         void queryClient.invalidateQueries({ queryKey: ['payoutPlans', userId] });
         void queryClient.invalidateQueries({
           queryKey: financialQueryKeys.payoutPlansInfinite(userId),

@@ -32,6 +32,7 @@ export default function DestinationScreen() {
     payoutAccounts, 
     isLoading: payoutAccountsLoading, 
     error: payoutAccountsError,
+    isFresh: payoutAccountsFresh,
     fetchPayoutAccounts
   } = usePayoutAccounts();
   
@@ -43,6 +44,8 @@ export default function DestinationScreen() {
   // Only gate the payout list on payout accounts — bank accounts load independently.
   const isLoading = payoutAccountsLoading;
   const error = payoutAccountsError;
+  const showStaleBanner = !isLoading && !!error && payoutAccounts.length > 0 && !payoutAccountsFresh;
+  const showLoadError = !isLoading && !!error && payoutAccounts.length === 0;
 
   // Refresh accounts when screen comes into focus
   useFocusEffect(
@@ -270,9 +273,38 @@ export default function DestinationScreen() {
           </View>
 
           <View style={styles.accountsList}>
+            {showStaleBanner && (
+              <View style={styles.staleBanner}>
+                <Text style={styles.staleBannerText}>
+                  Couldn’t refresh payout accounts. Showing saved list.
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    haptics.selection();
+                    void fetchPayoutAccounts();
+                  }}
+                >
+                  <Text style={styles.retryLink}>Retry</Text>
+                </Pressable>
+              </View>
+            )}
             {isLoading ? (
               <View style={styles.loadingContainer}>
                 <Text style={styles.loadingText}>Loading payout accounts...</Text>
+              </View>
+            ) : showLoadError ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Couldn’t load payout accounts</Text>
+                <Text style={styles.emptySubtext}>{error}</Text>
+                <Pressable
+                  style={styles.retryButton}
+                  onPress={() => {
+                    haptics.selection();
+                    void fetchPayoutAccounts();
+                  }}
+                >
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </Pressable>
               </View>
             ) : accountType === 'payout' ? (
               payoutAccounts.length === 0 ? (
@@ -564,6 +596,39 @@ const createStyles = (colors: any, isSmallScreen: boolean) => StyleSheet.create(
   loadingContainer: {
     padding: 20,
     alignItems: 'center',
+  },
+  staleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: colors.backgroundTertiary,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  staleBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  retryLink: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  retryButton: {
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   loadingText: {
     fontSize: 16,

@@ -47,11 +47,11 @@ export default function Toast({
       case 'error':
         return {
           icon: AlertCircle,
-          iconColor: '#EF4444',
-          backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)',
-          borderColor: '#EF4444',
-          textColor: isDark ? '#FEE2E2' : '#991B1B',
-          accentColor: '#EF4444'
+          iconColor: '#FFFFFF',
+          backgroundColor: isDark ? 'rgba(185, 28, 28, 0.95)' : '#DC2626',
+          borderColor: isDark ? '#F87171' : '#B91C1C',
+          textColor: '#FFFFFF',
+          accentColor: '#991B1B'
         };
       case 'warning':
         return {

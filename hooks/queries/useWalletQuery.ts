@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { financialQueryKeys } from '@/lib/queries/keys';
 import {
@@ -11,6 +11,10 @@ import {
 import { useHydrateFinancialCache } from '@/lib/queries/hydrateFinancialCache';
 import { useLoadingGuard } from '@/hooks/useLoadingGuard';
 import { logAuthQueryGateViolation } from '@/lib/auth-telemetry';
+import {
+  isFinancialMutationActive,
+  subscribeFinancialMutation,
+} from '@/lib/financial-mutation-gate';
 
 /** Wallet is money — never treat it as "fresh for 5 minutes". */
 const WALLET_STALE_MS = 0;
@@ -21,6 +25,12 @@ export function useWalletQuery() {
   const { session, isAuthReady } = useAuth();
   const userId = session?.user?.id;
   const queryClient = useQueryClient();
+  const [mutationPaused, setMutationPaused] = useState(isFinancialMutationActive);
+
+  useEffect(() => subscribeFinancialMutation(() => {
+    setMutationPaused(isFinancialMutationActive());
+  }), []);
+
   const queryKey = useMemo(
     () => (userId ? financialQueryKeys.wallet(userId) : (['wallet', 'anonymous'] as const)),
     [userId]
@@ -37,10 +47,11 @@ export function useWalletQuery() {
     enabled: isAuthReady && !!userId,
     staleTime: WALLET_STALE_MS,
     gcTime: 30 * 60 * 1000,
-    refetchOnMount: 'always',
-    refetchOnReconnect: true,
-    refetchOnWindowFocus: true,
-    refetchInterval: WALLET_POLL_MS,
+    refetchOnMount: mutationPaused ? false : 'always',
+    refetchOnReconnect: !mutationPaused,
+    refetchOnWindowFocus: !mutationPaused,
+    // Pause polling while create-payout (etc.) holds the connection
+    refetchInterval: mutationPaused ? false : WALLET_POLL_MS,
     refetchIntervalInBackground: false,
     placeholderData: (previous) => previous,
     networkMode: 'online',
@@ -55,6 +66,20 @@ export function useWalletQuery() {
   /** Forced network refetch — pulls latest DB row, updates memory + disk cache. */
   const refreshWallet = useCallback(async () => {
     if (!userId) return null;
+
+    // Don't compete with create-payout / other money mutations
+    if (isFinancialMutationActive()) {
+      const cached = queryClient.getQueryData<WalletData>(financialQueryKeys.wallet(userId));
+      if (cached) {
+        return {
+          balance: cached.balance,
+          lockedBalance: cached.lockedBalance,
+          availableBalance: cached.availableBalance,
+        };
+      }
+      return null;
+    }
+
     try {
       const data = await queryClient.fetchQuery({
         queryKey: financialQueryKeys.wallet(userId),
@@ -95,6 +120,9 @@ export function useWalletQuery() {
   }, [userId, queryClient]);
 
   const hasWalletData = hasData;
+  const isStale = Boolean(
+    hasData && (query.isError || query.isRefetchError || (isTimedOut && query.isFetching === false))
+  );
 
   return {
     ...query,
@@ -102,6 +130,7 @@ export function useWalletQuery() {
     lockedBalance: query.data?.lockedBalance ?? 0,
     availableBalance: query.data?.availableBalance ?? 0,
     hasWalletData,
+    isStale,
     /** ready = real query data; error = timed out / failed with no data; loading otherwise */
     walletStatus: hasWalletData
       ? ('ready' as const)

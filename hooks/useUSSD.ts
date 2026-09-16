@@ -210,6 +210,7 @@ export const useUSSD = () => {
         metadata: {
           user_id: session.user.id,
           payment_type: 'ussd',
+          amount_to_credit: parseInt(amount, 10),
           bank_code: bankCode,
           phone: phone || '',
           reference: reference
@@ -323,43 +324,39 @@ export const useUSSD = () => {
 
       // Check if payment was successful
       if (transaction.status === 'success') {
-        // Update transaction status in database
-        const { error: updateError } = await supabase
-          .from('transactions')
-          .update({ 
-            status: 'completed',
-            updated_at: new Date().toISOString()
-          })
-          .eq('reference', reference)
-          .eq('user_id', session.user.id);
-
-        if (updateError) {
-          console.error('Error updating transaction:', updateError);
-        }
-
-        // Add funds to user's wallet
         const amountInNaira = transaction.amount / 100;
-        const { data: walletResult, error: walletError } = await supabase.rpc('add_funds', {
+        const metadata = (transaction.metadata && typeof transaction.metadata === 'object')
+          ? transaction.metadata as Record<string, unknown>
+          : { payment_type: 'ussd', user_id: session.user.id };
+
+        // Atomic credit — upgrades the pending txn row created at initializeUSSD
+        const { data: walletResult, error: walletError } = await supabase.rpc('process_paystack_deposit', {
           arg_user_id: session.user.id,
-          arg_amount: amountInNaira
+          arg_amount: amountInNaira,
+          arg_reference: reference,
+          arg_paystack_data: {
+            paystack_transaction_id: transaction.id,
+            paystack_reference: reference,
+            processed_by: 'ussd_client_verify',
+            processed_at: new Date().toISOString(),
+            payment_method: 'ussd',
+            amount_paid: amountInNaira,
+            amount_to_credit: amountInNaira,
+            metadata,
+          },
         });
 
         if (walletError) {
-          console.error('Error adding funds to wallet:', walletError);
+          console.error('Error processing USSD deposit:', walletError);
+          throw new Error(walletError.message || 'Failed to credit wallet');
         }
 
-        // Create notification
-        await supabase
-          .from('events')
-          .insert({
-            user_id: session.user.id,
-            type: 'deposit_successful',
-            title: 'USSD Payment Successful',
-            description: `₦${amountInNaira.toLocaleString()} has been added to your wallet via USSD`,
-            status: 'unread'
-          });
+        if (!walletResult?.success && !walletResult?.already_processed) {
+          throw new Error(walletResult?.error || 'Failed to credit wallet');
+        }
 
-        showToast(`Payment successful! ₦${amountInNaira.toLocaleString()} added to your wallet`, 'success');
+        const credited = walletResult?.amount_added ?? amountInNaira;
+        showToast(`Payment successful! ₦${Number(credited).toLocaleString()} added to your wallet`, 'success');
         return true;
       } else {
         showToast('Payment is still pending. Please complete the USSD transaction and try again.', 'info');

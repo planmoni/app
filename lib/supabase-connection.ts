@@ -2,25 +2,33 @@ import { supabase } from '@/lib/supabase';
 import { reconnectSupabase, type ReconnectResult } from '@/lib/supabase-reconnect';
 import { getSessionSerialized, peekCachedSession } from '@/lib/supabase-session';
 import { withTimeout } from '@/lib/with-timeout';
+import { timedOperation } from '@/lib/supabase-timing';
 
 export const ENSURE_CONNECTION_MAX_MS = 6000;
 export const GET_SESSION_TIMEOUT_MS = 5000;
 export const PROBE_TIMEOUT_MS = 5000;
-/** Soft return to callers after this; underlying work may still finish. */
+/** Return to callers after this so UI is not blocked forever. */
 export const ENSURE_WALL_CLOCK_MAX_MS = 8000;
 /** Skip a full ensure if one just succeeded (resume stampede). */
 const ENSURE_SUCCESS_COOLDOWN_MS = 20_000;
+/** After a timed-out ensure, avoid immediately stacking another full reconnect. */
+const ENSURE_FAILURE_COOLDOWN_MS = 8_000;
 
 export type ConnectionStatus = {
   ok: boolean;
   lastError?: string;
   lastSuccessAt: number | null;
+  /** When the last ensure attempt finished (success or failure). */
+  lastAttemptAt: number | null;
   reconnect: ReconnectResult | null;
+  /** True when we returned early due to wall-clock while work may still run. */
+  timedOut?: boolean;
 };
 
 let lastStatus: ConnectionStatus = {
   ok: true,
   lastSuccessAt: null,
+  lastAttemptAt: null,
   reconnect: null,
 };
 
@@ -36,17 +44,20 @@ export function resetSupabaseConnectionEnsureState(): void {
   lastStatus = {
     ok: true,
     lastSuccessAt: null,
+    lastAttemptAt: null,
     reconnect: null,
   };
 }
 
 async function getSessionWithTimeout(): Promise<{
-  session: { user?: { id?: string } } | null;
+  session: { user?: { id?: string }; expires_at?: number } | null;
 }> {
-  const { data } = await getSessionSerialized({
-    timeoutMs: GET_SESSION_TIMEOUT_MS,
+  return timedOperation('auth.getSession', async () => {
+    const { data } = await getSessionSerialized({
+      timeoutMs: GET_SESSION_TIMEOUT_MS,
+    });
+    return { session: data.session };
   });
-  return { session: data.session };
 }
 
 async function runHealthProbe(): Promise<void> {
@@ -55,7 +66,11 @@ async function runHealthProbe(): Promise<void> {
     return;
   }
 
-  await withTimeout(supabase.auth.getUser(), PROBE_TIMEOUT_MS, 'Connection probe');
+  await timedOperation(
+    'db.probe.getUser',
+    () => withTimeout(supabase.auth.getUser(), PROBE_TIMEOUT_MS, 'Connection probe'),
+    { userId: session.user.id, hasSession: true, sessionExpiresAt: session.expires_at ?? null }
+  );
 }
 
 export type EnsureConnectionOptions = {
@@ -67,12 +82,11 @@ export type EnsureConnectionOptions = {
 };
 
 /**
- * Reconnect Supabase (channels + conditional auth refresh) then optionally probe REST API.
+ * Reconnect Supabase (channels + conditional auth refresh) then optionally probe.
  * Dedupes concurrent callers and short-circuits shortly after a successful ensure.
  *
- * Wall-clock: callers get a soft status after ENSURE_WALL_CLOCK_MAX_MS so UI is not
- * blocked, but ensureInFlight stays until the real work finishes — preventing a
- * stampede of overlapping reconnects.
+ * Wall-clock: returns { ok: false, timedOut: true } so callers do NOT treat a
+ * hung ensure as "connection ready" and stampede more requests.
  */
 export async function ensureSupabaseConnection(
   options: EnsureConnectionOptions = {}
@@ -87,12 +101,31 @@ export async function ensureSupabaseConnection(
     return lastStatus;
   }
 
+  if (
+    !options.force &&
+    !lastStatus.ok &&
+    lastStatus.timedOut &&
+    lastStatus.lastAttemptAt != null &&
+    now - lastStatus.lastAttemptAt < ENSURE_FAILURE_COOLDOWN_MS
+  ) {
+    return lastStatus;
+  }
+
   if (ensureInFlight) {
-    // Soft-wait: don't block callers on a stuck ensure for more than the wall clock.
+    // Soft-wait: don't block forever, but do not report ok:true on timeout.
     return Promise.race([
       ensureInFlight,
       new Promise<ConnectionStatus>((resolve) =>
-        setTimeout(() => resolve(lastStatus), ENSURE_WALL_CLOCK_MAX_MS)
+        setTimeout(() => {
+          resolve({
+            ok: false,
+            lastError: 'Connection ensure still in progress',
+            lastSuccessAt: lastStatus.lastSuccessAt,
+            lastAttemptAt: Date.now(),
+            reconnect: lastStatus.reconnect,
+            timedOut: true,
+          });
+        }, ENSURE_WALL_CLOCK_MAX_MS)
       ),
     ]);
   }
@@ -123,12 +156,14 @@ export async function ensureSupabaseConnection(
         ok: false,
         lastError: reconnect.authError ?? 'Session expired',
         lastSuccessAt: lastStatus.lastSuccessAt,
+        lastAttemptAt: Date.now(),
         reconnect,
+        timedOut: false,
       };
       return lastStatus;
     }
 
-    let session: { user?: { id?: string } } | null = null;
+    let session: { user?: { id?: string }; expires_at?: number } | null = null;
     try {
       ({ session } = await getSessionWithTimeout());
     } catch (err) {
@@ -136,13 +171,14 @@ export async function ensureSupabaseConnection(
       if (__DEV__) {
         console.warn('[supabase] getSession timed out during ensure:', message);
       }
-      const cached = peekCachedSession();
+      // Cached session may exist, but we did not freshly confirm readiness.
       lastStatus = {
-        ok: !!cached?.user?.id || lastStatus.ok,
+        ok: false,
         lastError: message,
-        // Start cooldown even on soft failure so we do not stampede.
-        lastSuccessAt: Date.now(),
+        lastSuccessAt: lastStatus.lastSuccessAt,
+        lastAttemptAt: Date.now(),
         reconnect,
+        timedOut: true,
       };
       return lastStatus;
     }
@@ -161,10 +197,12 @@ export async function ensureSupabaseConnection(
     }
 
     lastStatus = {
-      ok: hasSession || lastStatus.ok,
+      ok: hasSession,
       lastError: reconnect?.authError ?? undefined,
-      lastSuccessAt: Date.now(),
+      lastSuccessAt: hasSession ? Date.now() : lastStatus.lastSuccessAt,
+      lastAttemptAt: Date.now(),
       reconnect,
+      timedOut: false,
     };
 
     if (__DEV__ && lastStatus.ok) {
@@ -183,18 +221,18 @@ export async function ensureSupabaseConnection(
     work,
     new Promise<ConnectionStatus>((resolve) =>
       setTimeout(() => {
-        const cached = peekCachedSession();
-        const softOk = !!cached?.user?.id || lastStatus.ok;
-        // Arm cooldown so the next ensure caller short-circuits instead of stacking.
+        // Do NOT mark ok:true — callers must not stampede while ensure is hung.
         lastStatus = {
-          ok: softOk,
+          ok: false,
           lastError: 'Connection ensure timed out',
-          lastSuccessAt: Date.now(),
+          lastSuccessAt: lastStatus.lastSuccessAt,
+          lastAttemptAt: Date.now(),
           reconnect: lastStatus.reconnect,
+          timedOut: true,
         };
         if (__DEV__) {
           console.warn(
-            '[supabase] ensureSupabaseConnection wall-clock cap reached (soft return; work may still finish)'
+            '[supabase] ensureSupabaseConnection wall-clock cap reached (ok=false; work may still finish)'
           );
         }
         resolve(lastStatus);

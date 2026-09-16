@@ -12,11 +12,11 @@ import InitialsAvatar from '@/components/InitialsAvatar';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import Button from '@/components/Button';
 import PendingActionsCard from '@/components/PendingActionsCard';
-import KYCCard from '@/components/KYCCard';
+// import KYCCard from '@/components/KYCCard'; // UNUSED — commented out (not rendered)
 const ImageCarousel = React.lazy(() => import('@/components/ImageCarousel'));
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
-import { warmConnection, ensureSupabaseConnection } from '@/lib/supabase-fetch';
+import { ensureSupabaseConnection } from '@/lib/supabase-fetch';
 import { router, useGlobalSearchParams, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
 import {
   HelpCircleIcon,
@@ -84,12 +84,12 @@ import { supabase } from '@/lib/supabase';
 import NextPayoutCard from '@/components/NextPayoutCard';
 import PayoutPlansSection from '@/components/PayoutPlansSection';
 import ExpensePlansSection from '@/components/ExpensePlansSection';
-import RatingCard from '@/components/RatingCard';
-import AISuggestionCard from '@/components/AISuggestionCard';
+// import RatingCard from '@/components/RatingCard'; // UNUSED — commented out (not rendered)
+// import AISuggestionCard from '@/components/AISuggestionCard'; // UNUSED — commented out (not rendered)
 import OnTrackCard from '@/components/OnTrackCard';
 import ActiveSpendingPlansCard from '@/components/ActiveBudgetsCard';
 import QuickPlans from '@/components/QuickPlans';
-import DailySpendGuidance from '@/components/DailySpendGuidance';
+// import DailySpendGuidance from '@/components/DailySpendGuidance'; // UNUSED — never rendered
 import { getCategoryIcon, getCategoryById } from '@/lib/expenseCategories';
 import { isBudgetStarted } from '@/lib/expensePlanUtils';
 import { formatTransactionType } from '@/lib/formatters';
@@ -999,8 +999,6 @@ export default function HomeScreen() {
     refreshTimeoutRef.current = setTimeout(endRefresh, REFRESH_SPINNER_CAP_MS + 3000);
 
     try {
-      await warmConnection();
-
       // Priority #1: wallet — await briefly so balance updates before spinner ends
       try {
         await Promise.race([
@@ -1017,8 +1015,6 @@ export default function HomeScreen() {
         fetchTransactions(),
         fetchExpensePlans(),
         loadProgress(),
-        // Second wallet pass in case deposit webhook landed mid-refresh
-        refreshWallet(),
       ]);
 
       await Promise.race([
@@ -1035,7 +1031,6 @@ export default function HomeScreen() {
           'transactions',
           'expense plans',
           'KYC',
-          'wallet',
         ];
         results.forEach((r, i) => {
           if (r.status === 'rejected') {
@@ -1357,35 +1352,38 @@ export default function HomeScreen() {
     logAnalyticsEvent('create_payout_click_start');
   };
 
-  const handleAISuggestionPress = (suggestion: any) => {
-    // Check authentication first
-    if (!requireAuth(() => {}, '/create-payout/frequency-selection')) {
-      return;
-    }
-    
-    // Trigger haptic feedback
-    impact();
-    
-    // Map frequency to match frequency-selection screen expectations
-    // 'weekly' should be mapped to 'weekly_specific'
-    const mappedFrequency = suggestion.frequency === 'weekly' ? 'weekly_specific' : suggestion.frequency;
-    
-    // Navigate to frequency-selection page with full balance and suggested frequency
-    router.push({
-      pathname: '/create-payout/frequency-selection',
-      params: {
-        totalAmount: availableBalance.toString(),
-        frequency: mappedFrequency,
-        duration: suggestion.duration.toString()
-      }
-    });
-    logAnalyticsEvent('ai_suggestion_used', {
-      suggestion_id: suggestion.id,
-      suggestion_title: suggestion.title,
-      suggested_amount: suggestion.amount,
-      total_amount: availableBalance
-    });
-  };  const handleViewPayout = (id?: string) => {
+  // UNUSED — AISuggestionCard commented out; handler kept for restore reference
+  // const handleAISuggestionPress = (suggestion: any) => {
+  //   // Check authentication first
+  //   if (!requireAuth(() => {}, '/create-payout/frequency-selection')) {
+  //     return;
+  //   }
+  //   
+  //   // Trigger haptic feedback
+  //   impact();
+  //   
+  //   // Map frequency to match frequency-selection screen expectations
+  //   // 'weekly' should be mapped to 'weekly_specific'
+  //   const mappedFrequency = suggestion.frequency === 'weekly' ? 'weekly_specific' : suggestion.frequency;
+  //   
+  //   // Navigate to frequency-selection page with full balance and suggested frequency
+  //   router.push({
+  //     pathname: '/create-payout/frequency-selection',
+  //     params: {
+  //       totalAmount: availableBalance.toString(),
+  //       frequency: mappedFrequency,
+  //       duration: suggestion.duration.toString()
+  //     }
+  //   });
+  //   logAnalyticsEvent('ai_suggestion_used', {
+  //     suggestion_id: suggestion.id,
+  //     suggestion_title: suggestion.title,
+  //     suggested_amount: suggestion.amount,
+  //     total_amount: availableBalance
+  //   });
+  // };
+
+  const handleViewPayout = (id?: string) => {
     // Trigger selection haptic feedback
     notification();
     if (id) {

@@ -10,6 +10,8 @@ import {
   toUserFacingError,
 } from '@/lib/supabase-fetch';
 import { withTimeout } from '@/lib/with-timeout';
+import { timedOperation } from '@/lib/supabase-timing';
+import { isFinancialMutationActive } from '@/lib/financial-mutation-gate';
 
 export type PayoutAccount = {
   id: string;
@@ -120,6 +122,8 @@ export function usePayoutAccounts() {
   const [payoutAccounts, setPayoutAccounts] = useState<PayoutAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isFresh, setIsFresh] = useState(false);
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
   const { session, isAuthReady } = useAuth();
   const hasCachedDataRef = useRef(false);
   const fetchInFlightRef = useRef(false);
@@ -132,6 +136,7 @@ export function usePayoutAccounts() {
 
     setPayoutAccounts(cached);
     hasCachedDataRef.current = true;
+    setIsFresh(false);
     setIsLoading(false);
     return true;
   }, []);
@@ -195,6 +200,11 @@ export function usePayoutAccounts() {
       return;
     }
 
+    // Don't compete with create-payout / other money mutations
+    if (isFinancialMutationActive()) {
+      return;
+    }
+
     if (
       fetchInFlightRef.current &&
       Date.now() - fetchStartedAtRef.current < FETCH_STALE_MS
@@ -212,15 +222,25 @@ export function usePayoutAccounts() {
       }
       setError(null);
 
-      const { data: accounts, error: accountsError } = (await fetchWithRetry(
-        () =>
-          supabase
-            .from('payout_accounts')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false }),
-        'Payout accounts fetch'
-      )) as { data: PayoutAccount[] | null; error: { message?: string } | null };
+      const { data: accounts, error: accountsError } = await timedOperation(
+        'db.payout_accounts',
+        async () =>
+          (await fetchWithRetry(
+            () =>
+              supabase
+                .from('payout_accounts')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false }),
+            'Payout accounts fetch',
+            { timeoutMs: 8000, retryDelayMs: 400, maxRetries: 0 }
+          )) as { data: PayoutAccount[] | null; error: { message?: string } | null },
+        {
+          userId,
+          hasSession: true,
+          sessionExpiresAt: session?.expires_at ?? null,
+        }
+      );
 
       if (accountsError) throw accountsError;
 
@@ -232,6 +252,9 @@ export function usePayoutAccounts() {
 
       setPayoutAccounts(baseAccounts);
       hasCachedDataRef.current = true;
+      setIsFresh(true);
+      setLastFetchedAt(Date.now());
+      setError(null);
       void writeCache(CACHE_KEYS.payoutAccounts(userId), baseAccounts);
 
       if (baseAccounts.length > 0) {
@@ -239,14 +262,13 @@ export function usePayoutAccounts() {
       }
     } catch (err) {
       console.warn('Error fetching payout accounts:', err);
-      if (!hasCachedDataRef.current) {
-        setError(toUserFacingError(err, false));
-      }
+      setIsFresh(false);
+      setError(toUserFacingError(err, hasCachedDataRef.current));
     } finally {
       setIsLoading(false);
       fetchInFlightRef.current = false;
     }
-  }, [session?.user?.id, isAuthReady, enrichPlanCounts, hydrateFromCache]);
+  }, [session?.user?.id, session?.expires_at, isAuthReady, enrichPlanCounts, hydrateFromCache]);
 
   useEffect(() => {
     if (!session?.user?.id || !isAuthReady) {
@@ -533,6 +555,8 @@ export function usePayoutAccounts() {
     payoutAccounts,
     isLoading,
     error,
+    isFresh,
+    lastFetchedAt,
     fetchPayoutAccounts,
     addPayoutAccount,
     updatePayoutAccount,

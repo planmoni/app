@@ -117,6 +117,8 @@ async function triggerUserSignedUpEvent(args: {
 
   if (!eventId) return { ok: false, skipped: true, body: { error: 'No Bunce event id for user_signed_up' } }
 
+  // Bunce event params (exact names): email, First name, Last name, Date
+  // Company unique identifier is email — do not send customer_id.
   const payload = {
     email: args.email,
     customer: {
@@ -130,30 +132,20 @@ async function triggerUserSignedUpEvent(args: {
     Date: toUtcIsoZ(new Date()),
   }
 
-  const post = async (body: Record<string, unknown>) => {
-    const res = await fetch(`${BUNCE_BASE_URL}/events/trigger`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Authorization': BUNCE_API_KEY!,
-      },
-      body: JSON.stringify({ event_id: eventId, payload: body }),
-    })
-    const text = await res.text()
-    let json: unknown = null
-    try {
-      json = text ? JSON.parse(text) : null
-    } catch {
-      json = { raw: text }
-    }
-    return { res, json }
-  }
-
-  let { res, json } = await post(payload)
-  if (res.status === 422) {
-    const retry = await post({ email: args.email, customer: payload.customer })
-    res = retry.res
-    json = retry.json
+  const res = await fetch(`${BUNCE_BASE_URL}/events/trigger`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Authorization': BUNCE_API_KEY!,
+    },
+    body: JSON.stringify({ event_id: eventId, payload }),
+  })
+  const text = await res.text()
+  let json: unknown = null
+  try {
+    json = text ? JSON.parse(text) : null
+  } catch {
+    json = { raw: text }
   }
 
   return { ok: res.ok, status: res.status, body: json, event_id: eventId }
@@ -387,8 +379,8 @@ Deno.serve(async (req: Request) => {
       normalizePhone(kyc?.phone_number) ||
       '+2340000000000'
 
+    // Company unique identifier is email — do not send customer_id on create.
     payload = {
-      customer_id: userId,
       email,
       first_name,
       last_name,
@@ -450,6 +442,15 @@ Deno.serve(async (req: Request) => {
         bunce_status: bunceRes.status,
         request_payload: payload,
         response_body: json,
+      })
+      // Still try signup event — customer create failure must not block engagement.
+      await fireUserSignedUp(admin, {
+        userId: userId,
+        email,
+        first_name,
+        last_name,
+        phone_no: phone_no || '+2340000000000',
+        customer_id: userId,
       })
       return jsonOk({ success: true, recorded: true })
     }

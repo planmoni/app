@@ -81,7 +81,11 @@ export async function restoreSessionInSupabase(session: Session): Promise<boolea
   try {
     const { supabase } = await import('./supabase');
 
-    const { error } = await supabase.auth.setSession({
+    if (!session.access_token || !session.refresh_token) {
+      return false;
+    }
+
+    const { data, error } = await supabase.auth.setSession({
       access_token: session.access_token,
       refresh_token: session.refresh_token,
     });
@@ -91,7 +95,8 @@ export async function restoreSessionInSupabase(session: Session): Promise<boolea
       return false;
     }
 
-    return true;
+    // Prefer the session returned by the client (may include refreshed tokens)
+    return !!(data.session?.access_token || session.access_token);
   } catch (error) {
     console.error('Error restoring session in Supabase:', error);
     return false;

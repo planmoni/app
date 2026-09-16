@@ -14,6 +14,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useToast } from '@/contexts/ToastContext';
+import {
+  calculatePaystackFee as sharedCalculatePaystackFee,
+  PAYSTACK_MIN_CREDIT,
+  PAYSTACK_MAX_CREDIT,
+} from '@/lib/paystackDeposit';
 import { usePaystack } from 'react-native-paystack-webview';
 import { supabase } from '@/lib/supabase';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -43,8 +48,8 @@ export default function PaystackPaymentScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const MIN_AMOUNT = 5000;
-  const MAX_AMOUNT = 5000000;
+  const MIN_AMOUNT = PAYSTACK_MIN_CREDIT;
+  const MAX_AMOUNT = PAYSTACK_MAX_CREDIT;
 
   const handleBack = () => {
     haptics.lightImpact();
@@ -77,23 +82,8 @@ export default function PaystackPaymentScreen() {
     return parseFloat(amount) || 0;
   };
 
-  // Calculate Paystack fee with new structure:
-  // - Amount < ₦2500: 1.5% only (no flat fee)
-  // - Amount ≥ ₦2500: 1.5% + ₦100, capped at ₦2000
-  // Fee is calculated on the amount user wants to add (what they'll receive)
-  const calculatePaystackFee = (amount: number): number => {
-    if (amount <= 0) return 0;
-    const percentageFee = amount * 0.015; // 1.5%
-    
-    if (amount < 2500) {
-      // No flat fee for amounts under ₦2500
-      return percentageFee;
-    } else {
-      // For amounts >= ₦2500: 1.5% + 100, capped at ₦2000
-      const feeWithFlat = percentageFee + 100;
-      return Math.min(feeWithFlat, 2000);
-    }
-  };
+  // Fee on amount user wants credited — shared with verify/webhook
+  const calculatePaystackFee = (amount: number): number => sharedCalculatePaystackFee(amount);
 
   // Get the fee label text based on amount
   const getPaystackFeeLabel = (amount: number): string => {
@@ -186,31 +176,40 @@ export default function PaystackPaymentScreen() {
       }
 
       console.log('Open Paystack modal...');
-      const totalAmount = getTotalAmountToPay();
+      const amountToCredit = getNumericAmount();
+      const fee = calculatePaystackFee(amountToCredit);
+      const totalAmount = amountToCredit + fee;
+
+      // Reject before opening checkout if total charge would exceed product max
+      // (avoids clamping charge while metadata still has a higher amount_to_credit)
+      if (totalAmount > MAX_AMOUNT) {
+        showToast(
+          `Total charge including fees exceeds ₦${MAX_AMOUNT.toLocaleString()}. Enter a lower amount.`,
+          'error',
+        );
+        setIsLoading(false);
+        return;
+      }
+
       console.log('Get payment details:', {
         email: profile.email,
-        amountToAdd: getNumericAmount(),
-        fee: calculatePaystackFee(getNumericAmount()),
-        totalAmount: totalAmount,
+        amountToAdd: amountToCredit,
+        fee,
+        totalAmount,
         amountInKobo: totalAmount * 100,
       });
 
       // Generate reference for transaction
       const reference = `PMN-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-      // Trigger Paystack checkout
-      // Note: Amount should be in the base currency unit (NGN), not kobo
-      // The package will convert it to kobo internally (multiplies by 100)
-      // Payment methods are configured via defaultChannels in PaystackProvider
-      // We charge the total amount (amount user wants + fee)
-      // Pass the amount to credit (before fees) in metadata so webhook can credit correct amount
+      // Amount in NGN (package converts to kobo). Charge amount_to_credit + fee.
       popup.checkout({
         email: profile.email,
-        amount: totalAmount < MIN_AMOUNT ? MIN_AMOUNT : (totalAmount > MAX_AMOUNT ? MAX_AMOUNT : totalAmount), // Clamp amount between MIN and MAX to prevent invalid amounts
+        amount: totalAmount,
         reference: reference,
         metadata: {
-          amount_to_credit: getNumericAmount(), // Amount user will receive (before fees)
-          fee: calculatePaystackFee(getNumericAmount()),
+          amount_to_credit: amountToCredit,
+          fee,
           total_paid: totalAmount,
           payment_type: 'paystack_checkout',
           user_id: session.user.id,
@@ -228,7 +227,7 @@ export default function PaystackPaymentScreen() {
           router.push({
             pathname: '/paystack-payment/failure',
             params: {
-              amount: getNumericAmount().toString(),
+              amount: amountToCredit.toString(),
               reference: reference,
               errorType: 'cancelled',
               error: 'Payment was cancelled by user',

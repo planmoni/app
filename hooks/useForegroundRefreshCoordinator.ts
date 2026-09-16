@@ -19,11 +19,11 @@ type RefetchEntry = {
 /** Wider stagger reduces auth/storage lock contention on weak networks. */
 const TIER_DELAYS_MS: Record<ForegroundRefreshTier, number> = {
   1: 0,
-  2: 800,
-  3: 1600,
+  2: 1200,
+  3: 2400,
 };
 
-const TIER_CONCURRENCY = 2;
+const TIER_CONCURRENCY = 1;
 /** Hard cap so a jammed resume cannot block the coordinator forever. */
 const FOREGROUND_REFRESH_MAX_MS = 15_000;
 /** Ignore Control Center / notification shade blips. */
@@ -128,10 +128,25 @@ async function runForegroundRefresh(isColdStart: boolean): Promise<void> {
   }
 
   if (__DEV__) {
-    console.log(`[resume] foreground → ${mode} refresh start`);
+    console.log(`[resume] foreground → ${mode} refresh start (cold=${isColdStart})`);
   }
 
   const refreshWork = (async () => {
+    // Cold start: only lightweight session warm — do NOT invalidate all financial
+    // queries (mount/refetchOnMount already loads; invalidating causes a stampede).
+    if (isColdStart) {
+      await ensureSupabaseConnection({
+        skipProbe: true,
+        lightweight: true,
+      });
+      if (__DEV__) {
+        console.log(
+          `[resume] cold-start warm only (${Date.now() - startedAt}ms) — skipped invalidate stampede`
+        );
+      }
+      return;
+    }
+
     if (mode === 'full') {
       const status = await ensureSupabaseConnection({ skipProbe: true });
       const reconnectMs = Date.now() - startedAt;
@@ -147,7 +162,7 @@ async function runForegroundRefresh(isColdStart: boolean): Promise<void> {
         console.log(`[resume] reconnect(${reconnectMs}ms) → invalidate financial queries`);
       }
     } else {
-      // Light: session cache / cooldown handle auth; just refresh money queries.
+      // Light resume: session cache / cooldown handle auth; just refresh money queries.
       await ensureSupabaseConnection({
         skipProbe: true,
         lightweight: true,

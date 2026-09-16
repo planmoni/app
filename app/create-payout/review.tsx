@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image, Platform, BackHandler } from 'react-native';
 import { Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X, Target, Info, RefreshCw } from 'lucide-react-native';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { ArrowLeft, Wallet, Calendar, Clock, Building2, TriangleAlert as AlertTriangle, Shield, Check, X, Target, Info } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCreatePayout } from '@/hooks/useCreatePayout';
-import { useBalance } from '@/contexts/BalanceContext';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import ErrorMessage from '@/components/ErrorMessage';
@@ -17,46 +16,36 @@ import { useBanks } from '@/hooks/useBanks';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { usePin } from '@/contexts/PinContext';
 import PinVerificationModal from '@/components/PinVerificationModal';
-import { supabase } from '@/lib/supabase';
 import { calculatePayoutFees, calculatePayoutFeesCustom } from '@/lib/payout-fee-calculator';
 import type { PayoutFeeResult } from '@/lib/payout-fee-calculator';
 import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
 import { LifecycleEventName } from '@/lib/lifecycleEvents';
 import { buildCustomDateTimesMap, formatTimeForDisplay } from '@/lib/payout-time';
 import { formatPayoutMoney, hasCustomPayoutAmounts } from '@/lib/custom-payout-amounts';
-import { withTimeout } from '@/lib/with-timeout';
-
-const WALLET_REFRESH_CAP_MS = 10_000;
+import {
+  makeIdempotencyKey,
+  shouldReuseIdempotencyKeyOnRetry,
+} from '@/lib/create-payout-guard';
 
 export default function ReviewScreen() {
   const { colors, isDark } = useTheme();
   const params = useLocalSearchParams();
-  const { createPayout, isLoading, error } = useCreatePayout();
-  const {
-    balance,
-    lockedBalance,
-    refreshWallet,
-    isLoading: walletLoading,
-    hasWalletData,
-    walletStatus,
-    isTimedOut: walletTimedOut,
-    error: walletError,
-  } = useBalance();
+  const navigation = useNavigation();
+  const { createPayout, isLoading, error, abandonCreate } = useCreatePayout();
   const haptics = useHaptics();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [walletFetchFailed, setWalletFetchFailed] = useState(false);
   const [showPinVerification, setShowPinVerification] = useState(false);
   const [feeBreakdown, setFeeBreakdown] = useState<PayoutFeeResult | null>(null);
   const [showFeesBreakdownModal, setShowFeesBreakdownModal] = useState(false);
+  const idempotencyKeyRef = useRef(makeIdempotencyKey());
+  const lastErrorCodeRef = useRef<string | null>(null);
+  const submittingUiRef = useRef(false);
   const { banks } = useBanks();
   const { verifyPayoutPin, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin } = usePin();
-  const refreshInFlightRef = useRef(false);
 
   useEffect(() => {
     void trackLifecycleEvent(LifecycleEventName.PAYOUT_PLAN_FLOW_STEP_DETAILS, { screen: 'review' });
   }, []);
-  
-  // Get values from route params
+
   const totalAmount = params.totalAmount as string;
   const frequency = params.frequency as string;
   const payoutAmount = params.payoutAmount as string;
@@ -67,7 +56,7 @@ export default function ReviewScreen() {
   const accountName = params.accountName as string;
   const bankAccountId = params.bankAccountId as string;
   const payoutAccountId = params.payoutAccountId as string;
-  const emergencyWithdrawal = params.emergencyWithdrawal !== 'false'; // Default to true
+  const emergencyWithdrawal = params.emergencyWithdrawal !== 'false';
   const customDates = params.customDates ? JSON.parse(params.customDates as string) : [];
   const customDateAmounts = params.customDateAmounts ? JSON.parse(params.customDateAmounts as string) : {};
   const customDateTimesRaw = params.customDateTimes ? JSON.parse(params.customDateTimes as string) : {};
@@ -81,59 +70,9 @@ export default function ReviewScreen() {
   const purpose = params.purpose as string | undefined;
   const purposeOther = params.purposeOther as string | undefined;
 
-  // Calculate available balance
-  const availableBalance = balance - lockedBalance;
-  
-  // Parse total amount to number for comparison. Fee is taken from the amount (not added on top).
-  const numericTotalAmount = parseFloat(totalAmount.replace(/,/g, ''));
-  // Only treat as insufficient when we have real wallet data — never block on silent zero after timeout.
-  const walletReady = hasWalletData && walletStatus === 'ready';
-  const hasInsufficientBalance =
-    walletReady && !walletLoading && !isRefreshing && numericTotalAmount > availableBalance;
-  const showWalletRetry =
-    !hasWalletData &&
-    (walletFetchFailed || walletTimedOut || walletStatus === 'error' || !!walletError);
+  // Server RPC is the only balance authority — review must not fetch/verify wallet.
+  const continueEnabled = !isLoading;
 
-  const refreshBalance = useCallback(
-    async (opts?: { blockUi?: boolean }) => {
-      if (refreshInFlightRef.current) return;
-      refreshInFlightRef.current = true;
-      const blockUi = opts?.blockUi === true && !hasWalletData;
-      if (blockUi) setIsRefreshing(true);
-      setWalletFetchFailed(false);
-      try {
-        const result = await withTimeout(
-          refreshWallet(),
-          WALLET_REFRESH_CAP_MS,
-          'Wallet refresh'
-        );
-        if (result === null && !hasWalletData) {
-          setWalletFetchFailed(true);
-        }
-      } catch (err) {
-        console.error('Error refreshing wallet:', err);
-        if (!hasWalletData) setWalletFetchFailed(true);
-      } finally {
-        setIsRefreshing(false);
-        refreshInFlightRef.current = false;
-      }
-    },
-    [refreshWallet, hasWalletData]
-  );
-
-  // Mount: refresh with hard timeout so CTA cannot stay disabled forever.
-  useEffect(() => {
-    void refreshBalance({ blockUi: true });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only
-
-  // Focus/resume: soft refresh without blocking CTA when cache exists.
-  useFocusEffect(
-    useCallback(() => {
-      void refreshBalance({ blockUi: false });
-    }, [refreshBalance])
-  );
-  // Calculate fee breakdown (processing + stamp duty + transaction).
-  // Single primitive dep key so effect doesn't re-run when params object reference changes.
   const feeDepsKey = `${totalAmount ?? ''}|${frequency ?? ''}|${duration ?? ''}|${(params as Record<string, unknown>).customDates ?? ''}|${(params as Record<string, unknown>).customDateAmounts ?? ''}`;
   useEffect(() => {
     if (!totalAmount || !frequency) {
@@ -183,31 +122,17 @@ export default function ReviewScreen() {
   }, [showCustomPayoutAmounts, customDates, customDateAmounts, payoutAmount]);
 
   const handleConfirmPayout = useCallback(async () => {
-    // SECURITY: Prevent multiple simultaneous submissions
-    if (isLoading) {
+    if (isLoading || submittingUiRef.current) {
       console.warn('Payout creation already in progress, ignoring duplicate request');
       return;
     }
+    submittingUiRef.current = true;
 
     try {
-      console.log('Creating payout plan with the following parameters:');
-      console.log('- Name:', `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`);
-      console.log('- Total amount:', parseFloat(totalAmount.replace(/[^0-9.]/g, '')));
-      console.log('- Payout amount:', parseFloat(payoutAmount.replace(/[^0-9.]/g, '')));
-      console.log('- Frequency:', frequency);
-      console.log('- Day of week:', dayOfWeek);
-      console.log('- Duration:', parseInt(duration));
-      console.log('- Start date:', firstPayoutDate);
-      console.log('- Bank account ID:', bankAccountId || null);
-      console.log('- Payout account ID:', payoutAccountId || null);
-      console.log('- Custom dates:', customDates);
-      console.log('- Custom date amounts:', customDateAmounts);
-      console.log('- Emergency withdrawal enabled:', emergencyWithdrawal);
-      
       if (Platform.OS !== 'web') {
         haptics.mediumImpact();
       }
-      
+
       await createPayout({
         name: purpose ? getPurposeLabel(purpose, purposeOther) : `${formatPayoutFrequency(frequency, dayOfWeek)} Payout Plan`,
         description: `${formatPayoutFrequency(frequency, dayOfWeek)} payout of ${payoutAmount}`,
@@ -232,47 +157,97 @@ export default function ReviewScreen() {
         payoutMinute: payoutMinute,
         purpose: purpose || undefined,
         purposeOther: purposeOther || undefined,
+        idempotencyKey: idempotencyKeyRef.current,
       });
+      lastErrorCodeRef.current = null;
     } catch (err) {
-      console.error('Error in handleConfirmPayout:', err);
+      const code =
+        err && typeof err === 'object' && 'code' in err
+          ? String((err as { code: string }).code)
+          : null;
+      if (code === 'POST_NO_DEBIT' || code === 'INSUFFICIENT_BALANCE') {
+        console.warn('[review] create blocked:', code);
+      } else {
+        console.error('Error in handleConfirmPayout:', err);
+      }
       if (Platform.OS !== 'web') {
         haptics.error();
       }
+      lastErrorCodeRef.current = code;
+      if (!shouldReuseIdempotencyKeyOnRetry({ lastErrorCode: code })) {
+        idempotencyKeyRef.current = makeIdempotencyKey();
+      }
+    } finally {
+      submittingUiRef.current = false;
     }
-  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, firstPayoutDate, bankAccountId, payoutAccountId, customDates, customDateAmounts, customDateTimes, emergencyWithdrawal, haptics, createPayout, isLoading, purpose, purposeOther]);
+  }, [frequency, dayOfWeek, totalAmount, payoutAmount, duration, firstPayoutDate, bankAccountId, payoutAccountId, customDates, customDateAmounts, customDateTimes, emergencyWithdrawal, haptics, createPayout, isLoading, purpose, purposeOther, payoutHour, payoutMinute]);
 
-  const handleStartPlan = useCallback(async () => {
-    if (hasInsufficientBalance) {
+  useEffect(() => {
+    if (!isLoading) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => sub.remove();
+  }, [isLoading]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e: { preventDefault: () => void }) => {
+      if (!isLoading) return;
+      e.preventDefault();
       Alert.alert(
-        'Insufficient Balance',
-        `You need at least ₦${numericTotalAmount.toLocaleString()} to start this payout plan. Your current available balance is ₦${availableBalance.toLocaleString()}.`,
+        'Creating payout plan',
+        'Please keep this screen open while we finish creating your plan.',
+        [{ text: 'OK' }]
+      );
+    });
+    return unsubscribe;
+  }, [navigation, isLoading]);
+
+  const handleLeaveAttempt = useCallback(() => {
+    if (isLoading) {
+      Alert.alert(
+        'Creating payout plan',
+        'Please keep this screen open while we finish creating your plan.',
         [{ text: 'OK' }]
       );
       return;
     }
-    
+    abandonCreate();
+    router.back();
+  }, [isLoading, abandonCreate]);
+
+  const handleCancelAttempt = useCallback(() => {
+    if (isLoading) {
+      Alert.alert(
+        'Creating payout plan',
+        'Please keep this screen open while we finish creating your plan.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    abandonCreate();
+    router.push('/(tabs)');
+  }, [isLoading, abandonCreate]);
+
+  const handleStartPlan = useCallback(async () => {
+    if (isLoading || submittingUiRef.current) return;
+
     if (Platform.OS !== 'web') {
       haptics.mediumImpact();
     }
-    
-    // Check if payout biometric is enabled OR if payout PIN exists OR if app lock PIN exists (as fallback)
+
     const requiresVerification = payoutBiometricEnabled || hasPayoutPin || hasAppLockPin;
-    
     if (!requiresVerification) {
       console.log('Create Payout - No verification required, proceeding without PIN/biometric');
       await handleConfirmPayout();
       return;
     }
-    
-    console.log('Create Payout - Verification required', { 
-      payoutBiometricEnabled, 
-      hasPayoutPin, 
-      hasAppLockPin 
+
+    console.log('Create Payout - Verification required', {
+      payoutBiometricEnabled,
+      hasPayoutPin,
+      hasAppLockPin,
     });
-    
-    // Show PIN verification modal (will auto-trigger biometric if enabled)
     setShowPinVerification(true);
-  }, [hasInsufficientBalance, numericTotalAmount, availableBalance, haptics, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin, handleConfirmPayout]);
+  }, [isLoading, haptics, hasPayoutPin, payoutBiometricEnabled, hasAppLockPin, handleConfirmPayout]);
 
   const handlePinVerificationSuccess = useCallback(async () => {
     setShowPinVerification(false);
@@ -454,11 +429,13 @@ export default function ReviewScreen() {
             if (Platform.OS !== 'web') {
               haptics.lightImpact();
             }
-            router.back();
+            handleLeaveAttempt();
           }} 
-          style={styles.backButton}
+          style={[styles.backButton, isLoading && styles.navDisabled]}
+          disabled={isLoading}
+          accessibilityState={{ disabled: isLoading, busy: isLoading }}
         >
-          <ArrowLeft size={24} color={colors.text} />
+          <ArrowLeft size={24} color={isLoading ? colors.textTertiary : colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>New Payout plan</Text>
         <Pressable 
@@ -466,11 +443,13 @@ export default function ReviewScreen() {
             if (Platform.OS !== 'web') {
               haptics.lightImpact();
             }
-            router.push('/(tabs)');
+            handleCancelAttempt();
           }} 
-          style={styles.cancelButton}
+          style={[styles.cancelButton, isLoading && styles.navDisabled]}
+          disabled={isLoading}
+          accessibilityState={{ disabled: isLoading, busy: isLoading }}
         >
-          <X size={24} color={colors.text} />
+          <X size={24} color={isLoading ? colors.textTertiary : colors.text} />
         </Pressable>
       </View>
 
@@ -490,38 +469,6 @@ export default function ReviewScreen() {
             </Text>
 
             {error && <ErrorMessage message={error} />}
-
-            {showWalletRetry && (
-              <View style={styles.warningBox}>
-                <AlertTriangle size={20} color={colors.warning ?? colors.error} />
-                <View style={{ flex: 1, gap: 8 }}>
-                  <Text style={styles.warningText}>
-                    Couldn&apos;t load your wallet balance. Check your connection and try again.
-                  </Text>
-                  <Pressable
-                    onPress={() => {
-                      if (Platform.OS !== 'web') haptics.selection();
-                      void refreshBalance({ blockUi: true });
-                    }}
-                    style={styles.retryBalanceButton}
-                  >
-                    <RefreshCw size={16} color={colors.primary} />
-                    <Text style={styles.retryBalanceText}>
-                      {isRefreshing ? 'Retrying…' : 'Retry'}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-            
-            {hasInsufficientBalance && (
-              <View style={styles.warningBox}>
-                <AlertTriangle size={20} color={colors.error} />
-                <Text style={styles.warningText}>
-                  Insufficient balance. You need ₦{numericTotalAmount.toLocaleString()} but only have ₦{availableBalance.toLocaleString()} available. Fees are deducted from this amount.
-                </Text>
-              </View>
-            )}
 
             <View style={styles.detailsList}>
               {purpose ? (
@@ -945,9 +892,9 @@ export default function ReviewScreen() {
       </Modal>
 
       <FloatingButton 
-        title={isLoading ? "Processing..." : "Start Payout Plan"}
+        title={isLoading ? 'Creating your payout plan…' : 'Start Payout Plan'}
         onPress={handleStartPlan}
-        disabled={isLoading || hasInsufficientBalance}
+        disabled={!continueEnabled}
         loading={isLoading}
       />
 
@@ -999,6 +946,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+  },
+  navDisabled: {
+    opacity: 0.4,
   },
   progressContainer: {
     padding: 20,
@@ -1054,6 +1004,34 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     color: colors.error,
     lineHeight: 20,
+  },
+  balanceStatusBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surface,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  balanceStatusText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  balanceReadyBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  balanceReadyText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
   },
   retryBalanceButton: {
     flexDirection: 'row',

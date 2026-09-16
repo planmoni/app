@@ -10,8 +10,8 @@ const AUTH_EXPIRED_PATTERNS = [
   'session_not_found',
 ];
 
-/** Only refresh when the access token expires within this window. */
-const REFRESH_IF_EXPIRES_WITHIN_SEC = 120;
+/** Only refresh when the stored access token is near expiry. */
+const REFRESH_IF_EXPIRES_WITHIN_SEC = 60;
 const REFRESH_SESSION_TIMEOUT_MS = 8000;
 
 export type ReconnectResult = {

@@ -16,6 +16,8 @@ type BalanceContextType = {
   availableBalance: number;
   /** True only when React Query has real wallet data (not a silent zero fallback). */
   hasWalletData: boolean;
+  /** True when we have cached/memory data but the last network refresh failed. */
+  isWalletStale: boolean;
   walletStatus: WalletStatus;
   isLoading: boolean;
   isTimedOut: boolean;
@@ -120,6 +122,7 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
     lockedBalance: isAuthenticated ? wallet.lockedBalance : 0,
     availableBalance: isAuthenticated ? wallet.availableBalance : 0,
     hasWalletData: isAuthenticated ? wallet.hasWalletData : false,
+    isWalletStale: isAuthenticated ? !!wallet.isStale : false,
     walletStatus: (isAuthenticated ? wallet.walletStatus : 'ready') as WalletStatus,
     isLoading: isAuthenticated ? wallet.isLoading : false,
     isTimedOut: isAuthenticated ? wallet.isTimedOut : false,
@@ -134,6 +137,7 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
     wallet.lockedBalance,
     wallet.availableBalance,
     wallet.hasWalletData,
+    wallet.isStale,
     wallet.walletStatus,
     wallet.isLoading,
     wallet.isTimedOut,

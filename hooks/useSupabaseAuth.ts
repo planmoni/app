@@ -201,6 +201,7 @@ export function useSupabaseAuth() {
             
             if (restored && mounted) {
               resolvedSession = storedSession;
+              seedSessionCache(storedSession);
               setSession(storedSession);
               console.log('✅ Session fully restored and set in state');
               console.log('🎉 User should now be logged in after device restart');
@@ -213,7 +214,8 @@ export function useSupabaseAuth() {
             } else {
               console.log('❌ Failed to restore session in Supabase, falling back to Supabase check');
               console.log('🔄 This might happen if the session is invalid or corrupted');
-              // Fall through to Supabase check
+              // Force fall-through to getSession() below
+              resolvedSession = null;
             }
           }
         } else if (storedSession && isSessionExpired(storedSession)) {
@@ -226,6 +228,7 @@ export function useSupabaseAuth() {
             
             if (refreshedSession && mounted) {
               resolvedSession = refreshedSession;
+              seedSessionCache(refreshedSession);
               setSession(refreshedSession);
               console.log('✅ Session refreshed and restored successfully');
               
@@ -248,10 +251,11 @@ export function useSupabaseAuth() {
           }
         }
         
-        // If no stored session or restoration failed, check Supabase
-        if (!storedSession || isSessionExpired(storedSession)) {
-          console.log('📭 No valid stored session, checking Supabase...');
-          console.log('🔍 Reason:', !storedSession ? 'No stored session' : 'Stored session expired');
+        // Always reconcile with the Supabase client when we do not yet have a usable session.
+        // Previously, a non-expired storedSession + failed setSession skipped getSession() entirely
+        // — first open looked "logged in"/broken until app reopen.
+        if (!resolvedSession?.user?.id) {
+          console.log('📭 No usable restored session, checking Supabase getSession()...');
           
           // Get initial session from Supabase
           const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -267,6 +271,7 @@ export function useSupabaseAuth() {
             if (session?.user?.id && !isSessionExpired(session)) {
               if (mounted) {
                 resolvedSession = session;
+                seedSessionCache(session);
                 setSession(session);
               }
               
@@ -279,13 +284,30 @@ export function useSupabaseAuth() {
                 console.log('📸 Profile snapshot loaded for new session');
               }
             } else if (session && (!session.user?.id || isSessionExpired(session))) {
-              // Session exists but is invalid or expired - clear it
-              console.log('⚠️ Initial session is invalid or expired, clearing');
-              await prepareExpiredSessionState(session);
-              if (mounted) {
-                resolvedSession = null;
-                setSession(null);
-                setError('Session expired or invalid');
+              // Session exists but is invalid or expired - try refresh once before clearing
+              if (session.user?.id && canRefreshSession(session)) {
+                console.log('⚠️ Initial session expired, attempting one refresh…');
+                const refreshed = await refreshExpiredSession(session);
+                if (refreshed?.user?.id && mounted) {
+                  resolvedSession = refreshed;
+                  seedSessionCache(refreshed);
+                  setSession(refreshed);
+                } else {
+                  await prepareExpiredSessionState(session);
+                  if (mounted) {
+                    resolvedSession = null;
+                    setSession(null);
+                    setError('Session expired or invalid');
+                  }
+                }
+              } else {
+                console.log('⚠️ Initial session is invalid or expired, clearing');
+                await prepareExpiredSessionState(session);
+                if (mounted) {
+                  resolvedSession = null;
+                  setSession(null);
+                  setError('Session expired or invalid');
+                }
               }
             } else {
               // No session at all
