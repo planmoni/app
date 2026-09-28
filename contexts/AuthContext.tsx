@@ -3,6 +3,7 @@ import { Session } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { supabase } from '@/lib/supabase';
 import { BiometricService } from '@/lib/biometrics';
 import { ProfileSnapshotManager } from '@/lib/profileSnapshot';
 import { createUserScopedStorage } from '@/lib/user-scoped-storage';
@@ -234,10 +235,43 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { success: false, error: result.error };
       }
 
-      // Leave password screen immediately — do not await device / email / cache work.
+      const currentSession = result.session ?? null;
+
+      if (currentSession?.user?.id) {
+        try {
+          const { DeviceInfoService } = await import('@/lib/device-info');
+          const { ActiveSessionService } = await import('@/lib/active-session-service');
+          const deviceFingerprint = await DeviceInfoService.generateDeviceFingerprint();
+          const sessionCheck = await ActiveSessionService.checkActiveSession(
+            currentSession.user.id,
+            deviceFingerprint
+          );
+
+          if (sessionCheck.hasActiveSession && !sessionCheck.isSameDevice) {
+            const deviceInfo = sessionCheck.activeSessionInfo?.deviceInfo;
+            const deviceDescription = deviceInfo
+              ? `${deviceInfo.device_manufacturer} ${deviceInfo.device_model} (${deviceInfo.os_name})`
+              : 'another device';
+
+            // Revoke only this new login. Do not clear the other device's lock.
+            await supabase.auth.signOut({ scope: 'local' });
+            showToast(
+              `You are already logged in on ${deviceDescription}. Please log out from that device first.`,
+              'error',
+              5000
+            );
+            return {
+              success: false,
+              error: `You are already logged in on ${deviceDescription}. Please log out from that device first.`,
+            };
+          }
+        } catch (error) {
+          console.warn('Device login check failed, allowing sign-in:', error);
+        }
+      }
+
       router.replace('/(tabs)');
 
-      const currentSession = result.session ?? null;
       void (async () => {
         try {
           await clearExpiredSessionRecovery();
@@ -253,42 +287,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const { DeviceInfoService } = await import('@/lib/device-info');
           const { ActiveSessionService } = await import('@/lib/active-session-service');
 
-          const deviceFingerprint = await DeviceInfoService.generateDeviceFingerprint();
-          const sessionCheck = await ActiveSessionService.checkActiveSession(
+          const loginSession = await DeviceInfoService.createLoginSession(
             currentSession.user.id,
-            deviceFingerprint
+            currentSession.access_token
           );
-
-          if (sessionCheck.hasActiveSession && !sessionCheck.isSameDevice) {
-            console.log('⚠️ Active session found on different device, signing out...');
-            const deviceInfo = sessionCheck.activeSessionInfo?.deviceInfo;
-            const deviceDescription = deviceInfo
-              ? `${deviceInfo.device_manufacturer} ${deviceInfo.device_model} (${deviceInfo.os_name})`
-              : 'another device';
-
-            await supabaseSignOut();
-            showToast(
-              `You are already logged in on ${deviceDescription}. Please log out from that device first.`,
-              'error',
-              5000
-            );
-            router.replace('/(auth)/login');
-            return;
+          if (loginSession?.id) {
+            await ActiveSessionService.activateSession(loginSession.id, currentSession.user.id);
           }
+        } catch (error) {
+          console.error('Failed to track login session:', error);
+        }
 
           try {
-            const loginSession = await DeviceInfoService.createLoginSession(
-              currentSession.user.id,
-              currentSession.access_token
-            );
-            if (loginSession?.id) {
-              await ActiveSessionService.activateSession(loginSession.id, currentSession.user.id);
-            }
-          } catch (error) {
-            console.error('Failed to track login session:', error);
-          }
-
-          try {
+            const { DeviceInfoService } = await import('@/lib/device-info');
             const deviceInfo = await DeviceInfoService.getDeviceInfo();
             const locationInfo = await DeviceInfoService.getLocationInfo();
             const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -317,9 +328,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           } catch (error) {
             console.error('Failed to send login notification:', error);
           }
-        } catch (error) {
-          console.warn('Background post-login work failed:', error);
-        }
       })();
 
       return { success: true };

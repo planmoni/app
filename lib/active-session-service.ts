@@ -24,10 +24,27 @@ export class ActiveSessionService {
   }
 
   /**
-   * Check if user has an active session on a different device
-   * @param userId - The user ID to check
-   * @param deviceFingerprint - The fingerprint of the current device attempting to log in
-   * @returns Object with hasActiveSession flag and device info if active session exists
+   * Drop this device's single-device lock before the auth session is revoked.
+   */
+  static async releaseCurrentLock(deviceFingerprint: string): Promise<boolean> {
+    try {
+      const { error } = await supabase.rpc('release_current_login_lock', {
+        p_fingerprint: deviceFingerprint,
+      });
+      if (error) {
+        console.error('Error releasing login lock:', error);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Error in releaseCurrentLock:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if user has an active session on a different device.
+   * Stale locks (logged-out auth sessions) are cleared on the server first.
    */
   static async checkActiveSession(
     userId: string,
@@ -38,6 +55,62 @@ export class ActiveSessionService {
     activeSessionInfo: ActiveSessionInfo | null;
   }> {
     try {
+      const { data: evaluation, error: evalError } = await supabase.rpc(
+        'evaluate_device_login',
+        { p_fingerprint: deviceFingerprint }
+      );
+
+      let parsedEvaluation: unknown = evaluation;
+      if (typeof evaluation === 'string') {
+        try {
+          parsedEvaluation = JSON.parse(evaluation);
+        } catch {
+          parsedEvaluation = null;
+        }
+      }
+
+      if (!evalError && parsedEvaluation && typeof parsedEvaluation === 'object') {
+        const result = parsedEvaluation as {
+          allowed?: boolean;
+          same_device?: boolean;
+          device_manufacturer?: string;
+          device_model?: string;
+          os_name?: string;
+        };
+
+        if (result.allowed) {
+          return {
+            hasActiveSession: false,
+            isSameDevice: !!result.same_device,
+            activeSessionInfo: null,
+          };
+        }
+
+        return {
+          hasActiveSession: true,
+          isSameDevice: false,
+          activeSessionInfo: {
+            sessionId: '',
+            deviceFingerprint: '',
+            deviceInfo: {
+              device_type: 'Mobile',
+              device_model: result.device_model || 'Unknown',
+              device_manufacturer: result.device_manufacturer || 'Unknown',
+              os_name: result.os_name || 'Unknown',
+              os_version: '',
+              screen_resolution: '',
+              city: '',
+              country: '',
+            },
+            loginTimestamp: new Date().toISOString(),
+          },
+        };
+      }
+
+      if (evalError) {
+        console.warn('evaluate_device_login unavailable, using login_sessions:', evalError.message);
+      }
+
       // Get the active session for this user
       const { data: activeSession, error } = await supabase
         .from('login_sessions')

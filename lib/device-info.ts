@@ -1,6 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import { Dimensions, Platform } from 'react-native';
 import Constants from 'expo-constants';
+
+const INSTALL_DEVICE_ID_KEY = 'planmoni_install_device_id';
 
 export interface DeviceInfo {
   device_type: string;
@@ -130,35 +133,22 @@ export class DeviceInfoService {
   }
 
   /**
-   * Generate a unique device fingerprint based on device characteristics
-   * This is used to identify if a login attempt is from the same device
+   * Stable id for this app install. Screen size and OS version change across
+   * launches, so they must not be used to decide "same device".
    */
   static async generateDeviceFingerprint(): Promise<string> {
     try {
-      const deviceInfo = await this.getDeviceInfo();
-      
-      // Create fingerprint from device model, OS, OS version, and screen resolution
-      // This combination should uniquely identify a device
-      const fingerprintParts = [
-        deviceInfo.device_model,
-        deviceInfo.os_name,
-        deviceInfo.os_version,
-        deviceInfo.screen_resolution
-      ];
-      
-      // Join parts with a separator and create a hash-like string
-      // For better uniqueness, we can also include manufacturer
-      const fullFingerprint = [
-        deviceInfo.device_manufacturer,
-        ...fingerprintParts
-      ].join('|');
-      
-      // Return the fingerprint (could be hashed if needed, but plain text is fine for now)
-      return fullFingerprint;
+      const existing = await AsyncStorage.getItem(INSTALL_DEVICE_ID_KEY);
+      if (existing) return existing;
+
+      const generated =
+        globalThis.crypto?.randomUUID?.() ??
+        `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+      await AsyncStorage.setItem(INSTALL_DEVICE_ID_KEY, generated);
+      return generated;
     } catch (error) {
       console.error('Error generating device fingerprint:', error);
-      // Return a fallback fingerprint
-      return `Unknown|${Platform.OS}|Unknown|Unknown`;
+      return `Unknown|${Platform.OS}`;
     }
   }
 

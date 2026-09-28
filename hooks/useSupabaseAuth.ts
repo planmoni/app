@@ -710,6 +710,22 @@ export function useSupabaseAuth() {
     const userId = session?.user?.id;
     const sessionId = session?.access_token;
 
+    // Release the single-device lock while the auth token is still valid.
+    // Doing this after signOut left is_active=true and blocked the next login.
+    if (userId) {
+      try {
+        const { DeviceInfoService } = await import('@/lib/device-info');
+        const { ActiveSessionService } = await import('@/lib/active-session-service');
+        const fingerprint = await DeviceInfoService.generateDeviceFingerprint();
+        const released = await ActiveSessionService.releaseCurrentLock(fingerprint);
+        if (!released) {
+          await ActiveSessionService.deactivateSession(sessionId ?? '', userId);
+        }
+      } catch {
+        console.log('Note: Could not deactivate session (may already be invalid)');
+      }
+    }
+
     // Optimistic local sign-out — never set isLoading (avoids splash overlay).
     setSession(null);
     setError(null);
@@ -720,12 +736,6 @@ export function useSupabaseAuth() {
 
     void (async () => {
       if (userId) {
-        try {
-          const { ActiveSessionService } = await import('@/lib/active-session-service');
-          await ActiveSessionService.deactivateSession(sessionId ?? '', userId);
-        } catch {
-          console.log('Note: Could not deactivate session (may already be invalid)');
-        }
         try {
           await ProfileSnapshotManager.clearProfileSnapshot(userId);
         } catch {
