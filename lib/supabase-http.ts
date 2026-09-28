@@ -3,8 +3,9 @@
  * Timeouts abort the underlying HTTP so hung PostgREST calls do not keep
  * occupying the connection after the client has moved on.
  *
- * Mass abort remains a no-op (unsafe). Per-request abort is opt-in via
- * runWithAbortSignal / withTimeout's AbortController.
+ * Every request registers its AbortController. abortAllSupabaseFetches()
+ * drops sockets that iOS left hanging across a long background. New requests
+ * after that abort get fresh controllers.
  */
 
 type AbortContext = {
@@ -12,6 +13,7 @@ type AbortContext = {
 };
 
 const abortStack: AbortContext[] = [];
+const inFlight = new Set<AbortController>();
 
 export function getActiveAbortSignal(): AbortSignal | undefined {
   return abortStack.length > 0 ? abortStack[abortStack.length - 1]!.signal : undefined;
@@ -59,14 +61,31 @@ export async function supabaseGlobalFetch(
   init?: RequestInit
 ): Promise<Response> {
   const controller = new AbortController();
+  inFlight.add(controller);
   const signal = combineSignals(init?.signal ?? getActiveAbortSignal(), controller);
-  return fetch(input, {
-    ...init,
-    signal,
-  });
+  try {
+    return await fetch(input, {
+      ...init,
+      signal,
+    });
+  } finally {
+    inFlight.delete(controller);
+  }
 }
 
-/** @deprecated Mass abort is unsafe — prefer per-request AbortSignal. */
+/**
+ * Abort every in-flight Supabase HTTP call.
+ * Used when the app leaves the foreground, and again before the resume refetch,
+ * so a dead socket cannot hold the auth lock.
+ */
 export function abortAllSupabaseFetches(): void {
-  // No-op: mass abort was killing active loads and leaving spinners stuck.
+  const pending = [...inFlight];
+  inFlight.clear();
+  for (const controller of pending) {
+    try {
+      controller.abort();
+    } catch {
+      // ignore
+    }
+  }
 }

@@ -23,7 +23,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      refetchOnWindowFocus: true,
+      // Resume refetch is owned by useForegroundRefreshCoordinator, after one
+      // session check. Window-focus refetch was stampeding the auth lock.
+      refetchOnWindowFocus: false,
       refetchOnReconnect: true,
       staleTime: 5 * 60 * 1000,
       // Wallet overrides this with networkMode: 'online' + staleTime: 0

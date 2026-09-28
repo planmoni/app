@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { getSessionSerialized } from '@/lib/supabase-session';
+import { runWithAbortSignal } from '@/lib/supabase-http';
 import type { Session } from '@supabase/supabase-js';
 
 const AUTH_EXPIRED_PATTERNS = [
@@ -29,6 +30,17 @@ let refreshInFlight: Promise<{
   error: string | null;
   timedOut: boolean;
 }> | null = null;
+/** Aborts the HTTP inside the current refreshSession so the GoTrue lock is released. */
+let refreshAbort: AbortController | null = null;
+
+/** Drop a refresh that timed out or was left hanging across background. */
+export function abortInFlightAuthRefresh(): void {
+  try {
+    refreshAbort?.abort();
+  } catch {
+    // ignore
+  }
+}
 
 export function setAuthExpiredHandler(handler: (() => void) | null): void {
   authExpiredHandler = handler;
@@ -56,13 +68,22 @@ async function refreshSessionWithTimeout(): Promise<{
   error: string | null;
   timedOut: boolean;
 }> {
+  const abort = new AbortController();
+  refreshAbort = abort;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
   try {
-    const result = await Promise.race([
-      supabase.auth.refreshSession(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('refreshSession timed out')), REFRESH_SESSION_TIMEOUT_MS)
-      ),
-    ]);
+    const result = await runWithAbortSignal(abort.signal, () =>
+      Promise.race([
+        supabase.auth.refreshSession(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            abort.abort();
+            reject(new Error('refreshSession timed out'));
+          }, REFRESH_SESSION_TIMEOUT_MS);
+        }),
+      ])
+    );
 
     if (result.error) {
       return { session: null, error: result.error.message, timedOut: false };
@@ -70,11 +91,15 @@ async function refreshSessionWithTimeout(): Promise<{
     return { session: result.data.session ?? null, error: null, timedOut: false };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const aborted = abort.signal.aborted || message.toLowerCase().includes('abort');
     return {
       session: null,
-      error: message,
-      timedOut: message.includes('timed out'),
+      error: aborted ? 'refreshSession timed out' : message,
+      timedOut: aborted || message.includes('timed out'),
     };
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (refreshAbort === abort) refreshAbort = null;
   }
 }
 

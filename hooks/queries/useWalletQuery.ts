@@ -49,7 +49,8 @@ export function useWalletQuery() {
     gcTime: 30 * 60 * 1000,
     refetchOnMount: mutationPaused ? false : 'always',
     refetchOnReconnect: !mutationPaused,
-    refetchOnWindowFocus: !mutationPaused,
+    // Foreground coordinator refetches the wallet after the session check.
+    refetchOnWindowFocus: false,
     // Pause polling while create-payout (etc.) holds the connection
     refetchInterval: mutationPaused ? false : WALLET_POLL_MS,
     refetchIntervalInBackground: false,

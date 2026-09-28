@@ -5,6 +5,9 @@ import {
   getLastBackgroundDurationMs,
 } from '@/hooks/useAppForeground';
 import { ensureSupabaseConnection } from '@/lib/supabase-connection';
+import { abortAllSupabaseFetches } from '@/lib/supabase-http';
+import { abortInFlightAuthRefresh } from '@/lib/supabase-reconnect';
+import { isFinancialMutationActive } from '@/lib/financial-mutation-gate';
 import { queryClient } from '@/contexts/QueryClientProvider';
 import { isFinancialQueryKey } from '@/lib/queries/keys';
 import NetInfo from '@react-native-community/netinfo';
@@ -116,6 +119,13 @@ function resolveRefreshMode(isColdStart: boolean): RefreshMode {
 
 async function runForegroundRefresh(isColdStart: boolean): Promise<void> {
   const startedAt = Date.now();
+
+  // Hung pre-suspension fetches hold the auth lock. Clear them before any refetch.
+  if (!isColdStart && !isFinancialMutationActive()) {
+    abortInFlightAuthRefresh();
+    abortAllSupabaseFetches();
+  }
+
   const mode = resolveRefreshMode(isColdStart);
 
   if (mode === 'skip') {

@@ -276,11 +276,27 @@ export function useCreatePayout() {
           err instanceof CreatePayoutPlanError &&
           (err.code === 'TIMEOUT' || err.code === 'NETWORK')
         ) {
-          const found = await findPayoutPlanByIdempotencyKey(
-            session.user.id,
-            idempotencyKey,
-            { flowId: err.flowId, requestId: err.requestId }
-          );
+          let found: { id: string; plan: Record<string, unknown> } | null = null;
+          try {
+            const { ensureSupabaseConnection } = await import('@/lib/supabase-connection');
+            await ensureSupabaseConnection({ skipProbe: true, lightweight: true });
+            found = await findPayoutPlanByIdempotencyKey(
+              session.user.id,
+              idempotencyKey,
+              { flowId: err.flowId, requestId: err.requestId }
+            );
+          } catch (lookupErr) {
+            console.warn('[create-payout] idempotency lookup failed', lookupErr);
+            throw new CreatePayoutPlanError(
+              "We're still confirming your payout plan. Please wait a moment, then check Plans — do not create again yet.",
+              'UNKNOWN_RESULT',
+              {
+                flowId: err.flowId,
+                requestId: err.requestId,
+                idempotencyKey,
+              }
+            );
+          }
           if (found) {
             result = {
               success: true,

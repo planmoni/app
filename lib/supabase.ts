@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 import { secureStoreAdapter } from './SecureStoreAdapter';
-import { supabaseGlobalFetch } from './supabase-http';
+import { abortAllSupabaseFetches, supabaseGlobalFetch } from './supabase-http';
 
 // Polyfill crypto.getRandomValues for PKCE when native module is missing (e.g. simulator).
 // Supabase auth with flowType: 'pkce' needs getRandomValues; react-native-get-random-values
@@ -71,9 +71,12 @@ if (supabaseUrl && supabaseAnonKey) {
     const syncAutoRefresh = (state: AppStateStatus) => {
       try {
         if (state === 'active') {
+          // Drop sockets left hanging while suspended, then allow a fresh refresh.
+          abortAllSupabaseFetches();
           supabase.auth.startAutoRefresh();
         } else {
           supabase.auth.stopAutoRefresh();
+          abortAllSupabaseFetches();
         }
       } catch (err) {
         if (__DEV__) {
