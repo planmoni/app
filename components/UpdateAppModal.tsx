@@ -9,7 +9,7 @@ import { logAnalyticsEvent } from '@/lib/firebase';
 
 export default function UpdateAppModal() {
   const { colors } = useTheme();
-  const { needsUpdate, updateData, dismissUpdate, currentVersion, currentBuild } = useAppVersion();
+  const { needsUpdate, versionExpired, updateData, dismissUpdate, currentVersion, currentBuild } = useAppVersion();
   const haptics = useHaptics();
 
   // Debug logging
@@ -21,9 +21,10 @@ export default function UpdateAppModal() {
       currentBuild,
       serverVersion: updateData?.ios_version || updateData?.android_version,
       serverBuild: updateData?.ios_build || updateData?.android_build,
-      forceUpdate: updateData?.force_update
+      forceUpdate: updateData?.force_update,
+      versionExpired,
     });
-  }, [needsUpdate, updateData, currentVersion, currentBuild]);
+  }, [needsUpdate, updateData, currentVersion, currentBuild, versionExpired]);
 
   if (!needsUpdate || !updateData) {
     return null;
@@ -32,7 +33,7 @@ export default function UpdateAppModal() {
   const newVersion = Platform.OS === 'android' ? updateData.android_version : updateData.ios_version;
   const newBuild = Platform.OS === 'android' ? updateData.android_build : updateData.ios_build;
   const updateUrl = Platform.OS === 'android' ? updateData.android_update_url : updateData.ios_update_url;
-  const isForceUpdate = updateData.force_update;
+  const isForceUpdate = updateData.force_update || versionExpired;
 
   const handleUpdate = async () => {
     try {
@@ -108,7 +109,10 @@ export default function UpdateAppModal() {
           </Text>
 
           <Text style={styles.message}>
-            {updateData.update_message}
+            {versionExpired
+              ? (updateData.update_message ||
+                'This version of Planmoni is no longer supported. Update to keep using the app.')
+              : updateData.update_message}
           </Text>
 
           <View style={styles.versionComparisonContainer}>

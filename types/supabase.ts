@@ -342,6 +342,8 @@ export interface Database {
           ios_update_url: string
           update_message: string
           force_update: boolean
+          ios_min_version: string | null
+          android_min_version: string | null
           is_active: boolean
           created_at: string
           updated_at: string
@@ -356,6 +358,8 @@ export interface Database {
           ios_update_url?: string
           update_message?: string
           force_update?: boolean
+          ios_min_version?: string | null
+          android_min_version?: string | null
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -370,6 +374,8 @@ export interface Database {
           ios_update_url?: string
           update_message?: string
           force_update?: boolean
+          ios_min_version?: string | null
+          android_min_version?: string | null
           is_active?: boolean
           created_at?: string
           updated_at?: string

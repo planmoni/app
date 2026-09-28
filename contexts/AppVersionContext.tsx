@@ -13,10 +13,14 @@ type AppVersionData = {
   ios_update_url: string;
   update_message: string;
   force_update: boolean;
+  ios_min_version?: string | null;
+  android_min_version?: string | null;
 };
 
 type AppVersionContextType = {
   needsUpdate: boolean;
+  /** Installed version is below the configured minimum and must update. */
+  versionExpired: boolean;
   updateData: AppVersionData | null;
   currentVersion: string;
   currentBuild: number;
@@ -32,6 +36,7 @@ const DISMISSED_BUILD_KEY = 'dismissed_update_build';
 
 export function AppVersionProvider({ children }: { children: React.ReactNode }) {
   const [needsUpdate, setNeedsUpdate] = useState(false);
+  const [versionExpired, setVersionExpired] = useState(false);
   const [updateData, setUpdateData] = useState<AppVersionData | null>(null);
   const [isChecking, setIsChecking] = useState(false);
 
@@ -83,6 +88,7 @@ export function AppVersionProvider({ children }: { children: React.ReactNode }) 
           hint: error.hint
         });
         setNeedsUpdate(false);
+        setVersionExpired(false);
         setUpdateData(null);
         return;
       }
@@ -90,30 +96,48 @@ export function AppVersionProvider({ children }: { children: React.ReactNode }) 
       if (!data) {
         console.log('ℹ️ No active version found in database');
         setNeedsUpdate(false);
+        setVersionExpired(false);
         setUpdateData(null);
         return;
       }
 
       console.log('📦 Server version data:', data);
 
-      // Determine which version to check based on platform
       const serverVersion = Platform.OS === 'android' ? data.android_version : data.ios_version;
       const serverBuild = Platform.OS === 'android' ? data.android_build : data.ios_build;
+      const minVersion =
+        Platform.OS === 'android' ? data.android_min_version : data.ios_min_version;
+      const belowMinimum = !!minVersion && compareVersions(currentVersion, minVersion) < 0;
 
       console.log('🔍 Version comparison:', {
         current: { version: currentVersion, build: currentBuild },
-        server: { version: serverVersion, build: serverBuild }
+        server: { version: serverVersion, build: serverBuild },
+        minimum: minVersion || null,
+        belowMinimum,
       });
 
-      // Check if update is needed (compare build numbers for accuracy)
       const buildNeedsUpdate = currentBuild < serverBuild;
       const versionNeedsUpdate = compareVersions(currentVersion, serverVersion) < 0;
 
       console.log('📊 Update check results:', {
         buildNeedsUpdate,
         versionNeedsUpdate,
-        needsUpdate: buildNeedsUpdate || versionNeedsUpdate
+        belowMinimum,
+        needsUpdate: belowMinimum || buildNeedsUpdate || versionNeedsUpdate
       });
+
+      if (belowMinimum) {
+        console.log('⛔ Installed version is below the minimum. Update is required.', {
+          currentVersion,
+          minVersion,
+        });
+        setUpdateData(data);
+        setVersionExpired(true);
+        setNeedsUpdate(true);
+        return;
+      }
+
+      setVersionExpired(false);
 
       if (buildNeedsUpdate || versionNeedsUpdate) {
         // Check if user has dismissed this version/build
@@ -194,7 +218,7 @@ export function AppVersionProvider({ children }: { children: React.ReactNode }) 
   }, [currentVersion, currentBuild]);
 
   const dismissUpdate = useCallback(async () => {
-    if (!updateData) return;
+    if (!updateData || versionExpired || updateData.force_update) return;
 
     try {
       // Save both the dismissed version and build number
@@ -213,7 +237,7 @@ export function AppVersionProvider({ children }: { children: React.ReactNode }) 
     } catch (error) {
       console.error('❌ Error dismissing update:', error);
     }
-  }, [updateData]);
+  }, [updateData, versionExpired]);
 
   // Check for updates on mount
   useEffect(() => {
@@ -233,6 +257,7 @@ export function AppVersionProvider({ children }: { children: React.ReactNode }) 
     <AppVersionContext.Provider
       value={{
         needsUpdate,
+        versionExpired,
         updateData,
         currentVersion,
         currentBuild,

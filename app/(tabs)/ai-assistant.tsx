@@ -106,6 +106,99 @@ function wordsToNumber(words: string): number | null {
   return found ? result : null;
 }
 
+/** Duration chips from the manual create-payout screen. */
+function allowedPayoutCounts(frequency: string, totalAmount: number): number[] {
+  const below50k = totalAmount > 0 && totalAmount < 50000;
+  switch (frequency) {
+    case 'daily':
+      return below50k ? [7] : [7, 30, 90];
+    case 'weekly':
+    case 'weekly_specific':
+      return below50k ? [4, 12] : [4, 12, 24, 52];
+    case 'biweekly':
+      return below50k ? [2, 6] : [2, 6, 12, 26];
+    case 'quarterly':
+      return [1, 2, 4, 8];
+    case 'biannual':
+      return [1, 2, 4, 6];
+    case 'annually':
+      return [1, 2, 3, 5];
+    default:
+      return below50k ? [1, 3] : [1, 3, 6, 12];
+  }
+}
+
+function snapPayoutCount(requested: number, options: number[]): number {
+  const max = Math.max(...options);
+  const safe = Number.isFinite(requested) && requested > 0 ? requested : options[0];
+  const capped = Math.min(safe, max);
+  return options.reduce((best, option) =>
+    Math.abs(option - capped) < Math.abs(best - capped) ? option : best
+  );
+}
+
+function mapAiFrequency(raw: string | undefined) {
+  const value = (raw || '').toLowerCase().replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (value === 'daily') return 'daily' as const;
+  if (value === 'weekly') return 'weekly' as const;
+  if (value === 'biweekly' || value === 'bi weekly') return 'biweekly' as const;
+  if (value === 'specific day') return 'weekly_specific' as const;
+  if (value === 'month end' || value === 'end of month') return 'end_of_month' as const;
+  if (value === 'biannual' || value === 'bi annually' || value === 'biannually') return 'biannual' as const;
+  if (value === 'annually' || value === 'annual') return 'annually' as const;
+  if (value === 'quarterly') return 'quarterly' as const;
+  return 'monthly' as const;
+}
+
+function resolveAiPayoutSchedule({
+  frequency: rawFrequency,
+  targetAmount,
+  timeframeMonths,
+  explicitDuration,
+  dayOfWeek,
+}: {
+  frequency?: string;
+  targetAmount: number;
+  timeframeMonths: number;
+  explicitDuration?: number;
+  dayOfWeek?: number;
+}) {
+  const frequency = mapAiFrequency(rawFrequency);
+  const months = Math.min(12, Math.max(1, Math.round(Number(timeframeMonths) || 1)));
+  const options = allowedPayoutCounts(frequency, targetAmount);
+  const maxAllowed = Math.max(...options);
+  const explicit = Number(explicitDuration);
+  let requested: number;
+
+  if (Number.isFinite(explicit) && explicit > 0 && explicit <= maxAllowed) {
+    requested = explicit;
+  } else if (frequency === 'daily') {
+    requested = months <= 1 ? 7 : months <= 3 ? 30 : 90;
+  } else if (frequency === 'weekly' || frequency === 'weekly_specific') {
+    requested = Math.round(months * 4.33);
+  } else if (frequency === 'biweekly') {
+    requested = Math.round(months * 2);
+  } else if (frequency === 'quarterly') {
+    requested = Math.max(1, Math.round(months / 3));
+  } else if (frequency === 'biannual') {
+    requested = Math.max(1, Math.round(months / 6));
+  } else if (frequency === 'annually') {
+    requested = Math.max(1, Math.round(months / 12));
+  } else {
+    requested = months;
+  }
+
+  const duration = snapPayoutCount(requested, options);
+  const payoutAmount = duration > 0 ? Math.ceil(targetAmount / duration) : targetAmount;
+
+  return {
+    frequency,
+    duration,
+    payoutAmount,
+    dayOfWeek: frequency === 'weekly_specific' ? (dayOfWeek ?? 1) : undefined,
+  };
+}
+
 export default function AIAssistantScreen() {
   const { colors, isDark } = useTheme();
   const { session, isLoading: authLoading } = useAuth();
@@ -496,10 +589,10 @@ export default function AIAssistantScreen() {
         { user: "Help me plan 150k for 3 months", ai: '{"type": "plan", "content": "Here is a payout schedule to disburse ₦150,000 over 3 months.", "metadata": {"targetAmount": 150000, "timeframe": 3, "plans": [{"title": "Monthly Payout", "amount": 50000, "frequency": "monthly", "description": "Schedule a payout of ₦50,000 every month for 3 months."}]}}' },
         { user: "I want to payout 100k weekly for 2 months", ai: '{"type": "plan", "content": "Here is your weekly payout schedule.", "metadata": {"targetAmount": 100000, "timeframe": 2, "plans": [{"title": "Weekly Payout", "amount": 12500, "frequency": "weekly", "description": "Schedule a payout of ₦12,500 every week for 2 months."}]}}' },
         { user: "Disburse 60k biweekly for 6 months", ai: '{"type": "plan", "content": "Here is your bi-weekly payout schedule.", "metadata": {"targetAmount": 60000, "timeframe": 6, "plans": [{"title": "Bi-weekly Payout", "amount": 5000, "frequency": "biweekly", "description": "Schedule a payout of ₦5,000 every two weeks for 6 months."}]}}' },
-        { user: "I want to payout 10k daily for 10 days", ai: '{"type": "plan", "content": "Here is your daily payout schedule.", "metadata": {"targetAmount": 10000, "timeframe": 10, "plans": [{"title": "Daily Payout", "amount": 1000, "frequency": "daily", "description": "Schedule a payout of ₦1,000 every day for 10 days."}]}}' },
+        { user: "I want to payout 10k daily for 10 days", ai: '{"type": "plan", "content": "Here is your daily payout schedule.", "metadata": {"targetAmount": 10000, "timeframe": 1, "plans": [{"title": "Daily Payout", "amount": 1429, "frequency": "daily", "duration": 7, "description": "Schedule a payout of ₦1,429 every day for 7 days."}]}}' },
         { user: "Disburse 200k at the end of every month for 4 months", ai: '{"type": "plan", "content": "Here is your end-of-month payout schedule.", "metadata": {"targetAmount": 200000, "timeframe": 4, "plans": [{"title": "End-of-Month Payout", "amount": 50000, "frequency": "end_of_month", "description": "Schedule a payout of ₦50,000 at the end of each month for 4 months."}]}}' }
       ];
-      const systemPrompt = `You are Planmoni, a helpful, friendly, and expert payout scheduling assistant for Nigerian users.\nUser: ${getUserName()}\nAvailable balance: ₦${availableBalance.toLocaleString()}\nTotal balance: ₦${balance.toLocaleString()}\nLocked balance: ₦${lockedBalance.toLocaleString()}\n\nIMPORTANT: Planmoni is a payout scheduling app. Your job is to help users plan and schedule payouts over time, regardless of their current balance. Do NOT check if the user can "afford" a payout up front. Never block or warn about insufficient balance. Always suggest flexible payout schedules, and encourage users to schedule payouts as funds become available.\n\nUse only payout, schedule, disbursement, or plan your payouts language. Never use savings or saving plan language.\n\nIf the user asks for a payout schedule, respond ONLY with a valid JSON object like this:\n{\n  \"type\": \"plan\",\n  \"content\": \"summary of the payout schedule\",\n  \"metadata\": {\n    \"targetAmount\": 1000000,\n    \"timeframe\": 6,\n    \"plans\": [ {\n      \"title\": \"Weekly Payout\",\n      \"amount\": 50000,\n      \"frequency\": \"weekly\",\n      \"description\": \"Schedule a payout of ₦50,000 every week for 6 months." } ]\n  }\n}\nDo not include any text outside the JSON.\nIf the user's available balance is low, encourage them to schedule payouts as funds become available, and offer flexible options.\nBe positive, supportive, and empowering. Never block the user from seeing a payout schedule.\n\nHere are some examples:\n${examples.map(e => `User: ${e.user}\nAI: ${e.ai}`).join('\n')}\n\nIf you are unsure, say so in the content field. Do not make up numbers or facts.`;
+      const systemPrompt = `You are Planmoni, a helpful, friendly, and expert payout scheduling assistant for Nigerian users.\nUser: ${getUserName()}\nAvailable balance: ₦${availableBalance.toLocaleString()}\nTotal balance: ₦${balance.toLocaleString()}\nLocked balance: ₦${lockedBalance.toLocaleString()}\n\nIMPORTANT: Planmoni is a payout scheduling app. Your job is to help users plan and schedule payouts over time, regardless of their current balance. Do NOT check if the user can "afford" a payout up front. Never block or warn about insufficient balance. Always suggest flexible payout schedules, and encourage users to schedule payouts as funds become available.\n\nUse only payout, schedule, disbursement, or plan your payouts language. Never use savings or saving plan language.\n\ntimeframe is ALWAYS the number of months (1-12). duration is the number of payouts and MUST be one of the allowed values:\n- daily: 7, 30, or 90 (use 7 when the total is under ₦50,000)\n- weekly: 4, 12, 24, or 52\n- biweekly: 2, 6, 12, or 26\n- monthly or end_of_month: 1, 3, 6, or 12\nNever return a daily plan longer than 90 days. Never multiply months by 30 yourself if that result is not in the list above.\nEach plan.amount is the per-payout amount (targetAmount / duration), not the total.\n\nIf the user asks for a payout schedule, respond ONLY with a valid JSON object like this:\n{\n  \"type\": \"plan\",\n  \"content\": \"summary of the payout schedule\",\n  \"metadata\": {\n    \"targetAmount\": 1000000,\n    \"timeframe\": 6,\n    \"plans\": [ {\n      \"title\": \"Weekly Payout\",\n      \"amount\": 41667,\n      \"frequency\": \"weekly\",\n      \"duration\": 24,\n      \"description\": \"Schedule a payout of ₦41,667 every week for 6 months.\" } ]\n  }\n}\nDo not include any text outside the JSON.\nIf the user's available balance is low, encourage them to schedule payouts as funds become available, and offer flexible options.\nBe positive, supportive, and empowering. Never block the user from seeing a payout schedule.\n\nHere are some examples:\n${examples.map(e => `User: ${e.user}\nAI: ${e.ai}`).join('\n')}\n\nIf you are unsure, say so in the content field. Do not make up numbers or facts.`;
       const openaiResponse = await getOpenAIChatCompletion({
         messages: [
           { role: 'system', content: systemPrompt },
@@ -522,14 +615,13 @@ export default function AIAssistantScreen() {
         // Check if frequency is missing or ambiguous
         const planHasFrequency = parsed.metadata.plans.some((p: any) => p.frequency);
         if (!planHasFrequency) {
-          // Prompt user for frequency
           setPlanDraft(parsed);
           setPlanCreationStep('awaiting_frequency');
           setMessages(prev => [
             ...prev,
             {
               id: `ask-frequency-${Date.now()}`,
-              content: 'How often do you want your payouts? Please choose: weekly, specific day, bi-weekly, monthly, month end, bi-annually, annually, or custom schedule.',
+              content: 'How often do you want your payouts? Please choose: daily, weekly, specific day, bi-weekly, monthly, month end, bi-annually, or annually.',
               sender: 'ai',
               type: 'text',
               timestamp: new Date(),
@@ -538,6 +630,20 @@ export default function AIAssistantScreen() {
           ]);
           return;
         }
+        parsed.metadata.plans = parsed.metadata.plans.map((plan: any) => {
+          const schedule = resolveAiPayoutSchedule({
+            frequency: plan.frequency,
+            targetAmount: parsed.metadata.targetAmount || plan.amount || 0,
+            timeframeMonths: parsed.metadata.timeframe || 1,
+            explicitDuration: plan.duration,
+          });
+          return {
+            ...plan,
+            frequency: schedule.frequency,
+            duration: schedule.duration,
+            amount: schedule.payoutAmount,
+          };
+        });
         aiMessage = {
           id: Date.now().toString(),
           content: parsed.content || 'Here is a personalized payout schedule for you:',
@@ -1141,47 +1247,18 @@ export default function AIAssistantScreen() {
         const targetAmount = planDraft.metadata?.targetAmount || plan.amount || 0;
         const timeframe = planDraft.metadata?.timeframe || 1;
         
-        // Calculate payout amount and duration
-        const payoutAmount = Math.ceil(targetAmount / timeframe);
-        let duration = timeframe;
-        
-        // Map frequency to database format
-        let frequency: any = 'monthly';
-        let dayOfWeek: number | undefined;
-        
-        switch (plan.frequency) {
-          case 'daily':
-            frequency = 'daily';
-            // Use the duration from the plan if available, otherwise calculate from timeframe
-            duration = plan.duration || Math.ceil(timeframe * 30); // Default to days if timeframe is in months
-            break;
-          case 'weekly':
-            frequency = 'weekly';
-            break;
-          case 'bi-weekly':
-          case 'biweekly':
-            frequency = 'biweekly';
-            break;
-          case 'monthly':
-            frequency = 'monthly';
-            break;
-          case 'specific day':
-            frequency = 'weekly_specific';
-            dayOfWeek = selectedDayOfWeek !== null ? selectedDayOfWeek : 1; // Use selected day or default to Monday
-            break;
-          case 'month end':
-            frequency = 'end_of_month';
-            break;
-          case 'bi-annually':
-          case 'biannual':
-            frequency = 'biannual';
-            break;
-          case 'annually':
-            frequency = 'annually';
-            break;
-          default:
-            frequency = 'monthly';
-        }
+        // Calculate payout amount and duration to match the manual create-payout flow.
+        // timeframe is months. duration is the number of payouts, snapped to the
+        // same options the schedule screen offers. Never turn months into days
+        // with timeframe * 30 (that created 600-day daily plans).
+        const schedule = resolveAiPayoutSchedule({
+          frequency: plan.frequency,
+          targetAmount,
+          timeframeMonths: timeframe,
+          explicitDuration: plan.duration,
+          dayOfWeek: selectedDayOfWeek !== null ? selectedDayOfWeek : undefined,
+        });
+        const { frequency, duration, payoutAmount, dayOfWeek } = schedule;
 
         // Calculate start date (next occurrence based on frequency)
         const today = new Date();
