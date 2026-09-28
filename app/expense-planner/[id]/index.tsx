@@ -31,6 +31,7 @@ import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { useExpenseBuckets } from '@/hooks/useExpenseBuckets';
 import { isBudgetStarted, formatDateRange } from '@/lib/expensePlanUtils';
 import { supabase } from '@/lib/supabase';
+import { recoverPullToRefresh } from '@/lib/supabase-recover';
 
 const CATEGORY_COLORS: Record<string, string> = {
   travel: '#3B82F6',
@@ -148,6 +149,7 @@ export default function PlanDetailScreen() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
+      await recoverPullToRefresh();
       await Promise.all([fetchExpensePlans(), fetchBuckets()]);
       haptics.notification();
     } catch (error) {

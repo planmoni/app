@@ -31,6 +31,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import PlanmoniLoader from '@/components/PlanmoniLoader';
 import { useNotificationsQuery } from '@/hooks/queries/useNotificationsQuery';
 import { syncBadgeCount as syncBadge } from '@/lib/badge-sync';
+import { recoverPullToRefresh } from '@/lib/supabase-recover';
 import type { NotificationEvent } from '@/lib/queries/notificationsQueries';
 
 type DisplayNotification = NotificationEvent & {
@@ -149,6 +150,7 @@ export default function NotificationsScreen() {
     haptics.lightImpact();
     setIsRefreshing(true);
     try {
+      await recoverPullToRefresh();
       await refetch();
       if (session?.user?.id) await syncBadge(session.user.id);
     } finally {

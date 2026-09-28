@@ -13,6 +13,7 @@ import { PinProvider, usePin } from '@/contexts/PinContext';
 import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
 import { AppVersionProvider } from '@/contexts/AppVersionContext';
 import UpdateAppModal from '@/components/UpdateAppModal';
+import OtaUpdateModal from '@/components/OtaUpdateModal';
 import { UserActivityTracker } from '@/hooks/useUserActivityTracking';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { QueryClientProvider } from '@/contexts/QueryClientProvider';
@@ -417,7 +418,8 @@ function RootLayoutNav() {
   // OTA: never check/fetch during the fragile first-open window.
   // Pending production OTAs + New Arch have caused native crashes on first
   // activate ("crashes once, works on reopen"). Native checkAutomatically is
-  // NEVER; JS only downloads after a successful first session, and never reloads.
+  // NEVER; JS only downloads after a successful first session. Reload happens
+  // when the user taps Refresh on the OTA modal.
   useEffect(() => {
     if (__DEV__) return;
 
@@ -476,9 +478,9 @@ function RootLayoutNav() {
           return;
         }
 
-        // Download only — apply on next cold start. Never reloadAsync (New Arch crash risk).
+        // Download, then the OTA modal asks the user to refresh. Do not reload here.
         await Updates.fetchUpdateAsync();
-        console.log('✅ OTA downloaded; will apply on next cold start', { source });
+        console.log('✅ OTA downloaded; waiting for user to refresh', { source });
       } catch (error) {
         console.error('❌ Error checking for updates:', error);
       } finally {
@@ -816,6 +818,7 @@ function RootLayoutNav() {
         <AppLockScreen />
       )}
       <UpdateAppModal />
+      <OtaUpdateModal />
       
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* <SessionDebugger /> */}

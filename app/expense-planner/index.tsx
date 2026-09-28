@@ -11,6 +11,7 @@ import ExpensePlanCard from '@/components/expense-planner/ExpensePlanCard';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
 import { LifecycleEventName } from '@/lib/lifecycleEvents';
+import { recoverPullToRefresh } from '@/lib/supabase-recover';
 
 export default function ExpensePlannerOverviewScreen() {
   const { colors, isDark } = useTheme();
@@ -26,6 +27,7 @@ export default function ExpensePlannerOverviewScreen() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
+      await recoverPullToRefresh();
       await fetchExpensePlans();
       haptics.notification();
     } catch (error) {

@@ -25,7 +25,7 @@ export async function syncBadgeCount(userId: string): Promise<number> {
   }
 
   lastUserId = userId;
-  inFlight = (async () => {
+  const run = (async () => {
     try {
       const { count, error } = await supabase
         .from('events')
@@ -52,11 +52,17 @@ export async function syncBadgeCount(userId: string): Promise<number> {
       console.error('❌ Error syncing badge count:', error);
       return lastUnreadCount;
     } finally {
-      inFlight = null;
+      if (inFlight === run) inFlight = null;
     }
   })();
+  inFlight = run;
 
   return inFlight;
+}
+
+/** Drop a hung badge sync so pull-to-refresh can start another. */
+export function dropBadgeSyncInFlight(): void {
+  inFlight = null;
 }
 
 /**

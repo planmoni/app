@@ -39,6 +39,11 @@ export function getSupabaseConnectionStatus(): ConnectionStatus {
   return lastStatus;
 }
 
+/** Detach a hung ensure so the next one starts fresh. The old attempt may still finish. */
+export function abandonInFlightEnsure(): void {
+  ensureInFlight = null;
+}
+
 /** Test / recovery helper — clears cooldown so the next ensure runs fully. */
 export function resetSupabaseConnectionEnsureState(): void {
   lastStatus = {
@@ -213,7 +218,7 @@ export async function ensureSupabaseConnection(
   };
 
   const work = runEnsure().finally(() => {
-    ensureInFlight = null;
+    if (ensureInFlight === work) ensureInFlight = null;
   });
   ensureInFlight = work;
 

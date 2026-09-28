@@ -17,6 +17,7 @@ const ImageCarousel = React.lazy(() => import('@/components/ImageCarousel'));
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 import { ensureSupabaseConnection } from '@/lib/supabase-fetch';
+import { recoverPullToRefresh } from '@/lib/supabase-recover';
 import { router, useGlobalSearchParams, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
 import {
   HelpCircleIcon,
@@ -999,6 +1000,8 @@ export default function HomeScreen() {
     refreshTimeoutRef.current = setTimeout(endRefresh, REFRESH_SPINNER_CAP_MS + 3000);
 
     try {
+      await recoverPullToRefresh();
+
       // Priority #1: wallet — await briefly so balance updates before spinner ends
       try {
         await Promise.race([

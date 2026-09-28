@@ -52,6 +52,7 @@ import {
   calculatePlanRemainingAmount,
 } from '@/lib/custom-payout-amounts';
 import { supabase } from '@/lib/supabase';
+import { recoverPullToRefresh } from '@/lib/supabase-recover';
 import { Users, Link, Hash, Copy } from 'lucide-react-native';
 
 
@@ -340,6 +341,7 @@ export default function ViewPayoutScreen() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
+      await recoverPullToRefresh();
       await fetchPayoutPlans();
       haptics.notification();
     } catch (error) {

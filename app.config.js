@@ -14,7 +14,7 @@ module.exports = {
       url: "https://u.expo.dev/05caad20-9b74-4ba8-8280-dc5939b7ca83",
       // NEVER on launch: ON_LOAD + pending OTA has caused native first-open crashes
       // on New Arch (activate/reload). Updates are checked only after a successful
-      // first session, from JS, and applied on the next cold start (no reloadAsync).
+      // first session, from JS. The in-app modal calls reloadAsync when the user taps Refresh.
       checkAutomatically: "NEVER",
       fallbackToCacheTimeout: 0,
     },

@@ -47,6 +47,12 @@ export function isWalletFetchInFlight(): boolean {
   return inFlight != null;
 }
 
+/** Let the next pull-to-refresh start a new wallet read instead of joining a hung one. */
+export function dropInFlightWalletFetch(): void {
+  inFlight = null;
+  inFlightUserId = null;
+}
+
 /**
  * Network fetch — single-flight + abortable timeout (no stacked retries).
  * Concurrent callers share one in-flight request.

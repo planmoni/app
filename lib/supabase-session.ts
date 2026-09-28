@@ -55,7 +55,7 @@ export async function getSessionSerialized(
   }
 
   if (!inFlight) {
-    inFlight = loadSessionFromAuth()
+    const run = loadSessionFromAuth()
       .then((normalized) => {
         cached = { at: Date.now(), result: normalized };
         return normalized;
@@ -68,8 +68,9 @@ export async function getSessionSerialized(
         return fallback;
       })
       .finally(() => {
-        inFlight = null;
+        if (inFlight === run) inFlight = null;
       });
+    inFlight = run;
   }
 
   try {
@@ -89,6 +90,11 @@ export async function getSessionSerialized(
 /** Drop memory cache (e.g. after sign-out). */
 export function clearSessionCache(): void {
   cached = null;
+}
+
+/** Stop sharing a hung getSession. The saved session cache stays. */
+export function dropInFlightSession(): void {
+  inFlight = null;
 }
 
 export function peekCachedSession(): Session | null {

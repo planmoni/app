@@ -42,6 +42,7 @@ import { getPurposeLabel } from '@/lib/payout-purposes';
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 import CustomAmountsBreakdownModal from '@/components/CustomAmountsBreakdownModal';
 import { supabase } from '@/lib/supabase';
+import { recoverPullToRefresh } from '@/lib/supabase-recover';
 import { usePayoutPlanShare } from '@/hooks/usePayoutPlanShare';
 import { useToast } from '@/contexts/ToastContext';
 import { Modal } from 'react-native';
@@ -184,6 +185,7 @@ export default function AllPayoutsScreen() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
+      await recoverPullToRefresh();
       await fetchPayoutPlans();
       haptics.notification();
     } catch (error) {

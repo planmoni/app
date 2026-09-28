@@ -27,6 +27,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Platform } from 'react-native';
 import { useHaptics } from '@/hooks/useHaptics';
+import { recoverPullToRefresh } from '@/lib/supabase-recover';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import SafeFooter from '@/components/SafeFooter';
 
@@ -112,7 +113,9 @@ export default function LoginHistoryScreen() {
       haptics.lightImpact();
     }
     setRefreshing(true);
-    fetchSessions(true);
+    void recoverPullToRefresh().finally(() => {
+      fetchSessions(true);
+    });
   };
 
   const handleDeleteAll = () => {
