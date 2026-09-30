@@ -135,7 +135,7 @@ export default function AuthorizationScreen() {
       {
         onSuccess: () => {
           haptics.success();
-          refreshWallet();
+          refreshWallet('deposit');
           router.replace({
             pathname: '/deposit-flow/success',
             params: {
@@ -155,7 +155,7 @@ export default function AuthorizationScreen() {
 
   const handleMonoSuccess = () => {
     haptics.success();
-    refreshWallet();
+    refreshWallet('deposit');
       router.replace({
         pathname: '/deposit-flow/success',
         params: {

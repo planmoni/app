@@ -11,6 +11,7 @@ import {
 } from '@/lib/wallet-refresh-policy.mjs';
 import { queryClient } from '@/contexts/QueryClientProvider';
 import { financialQueryKeys } from '@/lib/queries/keys';
+import { noteNextWalletFetchReason } from '@/lib/queries/walletQueries';
 import NetInfo from '@react-native-community/netinfo';
 
 export type ForegroundRefreshTier = 1 | 2 | 3;
@@ -57,8 +58,9 @@ function resolveRefreshMode(isColdStart: boolean): RefreshMode {
   return 'resume';
 }
 
-async function refreshWalletOnce(userId: string | undefined): Promise<void> {
+async function refreshWalletOnce(userId: string | undefined, reason: string): Promise<void> {
   if (!userId) return;
+  noteNextWalletFetchReason(reason);
   await queryClient.invalidateQueries({
     queryKey: financialQueryKeys.wallet(userId),
     refetchType: 'active',
@@ -106,7 +108,7 @@ async function runForegroundRefresh(
   });
 
   try {
-    await Promise.race([refreshWalletOnce(userId), cap]);
+    await Promise.race([refreshWalletOnce(userId, 'foreground_resume'), cap]);
   } finally {
     if (capTimer) clearTimeout(capTimer);
   }
@@ -165,7 +167,7 @@ export function useForegroundRefreshCoordinator(): void {
       wasOfflineRef.current = false;
       if (isExternalAppFlowActive() || runningRef.current) return;
       runningRef.current = true;
-      void refreshWalletOnce(userId).finally(() => {
+      void refreshWalletOnce(userId, 'network_online').finally(() => {
         runningRef.current = false;
       });
     });

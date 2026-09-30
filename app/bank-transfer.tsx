@@ -218,7 +218,7 @@ export default function BankTransferScreen() {
     setRefreshingBalance(true);
     try {
       await checkNow();
-      await refreshWallet();
+      await refreshWallet('bank_transfer');
       showToast('Balance updated', 'success');
     } catch {
       showToast('Could not refresh balance. Try again shortly.', 'error');

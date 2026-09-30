@@ -9,7 +9,7 @@ export type TimedOpMeta = {
   hasSession?: boolean;
   sessionExpiresAt?: number | null;
   errorCode?: string | null;
-  errorMessage?: string | null;
+  reason?: string | null;
   [key: string]: unknown;
 };
 
@@ -39,6 +39,7 @@ export async function timedOperation<T>(
       userId: meta.userId ?? null,
       hasSession: meta.hasSession ?? null,
       sessionExpiresAt: meta.sessionExpiresAt ?? null,
+      ...(meta.reason ? { reason: meta.reason } : {}),
     });
   }
 

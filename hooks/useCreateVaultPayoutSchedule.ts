@@ -56,7 +56,7 @@ export function useCreateVaultPayoutSchedule() {
           throw new Error(result?.error || 'Could not create vault payout schedule');
         }
 
-        await refreshWallet();
+        await refreshWallet('vault_payout');
         await fetchExpensePlans();
 
         return result;

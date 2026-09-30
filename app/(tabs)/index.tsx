@@ -1002,7 +1002,7 @@ export default function HomeScreen() {
       // Priority #1: wallet — await briefly so balance updates before spinner ends
       try {
         await Promise.race([
-          refreshWallet(),
+          refreshWallet('pull_to_refresh'),
           new Promise<void>((resolve) => setTimeout(resolve, 4000)),
         ]);
       } catch (walletErr) {

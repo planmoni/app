@@ -22,7 +22,7 @@ type BalanceContextType = {
   isLoading: boolean;
   isTimedOut: boolean;
   error: string | null;
-  refreshWallet: () => Promise<{ balance: number; lockedBalance: number; availableBalance: number } | null>;
+  refreshWallet: (reason?: string) => Promise<{ balance: number; lockedBalance: number; availableBalance: number } | null>;
   addFunds?: (amount: number) => Promise<void>;
 };
 
@@ -108,7 +108,7 @@ export function BalanceProvider({ children }: { children: React.ReactNode }) {
 
   const addFundsStub = useCallback(async (amount: number) => {
     try {
-      await wallet.refreshWallet();
+      await wallet.refreshWallet('add_funds');
     } catch (err) {
       console.warn('addFunds stub failed to refresh wallet', err);
     }

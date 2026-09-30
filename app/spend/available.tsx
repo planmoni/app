@@ -121,7 +121,7 @@ export default function SpendAvailableScreen() {
               }
 
               // Refresh wallet balance
-              await refreshWallet();
+              await refreshWallet('spend');
 
               haptics.notification();
               Alert.alert(

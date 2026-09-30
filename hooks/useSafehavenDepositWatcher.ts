@@ -29,7 +29,7 @@ export function useSafehavenDepositWatcher(options: Options = {}) {
   const handlePossibleDeposit = useCallback(
     async (hintAmount?: number) => {
       const prev = lastBalanceRef.current ?? balance;
-      const wallet = await refreshWallet();
+      const wallet = await refreshWallet('deposit');
       const newBalance = wallet?.balance ?? balance;
 
       if (wallet && prev !== null && newBalance > prev) {

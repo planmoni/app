@@ -42,6 +42,17 @@ export async function writeWalletCache(userId: string, wallet: WalletData): Prom
 
 let inFlight: Promise<WalletData> | null = null;
 let inFlightUserId: string | null = null;
+let notedFetchReason: string | null = null;
+
+export function noteNextWalletFetchReason(reason: string): void {
+  notedFetchReason = reason;
+}
+
+export function consumeWalletFetchReason(): string | null {
+  const reason = notedFetchReason;
+  notedFetchReason = null;
+  return reason;
+}
 
 export function isWalletFetchInFlight(): boolean {
   return inFlight != null;
@@ -49,9 +60,8 @@ export function isWalletFetchInFlight(): boolean {
 
 /**
  * Network fetch — single-flight + abortable timeout (no stacked retries).
- * Concurrent callers share one in-flight request.
  */
-export async function fetchWallet(userId: string): Promise<WalletData> {
+export async function fetchWallet(userId: string, reason = 'unspecified'): Promise<WalletData> {
   const { isFinancialMutationActive } = await import('@/lib/financial-mutation-gate');
   if (isFinancialMutationActive()) {
     const cached = await readWalletCache(userId);
@@ -88,7 +98,7 @@ export async function fetchWallet(userId: string): Promise<WalletData> {
       void writeWalletCache(userId, wallet);
       return wallet;
     },
-    { userId, hasSession: true }
+    { userId, hasSession: true, reason }
   );
 
   inFlight = run;

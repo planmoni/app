@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { QueryClient } from '@tanstack/react-query';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { financialQueryKeys } from '@/lib/queries/keys';
+import { noteNextWalletFetchReason } from '@/lib/queries/walletQueries';
 
 type ActiveSubscription = {
   userId: string;
@@ -47,7 +48,7 @@ export function subscribeFinancialRealtime(userId: string, queryClient: QueryCli
         filter: `user_id=eq.${userId}`,
       },
       () => {
-        // Realtime is a hint only — refetch authoritative row (deduped by React Query / fetchWallet).
+        noteNextWalletFetchReason('balance_change');
         void queryClient.invalidateQueries({
           queryKey: financialQueryKeys.wallet(userId),
           refetchType: 'active',

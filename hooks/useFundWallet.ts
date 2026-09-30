@@ -13,6 +13,7 @@ import axios from 'axios';
 import axiosInstance from '@/lib/axios';
 import { useAuth } from '@/contexts/AuthContext';
 import { financialQueryKeys } from '@/lib/queries/keys';
+import { noteNextWalletFetchReason } from '@/lib/queries/walletQueries';
 
 export interface FundWalletParams {
   mandateId: string; // Internal mandate ID
@@ -57,6 +58,7 @@ export function useFundWallet() {
     onSuccess: () => {
       const userId = session?.user?.id;
       if (userId) {
+        noteNextWalletFetchReason('fund_wallet');
         void queryClient.invalidateQueries({ queryKey: financialQueryKeys.wallet(userId) });
         void queryClient.invalidateQueries({ queryKey: ['transactions', userId] });
       }

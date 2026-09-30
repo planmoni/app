@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { financialQueryKeys } from '@/lib/queries/keys';
 import {
   fetchWallet,
+  consumeWalletFetchReason,
   readWalletCache,
   writeWalletCache,
   type WalletData,
@@ -43,7 +44,9 @@ export function useWalletQuery() {
     queryKey,
     queryFn: () => {
       logAuthQueryGateViolation('wallet', isAuthReady, userId);
-      return fetchWallet(userId!);
+      const noted = consumeWalletFetchReason();
+      const reason = noted ?? (queryClient.getQueryData(queryKey) ? 'react_query_refetch' : 'cold_start');
+      return fetchWallet(userId!, reason);
     },
     enabled: isAuthReady && !!userId,
     staleTime: WALLET_STALE_MS,
@@ -63,7 +66,7 @@ export function useWalletQuery() {
   );
 
   /** Forced network refetch — pulls latest DB row, updates memory + disk cache. */
-  const refreshWallet = useCallback(async () => {
+  const refreshWallet = useCallback(async (reason = 'refresh_wallet') => {
     if (!userId) return null;
 
     // Don't compete with create-payout / other money mutations
@@ -82,7 +85,7 @@ export function useWalletQuery() {
     try {
       const data = await queryClient.fetchQuery({
         queryKey: financialQueryKeys.wallet(userId),
-        queryFn: () => fetchWallet(userId),
+        queryFn: () => fetchWallet(userId, reason),
         staleTime: 0,
       });
       return {

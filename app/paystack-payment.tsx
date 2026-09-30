@@ -300,7 +300,7 @@ export default function PaystackPaymentScreen() {
       if (data.success) {
         // Refresh wallet balance only if not a plan payment
         if (!planId) {
-          await refreshWallet();
+          await refreshWallet('payment_result');
         }
 
         haptics.success();
