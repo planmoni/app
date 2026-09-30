@@ -367,22 +367,22 @@ export function useCreatePayout() {
       let accountNumber = '';
       let bankName = '';
       try {
-        if (payoutAccountId) {
+      if (payoutAccountId) {
           const { data } = await supabase
             .from('payout_accounts')
             .select('account_number, bank_name')
             .eq('id', payoutAccountId)
-            .single();
+          .single();
           if (data) {
             accountNumber = data.account_number;
             bankName = data.bank_name;
-          }
-        } else if (bankAccountId) {
+        }
+      } else if (bankAccountId) {
           const { data } = await supabase
             .from('bank_accounts')
             .select('account_number, bank_name')
             .eq('id', bankAccountId)
-            .single();
+          .single();
           if (data) {
             accountNumber = data.account_number;
             bankName = data.bank_name;
@@ -459,7 +459,7 @@ export function useCreatePayout() {
           abandoned: abandonedRef.current,
         })
       ) {
-        setError(errorMessage);
+      setError(errorMessage);
         showToast?.(errorMessage, 'error');
       }
       throw err;
@@ -467,7 +467,7 @@ export function useCreatePayout() {
       submittingRef.current = false;
       endFinancialMutation();
       if (mountedRef.current && attemptId === attemptIdRef.current) {
-        setIsLoading(false);
+      setIsLoading(false);
       }
     }
   };

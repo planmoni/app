@@ -64,26 +64,6 @@ if (supabaseUrl && supabaseAnonKey) {
     },
   });
   console.log('✅ Supabase client initialized successfully with AsyncStorage auth adapter');
-
-  // Supabase RN guidance: pause auto-refresh while backgrounded; resume on foreground.
-  // Without this, cold start after background often has a stale access token until reopen.
-  if (Platform.OS !== 'web' && typeof supabase.auth?.startAutoRefresh === 'function') {
-    const syncAutoRefresh = (state: AppStateStatus) => {
-      try {
-        if (state === 'active') {
-          supabase.auth.startAutoRefresh();
-        } else {
-          supabase.auth.stopAutoRefresh();
-        }
-      } catch (err) {
-        if (__DEV__) {
-          console.warn('[supabase] autoRefresh AppState sync failed', err);
-        }
-      }
-    };
-    syncAutoRefresh(AppState.currentState);
-    AppState.addEventListener('change', syncAutoRefresh);
-  }
 } else {
   // Missing configuration - create mock client that returns user-friendly errors
   console.log('⚠️  Supabase configuration not found, using mock client');
@@ -123,6 +103,38 @@ if (supabaseUrl && supabaseAnonKey) {
 
 export { supabase };
 export { supabaseUrl };
+
+let autoRefreshBound = false;
+
+/**
+ * Start token auto-refresh only after the cold-start session refresh has finished.
+ * Starting it at import races the first wallet/plan requests and leaves a stale token
+ * until the app is killed and opened again.
+ */
+export function beginSupabaseAutoRefresh(): void {
+  if (Platform.OS === 'web') return;
+  if (typeof supabase.auth?.startAutoRefresh !== 'function') return;
+
+  const syncAutoRefresh = (state: AppStateStatus) => {
+    try {
+      if (state === 'active') {
+        supabase.auth.startAutoRefresh();
+      } else {
+        supabase.auth.stopAutoRefresh();
+      }
+    } catch (err) {
+      if (__DEV__) {
+        console.warn('[supabase] autoRefresh AppState sync failed', err);
+      }
+    }
+  };
+
+  if (!autoRefreshBound) {
+    autoRefreshBound = true;
+    AppState.addEventListener('change', syncAutoRefresh);
+  }
+  syncAutoRefresh(AppState.currentState);
+}
 
 // Development helper (no-op in production) — some components reference this for debugging
 export const debugSessionStorage = () => {

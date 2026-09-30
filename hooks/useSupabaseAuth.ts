@@ -22,6 +22,7 @@ import {
 import { logAuthTelemetry } from '@/lib/auth-telemetry';
 import { AUTH_READY_GUARD_MS } from '@/lib/auth-ready-guard';
 import { seedSessionCache, clearSessionCache } from '@/lib/supabase-session';
+import { beginSupabaseAutoRefresh } from '@/lib/supabase';
 
 function sessionIsReadyForApi(session: Session | null): boolean {
   if (!session?.user?.id || !session.access_token) return false;
@@ -184,7 +185,7 @@ export function useSupabaseAuth() {
         console.log('🔍 Stored session check result:', storedSession ? 'Found' : 'Not found');
         
         if (storedSession && !isSessionExpired(storedSession)) {
-          console.log('✅ Valid stored session found, attempting restoration...');
+          console.log('✅ Valid stored session found, refreshing token before first requests...');
           console.log('📊 Session details:', {
             userId: storedSession.user?.id,
             expiresAt: storedSession.expires_at ? new Date(storedSession.expires_at * 1000).toISOString() : 'unknown',
@@ -195,26 +196,36 @@ export function useSupabaseAuth() {
           if (!storedSession.user?.id) {
             console.log('⚠️ Stored session has no valid user, clearing it');
             await clearSession();
+          } else if (canRefreshSession(storedSession)) {
+            // One refresh, awaited to completion, before any wallet/plan call.
+            // Wallet and plan fetches stay gated on isAuthReady until this returns.
+            const refreshedSession = await refreshExpiredSession(storedSession);
+            const sessionToUse = refreshedSession ?? storedSession;
+
+            if (!refreshedSession) {
+              await restoreSessionInSupabase(storedSession);
+            }
+
+            if (mounted) {
+              resolvedSession = sessionToUse;
+              seedSessionCache(sessionToUse);
+              setSession(sessionToUse);
+              console.log(refreshedSession
+                ? '✅ Cold-start token refreshed before API calls'
+                : '⚠️ Token refresh finished without a new session; using stored session');
+
+              const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(sessionToUse.user.id);
+              if (profileSnapshot) {
+                console.log('📸 Profile snapshot loaded for instant UI');
+              }
+            }
           } else {
-            // Restore session in Supabase auth state
             const restored = await restoreSessionInSupabase(storedSession);
-            
             if (restored && mounted) {
               resolvedSession = storedSession;
               seedSessionCache(storedSession);
               setSession(storedSession);
-              console.log('✅ Session fully restored and set in state');
-              console.log('🎉 User should now be logged in after device restart');
-              
-              // Load profile snapshot immediately for instant UI
-              const profileSnapshot = await ProfileSnapshotManager.loadProfileSnapshot(storedSession.user.id);
-              if (profileSnapshot) {
-                console.log('📸 Profile snapshot loaded for instant UI');
-              }
             } else {
-              console.log('❌ Failed to restore session in Supabase, falling back to Supabase check');
-              console.log('🔄 This might happen if the session is invalid or corrupted');
-              // Force fall-through to getSession() below
               resolvedSession = null;
             }
           }
@@ -352,6 +363,7 @@ export function useSupabaseAuth() {
         }
       } finally {
         clearTimeout(loadingGuard);
+        beginSupabaseAutoRefresh();
         if (mounted) {
           setIsLoading(false);
           const ready = resolveAuthReady(resolvedSession);

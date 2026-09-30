@@ -104,7 +104,9 @@ export async function restoreSessionInSupabase(session: Session): Promise<boolea
 }
 
 /**
- * Attempt to refresh an expired session
+ * Refresh the saved session and wait until that call finishes.
+ * Do not time this out and continue with the old token: the refresh would
+ * still complete later and replace the session under in-flight requests.
  */
 export async function refreshExpiredSession(session: Session): Promise<Session | null> {
   try {
