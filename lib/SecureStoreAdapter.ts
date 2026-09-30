@@ -23,7 +23,7 @@ async function getAsyncStorage(): Promise<
   try {
     const mod = require('@react-native-async-storage/async-storage');
     asyncStorageModule = mod.default;
-    return asyncStorageModule;
+    return asyncStorageModule as typeof import('@react-native-async-storage/async-storage').default | null;
   } catch (_) {
     asyncStorageModule = false;
     return null;

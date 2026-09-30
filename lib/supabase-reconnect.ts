@@ -162,18 +162,6 @@ export async function reconnectSupabase(): Promise<ReconnectResult> {
     isAuthExpired: false,
   };
 
-  try {
-    await supabase.removeAllChannels();
-    result.channelsCleared = true;
-    if (__DEV__) {
-      console.warn('[supabase] Realtime channels cleared');
-    }
-  } catch (err) {
-    if (__DEV__) {
-      console.warn('[supabase] removeAllChannels failed:', err);
-    }
-  }
-
   const refresh = await refreshSessionIfNeeded();
   if (refresh.skipped && __DEV__) {
     console.warn('[supabase] Session still valid, skipped refresh');

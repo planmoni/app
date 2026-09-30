@@ -135,20 +135,16 @@ async function runForegroundRefresh(isColdStart: boolean): Promise<void> {
     // Cold start: only lightweight session warm — do NOT invalidate all financial
     // queries (mount/refetchOnMount already loads; invalidating causes a stampede).
     if (isColdStart) {
-      await ensureSupabaseConnection({
-        skipProbe: true,
-        lightweight: true,
-      });
       if (__DEV__) {
         console.log(
-          `[resume] cold-start warm only (${Date.now() - startedAt}ms) — skipped invalidate stampede`
+          `[resume] cold-start skip connection gate (${Date.now() - startedAt}ms)`
         );
       }
       return;
     }
 
     if (mode === 'full') {
-      const status = await ensureSupabaseConnection({ skipProbe: true });
+      const status = await ensureSupabaseConnection({ skipProbe: true, lightweight: true });
       const reconnectMs = Date.now() - startedAt;
 
       if (!status.ok && status.reconnect?.isAuthExpired) {

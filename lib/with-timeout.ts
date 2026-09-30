@@ -56,14 +56,9 @@ export async function withAbortableTimeout<T>(
   );
 }
 
-/** Min gap between ensure calls triggered by fetch timeouts (ms). */
-const RETRY_ENSURE_COOLDOWN_MS = 15_000;
-let lastRetryEnsureAt = 0;
-
 /**
- * Like withTimeout, but retries once after `retryDelayMs` if the first attempt
- * times out. Only lightly reconnects if we have not just done so (avoids
- * getSession stampede on resume).
+ * Like withTimeout, but retries once after `retryDelayMs` if maxRetries >= 1.
+ * Does not run a connection reconnect before the retry.
  */
 export async function withRetryOnTimeout<T>(
   factory: () => Promise<T>,
@@ -72,7 +67,7 @@ export async function withRetryOnTimeout<T>(
   retryDelayMs = 2000,
   options?: { maxRetries?: number }
 ): Promise<T> {
-  const maxRetries = options?.maxRetries ?? 1;
+  const maxRetries = options?.maxRetries ?? 0;
 
   try {
     return await withAbortableTimeout(factory, ms, label);
@@ -93,26 +88,6 @@ export async function withRetryOnTimeout<T>(
     }
 
     await new Promise<void>((r) => setTimeout(r, retryDelayMs));
-
-    const now = Date.now();
-    if (now - lastRetryEnsureAt >= RETRY_ENSURE_COOLDOWN_MS) {
-      lastRetryEnsureAt = now;
-      try {
-        if (!isFinancialMutationActive()) {
-          const { ensureSupabaseConnection, getSupabaseConnectionStatus } = await import(
-            '@/lib/supabase-connection'
-          );
-          const current = getSupabaseConnectionStatus();
-          // Don't stack another reconnect while a previous ensure is still timing out.
-          if (!current.timedOut) {
-            await ensureSupabaseConnection({ skipProbe: true, lightweight: true });
-          }
-        }
-      } catch {
-        // Non-fatal — still attempt the data retry.
-      }
-    }
-
     return withAbortableTimeout(factory, ms, `${label} (retry)`);
   }
 }

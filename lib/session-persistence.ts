@@ -1,14 +1,30 @@
 import { Session } from '@supabase/supabase-js';
-import { saveItem, getItem, deleteItem, AUTH_SESSION_KEY, AUTH_REFRESH_TOKEN_KEY, AUTH_ACCESS_TOKEN_KEY } from './secure-storage';
+import { getItem, deleteItem, AUTH_SESSION_KEY, AUTH_REFRESH_TOKEN_KEY, AUTH_ACCESS_TOKEN_KEY } from './secure-storage';
 
 /**
  * Save session to secure storage.
  * Persists a single session blob (includes access + refresh tokens).
  * Best-effort cleanup removes legacy split token keys.
  */
+async function sessionBlobStore(): Promise<{
+  getItem: (key: string) => Promise<string | null>;
+  setItem: (key: string, value: string) => Promise<void>;
+  removeItem: (key: string) => Promise<void>;
+} | null> {
+  try {
+    return require('@react-native-async-storage/async-storage').default;
+  } catch {
+    return null;
+  }
+}
+
+const SESSION_BLOB_KEY = 'auth_session_blob';
+
 export async function saveSession(session: Session | null): Promise<void> {
   try {
+    const blob = await sessionBlobStore();
     if (!session) {
+      await blob?.removeItem(SESSION_BLOB_KEY);
       await Promise.all([
         deleteItem(AUTH_SESSION_KEY),
         deleteItem(AUTH_REFRESH_TOKEN_KEY),
@@ -17,7 +33,11 @@ export async function saveSession(session: Session | null): Promise<void> {
       return;
     }
 
-    await saveItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    // The full session is larger than SecureStore's 2048-byte limit.
+    // AsyncStorage holds the backup copy. The Supabase client stores the live one.
+    if (blob) {
+      await blob.setItem(SESSION_BLOB_KEY, JSON.stringify(session));
+    }
     // Clean up legacy duplicated token keys without blocking on them.
     void Promise.all([
       deleteItem(AUTH_REFRESH_TOKEN_KEY),
@@ -34,6 +54,12 @@ export async function saveSession(session: Session | null): Promise<void> {
  */
 export async function loadSession(): Promise<Session | null> {
   try {
+    const blob = await sessionBlobStore();
+    const fromBlob = blob ? await blob.getItem(SESSION_BLOB_KEY) : null;
+    if (fromBlob) {
+      return JSON.parse(fromBlob) as Session;
+    }
+
     const sessionData = await getItem(AUTH_SESSION_KEY);
     if (!sessionData) {
       return null;

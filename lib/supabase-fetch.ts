@@ -26,7 +26,7 @@ export type FetchWithRetryOptions = {
   timeoutMs?: number;
   retryDelayMs?: number;
   label?: string;
-  /** Default 1. Set 0 to fail fast after first timeout (no stacked 10s+10s). */
+  /** Default 0. A retry stacks another full timeout behind the first. */
   maxRetries?: number;
 };
 

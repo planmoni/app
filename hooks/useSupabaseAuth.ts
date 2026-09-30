@@ -382,7 +382,9 @@ export function useSupabaseAuth() {
 
     initializeAuth();
     // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: Session | null) => {
+    // Must stay synchronous. Supabase holds the auth lock until this returns.
+    // Awaiting saveSession / another Supabase call here blocks every wallet and payout request.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: Session | null) => {
       console.log('🔐 Auth state change:', event, session ? 'Session exists' : 'No session');
       
       if (!mounted) return;
@@ -396,27 +398,30 @@ export function useSupabaseAuth() {
           setSession(session);
           setError(null);
           markAuthReady(true, `onAuthStateChange:${event}`, session);
-          await saveSession(session);
 
-          if (event === 'TOKEN_REFRESHED' && session.access_token) {
-            try {
-              const { ActiveSessionService } = await import('@/lib/active-session-service');
-              await ActiveSessionService.syncActiveSessionToken(
-                session.user.id,
-                session.access_token
-              );
-            } catch (error) {
-              console.log('Note: Could not sync active session token after refresh');
+          const readySession = session;
+          const readyEvent = event;
+          setTimeout(() => {
+            void saveSession(readySession);
+            if (readyEvent === 'TOKEN_REFRESHED' && readySession.access_token) {
+              void import('@/lib/active-session-service')
+                .then(({ ActiveSessionService }) =>
+                  ActiveSessionService.syncActiveSessionToken(
+                    readySession.user.id,
+                    readySession.access_token
+                  )
+                )
+                .catch(() => {
+                  console.log('Note: Could not sync active session token after refresh');
+                });
             }
-          }
-
-          // Never block auth callbacks on profile/RQ — that holds password login on-screen.
-          void ProfileSnapshotManager.loadProfileSnapshot(session.user.id).then((profileSnapshot) => {
-            if (profileSnapshot) {
-              console.log('📸 Profile snapshot loaded for auth state change');
-            }
-          });
-          void invalidateFinancialQueries();
+            void ProfileSnapshotManager.loadProfileSnapshot(readySession.user.id).then((profileSnapshot) => {
+              if (profileSnapshot) {
+                console.log('📸 Profile snapshot loaded for auth state change');
+              }
+            });
+            void invalidateFinancialQueries();
+          }, 0);
         } else if (session?.user?.id) {
           // Do not flip ready→false during an in-flight password login (causes splash → password flash).
           if (isAuthReadyRef.current && sessionRef.current?.user?.id === session.user.id) {
@@ -436,7 +441,9 @@ export function useSupabaseAuth() {
           setSession(null);
           markAuthReady(true, `onAuthStateChange:${event}:invalid`, null);
           setError('Session expired or invalid');
-          await clearSession();
+          setTimeout(() => {
+            void clearSession();
+          }, 0);
           removeFinancialQueries();
         }
       } else if (event === 'SIGNED_OUT') {
@@ -445,29 +452,35 @@ export function useSupabaseAuth() {
         setSession(null);
         setError(null);
         markAuthReady(true, 'onAuthStateChange:SIGNED_OUT', null);
-        await clearSession();
+        const signedOutUserId = session?.user?.id;
+        setTimeout(() => {
+          void clearSession();
+          if (signedOutUserId) {
+            void ProfileSnapshotManager.clearProfileSnapshot(signedOutUserId);
+          }
+        }, 0);
         removeFinancialQueries();
-        
-        // Clear profile snapshots on sign out
-        if (session?.user?.id) {
-          await ProfileSnapshotManager.clearProfileSnapshot(session.user.id);
-        }
       } else if (event === 'USER_UPDATED') {
         console.log('👤 User updated');
         if (session?.user?.id) {
           setSession(session);
-          await saveSession(session);
-          
-          // Update metadata snapshot
-          if (session.user.user_metadata) {
-            await ProfileSnapshotManager.saveMetadataSnapshot(session.user.id, session.user.user_metadata);
-          }
+          const updated = session;
+          setTimeout(() => {
+            void saveSession(updated);
+            if (updated.user.user_metadata) {
+              void ProfileSnapshotManager.saveMetadataSnapshot(
+                updated.user.id,
+                updated.user.user_metadata
+              );
+            }
+          }, 0);
         } else {
-          // Updated session has no valid user - treat as logged out
           console.log('⚠️ Updated session has no valid user, clearing session');
           setSession(null);
           setError('Session expired or invalid');
-          await clearSession();
+          setTimeout(() => {
+            void clearSession();
+          }, 0);
         }
       }
     });

@@ -1580,7 +1580,7 @@ export default function HomeScreen() {
 
   const handleRetryFinancialData = useCallback(async () => {
     if (!session?.user?.id) return;
-    await ensureSupabaseConnection({ skipProbe: true });
+    await ensureSupabaseConnection({ skipProbe: true, lightweight: true });
     await Promise.allSettled([fetchPayoutPlans(), fetchTransactions()]);
   }, [session?.user?.id, fetchPayoutPlans, fetchTransactions]);
 

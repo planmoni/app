@@ -185,7 +185,9 @@ export async function ensureSupabaseConnection(
 
     const hasSession = !!session?.user?.id;
 
-    if (!options.skipProbe && hasSession) {
+    // Probe is opt-in. auth.getUser() is another network call and must not
+    // sit in front of ordinary wallet/plan reads.
+    if (options.skipProbe === false && hasSession) {
       try {
         await runHealthProbe();
       } catch (err) {

@@ -239,7 +239,7 @@ export default function InsightsScreen() {
     (insightsTimedOut || payoutPlansTimedOut || transactionsTimedOut);
 
   const handleRetryInsights = async () => {
-    await ensureSupabaseConnection({ skipProbe: true });
+    await ensureSupabaseConnection({ skipProbe: true, lightweight: true });
     await Promise.allSettled([fetchPayoutPlans(), fetchTransactions()]);
     refreshInsights();
   };
