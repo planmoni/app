@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { AppState, type AppStateStatus } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -12,14 +11,12 @@ type Options = {
   onDepositReceived?: (amount: number) => void;
 };
 
-const DEFAULT_POLL_MS = 15_000;
-
 /**
- * Keeps wallet balance fresh after SafeHaven bank transfers.
- * Realtime on wallets + events; polling every 15s while app is active as fallback.
+ * Refreshes the wallet when a deposit event is recorded.
+ * Does not poll. The wallet query and wallet realtime already keep the balance current.
  */
 export function useSafehavenDepositWatcher(options: Options = {}) {
-  const { enabled = true, pollIntervalMs = DEFAULT_POLL_MS, onDepositReceived } = options;
+  const { enabled = true, onDepositReceived } = options;
   const { session } = useAuth();
   const { refreshWallet, balance } = useBalance();
   const userId = session?.user?.id;
@@ -53,19 +50,7 @@ export function useSafehavenDepositWatcher(options: Options = {}) {
   useEffect(() => {
     if (!enabled || !userId) return;
 
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
-    let appState: AppStateStatus = AppState.currentState;
-
-    const refreshIfActive = () => {
-      if (appState === 'active') {
-        void handlePossibleDeposit();
-      }
-    };
-
-    refreshIfActive();
-    pollTimer = setInterval(refreshIfActive, pollIntervalMs);
-
-    // events is already on supabase_realtime — deposit_successful fires when tx is recorded
+    // Wallet realtime already refreshes the balance. This channel only reacts to a recorded deposit.
     const channel = supabase
       .channel(`safehaven-deposits-${userId}`)
       .on(
@@ -84,36 +69,17 @@ export function useSafehavenDepositWatcher(options: Options = {}) {
           }
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'wallets',
-          filter: `user_id=eq.${userId}`,
-        },
-        () => {
-          void handlePossibleDeposit();
-        }
-      )
       .subscribe();
 
     channelRef.current = channel;
 
-    const appSub = AppState.addEventListener('change', (nextState) => {
-      appState = nextState;
-      if (nextState === 'active') refreshIfActive();
-    });
-
     return () => {
-      if (pollTimer) clearInterval(pollTimer);
-      appSub.remove();
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
-  }, [enabled, userId, pollIntervalMs, handlePossibleDeposit]);
+  }, [enabled, userId, handlePossibleDeposit]);
 
   const checkNow = useCallback(() => handlePossibleDeposit(), [handlePossibleDeposit]);
 

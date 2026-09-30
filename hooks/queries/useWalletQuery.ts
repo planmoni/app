@@ -16,10 +16,10 @@ import {
   subscribeFinancialMutation,
 } from '@/lib/financial-mutation-gate';
 
-/** Wallet is money — never treat it as "fresh for 5 minutes". */
-const WALLET_STALE_MS = 0;
-/** Background poll while screen is focused / app active. */
-const WALLET_POLL_MS = 15_000;
+import {
+  WALLET_REFETCH_INTERVAL,
+  WALLET_STALE_MS,
+} from '@/lib/wallet-refresh-policy.mjs';
 
 export function useWalletQuery() {
   const { session, isAuthReady } = useAuth();
@@ -47,12 +47,10 @@ export function useWalletQuery() {
     enabled: isAuthReady && !!userId,
     staleTime: WALLET_STALE_MS,
     gcTime: 30 * 60 * 1000,
-    refetchOnMount: mutationPaused ? false : 'always',
+    refetchOnMount: mutationPaused ? false : true,
     refetchOnReconnect: !mutationPaused,
     refetchOnWindowFocus: !mutationPaused,
-    // Pause polling while create-payout (etc.) holds the connection
-    refetchInterval: mutationPaused ? false : WALLET_POLL_MS,
-    refetchIntervalInBackground: false,
+    refetchInterval: WALLET_REFETCH_INTERVAL,
     placeholderData: (previous) => previous,
     networkMode: 'online',
   });

@@ -12,7 +12,7 @@
     "ios": "npx expo start --ios",
     "web": "npx expo start --web",
     "lint": "expo lint",
-    "test:unit": "node --test lib/create-payout-guard.test.mjs lib/create-payout-contracts.test.mjs",
+    "test:unit": "node --test lib/create-payout-guard.test.mjs lib/create-payout-contracts.test.mjs lib/wallet-refresh-policy.test.mjs",
     "prebuild": "node scripts/preserve-native-assets.js backup && npx expo prebuild --clean && node scripts/preserve-native-assets.js restore",
     "prebuild:android": "node scripts/preserve-native-assets.js backup && npx expo prebuild --platform android --clean && node scripts/preserve-native-assets.js restore",
     "prebuild:ios": "node scripts/preserve-native-assets.js backup && npx expo prebuild --platform ios --clean && node scripts/preserve-native-assets.js restore && cd ios && pod install",

@@ -4,6 +4,7 @@ import {
   useAppForeground,
   getLastBackgroundDurationMs,
 } from '@/hooks/useAppForeground';
+import { shouldRunConnectionGateOnColdStart } from '@/lib/wallet-refresh-policy.mjs';
 import { ensureSupabaseConnection } from '@/lib/supabase-connection';
 import { queryClient } from '@/contexts/QueryClientProvider';
 import { isFinancialQueryKey } from '@/lib/queries/keys';
@@ -134,7 +135,7 @@ async function runForegroundRefresh(isColdStart: boolean): Promise<void> {
   const refreshWork = (async () => {
     // Cold start: only lightweight session warm — do NOT invalidate all financial
     // queries (mount/refetchOnMount already loads; invalidating causes a stampede).
-    if (isColdStart) {
+    if (isColdStart && !shouldRunConnectionGateOnColdStart()) {
       if (__DEV__) {
         console.log(
           `[resume] cold-start skip connection gate (${Date.now() - startedAt}ms)`

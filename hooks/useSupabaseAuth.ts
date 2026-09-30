@@ -22,6 +22,7 @@ import {
 import { logAuthTelemetry } from '@/lib/auth-telemetry';
 import { AUTH_READY_GUARD_MS } from '@/lib/auth-ready-guard';
 import { seedSessionCache, clearSessionCache } from '@/lib/supabase-session';
+import { shouldInvalidateWalletOnAuthEvent } from '@/lib/wallet-refresh-policy.mjs';
 import { beginSupabaseAutoRefresh } from '@/lib/supabase';
 
 function sessionIsReadyForApi(session: Session | null): boolean {
@@ -420,7 +421,9 @@ export function useSupabaseAuth() {
                 console.log('📸 Profile snapshot loaded for auth state change');
               }
             });
-            void invalidateFinancialQueries();
+            if (shouldInvalidateWalletOnAuthEvent(readyEvent)) {
+              void invalidateFinancialQueries();
+            }
           }, 0);
         } else if (session?.user?.id) {
           // Do not flip ready→false during an in-flight password login (causes splash → password flash).
@@ -623,7 +626,6 @@ export function useSupabaseAuth() {
         refreshedSession
       );
       void saveSession(refreshedSession);
-      void invalidateFinancialQueries();
     });
     return () => {
       setAuthExpiredHandler(null);
