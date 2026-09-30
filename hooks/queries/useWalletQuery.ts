@@ -18,6 +18,7 @@ import {
 
 import {
   WALLET_REFETCH_INTERVAL,
+  WALLET_REFETCH_ON_WINDOW_FOCUS,
   WALLET_STALE_MS,
 } from '@/lib/wallet-refresh-policy.mjs';
 
@@ -49,7 +50,7 @@ export function useWalletQuery() {
     gcTime: 30 * 60 * 1000,
     refetchOnMount: mutationPaused ? false : true,
     refetchOnReconnect: !mutationPaused,
-    refetchOnWindowFocus: !mutationPaused,
+    refetchOnWindowFocus: mutationPaused ? false : WALLET_REFETCH_ON_WINDOW_FOCUS,
     refetchInterval: WALLET_REFETCH_INTERVAL,
     placeholderData: (previous) => previous,
     networkMode: 'online',

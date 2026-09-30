@@ -21,6 +21,7 @@ import {
 } from '@/lib/paystackDeposit';
 import { usePaystack } from 'react-native-paystack-webview';
 import { supabase } from '@/lib/supabase';
+import { beginExternalAppFlow, endExternalAppFlow } from '@/lib/wallet-refresh-policy.mjs';
 import { useBalance } from '@/contexts/BalanceContext';
 import Constants from 'expo-constants';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
@@ -202,7 +203,7 @@ export default function PaystackPaymentScreen() {
       // Generate reference for transaction
       const reference = `PMN-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-      // Amount in NGN (package converts to kobo). Charge amount_to_credit + fee.
+      beginExternalAppFlow();
       popup.checkout({
         email: profile.email,
         amount: totalAmount,
@@ -215,6 +216,7 @@ export default function PaystackPaymentScreen() {
           user_id: session.user.id,
         },
         onSuccess: (res: any) => {
+          endExternalAppFlow();
           console.log('✅ Payment successful:', res);
           setIsProcessing(true);
           
@@ -222,6 +224,7 @@ export default function PaystackPaymentScreen() {
           verifyPayment(reference, profile.email, planId);
         },
         onCancel: () => {
+          endExternalAppFlow();
           console.log('⚠️ Payment cancelled by user');
           // Navigate to failure screen with cancelled status
           router.push({
@@ -238,6 +241,7 @@ export default function PaystackPaymentScreen() {
 
       setIsLoading(false);
     } catch (error) {
+      endExternalAppFlow();
       console.error('🔴 Payment initialization error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to initialize payment';
       
