@@ -256,7 +256,7 @@ export default function PurposeScreen() {
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}
-      edges={['top']}
+      edges={['bottom']}
     >
       <View
         style={[

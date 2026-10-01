@@ -1261,7 +1261,7 @@ export default function FrequencySelectionScreen() {
   const durationOptions = selectedFrequency ? getDurationOptions(selectedFrequency, totalAmount) : [];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable 
           onPress={() => {

@@ -92,7 +92,7 @@ export default function SuccessScreen() {
   const styles = createStyles(colors, isSmallScreen, isMediumScreen);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <Text style={styles.headerTitle}>Payout Plan Created</Text>

@@ -60,7 +60,7 @@ export default function RulesScreen() {
   const styles = createStyles(colors, isDark, isSmallScreen);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable 
           onPress={() => {
