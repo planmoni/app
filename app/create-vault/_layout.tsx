@@ -1,17 +1,39 @@
+import { useEffect } from 'react';
 import { View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useGlobalSearchParams, usePathname } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
+import { clearVaultSetupDraft, saveVaultSetupDraft } from '@/lib/vault-setup-draft';
 
 export default function CreateExpensePlanLayout() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const pathname = usePathname();
+  const params = useGlobalSearchParams();
+  const serializedParams = JSON.stringify(params);
+  const sheetBackground = isDark ? colors.backgroundSecondary : colors.background;
+
+  useEffect(() => {
+    if (!pathname.startsWith('/create-vault')) return;
+    if (
+      pathname.includes('/success') ||
+      pathname.includes('/fund-plan') ||
+      pathname.includes('/fund-amount')
+    ) {
+      void clearVaultSetupDraft();
+      return;
+    }
+    void saveVaultSetupDraft(
+      pathname,
+      params as Record<string, string | string[] | undefined>
+    );
+  }, [pathname, serializedParams]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.backgroundSecondary }}>
+    <View style={{ flex: 1, backgroundColor: sheetBackground }}>
     <Stack
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
-        contentStyle: { flex: 1, backgroundColor: colors.backgroundSecondary },
+        contentStyle: { flex: 1, backgroundColor: sheetBackground },
       }}
     >
       <Stack.Screen name="plan-details" />

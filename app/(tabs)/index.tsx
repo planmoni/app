@@ -18,6 +18,7 @@ import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 import { ensureSupabaseConnection } from '@/lib/supabase-fetch';
 import { clearPayoutSetupDraft, loadPayoutSetupDraft, type PayoutSetupDraft } from '@/lib/payout-setup-draft';
+import { clearVaultSetupDraft, loadVaultSetupDraft, type VaultSetupDraft } from '@/lib/vault-setup-draft';
 import NotificationPrePromptModal from '@/components/NotificationPrePromptModal';
 import { requestNotificationPermissions, registerPushToken } from '@/lib/notifications';
 import * as Notifications from 'expo-notifications';
@@ -297,6 +298,35 @@ function payoutSetupStepTitle(pathname: string): string {
   return 'How much do you want to set aside?';
 }
 
+function vaultSetupStepTitle(pathname: string): string {
+  if (pathname.includes('/plan-name')) return 'Vault Name';
+  if (pathname.includes('/target-amount')) return 'Vault Amount';
+  if (pathname.includes('/dates')) return 'When should this vault mature?';
+  if (pathname.includes('/funding-source')) return 'How should this vault be funded?';
+  if (pathname.includes('/auto-topup-config')) return 'Auto Top-Up';
+  if (pathname.includes('/start-action')) return 'What happens when the vault is due?';
+  if (pathname.includes('/buckets')) return 'Allocate Budget';
+  if (pathname.includes('/funding-choice')) return 'How would you like to proceed?';
+  if (pathname.includes('/fund-budget')) return 'Lock Funds';
+  if (pathname.includes('/name-expense')) return 'Name Your Plan';
+  if (pathname.includes('/wallet-rules')) return 'Set up wallet rules';
+  if (pathname.includes('/review')) return 'Review your vault';
+  if (pathname.includes('/contribution-calculation')) return 'Budget Amount';
+  if (pathname.includes('/basic-setup')) return 'Basic Setup';
+  if (pathname.includes('/plan-type')) return 'Budget type';
+  return 'What are you planning for?';
+}
+
+function vaultSetupHint(draft: VaultSetupDraft): string {
+  const name = draft.params.planName?.trim();
+  const amount = Number(draft.params.targetAmount || draft.params.totalBudget);
+  const prefix = [
+    name,
+    amount ? `₦${amount.toLocaleString('en-NG')}` : '',
+  ].filter(Boolean);
+  return [...prefix, vaultSetupStepTitle(draft.pathname)].join(' · ');
+}
+
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
   const { session, isLoading: authLoading } = useAuth();
@@ -310,6 +340,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const floatingNavOffset = Math.max(insets.bottom, 12) + 64 + 16;
   const [payoutDraft, setPayoutDraft] = useState<PayoutSetupDraft | null>(null);
+  const [vaultDraft, setVaultDraft] = useState<VaultSetupDraft | null>(null);
   const { payoutPlans, isLoading: payoutPlansLoading, isTimedOut: payoutPlansTimedOut, fetchPayoutPlans } = usePayoutPlansQuery(20);
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress, currentTier } = useKYCProgress();
@@ -737,6 +768,9 @@ export default function HomeScreen() {
       let active = true;
       void loadPayoutSetupDraft().then((draft) => {
         if (active) setPayoutDraft(draft);
+      });
+      void loadVaultSetupDraft().then((draft) => {
+        if (active) setVaultDraft(draft);
       });
       return () => {
         active = false;
@@ -1921,6 +1955,42 @@ export default function HomeScreen() {
                   onPress={() => {
                     setPayoutDraft(null);
                     void clearPayoutSetupDraft();
+                  }}
+                  hitSlop={8}
+                  style={styles.resumePayoutClose}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                >
+                  <X size={16} color={colors.textSecondary} />
+                </Pressable>
+              </Pressable>
+            ) : null}
+
+            {vaultDraft ? (
+              <Pressable
+                style={styles.resumePayoutCard}
+                onPress={() => {
+                  impact();
+                  router.push({
+                    pathname: vaultDraft.pathname as never,
+                    params: vaultDraft.params,
+                  });
+                }}
+              >
+                <View style={styles.resumePayoutIcon}>
+                  <Vault size={20} color={colors.primary} />
+                </View>
+                <View style={styles.resumePayoutText}>
+                  <Text style={styles.resumePayoutTitle}>Continue setting up your Vault</Text>
+                  <Text style={styles.resumePayoutHint}>
+                    {vaultSetupHint(vaultDraft)}
+                  </Text>
+                </View>
+                <ArrowRight size={18} color={colors.textSecondary} />
+                <Pressable
+                  onPress={() => {
+                    setVaultDraft(null);
+                    void clearVaultSetupDraft();
                   }}
                   hitSlop={8}
                   style={styles.resumePayoutClose}

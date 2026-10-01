@@ -404,7 +404,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.backgroundSecondary,
+      backgroundColor: colors.background,
     },
     header: {
       flexDirection: 'row',

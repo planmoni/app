@@ -761,7 +761,9 @@ function RootLayoutNav() {
             presentation: 'modal',
             animation: 'slide_from_bottom',
             gestureEnabled: true,
-            contentStyle: { backgroundColor: colors.backgroundSecondary },
+            contentStyle: {
+              backgroundColor: isDark ? colors.backgroundSecondary : colors.background,
+            },
           }}
         />
         <Stack.Screen
