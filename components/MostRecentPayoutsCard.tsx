@@ -207,23 +207,7 @@ export default function MostRecentPayoutsCard({ transactions, payoutPlans, isLoa
     }).start();
   }, [currentIndex, slideAnimation]);
 
-  // Handle card press to open transaction modal
   const handleCardPress = () => {
-    const currentTransaction = recentTransactions[currentIndex];
-    if (currentTransaction && onTransactionPress) {
-      // Find the original transaction data
-      const originalTransaction = transactions.find(tx => 
-        tx.id === currentTransaction.id
-      );
-      
-      if (originalTransaction) {
-        onTransactionPress(originalTransaction);
-      }
-    }
-  };
-
-  // Handle view all transactions
-  const handleViewAllTransactions = () => {
     router.push('/transactions');
     logAnalyticsEvent('view_all_transactions', { source: 'most_recent_card' });
   };
@@ -236,11 +220,7 @@ export default function MostRecentPayoutsCard({ transactions, payoutPlans, isLoa
   // Show skeleton while first load is in progress
   if (isLoading && recentTransactions.length === 0) {
     return (
-      <View style={{ marginTop: Platform.OS === 'ios' ? 5 : 1, marginBottom: Platform.OS === 'ios' ? 10 : 8 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <SkeletonBox width={90} height={13} borderRadius={6} />
-          <SkeletonBox width={130} height={13} borderRadius={6} />
-        </View>
+      <View style={{ marginTop: 0, marginBottom: Platform.OS === 'ios' ? 10 : 8 }}>
         <View style={{
           backgroundColor: isDark ? colors.card : '#FFFFFF',
           borderRadius: 14,
@@ -267,12 +247,6 @@ export default function MostRecentPayoutsCard({ transactions, payoutPlans, isLoa
 
   return (
     <View style={styles.container}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Most Recent</Text>
-        <Pressable style={styles.viewAllButton} onPress={handleViewAllTransactions}>
-          <Text style={styles.viewAllText}>See all transactions</Text>
-        </Pressable>
-      </View>
       <View style={styles.cardContainer}>
         <Pressable style={styles.card} onPress={handleCardPress}>
           <Animated.View 
@@ -362,7 +336,7 @@ export default function MostRecentPayoutsCard({ transactions, payoutPlans, isLoa
 
 const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) => StyleSheet.create({
   container: {
-    marginTop: Platform.OS === 'ios' ? 5 : 1,
+    marginTop: 0,
     marginBottom: Platform.OS === 'ios' ? 10 : 8,
   },
   sectionHeader: {

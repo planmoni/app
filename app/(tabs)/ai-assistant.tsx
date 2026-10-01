@@ -16,7 +16,7 @@ import {
   Button,
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBalance } from '@/contexts/BalanceContext';
@@ -120,6 +120,8 @@ export default function AIAssistantScreen() {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const windowHeight = Dimensions.get('window').height;
+  const insets = useSafeAreaInsets();
+  const floatingNavOffset = Math.max(insets.bottom, 12) + 64;
   const [error, setError] = useState<string | null>(null);
   
   // Rate limiting and daily limits
@@ -2450,7 +2452,12 @@ export default function AIAssistantScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
-          <View style={styles.inputContainer}>
+          <View
+            style={[
+              styles.inputContainer,
+              { paddingBottom: keyboardVisible ? 12 : floatingNavOffset + 8 },
+            ]}
+          >
             <TextInput
               ref={inputRef}
               style={styles.input}

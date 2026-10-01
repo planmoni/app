@@ -1,107 +1,180 @@
 import { Tabs } from 'expo-router';
 import { Calendar, Home as Home, PieChart, Settings, Sparkles } from 'lucide-react-native'; //Do not change the Home to Chrome
-import { StyleSheet, Platform } from 'react-native';
+import { LayoutAnimation, Platform, Pressable, StyleSheet, Text, UIManager, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, ThemeContext } from '@/contexts/ThemeContext';
 import { useContext } from 'react';
 import { useRouteTracking } from '@/hooks/useRouteTracking';
 import { useBottomNav } from '@/contexts/BottomNavContext';
-// WelcomeModal will be lazy loaded when needed
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
-function TabLayoutContent() {
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { colors, isDark } = useTheme();
-  const { isBottomNavVisible } = useBottomNav();
   const insets = useSafeAreaInsets();
-
-  // Android 15+/targetSdk 36 draws edge-to-edge; pad tab bar above system controls.
-  const androidBottomInset = Platform.OS === 'android' ? Math.max(insets.bottom, 0) : 0;
-  const tabBarHeight = Platform.OS === 'ios' ? 85 : 56 + androidBottomInset;
-  const tabBarPaddingBottom = Platform.OS === 'ios' ? 15 : 10 + androidBottomInset;
-
-  // Track route changes for persistence
-  useRouteTracking();
-
-  // Use darker color for inactive icons on Android in light mode for better visibility
-  const getInactiveTintColor = () => {
-    if (Platform.OS === 'android' && !isDark) {
-      // Use textSecondary instead of textTertiary for better contrast on white background
-      return colors.textSecondary;
-    }
-    return colors.textTertiary;
-  };
+  const inactiveColor = isDark ? '#93C5FD' : colors.primary;
+  const bottom = Math.max(insets.bottom, 12);
 
   return (
-    <>
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <View
+        style={[
+          styles.bar,
+          {
+            bottom,
+            backgroundColor: isDark ? '#040C19' : '#FFFFFF',
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        {state.routes.map((route, index) => {
+          const focused = state.index === index;
+          const { options } = descriptors[route.key];
+          const label = typeof options.title === 'string' ? options.title : route.name;
+
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
+            if (!focused && !event.defaultPrevented) {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              navigation.navigate(route.name, route.params);
+            }
+          };
+
+          return (
+            <Pressable
+              key={route.key}
+              accessibilityRole="button"
+              accessibilityState={focused ? { selected: true } : {}}
+              accessibilityLabel={label}
+              onPress={onPress}
+              style={focused ? [styles.activeItem, { backgroundColor: colors.primary }] : styles.inactiveItem}
+            >
+              {options.tabBarIcon?.({ focused, color: focused ? '#FFFFFF' : inactiveColor, size: 22 })}
+              {focused ? (
+                <Text style={styles.activeLabel} numberOfLines={1}>
+                  {label}
+                </Text>
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function TabLayoutContent() {
+  const { isBottomNavVisible } = useBottomNav();
+
+  useRouteTracking();
+
+  return (
     <Tabs
+      tabBar={(props) => (isBottomNavVisible ? <FloatingTabBar {...props} /> : null)}
       screenOptions={{
-        tabBarActiveTintColor: isDark ? colors.text : colors.primary,
-        tabBarInactiveTintColor: getInactiveTintColor(),
-        tabBarStyle: isBottomNavVisible
-          ? [
-              styles.tabBar,
-              {
-                height: tabBarHeight,
-                paddingBottom: tabBarPaddingBottom,
-                backgroundColor: colors.tabBar,
-                borderTopColor: colors.tabBarBorder,
-              },
-            ]
-          : { display: 'none' },
-        tabBarLabelStyle: styles.tabBarLabel,
+        tabBarStyle: {
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,
+          height: 0,
+        },
+        sceneStyle: {
+          backgroundColor: 'transparent',
+        },
+        tabBarShowLabel: false,
         headerShown: false,
-      }}>
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+          tabBarIcon: ({ color }) => <Home size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="ai-assistant"
         options={{
           title: 'AI',
-          tabBarIcon: ({ color, size }) => <Sparkles size={size} color={color} />,
+          tabBarIcon: ({ color }) => <Sparkles size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="calendar"
         options={{
           title: 'Calendar',
-          tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
+          tabBarIcon: ({ color }) => <Calendar size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="insights"
         options={{
           title: 'Insights',
-          tabBarIcon: ({ color, size }) => <PieChart size={size} color={color} />,
+          tabBarIcon: ({ color }) => <PieChart size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
+          tabBarIcon: ({ color }) => <Settings size={22} color={color} />,
         }}
       />
     </Tabs>
-    </>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    paddingTop: 5,
-    // height / paddingBottom set dynamically for Android system nav insets
+  bar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    height: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 32,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    overflow: 'hidden',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  tabBarLabel: {
-    fontSize: Platform.OS === 'ios' ? 12 : 10,
+  activeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    gap: 8,
+    flexShrink: 0,
+  },
+  inactiveItem: {
+    width: 40,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  activeLabel: {
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '500',
   },
 });
 
-// Wrapper — render tabs as soon as theme exists (no artificial delay; delay caused password flash under tabs).
 export default function TabLayout() {
   const themeContext = useContext(ThemeContext);
 

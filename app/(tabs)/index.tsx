@@ -289,6 +289,7 @@ export default function HomeScreen() {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const insets = useSafeAreaInsets();
+  const floatingNavOffset = Math.max(insets.bottom, 12) + 64 + 16;
   const { payoutPlans, isLoading: payoutPlansLoading, isTimedOut: payoutPlansTimedOut, fetchPayoutPlans } = usePayoutPlansQuery(20);
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress, currentTier } = useKYCProgress();
@@ -1809,9 +1810,11 @@ export default function HomeScreen() {
               onTransactionPress={handleTransactionPress}
             />
 
+            <View style={styles.createNewSection}>
+            <Text style={styles.createNewTitle}>Create new</Text>
             <View style={styles.quickActions}>
               <Pressable
-                style={styles.quickActionCard}
+                style={[styles.quickActionCard, styles.payoutAction]}
                 onPress={() => {
                   if (!ensureAuthenticatedOrWelcome()) return;
                   impact();
@@ -1819,13 +1822,14 @@ export default function HomeScreen() {
                   router.push('/create-payout/amount');
                 }}
               >
-                <View style={styles.quickActionIcon}>
-                  <CalendarDays size={20} color={colors.primary} />
+                <View style={styles.payoutActionIcon}>
+                  <CalendarDays size={22} color="#FFFFFF" />
                 </View>
-                <Text style={styles.quickActionTitle}>New Payout</Text>
+                <Text style={styles.payoutActionTitle}>Payout</Text>
+                <Text style={styles.payoutActionHint}>Schedule money out</Text>
               </Pressable>
               <Pressable
-                style={styles.quickActionCard}
+                style={[styles.quickActionCard, styles.vaultAction]}
                 onPress={() => {
                   if (!ensureAuthenticatedOrWelcome()) return;
                   impact();
@@ -1837,11 +1841,13 @@ export default function HomeScreen() {
                   });
                 }}
               >
-                <View style={styles.quickActionIcon}>
-                  <Vault size={20} color={colors.primary} />
+                <View style={styles.vaultActionIcon}>
+                  <Vault size={22} color="#1E3A8A" />
                 </View>
-                <Text style={styles.quickActionTitle}>New Vault</Text>
+                <Text style={styles.vaultActionTitle}>Vault</Text>
+                <Text style={styles.vaultActionHint}>Save for a goal</Text>
               </Pressable>
+            </View>
             </View>
             
             {/* Home Tab Content */}
@@ -1953,6 +1959,7 @@ export default function HomeScreen() {
           style={[
             styles.floatingAddButton,
             {
+              bottom: floatingNavOffset,
               opacity: buttonOpacity,
               transform: [{
                 scale: buttonOpacity.interpolate({
@@ -1977,7 +1984,7 @@ export default function HomeScreen() {
       {/* Floating + Button for Plans Tab */}
       {activeBalanceTab === 'plans' && (
         <Pressable
-          style={styles.floatingAddButton}
+          style={[styles.floatingAddButton, { bottom: floatingNavOffset }]}
           onPress={() => {
             if (!ensureAuthenticatedOrWelcome()) return;
             impact();
@@ -1996,7 +2003,7 @@ export default function HomeScreen() {
       {/* Floating + Button for Payouts Tab */}
       {activeBalanceTab === 'payouts' && (
         <Pressable
-          style={styles.floatingAddButton}
+          style={[styles.floatingAddButton, { bottom: floatingNavOffset }]}
           onPress={() => {
             if (!ensureAuthenticatedOrWelcome()) return;
             impact();
@@ -2760,7 +2767,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   balanceCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 18,
+    marginBottom: 8,
     marginTop: 0,
   },
   balanceCardContent: {
@@ -2856,34 +2863,68 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     gap: 10,
     marginTop: 14,
   },
+  createNewSection: {
+    marginBottom: 18,
+  },
+  createNewTitle: {
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 10,
+  },
   quickActions: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 18,
   },
   quickActionCard: {
     flex: 1,
-    backgroundColor: colors.card,
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
     paddingVertical: 16,
     paddingHorizontal: 14,
-    gap: 12,
+    gap: 8,
+    minHeight: 124,
   },
-  quickActionIcon: {
+  payoutAction: {
+    backgroundColor: colors.primary,
+  },
+  vaultAction: {
+    backgroundColor: colors.accent,
+  },
+  payoutActionIcon: {
     width: 40,
     height: 40,
-    borderRadius: 14,
-    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : colors.iconBackground,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  quickActionTitle: {
-    fontSize: getScaledFontSize(15, textSizeMultiplier),
+  vaultActionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(30,58,138,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  payoutActionTitle: {
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
     fontWeight: '700',
-    letterSpacing: -0.2,
-    color: colors.text,
+    color: '#FFFFFF',
+  },
+  vaultActionTitle: {
+    fontSize: getScaledFontSize(16, textSizeMultiplier),
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  payoutActionHint: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.82)',
+  },
+  vaultActionHint: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    fontWeight: '500',
+    color: 'rgba(30,58,138,0.8)',
   },
   createButton: {
     flex: 1,
@@ -3438,7 +3479,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   floatingAddButton: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 16,
     right: 20,
     width: 56,
     height: 56,
