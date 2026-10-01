@@ -10,6 +10,7 @@ export default function CreateExpensePlanLayout() {
   const params = useGlobalSearchParams();
   const serializedParams = JSON.stringify(params);
   const sheetBackground = isDark ? colors.backgroundSecondary : colors.background;
+  const frameStyle = { flex: 1, backgroundColor: sheetBackground };
 
   useEffect(() => {
     if (!pathname.startsWith('/create-vault')) return;
@@ -28,7 +29,7 @@ export default function CreateExpensePlanLayout() {
   }, [pathname, serializedParams]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: sheetBackground }}>
+    <View style={frameStyle}>
     <Stack
       screenOptions={{
         headerShown: false,

@@ -24,6 +24,7 @@ type PayoutsTabContentProps = {
   onShowWelcomeModal?: () => void;
   isRefreshing?: boolean;
   onRefresh?: () => void;
+  onLockTabSwipe?: (locked: boolean) => void;
 };
 
 export default function PayoutsTabContent({
@@ -46,6 +47,7 @@ export default function PayoutsTabContent({
   onShowWelcomeModal,
   isRefreshing = false,
   onRefresh,
+  onLockTabSwipe,
 }: PayoutsTabContentProps) {
   const payoutProgress = payoutsTotalAmount > 0
     ? (payoutsTotalPaid / payoutsTotalAmount) * 100
@@ -101,6 +103,7 @@ export default function PayoutsTabContent({
           onShowHowItWorks={() => setShowHowItWorksModal(true)}
           isUserAuthenticated={isUserAuthenticated}
           onShowWelcomeModal={onShowWelcomeModal}
+          onLockTabSwipe={onLockTabSwipe}
         />
         <View style={styles.bottomPadding} />
       </ScrollView>

@@ -12,9 +12,10 @@ import { isBudgetStarted } from '@/lib/expensePlanUtils';
 
 type ExpensePlansSectionProps = {
   onRequireAuth?: () => boolean;
+  onLockTabSwipe?: (locked: boolean) => void;
 };
 
-export default function ExpensePlansSection({ onRequireAuth }: ExpensePlansSectionProps) {
+export default function ExpensePlansSection({ onRequireAuth, onLockTabSwipe }: ExpensePlansSectionProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
@@ -72,8 +73,12 @@ export default function ExpensePlansSection({ onRequireAuth }: ExpensePlansSecti
       ) : (
         <ScrollView
           horizontal
+          nestedScrollEnabled
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.expensePlansContainer}
+          onTouchStart={() => onLockTabSwipe?.(true)}
+          onTouchEnd={() => onLockTabSwipe?.(false)}
+          onTouchCancel={() => onLockTabSwipe?.(false)}
         >
           {displayedPlans.map(plan => (
             <View key={plan.id} style={styles.expensePlanCardWrapper}>

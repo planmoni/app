@@ -748,20 +748,37 @@ function RootLayoutNav() {
           name="create-payout"
           options={{
             headerShown: false,
-            presentation: 'modal',
+            presentation: Platform.OS === 'android' ? 'formSheet' : 'modal',
             animation: 'slide_from_bottom',
             gestureEnabled: true,
-            contentStyle: { backgroundColor: colors.backgroundSecondary },
+            ...(Platform.OS === 'android'
+              ? {
+                  sheetAllowedDetents: [0.94],
+                  sheetCornerRadius: 28,
+                  sheetShouldOverflowTopInset: false,
+                  statusBarTranslucent: false,
+                }
+              : {}),
+            contentStyle: { flex: 1, backgroundColor: colors.backgroundSecondary },
           }}
         />
         <Stack.Screen
           name="create-vault"
           options={{
             headerShown: false,
-            presentation: 'modal',
+            presentation: Platform.OS === 'android' ? 'formSheet' : 'modal',
             animation: 'slide_from_bottom',
             gestureEnabled: true,
+            ...(Platform.OS === 'android'
+              ? {
+                  sheetAllowedDetents: [0.94],
+                  sheetCornerRadius: 28,
+                  sheetShouldOverflowTopInset: false,
+                  statusBarTranslucent: false,
+                }
+              : {}),
             contentStyle: {
+              flex: 1,
               backgroundColor: isDark ? colors.backgroundSecondary : colors.background,
             },
           }}

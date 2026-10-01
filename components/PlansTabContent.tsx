@@ -41,6 +41,7 @@ type PlansTabContentProps = {
   isRefreshing?: boolean;
   onRefresh?: () => void;
   onRequireAuth?: () => boolean;
+  onLockTabSwipe?: (locked: boolean) => void;
 };
 
 export default function PlansTabContent({
@@ -59,6 +60,7 @@ export default function PlansTabContent({
   isRefreshing = false,
   onRefresh,
   onRequireAuth,
+  onLockTabSwipe,
 }: PlansTabContentProps) {
   const { textSizeMultiplier } = useTextSize();
   const { isDark } = useTheme();
@@ -173,8 +175,12 @@ export default function PlansTabContent({
           ) : (
             <ScrollView
               horizontal
+              nestedScrollEnabled
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.ongoingCarouselContainer}
+              onTouchStart={() => onLockTabSwipe?.(true)}
+              onTouchEnd={() => onLockTabSwipe?.(false)}
+              onTouchCancel={() => onLockTabSwipe?.(false)}
             >
               {ongoingBudgets.map(({ plan }) => (
                 <View key={plan.id} style={styles.ongoingCardWrapper}>
@@ -254,7 +260,7 @@ export default function PlansTabContent({
         </>
       )}
 
-        <ExpensePlansSection onRequireAuth={onRequireAuth} />
+        <ExpensePlansSection onRequireAuth={onRequireAuth} onLockTabSwipe={onLockTabSwipe} />
         <View style={styles.bottomPadding} />
       </ScrollView>
     </View>

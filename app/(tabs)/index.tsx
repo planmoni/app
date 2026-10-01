@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 // import AccountCreationSuccessModal from '@/components/AccountCreationSuccessModal'; // Disabled - success modal removed after onboarding
 import NewPlanInfoModal from '@/components/NewPlanInfoModal';
 import AddPayoutPlanByCodeModal from '@/components/AddPayoutPlanByCodeModal';
@@ -13,7 +13,7 @@ import PlanmoniLoader from '@/components/PlanmoniLoader';
 import Button from '@/components/Button';
 import PendingActionsCard from '@/components/PendingActionsCard';
 // import KYCCard from '@/components/KYCCard'; // UNUSED — commented out (not rendered)
-const ImageCarousel = React.lazy(() => import('@/components/ImageCarousel'));
+import ImageCarousel from '@/components/ImageCarousel';
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 import { ensureSupabaseConnection } from '@/lib/supabase-fetch';
@@ -357,6 +357,11 @@ export default function HomeScreen() {
   );
   const { width: screenWidth } = useWindowDimensions();
   const tabScrollViewRef = useRef<ScrollView>(null);
+  const [tabSwipeEnabled, setTabSwipeEnabled] = useState(true);
+  const setTabSwipeLocked = useCallback((locked: boolean) => {
+    if (Platform.OS !== 'android') return;
+    setTabSwipeEnabled(!locked);
+  }, []);
   // const { fetchPaystackTransactions, isLoading: paystackLoading } = usePaystackTransactions();
   const { impact, notification, selection } = useHaptics();
   // Tab labels + state; horizontal pager position is synced in useLayoutEffect / useEffect below
@@ -1864,7 +1869,7 @@ export default function HomeScreen() {
           decelerationRate="fast"
           snapToInterval={screenWidth}
           snapToAlignment="start"
-          scrollEnabled
+          scrollEnabled={tabSwipeEnabled}
           style={[styles.tabContentScrollView, { width: screenWidth }]}
           contentContainerStyle={{ width: screenWidth * 3 }}
         >
@@ -2021,7 +2026,7 @@ export default function HomeScreen() {
                   <CalendarDays size={96} color="#FFFFFF" strokeWidth={1.6} />
                 </View>
                 <Text style={styles.payoutActionTitle}>Payout</Text>
-                <Text style={styles.payoutActionHint}>Setup payout schedules.</Text>
+                <Text style={styles.payoutActionHint}>Start a new automated payout schedule.</Text>
               </Pressable>
               <Pressable
                 style={[styles.quickActionCard, styles.vaultAction]}
@@ -2055,9 +2060,7 @@ export default function HomeScreen() {
                   onSuggestionPress={handleAISuggestionPress}
                 />
               )} */}
-              <Suspense fallback={<View style={styles.carouselPlaceholder} />}>
-                <ImageCarousel images={carouselImages} height={120} />
-              </Suspense>
+              <ImageCarousel images={carouselImages} height={120} />
 
               <QuickPlans onRequireAuth={ensureAuthenticatedOrWelcome} />
 
@@ -2110,6 +2113,7 @@ export default function HomeScreen() {
             isRefreshing={isRefreshing}
             onRefresh={handleRefresh}
             onRequireAuth={ensureAuthenticatedOrWelcome}
+            onLockTabSwipe={setTabSwipeLocked}
           />
           ) : (
             <View style={[styles.tabPage, { width: screenWidth }]} />
@@ -2130,6 +2134,7 @@ export default function HomeScreen() {
             isLoading={payoutPlansLoading}
             customDateAmounts={customDateAmounts}
             onRequireAuth={ensureAuthenticatedOrWelcome}
+            onLockTabSwipe={setTabSwipeLocked}
             setShowAddByCodeModal={setShowAddByCodeModal}
             setShowNewPlanInfoModal={setShowNewPlanInfoModal}
             setShowHowItWorksModal={setShowHowItWorksModal}

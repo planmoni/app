@@ -22,9 +22,10 @@ interface PayoutPlansSectionProps {
   onShowHowItWorks?: () => void;
   onShowWelcomeModal?: () => void;
   isUserAuthenticated?: boolean;
+  onLockTabSwipe?: (locked: boolean) => void;
 }
 
-function PayoutPlansSection({ activePlans, isLoading = false, customDateAmounts = {}, onShowAddByCodeModal, onShowNewPlanInfo, onShowHowItWorks, onShowWelcomeModal, isUserAuthenticated = true }: PayoutPlansSectionProps) {
+function PayoutPlansSection({ activePlans, isLoading = false, customDateAmounts = {}, onShowAddByCodeModal, onShowNewPlanInfo, onShowHowItWorks, onShowWelcomeModal, isUserAuthenticated = true, onLockTabSwipe }: PayoutPlansSectionProps) {
   const { colors, isDark } = useTheme();
   const { textSizeMultiplier } = useTextSize();
   const { requireAuth, isAuthenticated } = useRequireAuth();
@@ -134,8 +135,12 @@ function PayoutPlansSection({ activePlans, isLoading = false, customDateAmounts 
       ) : activePlans.length > 0 ? (
         <ScrollView 
           horizontal 
+          nestedScrollEnabled
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.payoutPlansContainer}
+          onTouchStart={() => onLockTabSwipe?.(true)}
+          onTouchEnd={() => onLockTabSwipe?.(false)}
+          onTouchCancel={() => onLockTabSwipe?.(false)}
         >
           {memoizedPlans.map((plan) => {
               const purposeLabel = plan.purpose
