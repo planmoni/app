@@ -13,6 +13,7 @@ import { PinProvider, usePin } from '@/contexts/PinContext';
 import { AppLockProvider, useAppLock } from '@/contexts/AppLockContext';
 import { AppVersionProvider } from '@/contexts/AppVersionContext';
 import UpdateAppModal from '@/components/UpdateAppModal';
+import OtaUpdateModal from '@/components/OtaUpdateModal';
 import { UserActivityTracker } from '@/hooks/useUserActivityTracking';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { QueryClientProvider } from '@/contexts/QueryClientProvider';
@@ -824,6 +825,7 @@ function RootLayoutNav() {
         <AppLockScreen />
       )}
       <UpdateAppModal />
+      <OtaUpdateModal />
       
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {/* <SessionDebugger /> */}

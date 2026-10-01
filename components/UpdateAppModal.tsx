@@ -82,7 +82,7 @@ export default function UpdateAppModal() {
     <Modal
       visible={needsUpdate}
       transparent
-      animationType="fade"
+      animationType="slide"
       statusBarTranslucent
       onRequestClose={isForceUpdate ? undefined : handleDismiss}
     >
@@ -164,19 +164,16 @@ export default function UpdateAppModal() {
 const createStyles = (colors: any) => StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    zIndex: 9999,
-    elevation: 9999,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'flex-end',
   },
   modalContainer: {
     backgroundColor: colors.surface,
-    borderRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 24,
+    paddingBottom: 28,
     width: '100%',
-    maxWidth: 400,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },

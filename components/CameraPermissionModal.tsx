@@ -84,17 +84,15 @@ export default function CameraPermissionModal({
   const styles = StyleSheet.create({
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 16,
+      backgroundColor: 'rgba(15, 23, 42, 0.45)',
+      justifyContent: 'flex-end',
     },
     permissionModal: {
-      width: '90%',
-      maxWidth: 400,
-      borderRadius: 16,
+      width: '100%',
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
       padding: 24,
-      alignSelf: 'center',
+      paddingBottom: 28,
       backgroundColor: colors.surface,
     },
     permissionModalHeader: {

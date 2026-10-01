@@ -34,16 +34,16 @@ export default function AppLockModal({
   const styles = StyleSheet.create({
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 16,
+      backgroundColor: 'rgba(15, 23, 42, 0.45)',
+      justifyContent: 'flex-end',
     },
     modalContainer: {
       width: '100%',
-      maxWidth: 400,
-      borderRadius: 24,
-      padding: isSmallScreen ? 24 : 32,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingHorizontal: 24,
+      paddingTop: 20,
+      paddingBottom: 28,
       backgroundColor: colors.surface,
       alignItems: 'center',
       shadowColor: '#000',
@@ -63,13 +63,21 @@ export default function AppLockModal({
       alignItems: 'center',
     },
     iconContainer: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      backgroundColor: '#EF444420',
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors.primary,
       justifyContent: 'center',
       alignItems: 'center',
-      marginBottom: 24,
+      marginTop: 8,
+      marginBottom: 16,
+    },
+    eyebrow: {
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      color: colors.primary,
+      marginBottom: 8,
     },
     title: {
       fontSize: isSmallScreen ? 22 : 26,
@@ -107,7 +115,7 @@ export default function AppLockModal({
     <Modal
       visible={isVisible}
       transparent={true}
-      animationType="fade"
+      animationType="slide"
       onRequestClose={handleClose}
     >
       <View style={styles.modalOverlay}>
@@ -117,10 +125,11 @@ export default function AppLockModal({
           </Pressable>
 
           <View style={styles.iconContainer}>
-            <Lock size={48} color="#EF4444" />
+            <Lock size={28} color="#FFFFFF" />
           </View>
 
-          <Text style={styles.title}>Set up App Lock</Text>
+          <Text style={styles.eyebrow}>SECURE YOUR ACCOUNT</Text>
+          <Text style={styles.title}>Set up App PIN</Text>
           
           <Text style={styles.message}>
             Set up App PIN to protect your account and secure your payout plans.

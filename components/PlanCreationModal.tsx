@@ -121,16 +121,14 @@ export default function PlanCreationModal({
   const styles = StyleSheet.create({
     modalOverlay: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 16,
+      backgroundColor: 'rgba(15, 23, 42, 0.45)',
+      justifyContent: 'flex-end',
     },
     modalContainer: {
       width: '100%',
-      maxWidth: 400,
       maxHeight: '90%',
-      borderRadius: 24,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
       padding: isSmallScreen ? 24 : 32,
       backgroundColor: colors.surface,
       shadowColor: '#000',
@@ -237,7 +235,7 @@ export default function PlanCreationModal({
     <Modal
       visible={isVisible}
       transparent={true}
-      animationType="fade"
+      animationType="slide"
       onRequestClose={handleClose}
     >
       <View style={styles.modalOverlay}>

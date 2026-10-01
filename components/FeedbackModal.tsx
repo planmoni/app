@@ -59,19 +59,27 @@ export default function FeedbackModal({ visible, onClose, onRate, source }: Feed
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="slide"
       onRequestClose={handleClose}
     >
-      <Pressable style={styles.overlay} onPress={handleClose}>
-        <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
-          <Pressable style={styles.closeButton} onPress={handleMaybeLater} hitSlop={12}>
-            <X size={22} color={colors.textSecondary} />
-          </Pressable>
+      <View style={styles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
+        <View style={styles.card}>
+          <View style={styles.topRow}>
+            <Text style={styles.kicker}>RATING</Text>
+            <Pressable style={styles.closeButton} onPress={handleMaybeLater} hitSlop={12} accessibilityLabel="Close">
+              <X size={18} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+          <View style={styles.iconCircle}>
+            <Star size={28} color="#FFFFFF" fill={colors.accent} />
+          </View>
+          <Text style={styles.eyebrow}>TELL US WHAT YOU THINK</Text>
           <Text style={styles.title}>Are you enjoying Planmoni?</Text>
           <Text style={styles.subtitle}>Rate us and let us know what you think</Text>
           <View style={styles.starsRow}>
             {[...Array(5)].map((_, i) => (
-              <Star key={i} size={28} color={colors.text} fill={colors.backgroundTertiary} style={styles.starIcon} />
+              <Star key={i} size={28} color={colors.primary} fill={colors.accent} style={styles.starIcon} />
             ))}
           </View>
           <View style={styles.buttonsColumn}>
@@ -83,11 +91,11 @@ export default function FeedbackModal({ visible, onClose, onRate, source }: Feed
               </Pressable>
             )}
             <Pressable style={styles.secondaryButton} onPress={handleMaybeLater}>
-              <Text style={styles.secondaryButtonText}>Maybe later</Text>
+              <Text style={styles.secondaryButtonText}>Not now</Text>
             </Pressable>
           </View>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -96,34 +104,65 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   StyleSheet.create({
     overlay: {
       flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 24,
+      backgroundColor: 'rgba(15, 23, 42, 0.45)',
+      justifyContent: 'flex-end',
     },
     card: {
       width: '100%',
-      maxWidth: 340,
-      backgroundColor: colors.card,
-      borderRadius: 20,
-      padding: Platform.OS === 'ios' ? 28 : 24,
-      borderWidth: 0.5,
-      borderColor: colors.border,
+      backgroundColor: isDark ? colors.surface : '#FFFFFF',
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      paddingHorizontal: 24,
+      paddingTop: 18,
+      paddingBottom: 28,
       alignItems: 'center',
+    },
+    topRow: {
+      width: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 28,
+      marginBottom: 12,
+    },
+    kicker: {
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      color: colors.textSecondary,
     },
     closeButton: {
       position: 'absolute',
-      top: 16,
-      right: 16,
-      padding: 4,
+      right: 0,
+      top: 0,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : colors.backgroundTertiary,
+    },
+    iconCircle: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 16,
+    },
+    eyebrow: {
+      color: colors.primary,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      marginBottom: 8,
     },
     title: {
-      fontSize: getScaledFontSize(18, textSizeMultiplier),
-      fontWeight: '600',
+      fontSize: getScaledFontSize(26, textSizeMultiplier),
+      fontWeight: '700',
       color: colors.text,
       marginBottom: 6,
       textAlign: 'center',
-      paddingHorizontal: 8,
     },
     subtitle: {
       fontSize: getScaledFontSize(14, textSizeMultiplier),
@@ -147,8 +186,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     },
     primaryButton: {
       backgroundColor: colors.primary,
-      paddingVertical: 14,
-      borderRadius: 20,
+      paddingVertical: 16,
+      borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
     },

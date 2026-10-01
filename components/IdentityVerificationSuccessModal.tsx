@@ -33,7 +33,7 @@ export default function IdentityVerificationSuccessModal({
   return (
     <Modal
       visible={isVisible}
-      animationType="fade"
+      animationType="slide"
       transparent={true}
       onRequestClose={onClose}
     >
@@ -73,17 +73,16 @@ export default function IdentityVerificationSuccessModal({
 const createStyles = (colors: any) => StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'flex-end',
   },
   modalContainer: {
     backgroundColor: colors.background,
-    borderRadius: 20,
-    padding: 32,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    paddingBottom: 28,
     width: '100%',
-    maxWidth: 400,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
