@@ -770,6 +770,11 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!session?.user?.id) {
+        setPayoutDraft(null);
+        setVaultDraft(null);
+        return;
+      }
       let active = true;
       void loadPayoutSetupDraft().then((draft) => {
         if (active) setPayoutDraft(draft);
@@ -780,7 +785,7 @@ export default function HomeScreen() {
       return () => {
         active = false;
       };
-    }, [])
+    }, [session?.user?.id])
   );
 
   // Show onboarding questionnaire modal once after new signup (flag set in creating-account.tsx)
@@ -1935,7 +1940,7 @@ export default function HomeScreen() {
               onTransactionPress={handleTransactionPress}
             />
 
-            {payoutDraft ? (
+            {session?.user?.id && payoutDraft ? (
               <Pressable
                 style={styles.resumePayoutCard}
                 onPress={() => {
@@ -1974,7 +1979,7 @@ export default function HomeScreen() {
               </Pressable>
             ) : null}
 
-            {vaultDraft ? (
+            {session?.user?.id && vaultDraft ? (
               <Pressable
                 style={styles.resumePayoutCard}
                 onPress={() => {

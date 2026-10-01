@@ -78,6 +78,7 @@ export function useSupabaseAuth() {
 
   const sessionRef = useRef<Session | null>(null);
   const isAuthReadyRef = useRef(false);
+  const signingOutRef = useRef(false);
   const authReadyGuardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
 
@@ -389,6 +390,7 @@ export function useSupabaseAuth() {
       console.log('🔐 Auth state change:', event, session ? 'Session exists' : 'No session');
       
       if (!mounted) return;
+      if (signingOutRef.current && event !== 'SIGNED_OUT') return;
 
       const readyEvents = ['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED'];
 
@@ -403,6 +405,7 @@ export function useSupabaseAuth() {
           const readySession = session;
           const readyEvent = event;
           setTimeout(() => {
+            if (signingOutRef.current) return;
             void saveSession(readySession);
             if (readyEvent === 'TOKEN_REFRESHED' && readySession.access_token) {
               void import('@/lib/active-session-service')
@@ -469,6 +472,7 @@ export function useSupabaseAuth() {
           setSession(session);
           const updated = session;
           setTimeout(() => {
+            if (signingOutRef.current) return;
             void saveSession(updated);
             if (updated.user.user_metadata) {
               void ProfileSnapshotManager.saveMetadataSnapshot(
@@ -495,6 +499,7 @@ export function useSupabaseAuth() {
           clearInterval(interval);
           return;
         }
+        if (signingOutRef.current) return;
 
         // Check current session validity
         const currentSession = await supabase.auth.getSession();
@@ -618,6 +623,7 @@ export function useSupabaseAuth() {
       setError('Session expired or invalid');
     });
     setSessionRefreshedHandler((refreshedSession) => {
+      if (signingOutRef.current) return;
       seedSessionCache(refreshedSession);
       setSession(refreshedSession);
       markAuthReady(
@@ -734,18 +740,20 @@ export function useSupabaseAuth() {
   };
 
   const signOut = async (): Promise<void> => {
-    const userId = session?.user?.id;
-    const sessionId = session?.access_token;
+    if (signingOutRef.current) return;
+    signingOutRef.current = true;
+    const userId = sessionRef.current?.user?.id;
+    const sessionId = sessionRef.current?.access_token;
 
-    // Optimistic local sign-out — never set isLoading (avoids splash overlay).
+    sessionRef.current = null;
     setSession(null);
     setError(null);
     markAuthReady(true, 'sign_out', null);
     removeFinancialQueries();
-    void clearSession();
-    void clearUserCachesOnSignOut(userId);
+    clearSessionCache();
 
-    void (async () => {
+    try {
+      await clearUserCachesOnSignOut(userId);
       if (userId) {
         try {
           const { ActiveSessionService } = await import('@/lib/active-session-service');
@@ -774,7 +782,18 @@ export function useSupabaseAuth() {
       } catch (err) {
         console.warn('Sign-out warning:', err instanceof Error ? err.message : 'Sign out failed');
       }
-    })();
+    } finally {
+      try {
+        await clearSession();
+      } catch (err) {
+        console.warn('Failed to clear persisted session on sign-out:', err);
+      }
+      clearSessionCache();
+      if (mountedRef.current) {
+        setSession(null);
+      }
+      signingOutRef.current = false;
+    }
   };
 
   return {

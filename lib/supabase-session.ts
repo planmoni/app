@@ -12,7 +12,8 @@ type SessionResult = {
 };
 
 let inFlight: Promise<SessionResult> | null = null;
-let cached: { at: number; result: SessionResult } | null = null;
+let cached: { at: number; epoch: number; result: SessionResult } | null = null;
+let cacheEpoch = 0;
 
 async function loadSessionFromAuth(): Promise<SessionResult> {
   const result = await supabase.auth.getSession();
@@ -27,8 +28,10 @@ async function loadSessionFromAuth(): Promise<SessionResult> {
  * Prevents getSession storage stampedes after token refresh.
  */
 export function seedSessionCache(session: Session | null): void {
+  const epoch = cacheEpoch;
   cached = {
     at: Date.now(),
+    epoch,
     result: {
       data: { session },
       error: null,
@@ -55,9 +58,12 @@ export async function getSessionSerialized(
   }
 
   if (!inFlight) {
+    const epoch = cacheEpoch;
     inFlight = loadSessionFromAuth()
       .then((normalized) => {
-        cached = { at: Date.now(), result: normalized };
+        if (epoch === cacheEpoch) {
+          cached = { at: Date.now(), epoch, result: normalized };
+        }
         return normalized;
       })
       .catch((err) => {
@@ -88,6 +94,7 @@ export async function getSessionSerialized(
 
 /** Drop memory cache (e.g. after sign-out). */
 export function clearSessionCache(): void {
+  cacheEpoch += 1;
   cached = null;
 }
 

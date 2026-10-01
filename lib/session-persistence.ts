@@ -89,7 +89,9 @@ export function isSessionExpired(session: Session | null): boolean {
  */
 export async function clearSession(): Promise<void> {
   try {
+    const blob = await sessionBlobStore();
     await Promise.all([
+      blob?.removeItem(SESSION_BLOB_KEY),
       deleteItem(AUTH_SESSION_KEY),
       deleteItem(AUTH_REFRESH_TOKEN_KEY),
       deleteItem(AUTH_ACCESS_TOKEN_KEY),
