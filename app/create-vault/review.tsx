@@ -208,7 +208,7 @@ export default function ReviewScreen() {
 
       // Navigate to success screen
       router.push({
-        pathname: '/expense-planner/create/success',
+        pathname: '/create-vault/success',
         params: {
           planId: plan.id,
           planName: planName,
@@ -230,7 +230,7 @@ export default function ReviewScreen() {
   const styles = createStyles(colors, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />

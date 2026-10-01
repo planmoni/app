@@ -1956,7 +1956,7 @@ export default function HomeScreen() {
                   if (!ensureAuthenticatedOrWelcome()) return;
                   impact();
                   router.push({
-                    pathname: '/expense-planner/create/plan-details',
+                    pathname: '/create-vault/plan-details',
                     params: {
                       planTypes: JSON.stringify(['one_time']),
                     },
@@ -2107,7 +2107,7 @@ export default function HomeScreen() {
             if (!ensureAuthenticatedOrWelcome()) return;
             impact();
             router.push({
-              pathname: '/expense-planner/create/plan-details',
+              pathname: '/create-vault/plan-details',
               params: {
                 planTypes: JSON.stringify(['one_time']),
               },

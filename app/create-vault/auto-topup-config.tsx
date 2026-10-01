@@ -230,7 +230,7 @@ export default function AutoTopUpConfigScreen() {
 
       // Navigate to start action with auto top-up config
       router.push({
-        pathname: '/expense-planner/create/review',
+        pathname: '/create-vault/review',
         params: {
           planName,
           targetAmount: targetAmount.toString(),
@@ -263,7 +263,7 @@ export default function AutoTopUpConfigScreen() {
 
   if (!topUpConfig) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.header}>
           <Pressable
             onPress={() => {
@@ -285,7 +285,7 @@ export default function AutoTopUpConfigScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => {
@@ -315,7 +315,7 @@ export default function AutoTopUpConfigScreen() {
             }
 
             if (planId) {
-              await saveLastStep(planId, '/expense-planner/create/auto-topup-config');
+              await saveLastStep(planId, '/create-vault/auto-topup-config');
             }
             router.push('/(tabs)');
           }}

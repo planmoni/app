@@ -38,7 +38,7 @@ export default function ExpensePlannerOverviewScreen() {
   const handleCreatePlan = () => {
     haptics.mediumImpact();
     router.push({
-      pathname: '/expense-planner/create/plan-details',
+      pathname: '/create-vault/plan-details',
       params: {
         planTypes: JSON.stringify(['one_time']),
       },

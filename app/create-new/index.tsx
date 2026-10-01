@@ -27,7 +27,7 @@ export default function CreateNewScreen() {
   const startSpendingPlan = () => {
     haptics.mediumImpact();
     router.push({
-      pathname: '/expense-planner/create/plan-details',
+      pathname: '/create-vault/plan-details',
       params: {
         planTypes: JSON.stringify(['one_time']),
       },

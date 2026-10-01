@@ -89,7 +89,7 @@ export default function QuickPlans({ onRequireAuth }: QuickPlansProps) {
                     if (onRequireAuth && !onRequireAuth()) return;
                     haptics.impact();
                     router.push({
-                      pathname: '/expense-planner/create/plan-details',
+                      pathname: '/create-vault/plan-details',
                       params: {
                         planTypes: JSON.stringify(['one_time']),
                         preselectedCategoryId: category.id,

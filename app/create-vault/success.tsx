@@ -54,7 +54,7 @@ export default function ExpensePlanSuccessScreen() {
   const handleFundPlan = () => {
     haptics.mediumImpact();
     router.push({
-      pathname: '/expense-planner/create/fund-plan',
+      pathname: '/create-vault/fund-plan',
       params: {
         planId,
         planName,
@@ -80,7 +80,7 @@ export default function ExpensePlanSuccessScreen() {
   const styles = createStyles(colors, isDark, textSizeMultiplier, isSmallScreen, isMediumScreen);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <Text style={styles.headerTitle}>Vault Created</Text>

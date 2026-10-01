@@ -58,7 +58,7 @@ export default function StartActionScreen() {
     setIsSaving(true);
 
     router.push({
-      pathname: '/expense-planner/create/review',
+      pathname: '/create-vault/review',
       params: {
         planName,
         targetAmount,
@@ -89,7 +89,7 @@ export default function StartActionScreen() {
   const styles = createStyles(colors, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => {

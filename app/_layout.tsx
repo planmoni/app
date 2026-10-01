@@ -755,6 +755,16 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen
+          name="create-vault"
+          options={{
+            headerShown: false,
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
+            gestureEnabled: true,
+            contentStyle: { backgroundColor: colors.backgroundSecondary },
+          }}
+        />
+        <Stack.Screen
           name="vault-schedule-payout"
           options={{ headerShown: false, gestureEnabled: false }}
         />

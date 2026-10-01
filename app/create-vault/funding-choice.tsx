@@ -27,7 +27,7 @@ export default function FundingChoiceScreen() {
   const handleFundBudget = () => {
     haptics.mediumImpact();
     router.push({
-      pathname: '/expense-planner/create/fund-budget',
+      pathname: '/create-vault/fund-budget',
       params: {
         totalBudget,
         buckets: JSON.stringify(buckets),
@@ -83,7 +83,7 @@ export default function FundingChoiceScreen() {
 
     // Navigate to name expense screen with funding skipped
     router.push({
-      pathname: '/expense-planner/create/name-expense',
+      pathname: '/create-vault/name-expense',
       params: {
         totalBudget,
         buckets: JSON.stringify(buckets),
@@ -104,7 +104,7 @@ export default function FundingChoiceScreen() {
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
@@ -114,7 +114,7 @@ export default function FundingChoiceScreen() {
           onPress={async () => {
             haptics.selection();
             if (planId) {
-              await saveLastStep(planId, '/expense-planner/create/funding-choice');
+              await saveLastStep(planId, '/create-vault/funding-choice');
             }
             router.replace('/(tabs)');
           }} 

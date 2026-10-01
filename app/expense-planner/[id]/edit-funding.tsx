@@ -24,7 +24,7 @@ export default function EditFundingScreen() {
   );
   const startDateStr = (plan as any)?.start_date as string | undefined;
 
-  // Matches `app/expense-planner/create/funding-source.tsx` rule:
+  // Matches `app/create-vault/funding-source.tsx` rule:
   // auto top-up only available when the vault maturity date is >= 7 days away.
   const isAutoTopUpDisabled = useMemo(() => {
     if (!startDateStr) return false;
@@ -69,7 +69,7 @@ export default function EditFundingScreen() {
 
       haptics.mediumImpact();
       router.push({
-        pathname: '/expense-planner/create/auto-topup-config',
+        pathname: '/create-vault/auto-topup-config',
         params: {
           mode: 'edit',
           planId: planId || plan.id,

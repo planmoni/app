@@ -200,9 +200,9 @@ export function getDraftResumeStep(plan: {
     // If we have buckets, it means categories were selected, so go to dates
     // If no buckets, go to plan-details to select categories first
     if (!plan.buckets || plan.buckets.length === 0) {
-      return '/expense-planner/create/plan-details';
+      return '/create-vault/plan-details';
     }
-    return '/expense-planner/create/dates';
+    return '/create-vault/dates';
   }
 
   // Step 3: If dates exist, check buckets
@@ -217,7 +217,7 @@ export function getDraftResumeStep(plan: {
     // If dates exist, user went through plan-details already, but buckets weren't saved
     // We need subCategories for buckets screen, so go back to plan-details
     // The plan-details screen will load with existing budget/dates and allow re-selection
-    return '/expense-planner/create/plan-details';
+    return '/create-vault/plan-details';
   }
 
   // Check if buckets have been allocated (have target_amount > 0)
@@ -227,17 +227,17 @@ export function getDraftResumeStep(plan: {
 
   if (!hasAllocatedBuckets) {
     // Buckets exist but have 0 target_amount, go to buckets to allocate
-    return '/expense-planner/create/buckets';
+    return '/create-vault/buckets';
   }
 
   // Step 4: If buckets are allocated but no locked funds, go to funding-choice
   if (!plan.total_locked || plan.total_locked === 0) {
-    return '/expense-planner/create/funding-choice';
+    return '/create-vault/funding-choice';
   }
 
   // Step 5: If locked funds but name is missing or "Untitled Plan", resume at name-expense
   if (!plan.name || plan.name === 'Untitled Plan') {
-    return '/expense-planner/create/name-expense';
+    return '/create-vault/name-expense';
   }
 
   // Otherwise, go to the plan detail page

@@ -34,7 +34,7 @@ export default function FundPlanScreen() {
   const handleFundFromWallet = () => {
     haptics.mediumImpact();
     router.push({
-      pathname: '/expense-planner/create/fund-amount',
+      pathname: '/create-vault/fund-amount',
       params: {
         planId,
         planName,
@@ -49,7 +49,7 @@ export default function FundPlanScreen() {
     router.push({
       pathname: '/paystack-payment',
       params: {
-        returnTo: '/expense-planner/create/fund-plan',
+        returnTo: '/create-vault/fund-plan',
         planId,
         planName,
         totalBudget,
@@ -71,7 +71,7 @@ export default function FundPlanScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable onPress={handleBack} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />

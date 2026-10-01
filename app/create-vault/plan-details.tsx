@@ -942,7 +942,7 @@ export default function PlanDetailsScreen() {
 
         // Navigate to plan-name
       router.push({
-          pathname: '/expense-planner/create/plan-name',
+          pathname: '/create-vault/plan-name',
         params: {
           subCategories: JSON.stringify(selectedSubCategories),
           planId: draftPlan.id,
@@ -952,7 +952,7 @@ export default function PlanDetailsScreen() {
       } else {
         // No budget info yet - navigate to plan-name
         router.push({
-          pathname: '/expense-planner/create/plan-name',
+          pathname: '/create-vault/plan-name',
           params: {
             subCategories: JSON.stringify(selectedSubCategories),
             planId: activePlanId,
@@ -975,7 +975,7 @@ export default function PlanDetailsScreen() {
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => {
@@ -992,7 +992,7 @@ export default function PlanDetailsScreen() {
             haptics.selection();
             // Save last step before closing
             if (currentPlanId || planId) {
-              await saveLastStep(currentPlanId || planId!, '/expense-planner/create/plan-details');
+              await saveLastStep(currentPlanId || planId!, '/create-vault/plan-details');
             }
             router.replace('/(tabs)');
           }}

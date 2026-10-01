@@ -51,7 +51,7 @@ export default function FundAmountSuccessScreen() {
   const styles = createStyles(colors, isDark, textSizeMultiplier, isSmallScreen);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <Text style={styles.headerTitle}>Funds Added</Text>

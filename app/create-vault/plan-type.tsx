@@ -38,7 +38,7 @@ export default function PlanTypeScreen() {
     
     // Navigate to plan-details page with selected plan type
     router.push({
-      pathname: '/expense-planner/create/plan-details',
+      pathname: '/create-vault/plan-details',
       params: {
         planTypes: JSON.stringify([selectedPlanType]),
         ...(planId && { planId }),
@@ -60,7 +60,7 @@ export default function PlanTypeScreen() {
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => {

@@ -13,7 +13,7 @@ import { Platform } from 'react-native';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
 import { supabase } from '@/lib/supabase';
 import { processPlanSpend, checkWalletLock } from '@/lib/wallet/planWalletSpend';
-import { CATEGORIES } from '../create/plan-details';
+import { CATEGORIES } from '@/app/create-vault/plan-details';
 
 export default function PlanSpendScreen() {
   const { colors, isDark } = useTheme();

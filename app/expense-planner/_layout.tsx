@@ -12,7 +12,6 @@ export default function ExpensePlannerLayout() {
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="create" />
       <Stack.Screen name="[id]" />
       <Stack.Screen name="log-expense" />
     </Stack>

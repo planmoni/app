@@ -195,7 +195,7 @@ export default function PlanDetailScreen() {
     
     // Navigate to fund-plan screen for Paystack payment
     router.push({
-      pathname: '/expense-planner/create/fund-plan',
+      pathname: '/create-vault/fund-plan',
       params: {
         planId: plan.id,
         planName: plan.name,

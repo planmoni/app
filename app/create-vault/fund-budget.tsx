@@ -248,7 +248,7 @@ export default function FundSpendingPlanScreen() {
       }
 
       router.push({
-        pathname: '/expense-planner/create/name-expense',
+        pathname: '/create-vault/name-expense',
         params: {
           totalAmount: totalAmount.toString(),
           budgetStructure,
@@ -277,7 +277,7 @@ export default function FundSpendingPlanScreen() {
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
@@ -287,7 +287,7 @@ export default function FundSpendingPlanScreen() {
           onPress={async () => {
             haptics.selection();
             if (planId) {
-              await saveLastStep(planId, '/expense-planner/create/fund-budget');
+              await saveLastStep(planId, '/create-vault/fund-budget');
             }
             router.replace('/(tabs)');
           }} 

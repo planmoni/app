@@ -192,7 +192,7 @@ export default function NameExpenseScreen() {
 
       // Navigate to success screen
       router.replace({
-        pathname: '/expense-planner/create/success',
+        pathname: '/create-vault/success',
         params: {
           planName: planName.trim(),
           totalBudget: totalBudget.toString(),
@@ -227,7 +227,7 @@ export default function NameExpenseScreen() {
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
@@ -238,7 +238,7 @@ export default function NameExpenseScreen() {
             haptics.selection();
             const planIdToSave = currentPlanId || (params.planId as string | undefined);
             if (planIdToSave) {
-              await saveLastStep(planIdToSave, '/expense-planner/create/name-expense');
+              await saveLastStep(planIdToSave, '/create-vault/name-expense');
             }
             router.replace('/(tabs)');
           }} 

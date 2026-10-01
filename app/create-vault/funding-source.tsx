@@ -109,7 +109,7 @@ export default function FundingSourceScreen() {
       if (fundingMethod === 'auto') {
         // Navigate to auto top-up configuration
         router.push({
-          pathname: '/expense-planner/create/auto-topup-config',
+          pathname: '/create-vault/auto-topup-config',
           params: {
             planName,
             targetAmount: targetAmount.toString(),
@@ -125,7 +125,7 @@ export default function FundingSourceScreen() {
       } else {
         // Skip "Vault Start Rule" and force spending directly from the vault
         router.push({
-          pathname: '/expense-planner/create/review',
+          pathname: '/create-vault/review',
           params: {
             planName,
             targetAmount: targetAmount.toString(),
@@ -152,7 +152,7 @@ export default function FundingSourceScreen() {
   const styles = createStyles(colors, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => {
@@ -170,7 +170,7 @@ export default function FundingSourceScreen() {
               haptics.lightImpact();
             }
             if (planId) {
-              await saveLastStep(planId, '/expense-planner/create/funding-source');
+              await saveLastStep(planId, '/create-vault/funding-source');
             }
             router.push('/(tabs)');
           }}

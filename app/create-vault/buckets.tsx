@@ -634,7 +634,7 @@ export default function BucketsScreen() {
       const maturityDate = (params.maturityDate as string | undefined) || (params.startDate as string | undefined);
 
       router.push({
-        pathname: '/expense-planner/create/funding-choice',
+        pathname: '/create-vault/funding-choice',
         params: {
           totalBudget: totalBudget.toString(),
           budgetStructure,
@@ -660,7 +660,7 @@ export default function BucketsScreen() {
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
@@ -670,7 +670,7 @@ export default function BucketsScreen() {
           onPress={async () => {
             haptics.selection();
             if (planId) {
-              await saveLastStep(planId, '/expense-planner/create/buckets');
+              await saveLastStep(planId, '/create-vault/buckets');
             }
             router.replace('/(tabs)');
           }} 

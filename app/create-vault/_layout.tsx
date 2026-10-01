@@ -1,3 +1,4 @@
+import { View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -5,10 +6,12 @@ export default function CreateExpensePlanLayout() {
   const { colors } = useTheme();
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.backgroundSecondary }}>
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.backgroundSecondary },
+        animation: 'slide_from_right',
+        contentStyle: { flex: 1, backgroundColor: colors.backgroundSecondary },
       }}
     >
       <Stack.Screen name="plan-details" />
@@ -27,6 +30,7 @@ export default function CreateExpensePlanLayout() {
       <Stack.Screen name="name-expense" />
       <Stack.Screen name="success" />
     </Stack>
+    </View>
   );
 }
 

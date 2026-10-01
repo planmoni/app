@@ -74,7 +74,7 @@ export default function OtaUpdateModal() {
           </View>
           <Text style={styles.eyebrow}>APP UPDATED</Text>
           <Text style={styles.headline}>Refresh to apply changes</Text>
-          <Text style={styles.body}>A new version of Planmoni is ready. Refresh to start using it.</Text>
+          <Text style={styles.body}>We've made some changes to the app. Refresh to start using it.</Text>
           <Button title="Refresh" onPress={handleRefresh} isLoading={refreshing} disabled={refreshing} style={styles.button} />
           <Pressable onPress={dismiss} style={styles.laterButton} disabled={refreshing}>
             <Text style={styles.laterText}>Not now</Text>

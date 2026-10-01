@@ -281,7 +281,7 @@ export default function BasicSetupScreen() {
 
       // Navigate to funding source (skipping contribution-calculation)
       router.push({
-        pathname: '/expense-planner/create/funding-source',
+        pathname: '/create-vault/funding-source',
         params: {
           planName: planName.trim(),
           targetAmount: targetAmount.replace(/,/g, ''),
@@ -309,7 +309,7 @@ export default function BasicSetupScreen() {
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => {
@@ -327,7 +327,7 @@ export default function BasicSetupScreen() {
               haptics.lightImpact();
             }
             if (planId) {
-              await saveLastStep(planId, '/expense-planner/create/basic-setup');
+              await saveLastStep(planId, '/create-vault/basic-setup');
             }
             router.push('/(tabs)');
           }}

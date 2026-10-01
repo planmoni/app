@@ -113,7 +113,7 @@ export default function FundAmountScreen() {
         haptics.success();
         // Navigate to success screen
         router.replace({
-          pathname: '/expense-planner/create/fund-amount-success',
+          pathname: '/create-vault/fund-amount-success',
           params: {
             planId,
             planName,
@@ -152,7 +152,7 @@ export default function FundAmountScreen() {
   const styles = createStyles(colors, isDark, isSmallScreen, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable onPress={handleBack} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />

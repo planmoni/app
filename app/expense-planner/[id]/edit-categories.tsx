@@ -9,7 +9,7 @@ import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import FloatingButton from '@/components/FloatingButton';
 import { useExpensePlans } from '@/hooks/useExpensePlans';
-import { CATEGORIES } from '@/app/expense-planner/create/plan-details';
+import { CATEGORIES } from '@/app/create-vault/plan-details';
 
 export default function EditCategoriesScreen() {
   const { colors, isDark } = useTheme();

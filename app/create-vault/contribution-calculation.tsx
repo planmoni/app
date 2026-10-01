@@ -149,7 +149,7 @@ export default function ContributionCalculationScreen() {
 
       // Navigate to funding source
       router.push({
-        pathname: '/expense-planner/create/funding-source',
+        pathname: '/create-vault/funding-source',
         params: {
           planName,
           targetAmount: finalAmount.toString(),
@@ -176,7 +176,7 @@ export default function ContributionCalculationScreen() {
 
   if (!calculation) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft size={24} color={colors.text} />
@@ -192,7 +192,7 @@ export default function ContributionCalculationScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => {
@@ -210,7 +210,7 @@ export default function ContributionCalculationScreen() {
               haptics.lightImpact();
             }
             if (planId) {
-              await saveLastStep(planId, '/expense-planner/create/contribution-calculation');
+              await saveLastStep(planId, '/create-vault/contribution-calculation');
             }
             router.push('/(tabs)');
           }}

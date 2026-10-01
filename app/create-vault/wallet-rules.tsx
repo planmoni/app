@@ -74,7 +74,7 @@ export default function WalletRulesScreen() {
 
       // Navigate to review
       router.push({
-        pathname: '/expense-planner/create/review',
+        pathname: '/create-vault/review',
         params: {
           planName,
           targetAmount,
@@ -106,7 +106,7 @@ export default function WalletRulesScreen() {
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Pressable
           onPress={() => {
@@ -124,7 +124,7 @@ export default function WalletRulesScreen() {
               haptics.lightImpact();
             }
             if (planId) {
-              await saveLastStep(planId, '/expense-planner/create/wallet-rules');
+              await saveLastStep(planId, '/create-vault/wallet-rules');
             }
             router.push('/(tabs)');
           }}
