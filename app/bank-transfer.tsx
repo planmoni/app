@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Copy, Info, CheckCircle, RefreshCw } from 'lucide-react-native';
+import { ArrowLeft, Copy, Info, CheckCircle, RefreshCw, X } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -176,6 +176,11 @@ export default function BankTransferScreen() {
     router.back();
   };
 
+  const handleClose = () => {
+    haptics.lightImpact();
+    router.back();
+  };
+
   const handleCopyAccountNumber = async (accountNumber: string) => {
     haptics.selection();
     try {
@@ -238,6 +243,15 @@ export default function BankTransferScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Bank Transfer</Text>
+        <Pressable
+          onPress={handleClose}
+          style={styles.closeButton}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
+          <X size={18} color={colors.text} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -377,6 +391,14 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) => S
     fontWeight: '600',
     color: colors.text,
     flex: 1,
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollView: {
     flex: 1,

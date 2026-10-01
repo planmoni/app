@@ -26,6 +26,8 @@ import {
   PieChart,
   CalendarCheck,
   Calendar,
+  CalendarDays,
+  Vault,
   Clock,
   MoreVertical,
   ArrowDown,
@@ -1693,6 +1695,7 @@ export default function HomeScreen() {
       <View style={styles.tabsContainer}>
         <Pressable
           onPress={() => handleTabChange('home')}
+          style={styles.tabItem}
         >
           <Text style={[
             styles.tabText,
@@ -1700,9 +1703,11 @@ export default function HomeScreen() {
           ]}>
             Home
           </Text>
+          <View style={[styles.tabIndicator, activeBalanceTab === 'home' && styles.tabIndicatorActive]} />
         </Pressable>
         <Pressable
           onPress={() => handleTabChange('plans')}
+          style={styles.tabItem}
         >
           <Text style={[
             styles.tabText,
@@ -1710,9 +1715,11 @@ export default function HomeScreen() {
           ]}>
             Vaults
           </Text>
+          <View style={[styles.tabIndicator, activeBalanceTab === 'plans' && styles.tabIndicatorActive]} />
         </Pressable>
         <Pressable
           onPress={() => handleTabChange('payouts')}
+          style={styles.tabItem}
         >
           <Text style={[
             styles.tabText,
@@ -1720,6 +1727,7 @@ export default function HomeScreen() {
           ]}>
             Payouts
           </Text>
+          <View style={[styles.tabIndicator, activeBalanceTab === 'payouts' && styles.tabIndicatorActive]} />
         </Pressable>
       </View>
 
@@ -1772,9 +1780,9 @@ export default function HomeScreen() {
                       hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                     >
                       {showBalances ? (
-                        <EyeOff size={16} color={colors.textSecondary} />
+                        <EyeOff size={16} color="#FFFFFF" />
                       ) : (
-                        <Eye size={16} color={colors.textSecondary} />
+                        <Eye size={16} color="#FFFFFF" />
                       )}
                     </Pressable>
                   </View>
@@ -1794,14 +1802,6 @@ export default function HomeScreen() {
                 ) : (
                   <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
                 )}
-                <View style={styles.lockedSection}>
-                  {/* <View style={styles.lockedLabelContainer}>
-                    <Clock size={16} color={colors.textTertiary} />
-                    <Text style={styles.lockedLabel}>
-                      {formatBalance(lockedBalance)} in active payout plans
-                    </Text>
-                  </View> */}
-                </View>
                 <View style={styles.buttonGroup}>
                   <Pressable 
                     style={styles.addFundsButtonBalance} 
@@ -1822,7 +1822,41 @@ export default function HomeScreen() {
                 </View>
               </View>
             </ImageBackground>
-            
+
+            <View style={styles.quickActions}>
+              <Pressable
+                style={styles.quickActionCard}
+                onPress={() => {
+                  if (!ensureAuthenticatedOrWelcome()) return;
+                  impact();
+                  logAnalyticsEvent('create_payout_click_modal');
+                  router.push('/create-payout/amount');
+                }}
+              >
+                <View style={styles.quickActionIcon}>
+                  <CalendarDays size={20} color={colors.primary} />
+                </View>
+                <Text style={styles.quickActionTitle}>New Payout</Text>
+              </Pressable>
+              <Pressable
+                style={styles.quickActionCard}
+                onPress={() => {
+                  if (!ensureAuthenticatedOrWelcome()) return;
+                  impact();
+                  router.push({
+                    pathname: '/expense-planner/create/plan-details',
+                    params: {
+                      planTypes: JSON.stringify(['one_time']),
+                    },
+                  });
+                }}
+              >
+                <View style={styles.quickActionIcon}>
+                  <Vault size={20} color={colors.primary} />
+                </View>
+                <Text style={styles.quickActionTitle}>New Vault</Text>
+              </Pressable>
+            </View>
             
             {/* Home Tab Content */}
             <>
@@ -2221,7 +2255,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     backgroundColor: 'transparent',
   },
   tabScrollContent: {
-    paddingBottom: 80,
+    paddingBottom: 96,
+    paddingTop: 4,
   },
   contentContainer: {
     paddingHorizontal: 16,
@@ -2238,10 +2273,10 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     paddingBottom: 16,
   },
   header: {
-    marginBottom: Platform.OS === 'ios' ? 20 : 10,
+    marginBottom: 8,
     backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: 5,
-    paddingTop: 0,
+    paddingHorizontal: 4,
+    paddingTop: 4,
     zIndex: 10,
   },
   headerTop: {
@@ -2290,7 +2325,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2305,15 +2342,16 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     gap: 2,
   },
   greetingInline: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 18 : 16, textSizeMultiplier),
-    fontWeight: '600',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 18, textSizeMultiplier),
+    fontWeight: '700',
+    letterSpacing: -0.3,
     color: colors.text,
     flexShrink: 1,
   },
   subGreetingInline: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 11, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
     fontWeight: '400',
-    color: colors.textSecondary,
+    color: colors.textTertiary,
     flexShrink: 1,
   },
   greetingContainer: {
@@ -2339,20 +2377,37 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   tabsContainer: {
     flexDirection: 'row',
-    gap: 24,
     marginBottom: 16,
-    paddingHorizontal: 20,
-    backgroundColor: colors.backgroundSecondary,
+    marginRight: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
     zIndex: 10,
   },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: 4,
+    paddingBottom: 0,
+  },
   tabText: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 17 : 16, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 14, textSizeMultiplier),
     fontWeight: '500',
-    color: colors.textSecondary,
+    color: colors.textTertiary,
+    paddingBottom: 10,
   },
   activeTabText: {
-    color: isDark ? colors.text : colors.primary,
-    fontWeight: '600',
+    color: colors.text,
+    fontWeight: '700',
+  },
+  tabIndicator: {
+    width: 24,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'transparent',
+    marginBottom: -1.5,
+  },
+  tabIndicatorActive: {
+    backgroundColor: colors.accent,
   },
   textBalanceContainer: {
     marginBottom: 20,
@@ -2732,17 +2787,15 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderRadius: 3,
   },
   balanceCard: {
-    borderRadius: 15,
-    borderWidth: 1,
-    // backgroundColor: colors.balanceBackground,
-    borderColor: colors.border,
+    borderRadius: 28,
     overflow: 'hidden',
-    marginBottom: 10,
+    marginBottom: 18,
     marginTop: 0,
   },
   balanceCardContent: {
-    paddingVertical: Platform.OS === 'ios' ? 16 : 15,
-    paddingHorizontal: Platform.OS === 'ios' ? 16 : 15,
+    paddingTop: 22,
+    paddingBottom: 18,
+    paddingHorizontal: 20,
   },
   balanceHeaderPressable: {
     width: '100%',
@@ -2763,25 +2816,33 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     gap: 8,
   },
   balanceLabel: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
     fontWeight: '600',
-    color: colors.textTertiary,
+    letterSpacing: 0.4,
+    color: 'rgba(255,255,255,0.72)',
   },
   historyButton: {
     padding: 4,
   },
   eyeIconButton: {
-    padding: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addFundsLink: {
     fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
     fontWeight: '600',
   },
   balanceAmount: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 40 : 38, textSizeMultiplier),
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 42 : 38, textSizeMultiplier),
     fontWeight: '700',
+    letterSpacing: -1,
     color: '#fff',
-    marginBottom: Platform.OS === 'ios' ? -10 : -10,
+    marginTop: 6,
+    marginBottom: 0,
   },
   lockedSection: {
     flexDirection: 'row',
@@ -2806,30 +2867,28 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   buttonGroup: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 1,
+    gap: 10,
+    marginTop: 14,
   },
   createButton: {
     flex: 1,
     flexDirection: 'row',
     backgroundColor: colors.primary,
-    // padding: Platform.OS === 'ios' ? 14 : 14,
-    borderRadius: Platform.OS === 'ios' ? 20 : 20,
-    height: Platform.OS === 'ios' ? 45 : 40,
+    borderRadius: 16,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 6,
   },
   createButtonBalance: {
     flex: 1,
     flexDirection: 'row',
     backgroundColor: '#fff',
-    // padding: Platform.OS === 'ios' ? 14 : 14,
-    borderRadius: Platform.OS === 'ios' ? 20 : 20,
-    height: Platform.OS === 'ios' ? 45 : 40,
+    borderRadius: 16,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 6,
   },
   createButtonText: {
     color: '#fff',
@@ -2844,12 +2903,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   addFundsButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: Platform.OS === 'ios' ? colors.backgroundBlack + '70' : colors.background + '10',
-    // padding: Platform.OS === 'ios' ? 14 : 10,
-    borderWidth: 2, 
-    borderColor: isDark ? '#fff' : colors.primary,
-    borderRadius: Platform.OS === 'ios' ? 20 : 20,
-    height: Platform.OS === 'ios' ? 45 : 40,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.backgroundTertiary,
+    borderRadius: 16,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -2857,12 +2913,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   addFundsButtonBalance: {
     flex: 1,
     flexDirection: 'row',
-    borderWidth: 2,
-    borderColor: '#fff',
-    // backgroundColor: '#1E3A8A',
-    // padding: Platform.OS === 'ios' ? 14 : 14,
-    borderRadius: Platform.OS === 'ios' ? 20 : 20,
-    height: Platform.OS === 'ios' ? 45 : 40,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 16,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -3352,15 +3405,21 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   stickyButtons: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    bottom: 12,
+    left: 16,
+    right: 16,
     flexDirection: 'row',
-    padding: 16,
-    gap: 12,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    padding: 8,
+    gap: 8,
+    backgroundColor: colors.card,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: isDark ? 0.35 : 0.08,
+    shadowRadius: 16,
+    elevation: 8,
   },
   floatingAddButton: {
     position: 'absolute',

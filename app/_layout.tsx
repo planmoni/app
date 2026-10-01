@@ -716,9 +716,11 @@ function RootLayoutNav() {
         <Stack.Screen 
           name="add-funds" 
           options={{ 
-            headerShown: false, 
-            gestureEnabled: false,
-            animation: 'fade',
+            headerShown: false,
+            presentation: 'transparentModal',
+            animation: 'slide_from_bottom',
+            gestureEnabled: true,
+            contentStyle: { backgroundColor: 'transparent' },
           }} 
         />
         <Stack.Screen 

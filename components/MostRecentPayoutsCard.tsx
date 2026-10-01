@@ -374,8 +374,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 13 : 12, textSizeMultiplier),
-    fontWeight: '500',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontWeight: '700',
+    letterSpacing: -0.2,
     color: colors.text,
   },
   viewAllButton: {
@@ -395,7 +396,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   card: {
     backgroundColor: isDark ? colors.card : '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 24,
     paddingHorizontal: 15,
     paddingVertical:15,
     borderWidth: 0.5,

@@ -141,7 +141,7 @@ const createStyles = (colors: any, textSizeMultiplier: number) =>
     },
     card: {
       backgroundColor: colors.card,
-      borderRadius: 16,
+      borderRadius: 24,
       padding: 16,
       borderWidth: 0.5,
       borderColor: colors.border,

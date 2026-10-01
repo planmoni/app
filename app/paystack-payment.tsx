@@ -59,7 +59,7 @@ export default function PaystackPaymentScreen() {
 
   const handleClose = () => {
     haptics.lightImpact();
-    router.replace('/(tabs)');
+    router.back();
   };
 
   const formatAmount = (value: string) => {
@@ -356,8 +356,14 @@ export default function PaystackPaymentScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Add Funds with Paystack</Text>
-        <Pressable onPress={handleClose} style={styles.closeButton} hitSlop={8}>
-          <X size={20} color={colors.text} />
+        <Pressable
+          onPress={handleClose}
+          style={styles.closeButton}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
+          <X size={18} color={colors.text} />
         </Pressable>
       </View>
 
@@ -451,8 +457,10 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
       marginRight: 8,
     },
   closeButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
   },

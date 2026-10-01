@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, X } from 'lucide-react-native';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -13,7 +13,7 @@ import { calculateMonoDirectPayFee } from '@/lib/mono-fee';
 import Constants from 'expo-constants';
 
 export default function AmountScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
   const isSmallScreen = screenWidth < 380;
   const { session } = useAuth();
@@ -166,7 +166,7 @@ export default function AmountScreen() {
     setAmount(value);
   };
   
-  const styles = createStyles(colors, isSmallScreen, isMonoDirectPay);
+  const styles = createStyles(colors, isSmallScreen, isMonoDirectPay, isDark);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -175,6 +175,15 @@ export default function AmountScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Add Funds from Bank</Text>
+        <Pressable
+          onPress={() => router.back()}
+          style={styles.closeButton}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
+          <X size={18} color={colors.text} />
+        </Pressable>
       </View>
 
       <View style={styles.progressContainer}>
@@ -307,7 +316,7 @@ export default function AmountScreen() {
   );
 }
 
-const createStyles = (colors: any, isSmallScreen: boolean, isMonoDirectPay: boolean) => StyleSheet.create({
+const createStyles = (colors: any, isSmallScreen: boolean, isMonoDirectPay: boolean, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
@@ -329,6 +338,16 @@ const createStyles = (colors: any, isSmallScreen: boolean, isMonoDirectPay: bool
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
+    flex: 1,
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginLeft: 8,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : colors.backgroundTertiary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   progressContainer: {
     padding: 16,
