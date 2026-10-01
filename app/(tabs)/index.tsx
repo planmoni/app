@@ -23,8 +23,8 @@ import NotificationPrePromptModal from '@/components/NotificationPrePromptModal'
 import { requestNotificationPermissions, registerPushToken } from '@/lib/notifications';
 import * as Notifications from 'expo-notifications';
 import { router, useGlobalSearchParams, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
+import HelpIcon from '@/assets/icons/help-icon.svg';
 import {
-  HelpCircleIcon,
   Eye,
   EyeOff,
   Plus,
@@ -1792,7 +1792,6 @@ export default function HomeScreen() {
             )}
           </View>
           <View style={styles.headerActions}>
-            <NotificationIcon />
             <Pressable 
               onPress={handleHelpPress} 
               style={styles.helpButton}
@@ -1801,9 +1800,13 @@ export default function HomeScreen() {
               {isLoading ? (
                 <PlanmoniLoader size="small" />
               ) : (
-                <HelpCircleIcon size={24} color={colors.text} />
+                <HelpIcon width={22} height={23} color={colors.text} />
               )}
+              <View style={styles.helpBadge}>
+                <Text style={styles.helpBadgeText}>Help</Text>
+              </View>
             </Pressable>
+            <NotificationIcon />
           </View>
         </View>
       </View>
@@ -2501,12 +2504,24 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   helpButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'visible',
+  },
+  helpBadge: {
+    position: 'absolute',
+    top: 0,
+    right: -4,
+    backgroundColor: colors.accent,
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  helpBadgeText: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: colors.primary,
+    letterSpacing: 0.1,
   },
   greetingInlineContainer: {
     flex: 1,
@@ -2519,8 +2534,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     gap: 2,
   },
   greetingInline: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 20 : 18, textSizeMultiplier),
-    fontWeight: '700',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontWeight: '500',
     letterSpacing: -0.3,
     color: colors.text,
     flexShrink: 1,
