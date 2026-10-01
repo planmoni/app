@@ -1,330 +1,230 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Alert, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowLeft } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePin } from '@/contexts/PinContext';
+import { useHaptics } from '@/hooks/useHaptics';
 import PinKeypad from '@/components/PinKeypad';
+
+const PIN_LENGTH = 4;
 
 export default function SetupPin() {
   const router = useRouter();
   const { isDark, colors } = useTheme();
   const { setupAppLockPin } = usePin();
-  
+  const haptics = useHaptics();
+
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [step, setStep] = useState<'setup' | 'confirm'>('setup');
-  
-  const styles = getStyles(isDark, colors);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const shake = useRef(new Animated.Value(0)).current;
+
+  const currentPin = step === 'setup' ? pin : confirmPin;
+
+  const shakeDots = () => {
+    shake.setValue(0);
+    Animated.sequence([
+      Animated.timing(shake, { toValue: 10, duration: 40, useNativeDriver: true }),
+      Animated.timing(shake, { toValue: -10, duration: 40, useNativeDriver: true }),
+      Animated.timing(shake, { toValue: 8, duration: 40, useNativeDriver: true }),
+      Animated.timing(shake, { toValue: 0, duration: 40, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const savePin = async (value: string) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const success = await setupAppLockPin(value);
+      if (success) {
+        haptics.success();
+        router.push('/settings/pin-setup-success');
+      } else {
+        Alert.alert('Error', 'Failed to setup PIN. Please try again.');
+        setConfirmPin('');
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to setup PIN. Please try again.');
+      setConfirmPin('');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handlePinEnter = (digit: string) => {
+    if (saving) return;
+    setError(null);
+
     if (step === 'setup') {
-      if (pin.length < 4) {
-        const newPin = pin + digit;
-        setPin(newPin);
-        console.log('Setup PIN entered:', newPin, 'Length:', newPin.length);
-        // Auto-continue when PIN reaches 4 digits
-        if (newPin.length === 4) {
-          console.log('PIN complete, proceeding to confirm step...');
-          // Use callback to ensure state update
-          setStep(prevStep => {
-            console.log('Previous step was:', prevStep, 'Setting to confirm');
-            return 'confirm';
-          });
-          // Also try the timeout approach as backup
-          setTimeout(() => {
-            console.log('Calling handlePinComplete as backup...');
-            handlePinComplete();
-          }, 100);
-        }
+      if (pin.length >= PIN_LENGTH) return;
+      const next = pin + digit;
+      setPin(next);
+      if (next.length === PIN_LENGTH) {
+        setTimeout(() => setStep('confirm'), 160);
       }
-    } else {
-      if (confirmPin.length < 4) {
-        const newConfirmPin = confirmPin + digit;
-        setConfirmPin(newConfirmPin);
-        console.log('Confirm PIN entered:', newConfirmPin, 'Length:', newConfirmPin.length);
-        // Auto-continue when PIN reaches 4 digits
-        if (newConfirmPin.length === 4) {
-          console.log('Confirm PIN complete, proceeding to completion...');
-          console.log('Original PIN:', pin, 'Confirm PIN:', newConfirmPin, 'Match:', pin === newConfirmPin);
-          console.log('PIN types - Original:', typeof pin, 'Confirm:', typeof newConfirmPin);
-          // Try immediate processing first
-          if (pin === newConfirmPin || String(pin) === String(newConfirmPin)) {
-            console.log('PINs match, processing immediately...');
-            handlePinSetup(newConfirmPin);
-          } else {
-            console.log('PINs do not match, showing error...');
-            setTimeout(() => {
-              handlePinComplete();
-            }, 100);
-          }
-        }
+      return;
+    }
+
+    if (confirmPin.length >= PIN_LENGTH) return;
+    const next = confirmPin + digit;
+    setConfirmPin(next);
+    if (next.length === PIN_LENGTH) {
+      if (next === pin) {
+        void savePin(next);
+      } else {
+        haptics.error();
+        setError('Those PINs don’t match. Try again.');
+        shakeDots();
+        setTimeout(() => setConfirmPin(''), 420);
       }
     }
   };
 
   const handleDelete = () => {
+    if (saving) return;
+    setError(null);
     if (step === 'setup') {
-      setPin(prev => prev.slice(0, -1));
+      setPin((prev) => prev.slice(0, -1));
     } else {
-      setConfirmPin(prev => prev.slice(0, -1));
+      setConfirmPin((prev) => prev.slice(0, -1));
     }
   };
 
-  const handlePinSetup = async (confirmPinValue: string) => {
-    try {
-      console.log('Setting up PIN with value:', pin);
-      const success = await setupAppLockPin(pin);
-      if (success) {
-        console.log('PIN setup successful, navigating to success screen...');
-        router.push('/settings/pin-setup-success');
-      } else {
-        console.log('PIN setup failed');
-        Alert.alert('Error', 'Failed to setup PIN. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error setting up PIN:', error);
-      Alert.alert('Error', 'Failed to setup PIN. Please try again.');
+  const handleBack = () => {
+    haptics.lightImpact();
+    if (step === 'confirm') {
+      setStep('setup');
+      setPin('');
+      setConfirmPin('');
+      setError(null);
+      return;
     }
+    router.back();
   };
-
-  const handlePinComplete = async () => {
-    console.log('handlePinComplete called. Current step:', step, 'PIN length:', pin.length, 'Confirm PIN length:', confirmPin.length);
-    
-    if (step === 'setup') {
-      if (pin.length === 4) {
-        console.log('Setting step to confirm...');
-        setStep('confirm');
-        console.log('Step updated to confirm');
-      } else {
-        console.log('PIN not complete yet. PIN length:', pin.length);
-      }
-    } else if (step === 'confirm') {
-      // For confirm step, we know we have 4 digits since this function is only called when length === 4
-      console.log('Processing confirm PIN...');
-      if (pin === confirmPin) {
-        try {
-          console.log('PINs match, setting up PIN...');
-          const success = await setupAppLockPin(pin);
-          if (success) {
-            console.log('PIN setup successful, navigating to success screen...');
-            // Navigate to success screen instead of showing alert
-            router.push('/settings/pin-setup-success');
-          } else {
-            console.log('PIN setup failed');
-            Alert.alert('Error', 'Failed to setup PIN. Please try again.');
-          }
-        } catch (error) {
-          console.error('Error setting up PIN:', error);
-          Alert.alert('Error', 'Failed to setup PIN. Please try again.');
-        }
-      } else {
-        console.log('PINs do not match, showing error and resetting...');
-        // Show error and automatically reset to setup step
-        Alert.alert(
-          'PINs Don\'t Match', 
-          'The PINs you entered don\'t match. Please try again.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                setConfirmPin('');
-                setPin('');
-                setStep('setup');
-              }
-            }
-          ]
-        );
-      }
-    }
-  };
-
-  const renderPinDisplay = () => {
-    const currentPin = step === 'setup' ? pin : confirmPin;
-    const maxLength = 4;
-    
-    return (
-      <View style={styles.pinDisplay}>
-        {Array.from({ length: maxLength }).map((_, index) => (
-          <View
-            key={index}
-            style={[
-              styles.pinDot,
-              index < currentPin.length && styles.pinDotFilled
-            ]}
-          />
-        ))}
-      </View>
-    );
-  };
-
-  const renderStepIndicator = () => (
-    <View style={styles.stepIndicator}>
-      <View style={[styles.step, step === 'setup' && styles.stepActive]} />
-      <View style={[styles.step, step === 'confirm' && styles.stepActive]} />
-    </View>
-  );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#333'} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Set Up PIN</Text>
-        <View style={styles.placeholder} />
+        <Pressable onPress={handleBack} style={styles.backButton} hitSlop={8} accessibilityLabel="Back">
+          <ArrowLeft size={22} color={colors.text} />
+        </Pressable>
       </View>
 
-      <View style={styles.content}>
-        
-
-        {renderStepIndicator()}
-
-        <View style={styles.pinSection}>
-                  {renderPinDisplay()}
-        
-        <Text style={styles.pinLabel}>
-          {step === 'setup' ? 'Enter PIN' : 'Confirm your PIN'}
-        </Text>
-
-
+      <View style={styles.body}>
+        <View style={styles.steps}>
+          <View style={[styles.stepBar, { backgroundColor: colors.primary }]} />
+          <View
+            style={[
+              styles.stepBar,
+              { backgroundColor: step === 'confirm' ? colors.primary : isDark ? '#334155' : '#E2E8F0' },
+            ]}
+          />
         </View>
 
+        <Text style={[styles.title, { color: colors.text }]}>
+          {step === 'setup' ? 'Set up App PIN' : 'Confirm App PIN'}
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          {step === 'setup'
+            ? 'Choose a 4-digit PIN to unlock Planmoni.'
+            : 'Enter the same PIN again to finish setup.'}
+        </Text>
 
+        <Animated.View style={[styles.dots, { transform: [{ translateX: shake }] }]}>
+          {Array.from({ length: PIN_LENGTH }).map((_, index) => {
+            const filled = index < currentPin.length;
+            return (
+              <View
+                key={index}
+                style={[
+                  styles.dot,
+                  {
+                    borderColor: error ? colors.error : filled ? colors.primary : isDark ? '#334155' : '#CBD5E1',
+                    backgroundColor: filled ? (error ? colors.error : colors.primary) : 'transparent',
+                  },
+                ]}
+              />
+            );
+          })}
+        </Animated.View>
 
-        <PinKeypad
-          onKeyPress={handlePinEnter}
-          onDelete={handleDelete}
-          disabled={false}
-        />
-
+        <Text style={[styles.error, { color: colors.error }]}>{error ?? ' '}</Text>
       </View>
-    </View>
+
+      <View style={styles.keypad}>
+        <PinKeypad onKeyPress={handlePinEnter} onDelete={handleDelete} disabled={saving} />
+      </View>
+    </SafeAreaView>
   );
 }
 
-const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: isDark ? '#000' : '#f5f5f5',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: isDark ? '#111' : '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: isDark ? '#333' : '#e0e0e0',
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    height: 48,
+    justifyContent: 'center',
   },
   backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: isDark ? '#fff' : '#333',
-  },
-  placeholder: {
     width: 40,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  infoCard: {
-    alignItems: 'center',
-    backgroundColor: isDark ? '#1a1a1a' : '#fff',
-    padding: 24,
-    borderRadius: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: isDark ? '#333' : '#e0e0e0',
-  },
-  infoTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: isDark ? '#fff' : '#333',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  infoText: {
-    fontSize: 14,
-    color: isDark ? '#ccc' : '#666',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  stepIndicator: {
-    flexDirection: 'row',
+    height: 40,
     justifyContent: 'center',
-    marginBottom: 32,
   },
-  step: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: isDark ? '#333' : '#e0e0e0',
-    marginHorizontal: 6,
-  },
-  stepActive: {
-    backgroundColor: colors.primary,
-  },
-  pinSection: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  pinDisplay: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  pinDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: isDark ? '#666' : '#999',
-    marginHorizontal: 8,
-  },
-  pinDotFilled: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  pinLabel: {
-    fontSize: 16,
-    color: isDark ? '#ccc' : '#666',
-    textAlign: 'center',
-  },
-  securityTips: {
-    backgroundColor: isDark ? '#111' : '#fff',
-    padding: 20,
-    borderRadius: 12,
-    marginTop: 24,
-    borderWidth: 1,
-    borderColor: isDark ? '#333' : '#e0e0e0',
-  },
-  tipsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: isDark ? '#fff' : '#333',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  tipItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  tipText: {
+  body: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 14,
-    color: isDark ? '#ccc' : '#666',
-    lineHeight: 20,
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    paddingTop: 12,
   },
-
-}); 
+  steps: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 28,
+  },
+  stepBar: {
+    width: 28,
+    height: 4,
+    borderRadius: 2,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+    textAlign: 'center',
+  },
+  subtitle: {
+    marginTop: 8,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  dots: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 36,
+  },
+  dot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  error: {
+    marginTop: 16,
+    minHeight: 20,
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  keypad: {
+    paddingBottom: 12,
+    alignItems: 'center',
+  },
+});

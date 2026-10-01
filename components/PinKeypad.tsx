@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, useWindowDimensions, Platform } from 'react-native';
-import { X } from 'lucide-react-native';
+import { Delete } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
 
@@ -10,15 +10,36 @@ interface PinKeypadProps {
   disabled?: boolean;
 }
 
+const KEY_LETTERS: Record<string, string> = {
+  '2': 'ABC',
+  '3': 'DEF',
+  '4': 'GHI',
+  '5': 'JKL',
+  '6': 'MNO',
+  '7': 'PQRS',
+  '8': 'TUV',
+  '9': 'WXYZ',
+};
+
+const ROWS = [
+  ['1', '2', '3'],
+  ['4', '5', '6'],
+  ['7', '8', '9'],
+];
+
 export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: PinKeypadProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
   const haptics = useHaptics();
-  
-  // Use refs to lock initial dimensions and prevent resizing
   const initialDimensions = useRef({ width, height });
   const isSmallScreen = initialDimensions.current.width < 380 || initialDimensions.current.height < 700;
-  
+
+  const keySize = isSmallScreen ? 72 : 78;
+  const gap = isSmallScreen ? 16 : 20;
+  const keypadWidth = keySize * 3 + gap * 2;
+  const keyFill = isDark ? '#1E293B' : '#F1F5F9';
+  const keyFillPressed = isDark ? '#334155' : '#E2E8F0';
+
   const handleKeyPress = (key: string) => {
     if (!disabled) {
       haptics.selection();
@@ -33,73 +54,81 @@ export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: Pi
     }
   };
 
-  const renderKey = (key: string) => (
-    <Pressable
-      key={key}
-      style={({ pressed }) => [
-        styles.keyButton,
-        {
-          width: keySize,
-          height: keySize,
-          borderRadius: keySize / 3,
-          backgroundColor: isDark ? colors.backgroundSecondary : colors.backgroundTertiary,
-          borderColor: colors.border,
-        },
-        pressed && styles.keyButtonPressed,
-        disabled && styles.keyButtonDisabled
-      ]}
-      onPress={() => handleKeyPress(key)}
-      disabled={disabled}
-      collapsable={false}
-      removeClippedSubviews={false}
-      {...(Platform.OS === 'ios' && {
-        // Prevent keyboard trigger on iOS
-        accessible: true,
-        accessibilityRole: 'button'
-      })}
-    >
-      <Text style={[
-        styles.keyText, 
-        { 
-          fontSize: keyTextSize,
-          color: disabled ? colors.textTertiary : colors.text 
-        }
-      ]}>
-        {key}
-      </Text>
-    </Pressable>
-  );
+  const renderKey = (key: string) => {
+    const letters = KEY_LETTERS[key];
+    return (
+      <Pressable
+        key={key}
+        accessibilityRole="button"
+        accessibilityLabel={key}
+        style={({ pressed }) => [
+          styles.keyButton,
+          {
+            width: keySize,
+            height: keySize,
+            borderRadius: keySize / 2,
+            backgroundColor: pressed && !disabled ? keyFillPressed : keyFill,
+          },
+          pressed && !disabled && styles.keyButtonPressed,
+          disabled && styles.keyButtonDisabled,
+        ]}
+        onPress={() => handleKeyPress(key)}
+        disabled={disabled}
+        collapsable={false}
+        removeClippedSubviews={false}
+      >
+        <Text
+          style={[
+            styles.keyText,
+            { color: disabled ? colors.textTertiary : colors.text },
+          ]}
+        >
+          {key}
+        </Text>
+        {letters ? (
+          <Text style={[styles.keyLetters, { color: disabled ? colors.textTertiary : colors.textSecondary }]}>
+            {letters}
+          </Text>
+        ) : (
+          <View style={styles.keyLettersSpacer} />
+        )}
+      </Pressable>
+    );
+  };
 
-  // Calculate responsive sizes
-  const keySize = isSmallScreen ? 60 : 70;
-  const keyTextSize = isSmallScreen ? 20 : 24;
-  const keypadWidth = keySize * 3 + 16 * 6; // 3 keys + 2 gaps
-  
   const styles = StyleSheet.create({
     container: {
       width: keypadWidth,
       alignSelf: 'center',
-      marginTop: isSmallScreen ? 12 : 16,
     },
     row: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: isSmallScreen ? 10 : 12,
+      marginBottom: gap,
     },
     keyButton: {
       justifyContent: 'center',
       alignItems: 'center',
-      borderWidth: 1,
     },
     keyButtonPressed: {
-      opacity: 0.7,
-      transform: [{ scale: 0.95 }],
+      transform: [{ scale: 0.96 }],
     },
     keyButtonDisabled: {
-      opacity: 0.5,
+      opacity: 0.45,
     },
     keyText: {
+      fontSize: isSmallScreen ? 28 : 32,
+      fontWeight: '500',
+      lineHeight: isSmallScreen ? 32 : 36,
+    },
+    keyLetters: {
+      fontSize: 9,
       fontWeight: '600',
+      letterSpacing: 1.2,
+      marginTop: -2,
+    },
+    keyLettersSpacer: {
+      height: 11,
     },
     emptyKey: {
       width: keySize,
@@ -108,55 +137,34 @@ export default function PinKeypad({ onKeyPress, onDelete, disabled = false }: Pi
   });
 
   return (
-    <View 
-      style={styles.container}
-      collapsable={false}
-      removeClippedSubviews={false}
-    >
-      <View style={styles.row}>
-        {renderKey('1')}
-        {renderKey('2')}
-        {renderKey('3')}
-      </View>
-      <View style={styles.row}>
-        {renderKey('4')}
-        {renderKey('5')}
-        {renderKey('6')}
-      </View>
-      <View style={styles.row}>
-        {renderKey('7')}
-        {renderKey('8')}
-        {renderKey('9')}
-      </View>
+    <View style={styles.container} collapsable={false} removeClippedSubviews={false}>
+      {ROWS.map((row) => (
+        <View key={row.join('')} style={styles.row}>
+          {row.map(renderKey)}
+        </View>
+      ))}
       <View style={styles.row}>
         <View style={styles.emptyKey} />
         {renderKey('0')}
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Delete"
           style={({ pressed }) => [
             styles.keyButton,
-            {
-              width: keySize,
-              height: keySize,
-              borderRadius: keySize / 3,
-              backgroundColor: isDark ? colors.backgroundSecondary : colors.backgroundTertiary,
-              borderColor: colors.border,
-            },
-            pressed && styles.keyButtonPressed,
-            disabled && styles.keyButtonDisabled
+            styles.emptyKey,
+            pressed && !disabled && styles.keyButtonPressed,
+            disabled && styles.keyButtonDisabled,
           ]}
           onPress={handleDelete}
           disabled={disabled}
           collapsable={false}
           removeClippedSubviews={false}
           {...(Platform.OS === 'ios' && {
-            // Prevent keyboard trigger on iOS
             accessible: true,
-            accessibilityRole: 'button',
-            // Explicitly prevent keyboard
-            keyboardShouldPersistTaps: 'handled'
+            keyboardShouldPersistTaps: 'handled',
           })}
         >
-          <X size={keyTextSize} color={disabled ? colors.textTertiary : colors.text} />
+          <Delete size={26} color={disabled ? colors.textTertiary : colors.text} />
         </Pressable>
       </View>
     </View>

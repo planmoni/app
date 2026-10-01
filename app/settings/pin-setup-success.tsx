@@ -1,231 +1,89 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Check } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function PinSetupSuccess() {
   const router = useRouter();
-  const { isDark, colors } = useTheme();
-  const { width, height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  
-  // Determine if we're on a small screen
-  const isSmallScreen = width < 380 || height < 700;
-  
-  const styles = getStyles(isDark, colors, isSmallScreen, insets);
+  const { colors } = useTheme();
 
-  // Auto-navigate back to security center after 3 seconds
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.push('/settings/security-center');
+      router.replace('/settings/security-center');
     }, 3000);
-
     return () => clearTimeout(timer);
   }, [router]);
 
-  const handleContinue = () => {
-    router.push('/settings/security-center');
-  };
-
-  const handleBackToSecurity = () => {
-    router.push('/settings/security-center');
-  };
-
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={handleBackToSecurity}
-        >
-          <Ionicons name="arrow-back" size={isSmallScreen ? 20 : 24} color={isDark ? '#fff' : '#333'} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>PIN Setup Complete</Text>
-        <View style={styles.placeholder} />
-      </View>
-
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.successCard}>
-          <View style={styles.successIcon}>
-            <Ionicons name="checkmark-circle" size={isSmallScreen ? 60 : 80} color="#4CAF50" />
-          </View>
-          
-          <Text style={styles.successTitle}>PIN Setup Successful!</Text>
-          
-          <Text style={styles.successText}>
-            Your app lock PIN has been set successfully. You can now use it to secure your app and protect your sensitive information.
-          </Text>
-
-          <View style={styles.featuresList}>
-            <View style={styles.featureItem}>
-              <Ionicons name="shield-checkmark" size={isSmallScreen ? 18 : 20} color="#4CAF50" />
-              <Text style={styles.featureText}>App is now protected with your PIN</Text>
-            </View>
-            
-            <View style={styles.featureItem}>
-              <Ionicons name="lock-closed" size={isSmallScreen ? 18 : 20} color="#4CAF50" />
-              <Text style={styles.featureText}>Secure access to your financial data</Text>
-            </View>
-            
-            <View style={styles.featureItem}>
-              <Ionicons name="finger-print" size={isSmallScreen ? 18 : 20} color="#4CAF50" />
-              <Text style={styles.featureText}>Biometric authentication available</Text>
-            </View>
-          </View>
-
-          <View style={styles.autoNavigateInfo}>
-            <Ionicons name="time" size={isSmallScreen ? 14 : 16} color={isDark ? '#666' : '#999'} />
-            <Text style={styles.autoNavigateText}>
-              Automatically returning to Security Center in 3 seconds...
-            </Text>
-          </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      <View style={styles.body}>
+        <View style={[styles.icon, { backgroundColor: colors.accent }]}>
+          <Check size={36} color={colors.primary} strokeWidth={2.5} />
         </View>
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <TouchableOpacity 
-          style={styles.continueButton} 
-          onPress={handleContinue}
-        >
-          <Text style={styles.continueButtonText}>Done</Text>
-        </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.text }]}>App PIN is ready</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          You’ll use this PIN to unlock Planmoni and protect your account.
+        </Text>
+        <Text style={[styles.hint, { color: colors.textTertiary }]}>
+          Returning to Security Center…
+        </Text>
       </View>
+
+      <Pressable
+        style={[styles.button, { backgroundColor: colors.primary }]}
+        onPress={() => router.replace('/settings/security-center')}
+      >
+        <Text style={styles.buttonText}>Done</Text>
+      </Pressable>
     </SafeAreaView>
   );
 }
 
-const getStyles = (isDark: boolean, colors: any, isSmallScreen: boolean, insets: any) => {
-  const contentPadding = isSmallScreen ? 16 : 20;
-  const footerPadding = Math.max(insets.bottom, 16);
-  
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: isDark ? '#000' : '#f5f5f5',
-    },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: contentPadding,
-      paddingVertical: isSmallScreen ? 12 : 16,
-      backgroundColor: isDark ? '#111' : '#fff',
-      borderBottomWidth: 1,
-      borderBottomColor: isDark ? '#333' : '#e0e0e0',
-    },
-    backButton: {
-      padding: 8,
-    },
-    headerTitle: {
-      fontSize: isSmallScreen ? 18 : 20,
-      fontWeight: '600',
-      color: isDark ? '#fff' : '#333',
-    },
-    placeholder: {
-      width: 40,
-    },
-    scrollView: {
-      flex: 1,
-    },
-    scrollContent: {
-      flexGrow: 1,
-      padding: contentPadding,
-      paddingBottom: contentPadding + 20,
-    },
-    successCard: {
-      backgroundColor: isDark ? '#1a1a1a' : '#fff',
-      padding: isSmallScreen ? 20 : 32,
-      borderRadius: isSmallScreen ? 16 : 20,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: isDark ? '#333' : '#e0e0e0',
-      shadowColor: isDark ? '#000' : '#000',
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-      shadowOpacity: isDark ? 0.3 : 0.1,
-      shadowRadius: 8,
-    },
-    successIcon: {
-      marginBottom: isSmallScreen ? 16 : 24,
-    },
-    successTitle: {
-      fontSize: isSmallScreen ? 20 : 24,
-      fontWeight: '700',
-      color: isDark ? '#fff' : '#333',
-      textAlign: 'center',
-      marginBottom: isSmallScreen ? 12 : 16,
-    },
-    successText: {
-      fontSize: isSmallScreen ? 14 : 16,
-      color: isDark ? '#ccc' : '#666',
-      textAlign: 'center',
-      lineHeight: isSmallScreen ? 20 : 24,
-      marginBottom: isSmallScreen ? 24 : 32,
-    },
-    featuresList: {
-      width: '100%',
-      marginBottom: isSmallScreen ? 20 : 24,
-    },
-    featureItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: isSmallScreen ? 12 : 16,
-    },
-    featureText: {
-      fontSize: isSmallScreen ? 14 : 16,
-      color: isDark ? '#ccc' : '#666',
-      marginLeft: isSmallScreen ? 12 : 16,
-      flex: 1,
-    },
-    autoNavigateInfo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: isDark ? '#2a2a2a' : '#f8f8f8',
-      padding: isSmallScreen ? 12 : 16,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: isDark ? '#444' : '#e0e0e0',
-    },
-    autoNavigateText: {
-      fontSize: isSmallScreen ? 12 : 14,
-      color: isDark ? '#888' : '#666',
-      marginLeft: isSmallScreen ? 10 : 12,
-      fontStyle: 'italic',
-    },
-    footer: {
-      backgroundColor: isDark ? '#111' : '#fff',
-      borderTopWidth: 1,
-      borderTopColor: isDark ? '#333' : '#e0e0e0',
-      paddingHorizontal: contentPadding,
-      paddingTop: 16,
-      paddingBottom: footerPadding,
-    },
-    continueButton: {
-      backgroundColor: colors.primary,
-      paddingVertical: isSmallScreen ? 14 : 16,
-      paddingHorizontal: 32,
-      borderRadius: isSmallScreen ? 16 : 20,
-      alignItems: 'center',
-      shadowColor: colors.primary,
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-    },
-    continueButtonText: {
-      color: '#fff',
-      fontSize: isSmallScreen ? 16 : 18,
-      fontWeight: '600',
-    },
-  });
-}; 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+  },
+  body: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  icon: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+    textAlign: 'center',
+  },
+  subtitle: {
+    marginTop: 10,
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'center',
+  },
+  hint: {
+    marginTop: 20,
+    fontSize: 13,
+  },
+  button: {
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
