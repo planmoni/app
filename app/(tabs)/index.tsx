@@ -18,6 +18,9 @@ import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 import { ensureSupabaseConnection } from '@/lib/supabase-fetch';
 import { clearPayoutSetupDraft, loadPayoutSetupDraft, type PayoutSetupDraft } from '@/lib/payout-setup-draft';
+import NotificationPrePromptModal from '@/components/NotificationPrePromptModal';
+import { requestNotificationPermissions, registerPushToken } from '@/lib/notifications';
+import * as Notifications from 'expo-notifications';
 import { router, useGlobalSearchParams, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
 import {
   HelpCircleIcon,
@@ -53,6 +56,7 @@ import {
   useWindowDimensions,
   Modal,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -280,6 +284,9 @@ function BalanceActionsModal({
   );
 }
 
+const NOTIFICATION_PREPROMPT_KEY = 'notification_preprompt_dismissed_at';
+const NOTIFICATION_PREPROMPT_HIDE_MS = 7 * 24 * 60 * 60 * 1000;
+
 function payoutSetupStepTitle(pathname: string): string {
   if (pathname.includes('/purpose')) return 'What is this plan for?';
   if (pathname.includes('/frequency-selection')) return 'Choose a disbursement schedule';
@@ -312,6 +319,8 @@ export default function HomeScreen() {
   const { transactions, isLoading: transactionsLoading, isTimedOut: transactionsTimedOut, fetchTransactions } = useTransactionsQuery(10);
   const { expensePlans, fetchExpensePlans } = useExpensePlans();
   const [activeBalanceTab, setActiveBalanceTab] = useState<'home' | 'plans' | 'payouts'>('home');
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+  const [enablingNotifications, setEnablingNotifications] = useState(false);
   const [visitedTabs, setVisitedTabs] = useState<Set<'home' | 'plans' | 'payouts'>>(
     () => new Set(['home'])
   );
@@ -674,6 +683,54 @@ export default function HomeScreen() {
       checkIdentityVerificationSuccess();
     }
   }, [session?.user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (activeBalanceTab !== 'home' || !session?.user?.id || showWelcomeModal) {
+        return;
+      }
+      let active = true;
+      void (async () => {
+        const { status } = await Notifications.getPermissionsAsync();
+        if (!active) return;
+        if (status === 'granted') {
+          setShowNotificationPrompt(false);
+          return;
+        }
+        const dismissedAt = Number((await AsyncStorage.getItem(NOTIFICATION_PREPROMPT_KEY)) || 0);
+        if (dismissedAt && Date.now() - dismissedAt < NOTIFICATION_PREPROMPT_HIDE_MS) return;
+        setShowNotificationPrompt(true);
+      })();
+      return () => {
+        active = false;
+      };
+    }, [activeBalanceTab, session?.user?.id, showWelcomeModal])
+  );
+
+  const dismissNotificationPrompt = useCallback(() => {
+    setShowNotificationPrompt(false);
+    void AsyncStorage.setItem(NOTIFICATION_PREPROMPT_KEY, String(Date.now()));
+  }, []);
+
+  const enableNotifications = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!userId || enablingNotifications) return;
+    setEnablingNotifications(true);
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status === 'denied') {
+        await Linking.openSettings();
+        return;
+      }
+      const granted = await requestNotificationPermissions();
+      if (granted) {
+        await registerPushToken(userId, false);
+        setShowNotificationPrompt(false);
+      }
+    } finally {
+      setEnablingNotifications(false);
+    }
+  }, [session?.user?.id, enablingNotifications]);
 
   useFocusEffect(
     useCallback(() => {
@@ -2248,6 +2305,17 @@ export default function HomeScreen() {
       /> */}
 
       {/* Welcome Modal - unauthenticated gating */}
+      {activeBalanceTab === 'home' && (
+        <NotificationPrePromptModal
+          visible={showNotificationPrompt && !showWelcomeModal}
+          enabling={enablingNotifications}
+          onEnable={() => {
+            void enableNotifications();
+          }}
+          onDismiss={dismissNotificationPrompt}
+        />
+      )}
+
       {showWelcomeModal && WelcomeModalComponent && (
         <WelcomeModalComponent
           isVisible={showWelcomeModal}
