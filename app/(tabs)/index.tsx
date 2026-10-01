@@ -1786,40 +1786,19 @@ export default function HomeScreen() {
                       )}
                     </Pressable>
                   </View>
-                  {/* <Pressable 
-                    onPress={() => {
-                      impact();
-                      setShowBalanceActionsModal(true);
-                    }}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    style={styles.eyeIconButton}
+                  <Pressable
+                    style={styles.addFundsCornerButton}
+                    onPress={handleAddFunds}
                   >
-                    <MoreVertical size={20} color={'#fff'} />
-                  </Pressable> */}
+                    <ArrowDown size={16} color="#FFFFFF" />
+                    <Text style={styles.addFundsCornerText}>Add funds</Text>
+                  </Pressable>
                 </View>
                 {balanceLoading ? (
                   <SkeletonBox width={180} height={38} borderRadius={8} style={{ marginVertical: 4 }} />
                 ) : (
                   <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
                 )}
-                <View style={styles.buttonGroup}>
-                  <Pressable 
-                    style={styles.addFundsButtonBalance} 
-                  onPress={() => {
-                    handleAddFunds();
-                  }}
-                  >
-                    <ArrowDown size={20} color={'#fff'}/>
-                    <Text style={[styles.addFundsTextBalance]}>Add funds</Text>
-                  </Pressable>
-                  <Pressable 
-                    style={styles.createButtonBalance} 
-                    onPress={handleCreatePayout}
-                  >
-                    <CalendarCheck size={22} color={colors.primary} />
-                    <Text style={styles.createButtonTextBalance}>New</Text>
-                  </Pressable>
-                </View>
               </View>
             </ImageBackground>
 
@@ -2787,7 +2766,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderRadius: 3,
   },
   balanceCard: {
-    borderRadius: 28,
+    borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 18,
     marginTop: 0,
@@ -2804,6 +2783,21 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
+  },
+  addFundsCornerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  addFundsCornerText: {
+    color: '#FFFFFF',
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
+    fontWeight: '700',
   },
   expandButton: {
     padding: 4,
@@ -2869,6 +2863,35 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flexDirection: 'row',
     gap: 10,
     marginTop: 14,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 18,
+  },
+  quickActionCard: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  quickActionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : colors.iconBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickActionTitle: {
+    fontSize: getScaledFontSize(15, textSizeMultiplier),
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    color: colors.text,
   },
   createButton: {
     flex: 1,

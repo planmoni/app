@@ -396,7 +396,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   },
   card: {
     backgroundColor: isDark ? colors.card : '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 16,
     paddingHorizontal: 15,
     paddingVertical:15,
     borderWidth: 0.5,

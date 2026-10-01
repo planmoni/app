@@ -427,7 +427,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   actionCard: {
     width: Platform.OS === 'ios' ? 300 : 250,
     backgroundColor: colors.card,
-    borderRadius: 22,
+    borderRadius: 14,
     height: 110,
     padding: 16,
     borderWidth: 0.5,

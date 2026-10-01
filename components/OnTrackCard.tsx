@@ -418,7 +418,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     paddingHorizontal: 4,
   },
   card: {
-    borderRadius: 22,
+    borderRadius: 14,
     flexDirection: 'row',
     paddingVertical: 16,
     backgroundColor: colors.card,
