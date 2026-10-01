@@ -4,6 +4,7 @@ import { ArrowRight, Clock, Vault } from 'lucide-react-native';
 import ExpensePlansSection from '@/components/ExpensePlansSection';
 import ExpensePlanCard from '@/components/expense-planner/ExpensePlanCard';
 import { useTextSize } from '@/contexts/TextSizeContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
 import { isBudgetStarted } from '@/lib/expensePlanUtils';
@@ -60,6 +61,7 @@ export default function PlansTabContent({
   onRequireAuth,
 }: PlansTabContentProps) {
   const { textSizeMultiplier } = useTextSize();
+  const { isDark } = useTheme();
   const haptics = useHaptics();
   // Exclude started vaults that are already fully spent (balance <= 0),
   // and non-active plans, from summary totals.
@@ -239,8 +241,10 @@ export default function PlansTabContent({
                   </View>
                   <Text style={styles.upNextBudgetAmount}>{formatBalance(totalBudget)}</Text>
                   <View style={styles.upNextMetaRow}>
-                    <Clock size={14} color={colors.textSecondary} />
-                    <Text style={styles.upNextDaysText}>{maturityLabel}</Text>
+                    <View style={styles.upNextDaysBadge}>
+                      <Clock size={14} color={isDark ? '#FFFFFF' : colors.primary} />
+                      <Text style={styles.upNextDaysText}>{maturityLabel}</Text>
+                    </View>
                     <ArrowRight size={16} color={colors.textTertiary} style={{ marginLeft: 'auto' }} />
                   </View>
                 </>

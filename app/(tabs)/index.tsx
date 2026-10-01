@@ -1800,13 +1800,13 @@ export default function HomeScreen() {
               {isLoading ? (
                 <PlanmoniLoader size="small" />
               ) : (
-                <HelpIcon width={22} height={23} color={colors.text} />
+                <HelpIcon width={18} height={19} color={colors.text} />
               )}
               <View style={styles.helpBadge}>
                 <Text style={styles.helpBadgeText}>Help</Text>
               </View>
             </Pressable>
-            <NotificationIcon />
+            <NotificationIcon size={18} />
           </View>
         </View>
       </View>
@@ -2953,19 +2953,17 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   upNextDaysBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    width: '45%',
-    backgroundColor: colors.accentBackground,
+    gap: 6,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#F8FCF4',
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.primary + '20',
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
   },
   upNextDaysText: {
-    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
     fontWeight: '600',
-    color: colors.primary,
+    color: isDark ? '#FFFFFF' : colors.primary,
   },
   upNextDate: {
     fontSize: getScaledFontSize(12, textSizeMultiplier),
