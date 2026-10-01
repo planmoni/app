@@ -1947,37 +1947,29 @@ export default function HomeScreen() {
         </ScrollView>
       </View>
 
-      {/* Sticky Buttons - Only show on Home tab */}
       {activeBalanceTab === 'home' && (
         <Animated.View
           pointerEvents={stickyButtonsInteractive ? 'auto' : 'none'}
           style={[
-          styles.stickyButtons,
-          {
-            opacity: buttonOpacity,
-            transform: [{
-              translateY: buttonOpacity.interpolate({
-                inputRange: [0, 1],
-                outputRange: [100, 0],
-              }),
-            }],
-          },
-        ]}>
-          <Pressable 
-            style={styles.addFundsButton} 
-            onPress={() => {
-              handleAddFunds();
-            }}
-          >
-            <ArrowDown size={20} color={isDark ? '#fff' : colors.primary} />
-            <Text style={[styles.addFundsText, { color: isDark ? '#fff' : colors.primary }]}>Add funds</Text>
-          </Pressable>
-          <Pressable 
-            style={styles.createButton} 
+            styles.floatingAddButton,
+            {
+              opacity: buttonOpacity,
+              transform: [{
+                scale: buttonOpacity.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.85, 1],
+                }),
+              }],
+            },
+          ]}
+        >
+          <Pressable
+            style={styles.floatingAddButtonPressable}
             onPress={handleCreatePayout}
+            accessibilityRole="button"
+            accessibilityLabel="Create"
           >
-            <CalendarCheck size={22} color={'#fff'} />
-            <Text style={styles.createButtonText}>New</Text>
+            <Plus size={26} color="#fff" />
           </Pressable>
         </Animated.View>
       )}
@@ -3459,6 +3451,13 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  floatingAddButtonPressable: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tabContentWrapper: {
     flex: 1,
