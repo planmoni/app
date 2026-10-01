@@ -3065,8 +3065,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     fontWeight: '600',
   },
   balanceAmount: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 42 : 38, textSizeMultiplier),
-    fontWeight: '700',
+    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 45 : 38, textSizeMultiplier),
+    fontWeight: '600',
     letterSpacing: -1,
     color: '#fff',
     marginTop: 6,
