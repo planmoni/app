@@ -1822,11 +1822,11 @@ export default function HomeScreen() {
                   router.push('/create-payout/amount');
                 }}
               >
-                <View style={styles.payoutActionIcon}>
-                  <CalendarDays size={22} color="#FFFFFF" />
+                <View style={styles.actionWatermark} pointerEvents="none">
+                  <CalendarDays size={96} color="#FFFFFF" strokeWidth={1.6} />
                 </View>
                 <Text style={styles.payoutActionTitle}>Payout</Text>
-                <Text style={styles.payoutActionHint}>Schedule money out</Text>
+                <Text style={styles.payoutActionHint}>Setup payout schedules.</Text>
               </Pressable>
               <Pressable
                 style={[styles.quickActionCard, styles.vaultAction]}
@@ -1841,11 +1841,11 @@ export default function HomeScreen() {
                   });
                 }}
               >
-                <View style={styles.vaultActionIcon}>
-                  <Vault size={22} color="#1E3A8A" />
+                <View style={styles.actionWatermark} pointerEvents="none">
+                  <Vault size={96} color="#1E3A8A" strokeWidth={1.6} />
                 </View>
                 <Text style={styles.vaultActionTitle}>Vault</Text>
-                <Text style={styles.vaultActionHint}>Save for a goal</Text>
+                <Text style={styles.vaultActionHint}>Set up a vault.</Text>
               </Pressable>
             </View>
             </View>
@@ -2881,30 +2881,22 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     borderRadius: 14,
     paddingVertical: 16,
     paddingHorizontal: 14,
-    gap: 8,
+    gap: 6,
     minHeight: 124,
+    overflow: 'hidden',
+    justifyContent: 'flex-start',
+  },
+  actionWatermark: {
+    position: 'absolute',
+    right: -18,
+    bottom: -18,
+    opacity: 0.22,
   },
   payoutAction: {
     backgroundColor: colors.primary,
   },
   vaultAction: {
     backgroundColor: colors.accent,
-  },
-  payoutActionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  vaultActionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(30,58,138,0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   payoutActionTitle: {
     fontSize: getScaledFontSize(16, textSizeMultiplier),

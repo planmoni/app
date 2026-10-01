@@ -1,6 +1,9 @@
 import { Tabs } from 'expo-router';
 import { Calendar, Home as Home, PieChart, Settings, Sparkles } from 'lucide-react-native'; //Do not change the Home to Chrome
 import { LayoutAnimation, Platform, Pressable, StyleSheet, Text, UIManager, View } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, ThemeContext } from '@/contexts/ThemeContext';
 import { useContext } from 'react';
@@ -17,9 +20,27 @@ function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const inactiveColor = isDark ? '#93C5FD' : colors.primary;
   const bottom = Math.max(insets.bottom, 12);
+  const blurHeight = bottom + 64 + 16;
 
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <MaskedView
+        pointerEvents="none"
+        style={[styles.blurStrip, { height: blurHeight }]}
+        maskElement={
+          <LinearGradient
+            colors={['transparent', 'black', 'black']}
+            locations={[0, 0.28, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+        }
+      >
+        <BlurView
+          intensity={isDark ? 50 : 40}
+          tint={isDark ? 'dark' : 'light'}
+          style={StyleSheet.absoluteFill}
+        />
+      </MaskedView>
       <View
         style={[
           styles.bar,
@@ -133,6 +154,12 @@ function TabLayoutContent() {
 }
 
 const styles = StyleSheet.create({
+  blurStrip: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   bar: {
     position: 'absolute',
     left: 16,
