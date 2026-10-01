@@ -112,8 +112,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       marginBottom: Platform.OS === 'ios' ? 10 : 5,
     },
     sectionTitle: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 14, textSizeMultiplier),
-      fontWeight: '600',
+      fontSize: getScaledFontSize(14, textSizeMultiplier),
+      fontWeight: '700',
       color: colors.text,
     },
     viewAllButton: {
@@ -132,14 +132,13 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       marginRight: Platform.OS === 'ios' ? 16 : 10,
     },
     addExpensePlanCard: {
-      width: 300,
-      backgroundColor: colors.backgroundSecondary,
-      borderWidth: 2,
+      width: 220,
+      backgroundColor: colors.card,
+      borderWidth: 1,
       borderColor: colors.border,
-      borderStyle: 'dashed',
-      borderRadius: 16,
-      padding: 24,
-      alignItems: 'center',
+      borderRadius: 14,
+      padding: 16,
+      alignItems: 'flex-start',
       justifyContent: 'center',
     },
     addExpensePlanText: {

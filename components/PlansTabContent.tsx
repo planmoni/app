@@ -1,12 +1,11 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView, RefreshControl, Platform } from 'react-native';
-import { ArrowRight, Clock } from 'lucide-react-native';
+import { ArrowRight, Clock, Vault } from 'lucide-react-native';
 import ExpensePlansSection from '@/components/ExpensePlansSection';
 import ExpensePlanCard from '@/components/expense-planner/ExpensePlanCard';
 import { useTextSize } from '@/contexts/TextSizeContext';
 import { getScaledFontSize } from '@/lib/textSize';
 import { useHaptics } from '@/hooks/useHaptics';
-import { useTheme } from '@/contexts/ThemeContext';
 import { isBudgetStarted } from '@/lib/expensePlanUtils';
 
 type NextMaturingBudget = {
@@ -62,7 +61,6 @@ export default function PlansTabContent({
 }: PlansTabContentProps) {
   const { textSizeMultiplier } = useTextSize();
   const haptics = useHaptics();
-  const { isDark } = useTheme();
   // Exclude started vaults that are already fully spent (balance <= 0),
   // and non-active plans, from summary totals.
   const plansForTotals = React.useMemo(() => {
@@ -115,6 +113,9 @@ export default function PlansTabContent({
           router.push('/spend');
         }}
       >
+        <View style={styles.availableToSpendWatermark} pointerEvents="none">
+          <Vault size={110} color="#1E3A8A" strokeWidth={1.5} />
+        </View>
         <View style={styles.availableToSpendContent}>
           <View style={styles.availableToSpendInfo}>
             <Text style={styles.availableToSpendLabel}>Available to spend</Text>
@@ -134,7 +135,7 @@ export default function PlansTabContent({
               </Text>
             </View>
           </View>
-          <ArrowRight size={20} color={colors.textSecondary} />
+          <ArrowRight size={20} color="#1E3A8A" />
         </View>
       </Pressable>
 
@@ -202,75 +203,49 @@ export default function PlansTabContent({
               router.push(`/expense-planner/${nextMaturingBudget.plan.id}`);
             }}
           >
-            <View style={styles.upNextCardHeader}>
-              <View style={styles.upNextHeaderContent}>
-                <View style={styles.upNextLabelRow}>
-                  <Text style={styles.upNextLabel}>Upcoming</Text>
-                  {(() => {
-                    const totalBudget = nextMaturingBudget.plan.total_budget || 0;
-                    const currentBalance = (nextMaturingBudget.plan as any).current_balance || 0;
-                    const isReady = totalBudget > 0 && currentBalance >= totalBudget;
+            {(() => {
+              const totalBudget = nextMaturingBudget.plan.total_budget || 0;
+              const currentBalance = (nextMaturingBudget.plan as any).current_balance || 0;
+              const isReady = totalBudget > 0 && currentBalance >= totalBudget;
+              const maturityLabel = !nextMaturingBudget.hasStarted
+                ? nextMaturingBudget.daysUntilMaturity === 0
+                  ? 'Matures today'
+                  : nextMaturingBudget.daysUntilMaturity === 1
+                    ? 'Matures tomorrow'
+                    : `Matures in ${nextMaturingBudget.daysUntilMaturity} days`
+                : 'Matured';
 
-                    return (
-                      <View
+              return (
+                <>
+                  <View style={styles.upNextLabelRow}>
+                    <Text style={styles.upNextPlanName} numberOfLines={1}>
+                      {nextMaturingBudget.plan.name}
+                    </Text>
+                    <View
+                      style={[
+                        styles.upNextReadyTag,
+                        isReady ? styles.upNextReadyTagReady : styles.upNextReadyTagNotReady,
+                      ]}
+                    >
+                      <Text
                         style={[
-                          styles.upNextReadyTag,
-                          isReady ? styles.upNextReadyTagReady : styles.upNextReadyTagNotReady,
+                          styles.upNextReadyTagText,
+                          isReady ? styles.upNextReadyTagTextReady : styles.upNextReadyTagTextNotReady,
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.upNextReadyTagText,
-                            isReady ? styles.upNextReadyTagTextReady : styles.upNextReadyTagTextNotReady,
-                          ]}
-                        >
-                          {isReady ? 'Ready' : 'Not Ready'}
-                        </Text>
-                      </View>
-                    );
-                  })()}
-                </View>
-                <Text style={styles.upNextPlanName} numberOfLines={1}>
-                  {nextMaturingBudget.plan.name}
-                </Text>
-                {/* {getNextMaturingBudgetCategoryIcons.length > 0 && (
-                  <View style={styles.upNextCategoryIconsContainer}>
-                    {getNextMaturingBudgetCategoryIcons.map(({ categoryId, Icon }, index) => (
-                      <View
-                        key={categoryId}
-                        style={[
-                          styles.upNextCategoryIconBadge,
-                          index > 0 && styles.upNextStackedIcon,
-                          { zIndex: index + 1 },
-                        ]}
-                      >
-                        <Icon size={14} color={colors.primary} />
-                      </View>
-                    ))}
+                        {isReady ? 'Ready' : 'Not ready'}
+                      </Text>
+                    </View>
                   </View>
-                )} */}
-              </View>
-              <ArrowRight size={20} color={colors.textSecondary} />
-            </View>
-
-            <View style={styles.upNextCardBody}>
-              <View style={styles.upNextAmountRow}>
-                <Text style={styles.upNextBudgetAmount}>{formatBalance(nextMaturingBudget.plan.total_budget)}</Text>
-              </View>
-              <View style={styles.upNextDaysBadge}>
-                <Clock size={12} color= {isDark ? colors.text : colors.primary} />
-                <Text style={[styles.upNextDaysText, { color: isDark ? colors.text : colors.primary }]}>
-                  {(() => {
-                    if (!nextMaturingBudget.hasStarted) {
-                      if (nextMaturingBudget.daysUntilMaturity === 0) return 'Matures today';
-                      if (nextMaturingBudget.daysUntilMaturity === 1) return 'Matures tomorrow';
-                      return `Matures in ${nextMaturingBudget.daysUntilMaturity} days`;
-                    }
-                    return 'Matured';
-                  })()}
-                </Text>
-              </View>
-            </View>
+                  <Text style={styles.upNextBudgetAmount}>{formatBalance(totalBudget)}</Text>
+                  <View style={styles.upNextMetaRow}>
+                    <Clock size={14} color={colors.textSecondary} />
+                    <Text style={styles.upNextDaysText}>{maturityLabel}</Text>
+                    <ArrowRight size={16} color={colors.textTertiary} style={{ marginLeft: 'auto' }} />
+                  </View>
+                </>
+              );
+            })()}
           </Pressable>
         </>
       )}

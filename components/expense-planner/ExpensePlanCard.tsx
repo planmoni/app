@@ -656,12 +656,13 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   StyleSheet.create({
     card: {
       backgroundColor: colors.card,
-      borderRadius: 16,
-      padding: Platform.OS === 'ios' ? 16 : 12,
-      marginBottom: Platform.OS === 'ios' ? 12 : 8,
-      borderWidth: 0.5,
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 10,
+      borderWidth: 1,
       borderColor: colors.border,
-      minWidth: 280,
+      minWidth: 260,
+      gap: 8,
     },
     planHeader: {
       flexDirection: 'row',
@@ -670,8 +671,8 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       // marginBottom: 12,
     },
     planName: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 15 : 14, textSizeMultiplier),
-      fontWeight: '500',
+      fontSize: getScaledFontSize(15, textSizeMultiplier),
+      fontWeight: '700',
       color: colors.text,
       flex: 1,
       marginRight: 8,
@@ -689,9 +690,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       borderRadius: 8,
     },
     statusTag: {
-      paddingHorizontal: Platform.OS === 'ios' ? 12 : 10,
-      paddingVertical: Platform.OS === 'ios' ? 6 : 4,
-      borderRadius: 16,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 10,
     },
     statusTagText: {
       fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
@@ -708,10 +709,10 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       flex: 1,
     },
     planAmount: {
-      fontSize: getScaledFontSize(Platform.OS === 'ios' ? 25 : 24, textSizeMultiplier),
+      fontSize: getScaledFontSize(20, textSizeMultiplier),
       fontWeight: '700',
+      letterSpacing: -0.3,
       color: colors.text,
-      marginBottom: 4,
     },
     balanceColumn: {
       alignItems: 'flex-end',
@@ -871,10 +872,11 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
       color: colors.textSecondary,
     },
     progressBar: {
-      height: Platform.OS === 'ios' ? 6 : 4,
+      height: 4,
       backgroundColor: colors.border,
       borderRadius: 3,
-      marginBottom: 8,
+      marginTop: 4,
+      marginBottom: 6,
     },
     progressFill: {
       height: '100%',

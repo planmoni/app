@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView, RefreshControl } from 'react-native';
-import { Clock } from 'lucide-react-native';
+import { CalendarDays } from 'lucide-react-native';
 import NextPayoutCard from '@/components/NextPayoutCard';
 import PayoutPlansSection from '@/components/PayoutPlansSection';
 
@@ -65,6 +65,9 @@ export default function PayoutsTabContent({
         }
       >
       <View style={styles.payoutsBalanceCard}>
+        <View style={styles.payoutsBalanceWatermark} pointerEvents="none">
+          <CalendarDays size={110} color="#FFFFFF" strokeWidth={1.5} />
+        </View>
         <View style={styles.payoutsBalanceContent}>
           <View style={styles.payoutsBalanceInfo}>
             <Text style={styles.payoutsBalanceLabel}>Total amount in payout plans</Text>

@@ -158,7 +158,7 @@ export default function TransactionsScreen() {
     groups[date].push(transaction);
     return groups;
   }, {} as GroupedTransactions);
-  const styles = createStyles(colors);
+  const styles = createStyles(colors, isDark);
 
   if (isLoading) {
     return (
@@ -441,14 +441,14 @@ export default function TransactionsScreen() {
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: isDark ? colors.background : '#FFFFFF',
   },
   header: {
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
+    backgroundColor: isDark ? colors.background : '#FFFFFF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   headerTop: {
@@ -556,8 +556,14 @@ const createStyles = (colors: any) => StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: isDark ? colors.card : '#FFFFFF',
     gap: 8,
   },
   statItem: {
@@ -611,13 +617,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   transaction: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   transactionIcon: {
     width: 32,
