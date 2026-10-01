@@ -17,6 +17,7 @@ const ImageCarousel = React.lazy(() => import('@/components/ImageCarousel'));
 import KYCVerificationModal from '@/components/KYCVerificationModal';
 import MostRecentPayoutsCard from '@/components/MostRecentPayoutsCard';
 import { ensureSupabaseConnection } from '@/lib/supabase-fetch';
+import { clearPayoutSetupDraft, loadPayoutSetupDraft, type PayoutSetupDraft } from '@/lib/payout-setup-draft';
 import { router, useGlobalSearchParams, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
 import {
   HelpCircleIcon,
@@ -32,6 +33,7 @@ import {
   MoreVertical,
   ArrowDown,
   ArrowRight,
+  X,
   Send,
 } from 'lucide-react-native';
 import {
@@ -278,6 +280,16 @@ function BalanceActionsModal({
   );
 }
 
+function payoutSetupStepTitle(pathname: string): string {
+  if (pathname.includes('/purpose')) return 'What is this plan for?';
+  if (pathname.includes('/frequency-selection')) return 'Choose a disbursement schedule';
+  if (pathname.includes('/schedule')) return 'How often do you want us to send this money?';
+  if (pathname.includes('/destination')) return 'Choose Payout Destination';
+  if (pathname.includes('/rules')) return 'Set Manual Withdrawal Rules';
+  if (pathname.includes('/review')) return 'Review & Confirm';
+  return 'How much do you want to set aside?';
+}
+
 export default function HomeScreen() {
   const { showBalances, toggleBalances, balance, lockedBalance, availableBalance, refreshWallet, isLoading: balanceLoading } = useBalance();
   const { session, isLoading: authLoading } = useAuth();
@@ -290,6 +302,7 @@ export default function HomeScreen() {
   const { textSizeMultiplier } = useTextSize();
   const insets = useSafeAreaInsets();
   const floatingNavOffset = Math.max(insets.bottom, 12) + 64 + 16;
+  const [payoutDraft, setPayoutDraft] = useState<PayoutSetupDraft | null>(null);
   const { payoutPlans, isLoading: payoutPlansLoading, isTimedOut: payoutPlansTimedOut, fetchPayoutPlans } = usePayoutPlansQuery(20);
   const { isRecentAccount, isLoading: recentAccountLoading } = useRecentAccountCreation();
   const { checkTierCompletion, loading: kycProgressLoading, progress, loadProgress, currentTier } = useKYCProgress();
@@ -661,6 +674,18 @@ export default function HomeScreen() {
       checkIdentityVerificationSuccess();
     }
   }, [session?.user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void loadPayoutSetupDraft().then((draft) => {
+        if (active) setPayoutDraft(draft);
+      });
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
   // Show onboarding questionnaire modal once after new signup (flag set in creating-account.tsx)
   useFocusEffect(
@@ -1810,6 +1835,45 @@ export default function HomeScreen() {
               onTransactionPress={handleTransactionPress}
             />
 
+            {payoutDraft ? (
+              <Pressable
+                style={styles.resumePayoutCard}
+                onPress={() => {
+                  impact();
+                  router.push({
+                    pathname: payoutDraft.pathname as never,
+                    params: payoutDraft.params,
+                  });
+                }}
+              >
+                <View style={styles.resumePayoutIcon}>
+                  <CalendarDays size={20} color={colors.primary} />
+                </View>
+                <View style={styles.resumePayoutText}>
+                  <Text style={styles.resumePayoutTitle}>Continue setting up your payout.</Text>
+                  <Text style={styles.resumePayoutHint}>
+                    {Number(payoutDraft.params.totalAmount)
+                      ? `₦${Number(payoutDraft.params.totalAmount).toLocaleString('en-NG')} · `
+                      : ''}
+                    {payoutSetupStepTitle(payoutDraft.pathname)}
+                  </Text>
+                </View>
+                <ArrowRight size={18} color={colors.textSecondary} />
+                <Pressable
+                  onPress={() => {
+                    setPayoutDraft(null);
+                    void clearPayoutSetupDraft();
+                  }}
+                  hitSlop={8}
+                  style={styles.resumePayoutClose}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                >
+                  <X size={16} color={colors.textSecondary} />
+                </Pressable>
+              </Pressable>
+            ) : null}
+
             <View style={styles.createNewSection}>
             <Text style={styles.createNewTitle}>Create new</Text>
             <View style={styles.quickActions}>
@@ -2896,6 +2960,55 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   quickActions: {
     flexDirection: 'row',
     gap: 10,
+  },
+  resumePayoutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    position: 'relative',
+  },
+  resumePayoutIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : colors.iconBackground,
+  },
+  resumePayoutText: {
+    flex: 1,
+    gap: 4,
+    paddingRight: 24,
+  },
+  resumePayoutTitle: {
+    fontSize: getScaledFontSize(15, textSizeMultiplier),
+    fontWeight: '700',
+    color: colors.text,
+  },
+  resumePayoutHint: {
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    color: colors.textSecondary,
+  },
+  resumePayoutClose: {
+    position: 'absolute',
+    top: -10,
+    right: 1,
+    zIndex: 2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   quickActionCard: {
     flex: 1,

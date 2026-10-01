@@ -10,6 +10,7 @@ import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
 import FloatingButton from '@/components/FloatingButton';
 import { useHaptics } from '@/hooks/useHaptics';
 import * as Haptics from 'expo-haptics';
+import { savePayoutSetupDraft } from '@/lib/payout-setup-draft';
 import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
 import { LifecycleEventName } from '@/lib/lifecycleEvents';
 
@@ -43,6 +44,15 @@ export default function AmountScreen() {
   useEffect(() => {
     void trackLifecycleEvent(LifecycleEventName.PAYOUT_PLAN_FLOW_STARTED, { screen: 'amount' });
   }, []);
+
+  useEffect(() => {
+    const numeric = amount.replace(/[^0-9.]/g, '');
+    if (!numeric) return;
+    void savePayoutSetupDraft('/create-payout/amount', {
+      ...(params as Record<string, string | string[] | undefined>),
+      totalAmount: numeric,
+    });
+  }, [amount, params]);
 
   const handleContinue = () => {
     if (!amount) {

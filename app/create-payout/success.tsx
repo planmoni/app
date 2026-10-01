@@ -12,6 +12,7 @@ import { formatDisplayDate, formatPayoutFrequency } from '@/lib/formatters';
 import { formatPayoutMoney, hasCustomPayoutAmounts } from '@/lib/custom-payout-amounts';
 import { getBankIconLogo } from '@/lib/bankIcons';
 import { Building2, X } from 'lucide-react-native';
+import { clearPayoutSetupDraft } from '@/lib/payout-setup-draft';
 import { trackLifecycleEvent } from '@/lib/lifecycleTracking';
 import { LifecycleEventName } from '@/lib/lifecycleEvents';
 
@@ -49,6 +50,7 @@ export default function SuccessScreen() {
 
   // Trigger success haptic feedback when the screen loads
   useEffect(() => {
+    void clearPayoutSetupDraft();
     mountedRef.current = true;
     const timer = setTimeout(() => {
       haptics.success();
