@@ -203,7 +203,7 @@ export default function DatesScreen() {
             if (planId) {
               await saveLastStep(planId, '/create-vault/dates');
             }
-            router.replace('/(tabs)');
+            router.dismissTo('/(tabs)');
           }} 
           style={styles.closeButton}
         >

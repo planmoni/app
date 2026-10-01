@@ -212,7 +212,7 @@ export default function ContributionCalculationScreen() {
             if (planId) {
               await saveLastStep(planId, '/create-vault/contribution-calculation');
             }
-            router.push('/(tabs)');
+            router.dismissTo('/(tabs)');
           }}
           style={styles.cancelButton}
         >

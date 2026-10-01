@@ -126,7 +126,7 @@ export default function TargetAmountScreen() {
             if (planId) {
               await saveLastStep(planId, '/create-vault/target-amount');
             }
-            router.push('/(tabs)');
+            router.dismissTo('/(tabs)');
           }}
           style={styles.cancelButton}
         >

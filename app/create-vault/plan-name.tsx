@@ -75,7 +75,7 @@ export default function PlanNameScreen() {
             if (planId) {
               await saveLastStep(planId, '/create-vault/plan-name');
             }
-            router.push('/(tabs)');
+            router.dismissTo('/(tabs)');
           }}
           style={styles.cancelButton}
         >

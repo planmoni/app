@@ -172,7 +172,7 @@ export default function FundingSourceScreen() {
             if (planId) {
               await saveLastStep(planId, '/create-vault/funding-source');
             }
-            router.push('/(tabs)');
+            router.dismissTo('/(tabs)');
           }}
           style={styles.cancelButton}
         >

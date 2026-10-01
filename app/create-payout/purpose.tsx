@@ -277,7 +277,7 @@ export default function PurposeScreen() {
         <Pressable
           onPress={() => {
             if (Platform.OS !== 'web') haptics.lightImpact();
-            router.push('/(tabs)');
+            router.dismissTo('/(tabs)');
           }}
           style={styles.cancelButton}
         >

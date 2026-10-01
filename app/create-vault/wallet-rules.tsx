@@ -126,7 +126,7 @@ export default function WalletRulesScreen() {
             if (planId) {
               await saveLastStep(planId, '/create-vault/wallet-rules');
             }
-            router.push('/(tabs)');
+            router.dismissTo('/(tabs)');
           }}
           style={styles.cancelButton}
         >

@@ -329,7 +329,7 @@ export default function BasicSetupScreen() {
             if (planId) {
               await saveLastStep(planId, '/create-vault/basic-setup');
             }
-            router.push('/(tabs)');
+            router.dismissTo('/(tabs)');
           }}
           style={styles.cancelButton}
         >

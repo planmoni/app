@@ -289,7 +289,7 @@ export default function FundSpendingPlanScreen() {
             if (planId) {
               await saveLastStep(planId, '/create-vault/fund-budget');
             }
-            router.replace('/(tabs)');
+            router.dismissTo('/(tabs)');
           }} 
           style={styles.closeButton}
         >

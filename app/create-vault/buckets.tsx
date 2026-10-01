@@ -672,7 +672,7 @@ export default function BucketsScreen() {
             if (planId) {
               await saveLastStep(planId, '/create-vault/buckets');
             }
-            router.replace('/(tabs)');
+            router.dismissTo('/(tabs)');
           }} 
           style={styles.closeButton}
         >

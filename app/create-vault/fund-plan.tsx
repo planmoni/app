@@ -78,7 +78,7 @@ export default function FundPlanScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Fund Vault</Text>
         <Pressable
-          onPress={() => router.replace('/(tabs)')}
+          onPress={() => router.dismissTo('/(tabs)')}
           style={styles.closeButton}
           hitSlop={8}
         >

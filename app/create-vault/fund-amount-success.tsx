@@ -40,7 +40,7 @@ export default function FundAmountSuccessScreen() {
 
   const handleBackToDashboard = () => {
     haptics.lightImpact();
-    router.replace('/(tabs)');
+    router.dismissTo('/(tabs)');
   };
 
   const handleClose = () => {

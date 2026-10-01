@@ -1062,7 +1062,7 @@ export default function ScheduleScreen() {
             if (Platform.OS !== 'web') {
               haptics.lightImpact();
             }
-            router.push('/(tabs)');
+            router.dismissTo('/(tabs)');
           }} 
           style={styles.cancelButton}
         >

@@ -224,7 +224,7 @@ export default function ReviewScreen() {
       return;
     }
     abandonCreate();
-    router.push('/(tabs)');
+    router.dismissTo('/(tabs)');
   }, [isLoading, abandonCreate]);
 
   const handleStartPlan = useCallback(async () => {

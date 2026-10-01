@@ -5,8 +5,13 @@ import { router } from 'expo-router';
  * Use `/(tabs)` only — `/(tabs)/index` is not used elsewhere and can resolve to a blank screen in this app.
  */
 export function replaceToVaultsHomeTab() {
-  router.replace({
-    pathname: '/(tabs)',
+  const target = {
+    pathname: '/(tabs)' as const,
     params: { balanceTab: 'plans' },
-  });
+  };
+  if (router.canDismiss()) {
+    router.dismissTo(target);
+    return;
+  }
+  router.replace(target);
 }

@@ -5,8 +5,13 @@ import { router } from 'expo-router';
  * Use `/(tabs)` only — same routing contract as {@link replaceToVaultsHomeTab}.
  */
 export function replaceToPayoutsHomeTab() {
-  router.replace({
-    pathname: '/(tabs)',
+  const target = {
+    pathname: '/(tabs)' as const,
     params: { balanceTab: 'payouts' },
-  });
+  };
+  if (router.canDismiss()) {
+    router.dismissTo(target);
+    return;
+  }
+  router.replace(target);
 }

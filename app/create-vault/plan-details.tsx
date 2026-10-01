@@ -994,7 +994,7 @@ export default function PlanDetailsScreen() {
             if (currentPlanId || planId) {
               await saveLastStep(currentPlanId || planId!, '/create-vault/plan-details');
             }
-            router.replace('/(tabs)');
+            router.dismissTo('/(tabs)');
           }}
           style={styles.cancelButton}
         >

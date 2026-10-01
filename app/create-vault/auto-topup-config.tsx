@@ -309,7 +309,7 @@ export default function AutoTopUpConfigScreen() {
                   params: { id: planId },
                 });
               } else {
-                router.replace('/(tabs)');
+                router.dismissTo('/(tabs)');
               }
               return;
             }
@@ -317,7 +317,7 @@ export default function AutoTopUpConfigScreen() {
             if (planId) {
               await saveLastStep(planId, '/create-vault/auto-topup-config');
             }
-            router.push('/(tabs)');
+            router.dismissTo('/(tabs)');
           }}
           style={styles.cancelButton}
         >

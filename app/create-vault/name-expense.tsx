@@ -240,7 +240,7 @@ export default function NameExpenseScreen() {
             if (planIdToSave) {
               await saveLastStep(planIdToSave, '/create-vault/name-expense');
             }
-            router.replace('/(tabs)');
+            router.dismissTo('/(tabs)');
           }} 
           style={styles.closeButton}
         >

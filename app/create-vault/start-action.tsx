@@ -104,7 +104,7 @@ export default function StartActionScreen() {
         <Pressable
           onPress={() => {
             haptics.selection();
-            router.replace('/(tabs)');
+            router.dismissTo('/(tabs)');
           }}
           style={styles.closeButton}
         >

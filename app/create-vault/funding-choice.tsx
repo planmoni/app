@@ -116,7 +116,7 @@ export default function FundingChoiceScreen() {
             if (planId) {
               await saveLastStep(planId, '/create-vault/funding-choice');
             }
-            router.replace('/(tabs)');
+            router.dismissTo('/(tabs)');
           }} 
           style={styles.closeButton}
         >

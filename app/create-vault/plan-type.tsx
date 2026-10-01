@@ -75,7 +75,7 @@ export default function PlanTypeScreen() {
         <Pressable
           onPress={() => {
             haptics.lightImpact();
-            router.replace('/(tabs)');
+            router.dismissTo('/(tabs)');
           }}
           style={styles.cancelButton}
         >
