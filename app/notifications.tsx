@@ -192,7 +192,7 @@ export default function NotificationsScreen() {
     <View style={styles.header}>
       <View style={styles.headerTop}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color={colors.text} />
+          <ArrowLeft size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Activities</Text>
         <Pressable
@@ -224,7 +224,7 @@ export default function NotificationsScreen() {
     >
       <View style={styles.notificationContentWrapper}>
         <View style={[styles.notificationIcon, { backgroundColor: notification.iconBg }]}>
-          <notification.icon size={24} color={notification.iconColor} strokeWidth={2} />
+          <notification.icon size={16} color={notification.iconColor} strokeWidth={2} />
         </View>
         <View style={styles.notificationContent}>
           <View style={styles.notificationHeader}>
@@ -304,7 +304,9 @@ export default function NotificationsScreen() {
           renderItem={renderItem}
           style={styles.notificationsList}
           contentContainerStyle={
-            displayNotifications.length === 0 ? styles.emptyListContent : { paddingBottom: 24 }
+            displayNotifications.length === 0
+              ? styles.emptyListContent
+              : { paddingBottom: 24 }
           }
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.4}
@@ -347,49 +349,46 @@ const createStyles = (colors: any, isDark: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.backgroundSecondary,
+      backgroundColor: isDark ? colors.background : '#FFFFFF',
     },
     header: {
-      backgroundColor: colors.surface,
-      borderBottomWidth: 1,
+      backgroundColor: isDark ? colors.background : '#FFFFFF',
+      borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
     headerTop: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
     },
     backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.backgroundTertiary,
+      width: 36,
+      height: 36,
       justifyContent: 'center',
       alignItems: 'center',
     },
     headerTitle: {
-      fontSize: 20,
+      fontSize: 16,
       fontWeight: '700',
       color: colors.text,
       flex: 1,
-      marginLeft: 12,
     },
     markAllButton: {
-      paddingVertical: 8,
-      paddingHorizontal: 14,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      borderRadius: 20,
+      borderRadius: 14,
       backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF',
     },
     markAllButtonDisabled: {
       opacity: 0.4,
     },
     markAllText: {
-      fontSize: 14,
+      fontSize: 12,
       color: colors.primary,
       fontWeight: '600',
     },
@@ -421,13 +420,13 @@ const createStyles = (colors: any, isDark: boolean) =>
       flexGrow: 1,
     },
     emptyText: {
-      fontSize: 18,
+      fontSize: 16,
       fontWeight: '600',
       color: colors.text,
       marginBottom: 8,
     },
     emptySubtext: {
-      fontSize: 14,
+      fontSize: 13,
       color: colors.textSecondary,
       textAlign: 'center',
     },
@@ -435,30 +434,25 @@ const createStyles = (colors: any, isDark: boolean) =>
       flex: 1,
     },
     notification: {
-      backgroundColor: colors.card,
-      borderRadius: 16,
-      marginHorizontal: 16,
-      marginTop: 12,
-      marginBottom: 4,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: colors.border,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
     },
     unreadNotification: {
-      borderColor: colors.primary,
-      borderWidth: 1.5,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F8FAFC',
     },
     notificationContentWrapper: {
       flexDirection: 'row',
       alignItems: 'flex-start',
     },
     notificationIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
+      width: 32,
+      height: 32,
+      borderRadius: 10,
       justifyContent: 'center',
       alignItems: 'center',
-      marginRight: 12,
+      marginRight: 10,
     },
     notificationContent: {
       flex: 1,
@@ -476,7 +470,7 @@ const createStyles = (colors: any, isDark: boolean) =>
       gap: 8,
     },
     notificationType: {
-      fontSize: 16,
+      fontSize: 14,
       fontWeight: '600',
       color: colors.text,
       flex: 1,
@@ -487,10 +481,10 @@ const createStyles = (colors: any, isDark: boolean) =>
       fontWeight: '500',
     },
     notificationMessage: {
-      fontSize: 14,
+      fontSize: 12,
       color: colors.textSecondary,
-      lineHeight: 20,
-      marginBottom: 10,
+      lineHeight: 17,
+      marginBottom: 6,
     },
     statusTag: {
       alignSelf: 'flex-start',
