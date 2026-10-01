@@ -166,7 +166,7 @@ export default function TransactionsScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <Pressable onPress={() => router.back()} style={styles.backButton}>
-              <ArrowLeft size={24} color={colors.text} />
+              <ArrowLeft size={22} color={colors.text} />
             </Pressable>
             <Text style={styles.headerTitle}>All Transactions</Text>
             <View style={styles.headerActions}>
@@ -189,7 +189,7 @@ export default function TransactionsScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={24} color={colors.text} />
+            <ArrowLeft size={22} color={colors.text} />
           </Pressable>
           <Text style={styles.headerTitle}>All Transactions</Text>
           <View style={styles.headerActions}>
@@ -198,9 +198,9 @@ export default function TransactionsScreen() {
               onPress={() => setIsSearchVisible(!isSearchVisible)}
             >
               {isSearchVisible ? (
-                <X size={20} color={colors.text} />
+                <X size={16} color={colors.text} />
               ) : (
-                <Search size={20} color={colors.text} />
+                <Search size={16} color={colors.text} />
               )}
             </Pressable>
           </View>
@@ -208,7 +208,7 @@ export default function TransactionsScreen() {
 
         {isSearchVisible && (
           <View style={styles.searchContainer}>
-            <Search size={20} color={colors.textSecondary} />
+            <Search size={16} color={colors.textSecondary} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search transactions..."
@@ -268,7 +268,7 @@ export default function TransactionsScreen() {
             style={styles.dateRangeButtonContent}
             onPress={() => setIsDateRangeModalVisible(true)}
           >
-            <Calendar size={20} color={colors.text} />
+            <Calendar size={16} color={colors.text} />
             <Text style={styles.dateRangeText}>{formatDateRange()}</Text>
           </Pressable>
           {dateRange.start && dateRange.end && (
@@ -377,7 +377,7 @@ export default function TransactionsScreen() {
                     onPress={() => handleTransactionPress(transaction)}
                   >
                     <View style={[styles.transactionIcon, { backgroundColor: iconBg }]}>
-                      <Icon size={24} color={iconColor} strokeWidth={2} />
+                      <Icon size={16} color={iconColor} strokeWidth={2} />
                     </View>
                     <View style={styles.transactionInfo}>
                       <View style={styles.transactionHeader}>
@@ -455,18 +455,18 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.text,
   },
   headerActions: {
@@ -474,9 +474,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: colors.backgroundTertiary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -484,38 +484,38 @@ const createStyles = (colors: any) => StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     backgroundColor: colors.backgroundTertiary,
     marginHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 16,
+    borderRadius: 10,
+    marginBottom: 10,
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
-    fontSize: 16,
+    fontSize: 14,
     color: colors.text,
   },
   filterTabs: {
     paddingHorizontal: 16,
-    gap: 8,
-    marginBottom: 16,
+    gap: 6,
+    marginBottom: 10,
   },
   filterTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
     backgroundColor: colors.backgroundTertiary,
-    marginRight: 8,
+    marginRight: 6,
   },
   activeFilterTab: {
     backgroundColor: colors.primary,
   },
   filterTabText: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   activeFilterTabText: {
     color: '#FFFFFF',
@@ -524,10 +524,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     marginHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 8,
@@ -540,7 +540,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   dateRangeText: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.text,
     fontWeight: '500',
   },
@@ -557,19 +557,20 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 12,
+    gap: 8,
   },
   statItem: {
     flex: 1,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   statValue: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
   },
   positiveValue: {
     color: colors.text,
@@ -598,31 +599,33 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   dateGroup: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 10,
+    paddingBottom: 2,
   },
   dateHeader: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: colors.textSecondary,
-    marginBottom: 12,
+    marginBottom: 6,
   },
   transaction: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     backgroundColor: colors.card,
     borderRadius: 12,
-    marginBottom: 8,
+    marginBottom: 6,
     borderWidth: 1,
     borderColor: colors.border,
   },
   transactionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   transactionInfo: {
     flex: 1,
@@ -634,25 +637,28 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginBottom: 4,
   },
   transactionTitle: {
-    fontSize: 17,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.text,
+    flex: 1,
+    marginRight: 8,
   },
   transactionDetails: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   transactionDate: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  transactionStatus: {
     fontSize: 12,
     color: colors.textSecondary,
   },
-  transactionAmount: {
-    fontSize: 20,
+  transactionStatus: {
+    fontSize: 11,
+    color: colors.textTertiary,
     fontWeight: '600',
+  },
+  transactionAmount: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   positiveAmount: {
     color: colors.text,
@@ -670,7 +676,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   loadMoreText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#1E3A8A',
     fontWeight: '500',
   },

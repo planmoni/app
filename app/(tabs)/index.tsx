@@ -1802,6 +1802,13 @@ export default function HomeScreen() {
               </View>
             </ImageBackground>
 
+            <MostRecentPayoutsCard
+              transactions={transactions}
+              payoutPlans={payoutPlans}
+              isLoading={transactionsLoading}
+              onTransactionPress={handleTransactionPress}
+            />
+
             <View style={styles.quickActions}>
               <Pressable
                 style={styles.quickActionCard}
@@ -1850,13 +1857,6 @@ export default function HomeScreen() {
               <OnTrackCard 
                 payoutPlans={payoutPlans}
               />
-              <MostRecentPayoutsCard
-                transactions={transactions}
-                payoutPlans={payoutPlans}
-                isLoading={transactionsLoading}
-                onTransactionPress={handleTransactionPress}
-              />
-              
 
               <Suspense fallback={<View style={styles.carouselPlaceholder} />}>
                 <ImageCarousel images={carouselImages} />

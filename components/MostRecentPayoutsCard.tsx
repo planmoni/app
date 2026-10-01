@@ -243,15 +243,15 @@ export default function MostRecentPayoutsCard({ transactions, payoutPlans, isLoa
         </View>
         <View style={{
           backgroundColor: isDark ? colors.card : '#FFFFFF',
-          borderRadius: 16,
-          paddingHorizontal: 15,
-          paddingVertical: 15,
+          borderRadius: 14,
+          paddingHorizontal: 12,
+          paddingVertical: 12,
           borderWidth: 0.5,
           borderColor: colors.border,
-          gap: 12,
+          gap: 8,
         }}>
-          <SkeletonBox width={160} height={Platform.OS === 'ios' ? 28 : 22} borderRadius={6} />
-          <SkeletonBox width="55%" height={13} borderRadius={6} />
+          <SkeletonBox width={140} height={18} borderRadius={6} />
+          <SkeletonBox width="60%" height={12} borderRadius={6} />
         </View>
       </View>
     );
@@ -292,68 +292,66 @@ export default function MostRecentPayoutsCard({ transactions, payoutPlans, isLoa
               },
             ]}
           >
-            <View style={styles.cardHeader}>
-              <View style={styles.amountContainer}>
-                <Text style={[
+            <View style={styles.amountRow}>
+              <Text
+                style={[
                   styles.amount,
-                  { 
-                    color: currentTransaction.type === 'deposit' 
-                      ? colors.text // Green for deposits
-                      : currentTransaction.type === 'withdrawal'
-                      ? '#F97316' // Orange for withdrawals  
-                      : colors.text // Default for payouts
-                  }
-                ]}>
-                  {currentTransaction.type === 'deposit' ? '+' : currentTransaction.type === 'withdrawal' ? '-' : ''}
-                  {formatCurrency(currentTransaction.amount)}
-                </Text>
-                <Text style={styles.dateTime}>
-                  {currentTransaction.date} {currentTransaction.time}
-                </Text>
-              </View>
+                  {
+                    color: currentTransaction.type === 'withdrawal' ? '#F97316' : colors.text,
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {currentTransaction.type === 'deposit' ? '+' : currentTransaction.type === 'withdrawal' ? '-' : ''}
+                {formatCurrency(currentTransaction.amount)}
+              </Text>
+              <Text style={styles.dateTime} numberOfLines={1}>
+                {currentTransaction.date} {currentTransaction.time}
+              </Text>
             </View>
-            
-            <View style={styles.paymentRow}>
-              <View style={styles.paymentInfo}>
-                <Text style={styles.paymentLabel}>{currentTransaction.description}</Text>
-                {currentTransaction.type !== 'deposit' && currentTransaction.type !== 'withdrawal' && (
-                  <View style={styles.bankInfo}>
-                    <View style={styles.bankLogo}>
-                      {(() => {
-                        const bankIcon = getBankIconLogo(currentTransaction.bankName);
-                        
-                        if (bankIcon.logoSvg) {
-                          // Handle SVG components
-                          return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
-                            width: 16,
-                            height: 16,
-                          });
-                        } else if (bankIcon.logo) {
-                          // Handle PNG/JPG images
-                          return (
-                            <Image
-                              source={bankIcon.logo}
-                              style={{ width: 16, height: 16 }}
-                              resizeMode="contain"
-                            />
-                          );
-                        } else {
-                          // Fallback to bank name initials
-                          return (
-                            <Text style={styles.bankInitials}>
-                              {currentTransaction.bankName.substring(0, 2).toUpperCase()}
-                            </Text>
-                          );
-                        }
-                      })()}
-                    </View>
-                    <Text style={styles.bankName}>{currentTransaction.bankName}</Text>
-                    {currentTransaction.accountNumber && (
-                      <Text style={styles.accountNumber}>**{currentTransaction.accountNumber.slice(-4)}</Text>
-                    )}
+
+            <View style={styles.detailRow}>
+              <Text style={styles.paymentLabel} numberOfLines={1}>
+                {currentTransaction.description}
+              </Text>
+              {currentTransaction.type !== 'deposit' && currentTransaction.type !== 'withdrawal' && (
+                <View style={styles.bankInfo}>
+                  <View style={styles.bankLogo}>
+                    {(() => {
+                      const bankIcon = getBankIconLogo(currentTransaction.bankName);
+
+                      if (bankIcon.logoSvg) {
+                        return React.createElement(bankIcon.logoSvg.default || bankIcon.logoSvg, {
+                          width: 14,
+                          height: 14,
+                        });
+                      }
+                      if (bankIcon.logo) {
+                        return (
+                          <Image
+                            source={bankIcon.logo}
+                            style={{ width: 14, height: 14 }}
+                            resizeMode="contain"
+                          />
+                        );
+                      }
+                      return (
+                        <Text style={styles.bankInitials}>
+                          {currentTransaction.bankName.substring(0, 2).toUpperCase()}
+                        </Text>
+                      );
+                    })()}
                   </View>
-                )}
-              </View>
+                  <Text style={styles.bankName} numberOfLines={1}>
+                    {currentTransaction.bankName}
+                  </Text>
+                  {currentTransaction.accountNumber ? (
+                    <Text style={styles.accountNumber}>
+                      **{currentTransaction.accountNumber.slice(-4)}
+                    </Text>
+                  ) : null}
+                </View>
+              )}
             </View>
           </Animated.View>
         </Pressable>
@@ -374,36 +372,30 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 16 : 15, textSizeMultiplier),
+    fontSize: getScaledFontSize(14, textSizeMultiplier),
     fontWeight: '700',
-    letterSpacing: -0.2,
     color: colors.text,
   },
   viewAllButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: '#ECECEC',
-    borderRadius: 30,
+    paddingVertical: 2,
+    paddingLeft: 8,
   },
   viewAllText: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 12 : 10, textSizeMultiplier),
-    color: colors.text,
-    fontWeight: '500',
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
   cardContainer: {
     position: 'relative',
   },
   card: {
     backgroundColor: isDark ? colors.card : '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 15,
-    paddingVertical:15,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderWidth: 0.5,
     borderColor: colors.border,
-  
-  
-    overflow: 'hidden', // Hide content that slides outside the card
+    overflow: 'hidden',
   },
   cardContent: {
     // Container for the animated content
@@ -423,62 +415,56 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     maxWidth: '60%',
   },
   amount: {
-    fontSize: getScaledFontSize(Platform.OS === 'ios' ? 25 : 20, textSizeMultiplier),
-    fontWeight: '600',
-    textAlign: 'left',
-    flex: 0,
+    fontSize: getScaledFontSize(18, textSizeMultiplier),
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    flexShrink: 1,
   },
-  amountContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  paymentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  paymentInfo: {
+  amountRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    flex: 1,
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 4,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   paymentLabel: {
-    fontSize: getScaledFontSize(15, textSizeMultiplier),
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     color: colors.textSecondary,
+    flexShrink: 1,
   },
   bankInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap', // Prevent wrapping
-    maxWidth: '90%',
+    gap: 4,
+    flexShrink: 1,
   },
   bankLogo: {
-    width: Platform.OS === 'ios' ? 24 : 20,
-    height: Platform.OS === 'ios' ? 24 : 20,
-    marginRight: Platform.OS === 'ios' ? 3 : 2,
+    width: 16,
+    height: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    flexShrink: 0, // Prevent logo from shrinking
+    flexShrink: 0,
   },
   bankName: {
-    fontSize: getScaledFontSize(14, textSizeMultiplier),
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     fontWeight: '500',
     color: colors.text,
-    marginRight: 1, // Add small margin between name and account number
-    flexShrink: 1, // Allow name to shrink if needed
+    flexShrink: 1,
   },
   accountNumber: {
-    fontSize: getScaledFontSize(14, textSizeMultiplier),
+    fontSize: getScaledFontSize(12, textSizeMultiplier),
     fontWeight: '500',
     color: colors.textSecondary,
-    flexShrink: 0, // Prevent account number from shrinking
+    flexShrink: 0,
   },
   bankInitials: {
-    fontSize: getScaledFontSize(14, textSizeMultiplier),
-    fontWeight: '500',
+    fontSize: getScaledFontSize(9, textSizeMultiplier),
+    fontWeight: '600',
     color: colors.textSecondary,
   },
   cardFooter: {
@@ -488,12 +474,10 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     alignItems: 'flex-start',
   },
   dateTime: {
-    fontSize: getScaledFontSize(13, textSizeMultiplier),
-    marginTop: 5,
-    color: colors.textSecondary,
-    fontWeight: '400',
-    textAlign: 'right', // Change from 'center' to 'right'
-    flex: 0,
+    fontSize: getScaledFontSize(11, textSizeMultiplier),
+    color: colors.textTertiary,
+    fontWeight: '500',
+    flexShrink: 0,
   },
   // Remove pagination-related styles
   // pagination: {
