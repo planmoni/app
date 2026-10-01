@@ -232,8 +232,8 @@ export default function ImageCarousel({
     const medianAspectRatio = aspectRatios[Math.floor(aspectRatios.length / 2)];
 
     const calculatedHeight = SLIDE_WIDTH / medianAspectRatio;
-    const maxHeight = height * 1.5; // Allow up to 1.5x the default height
-    const minHeight = height * 0.7; // Minimum 70% of default height
+    const maxHeight = height;
+    const minHeight = height * 0.85;
 
     return Math.max(minHeight, Math.min(maxHeight, calculatedHeight));
   }, [images.length, imageSizes, height]);

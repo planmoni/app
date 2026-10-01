@@ -2056,7 +2056,7 @@ export default function HomeScreen() {
                 />
               )} */}
               <Suspense fallback={<View style={styles.carouselPlaceholder} />}>
-                <ImageCarousel images={carouselImages} />
+                <ImageCarousel images={carouselImages} height={120} />
               </Suspense>
 
               <QuickPlans onRequireAuth={ensureAuthenticatedOrWelcome} />
@@ -2442,7 +2442,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     paddingHorizontal: 16,
   },
   carouselPlaceholder: {
-    height: 130,
+    height: 100,
     marginBottom: 8,
   },
   gradientContainer: {
