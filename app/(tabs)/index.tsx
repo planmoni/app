@@ -1825,6 +1825,7 @@ export default function HomeScreen() {
                 ) : (
                   <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
                 )}
+                <OnTrackCard payoutPlans={payoutPlans} embedded />
               </View>
             </ImageBackground>
 
@@ -1924,10 +1925,6 @@ export default function HomeScreen() {
                   onSuggestionPress={handleAISuggestionPress}
                 />
               )} */}
-              <OnTrackCard 
-                payoutPlans={payoutPlans}
-              />
-
               <Suspense fallback={<View style={styles.carouselPlaceholder} />}>
                 <ImageCarousel images={carouselImages} />
               </Suspense>

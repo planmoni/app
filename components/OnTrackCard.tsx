@@ -13,12 +13,13 @@ import { supabase } from '@/lib/supabase';
 
 interface OnTrackCardProps {
   payoutPlans: PayoutPlan[];
+  embedded?: boolean;
 }
 
 const ON_TRACK_CALCULATION_KEY = 'on_track_calculation_hash';
 const ON_TRACK_CARD_DISMISSED_KEY = 'on_track_card_dismissed';
 
-function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
+function OnTrackCard({ payoutPlans, embedded = false }: OnTrackCardProps) {
   const { colors, isDark } = useTheme();
   const { session } = useAuth();
   const { lightImpact } = useHaptics();
@@ -388,6 +389,18 @@ function OnTrackCard({ payoutPlans }: OnTrackCardProps) {
 
   const styles = createStyles(colors, isDark, textSizeMultiplier);
 
+  if (embedded) {
+    return (
+      <Text style={styles.embeddedMessage}>
+        🎯 You're on track to receive{' '}
+        <Text style={styles.embeddedBold}>{formatAmount(calculation.totalPayout)}</Text>
+        {' '}over the next{' '}
+        <Text style={styles.embeddedBold}>{calculation.timeValue}</Text>
+        {' '}{calculation.timeUnit}{calculation.timeValue !== 1 ? 's' : ''}.
+      </Text>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Pressable style={styles.card} onPress={handleOpenPayouts}>
@@ -453,6 +466,16 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
   bold: {
     fontWeight: '700',
     color: colors.text,
+  },
+  embeddedMessage: {
+    marginTop: 8,
+    fontSize: getScaledFontSize(13, textSizeMultiplier),
+    lineHeight: getScaledFontSize(18, textSizeMultiplier),
+    color: 'rgba(255,255,255,0.82)',
+  },
+  embeddedBold: {
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
 
