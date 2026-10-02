@@ -73,13 +73,18 @@ export default function PaystackPaymentScreen() {
   const leftAppDuringCheckoutRef = useRef(false);
   const returnedAtRef = useRef(0);
   const paymentSettledRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
-      if (next.match(/inactive|background/) && checkoutOpenRef.current) {
+      const previous = appStateRef.current;
+      appStateRef.current = next;
+      // `inactive` also fires when the checkout sheet itself opens. Only a real
+      // background (bank app) should keep the payment open for verification.
+      if (next === 'background' && checkoutOpenRef.current) {
         leftAppDuringCheckoutRef.current = true;
       }
-      if (next === 'active') {
+      if (previous === 'background' && next === 'active') {
         returnedAtRef.current = Date.now();
       }
     });
@@ -268,7 +273,7 @@ export default function PaystackPaymentScreen() {
           if (paymentSettledRef.current) return;
           const justReturned = Date.now() - returnedAtRef.current < RETURN_GRACE_MS;
           const leftToPay = leftAppDuringCheckoutRef.current;
-          const appInBackground = AppState.currentState !== 'active';
+          const appInBackground = AppState.currentState === 'background';
           if (appInBackground || (leftToPay && justReturned)) {
             console.log('Checkout closed before the transfer was confirmed; verifying reference');
             paymentSettledRef.current = true;

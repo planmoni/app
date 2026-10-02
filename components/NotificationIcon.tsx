@@ -60,7 +60,14 @@ export default function NotificationIcon({ size = 24, color }: NotificationIconP
       // Sync iOS badge count with actual unread count using centralized function
       await syncBadgeCount(session?.user?.id!);
     } catch (error) {
-      console.error('Error fetching unread notifications count:', error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : String((error as { message?: string })?.message ?? '');
+      const offline = /network request failed|failed to fetch|network error/i.test(message);
+      if (!offline) {
+        console.warn('Error fetching unread notifications count:', error);
+      }
     } finally {
       setIsLoading(false);
     }

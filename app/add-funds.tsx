@@ -62,7 +62,7 @@ export default function AddFundsScreen() {
 
   const handleCards = () => {
     haptics.mediumImpact();
-    router.push('/paystack-payment');
+    router.replace('/paystack-payment');
   };
 
   return (

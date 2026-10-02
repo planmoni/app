@@ -1929,9 +1929,10 @@ export default function HomeScreen() {
                 ) : (
                   <Text style={styles.balanceAmount}>{formatBalance(availableBalance)}</Text>
                 )}
-                <OnTrackCard payoutPlans={payoutPlans} embedded />
               </View>
             </ImageBackground>
+
+            <OnTrackCard payoutPlans={payoutPlans} />
 
             <MostRecentPayoutsCard
               transactions={transactions}
@@ -3194,13 +3195,13 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     backgroundColor: colors.accent,
   },
   payoutActionTitle: {
-    fontSize: getScaledFontSize(16, textSizeMultiplier),
-    fontWeight: '700',
+    fontSize: getScaledFontSize(26, textSizeMultiplier),
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   vaultActionTitle: {
-    fontSize: getScaledFontSize(16, textSizeMultiplier),
-    fontWeight: '700',
+    fontSize: getScaledFontSize(26, textSizeMultiplier),
+    fontWeight: '600',
     color: '#1E3A8A',
   },
   payoutActionHint: {
