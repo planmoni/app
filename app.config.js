@@ -6,7 +6,7 @@ module.exports = {
     name: "Planmoni",
     owner: "planmoni", // 👈 Add this line
     slug: "planmoni",
-    version: "2.1.1",
+    version: "2.1.2",
     scheme: "myapp",
     userInterfaceStyle: "automatic", // Allow system to control theme
     newArchEnabled: true,
@@ -18,7 +18,7 @@ module.exports = {
       checkAutomatically: "NEVER",
       fallbackToCacheTimeout: 0,
     },
-    runtimeVersion: "2.1.1",
+    runtimeVersion: "2.1.0",
     android: {
       package: "com.planmoni.app", // ← choose your unique package name
       intentFilters: [

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TextInput,
   ActivityIndicator,
   useWindowDimensions,
+  AppState,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, CreditCard, Shield, Lock, X } from 'lucide-react-native';
@@ -22,6 +23,26 @@ import {
 import { usePaystack } from 'react-native-paystack-webview';
 import { supabase } from '@/lib/supabase';
 import { beginExternalAppFlow, endExternalAppFlow } from '@/lib/wallet-refresh-policy.mjs';
+
+const VERIFY_POLL_MS = 4_000;
+const VERIFY_WAIT_MS = 90_000;
+const RETURN_GRACE_MS = 8_000;
+
+type VerifyOutcome = 'success' | 'pending' | 'failed';
+
+function isStillAwaitingTransfer(message: string): boolean {
+  const lower = message.toLowerCase();
+  if (
+    lower.includes('not found') ||
+    lower.includes('no transaction') ||
+    lower.includes('transaction reference')
+  ) {
+    return true;
+  }
+  const status = lower.match(/payment status:\s*([a-z_]+)/)?.[1];
+  if (!status) return false;
+  return ['abandoned', 'pending', 'ongoing', 'processing', 'queued', 'open'].includes(status);
+}
 import { useBalance } from '@/contexts/BalanceContext';
 import Constants from 'expo-constants';
 import KeyboardAvoidingWrapper from '@/components/KeyboardAvoidingWrapper';
@@ -48,6 +69,22 @@ export default function PaystackPaymentScreen() {
   const [amount, setAmount] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const checkoutOpenRef = useRef(false);
+  const leftAppDuringCheckoutRef = useRef(false);
+  const returnedAtRef = useRef(0);
+  const paymentSettledRef = useRef(false);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next.match(/inactive|background/) && checkoutOpenRef.current) {
+        leftAppDuringCheckoutRef.current = true;
+      }
+      if (next === 'active') {
+        returnedAtRef.current = Date.now();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   const MIN_AMOUNT = PAYSTACK_MIN_CREDIT;
   const MAX_AMOUNT = PAYSTACK_MAX_CREDIT;
@@ -204,6 +241,9 @@ export default function PaystackPaymentScreen() {
       const reference = `PMN-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
       beginExternalAppFlow();
+      checkoutOpenRef.current = true;
+      leftAppDuringCheckoutRef.current = false;
+      paymentSettledRef.current = false;
       popup.checkout({
         email: profile.email,
         amount: totalAmount,
@@ -216,17 +256,29 @@ export default function PaystackPaymentScreen() {
           user_id: session.user.id,
         },
         onSuccess: (res: any) => {
-          endExternalAppFlow();
+          checkoutOpenRef.current = false;
           console.log('✅ Payment successful:', res);
+          if (paymentSettledRef.current) return;
+          paymentSettledRef.current = true;
           setIsProcessing(true);
-          
-          // Verify payment (pass planId if available)
-          verifyPayment(reference, profile.email, planId);
+          void confirmPayment(reference, profile.email, planId, { wait: false });
         },
         onCancel: () => {
+          checkoutOpenRef.current = false;
+          if (paymentSettledRef.current) return;
+          const justReturned = Date.now() - returnedAtRef.current < RETURN_GRACE_MS;
+          const leftToPay = leftAppDuringCheckoutRef.current;
+          const appInBackground = AppState.currentState !== 'active';
+          if (appInBackground || (leftToPay && justReturned)) {
+            console.log('Checkout closed before the transfer was confirmed; verifying reference');
+            paymentSettledRef.current = true;
+            setIsProcessing(true);
+            void confirmPayment(reference, profile.email, planId, { wait: true });
+            return;
+          }
+          paymentSettledRef.current = true;
           endExternalAppFlow();
           console.log('⚠️ Payment cancelled by user');
-          // Navigate to failure screen with cancelled status
           router.push({
             pathname: '/paystack-payment/failure',
             params: {
@@ -260,91 +312,123 @@ export default function PaystackPaymentScreen() {
     }
   };
 
-  const verifyPayment = async (reference: string, email: string, planId?: string) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
+  const requestVerify = async (
+    reference: string,
+    planId?: string
+  ): Promise<{ outcome: VerifyOutcome; error?: string }> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      return { outcome: 'failed', error: 'Session expired. Please log in again' };
+    }
 
-      if (!session) {
-        // Navigate to failure screen
-        router.replace({
-          pathname: '/paystack-payment/failure',
-          params: {
-            amount: getNumericAmount().toString(),
-            reference: reference,
-            errorType: 'verification',
-            error: 'Session expired. Please log in again',
-            ...(planId && { planId }),
-          },
-        });
-        return;
-      }
-
-      // Call verify-paystack-payment edge function
-      const response = await fetch(
-        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/verify-paystack-payment`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            reference: reference,
-            planId: planId || null,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Refresh wallet balance only if not a plan payment
-        if (!planId) {
-          await refreshWallet();
-        }
-
-        haptics.success();
-
-        // Navigate to success screen
-        router.replace({
-          pathname: '/paystack-payment/success',
-          params: {
-            amount: getNumericAmount().toString(),
-            reference: reference,
-            email: email,
-            ...(planId && { planId }),
-            ...(planId && params.planName && { planName: params.planName as string }),
-          },
-        });
-      } else {
-        // Navigate to failure screen with verification error
-        const errorMessage = data.error || 'Payment verification failed';
-        router.replace({
-          pathname: '/paystack-payment/failure',
-          params: {
-            amount: getNumericAmount().toString(),
-            reference: reference,
-            errorType: 'verification',
-            error: errorMessage,
-            ...(planId && { planId }),
-          },
-        });
-      }
-    } catch (error) {
-      console.error('Payment verification error:', error);
-      // Navigate to failure screen with error details
-      const errorMessage = error instanceof Error ? error.message : 'Failed to verify payment';
-      router.replace({
-        pathname: '/paystack-payment/failure',
-        params: {
-          amount: getNumericAmount().toString(),
-          reference: reference,
-          errorType: 'verification',
-          error: errorMessage,
-          ...(planId && { planId }),
+    const response = await fetch(
+      `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/verify-paystack-payment`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
-      });
+        body: JSON.stringify({
+          reference,
+          planId: planId || null,
+        }),
+      }
+    );
+
+    let data: { success?: boolean; error?: string } = {};
+    try {
+      data = await response.json();
+    } catch {
+      return { outcome: 'pending', error: 'Payment confirmation is still in progress' };
+    }
+
+    if (data.success) return { outcome: 'success' };
+    const errorMessage = data.error || 'Payment verification failed';
+    if (!response.ok && isStillAwaitingTransfer(errorMessage)) {
+      return { outcome: 'pending', error: errorMessage };
+    }
+    return { outcome: 'failed', error: errorMessage };
+  };
+
+  const goToSuccess = async (reference: string, email: string, planId?: string) => {
+    if (!planId) {
+      await refreshWallet();
+    }
+    haptics.success();
+    router.replace({
+      pathname: '/paystack-payment/success',
+      params: {
+        amount: getNumericAmount().toString(),
+        reference,
+        email,
+        ...(planId && { planId }),
+        ...(planId && params.planName && { planName: params.planName as string }),
+      },
+    });
+  };
+
+  const goToFailure = (
+    reference: string,
+    errorType: string,
+    error: string,
+    planId?: string
+  ) => {
+    router.replace({
+      pathname: '/paystack-payment/failure',
+      params: {
+        amount: getNumericAmount().toString(),
+        reference,
+        errorType,
+        error,
+        ...(planId && { planId }),
+      },
+    });
+  };
+
+  const confirmPayment = async (
+    reference: string,
+    email: string,
+    planId: string | undefined,
+    options: { wait: boolean }
+  ) => {
+    let wait = options.wait;
+    let deadline = Date.now() + (wait ? VERIFY_WAIT_MS : 0);
+    const stillWaiting = "We haven't confirmed this transfer yet. If you already sent the money, pull to refresh your balance in a few minutes.";
+    try {
+      do {
+        let result: { outcome: VerifyOutcome; error?: string };
+        try {
+          result = await requestVerify(reference, planId);
+        } catch (error) {
+          console.error('Payment verification error:', error);
+          if (!wait) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to verify payment';
+            goToFailure(reference, 'verification', errorMessage, planId);
+            return;
+          }
+          result = { outcome: 'pending' };
+        }
+        if (result.outcome === 'success') {
+          await goToSuccess(reference, email, planId);
+          return;
+        }
+        if (result.outcome === 'failed') {
+          goToFailure(reference, 'verification', result.error || 'Payment verification failed', planId);
+          return;
+        }
+        if (!wait) {
+          wait = true;
+          deadline = Date.now() + VERIFY_WAIT_MS;
+        }
+        if (Date.now() >= deadline) {
+          goToFailure(reference, 'verification', stillWaiting, planId);
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, VERIFY_POLL_MS));
+      } while (wait);
     } finally {
+      endExternalAppFlow();
       setIsProcessing(false);
     }
   };

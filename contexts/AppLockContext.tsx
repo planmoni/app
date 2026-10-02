@@ -11,6 +11,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePin } from './PinContext';
 import { isNavigationInProgress } from '@/hooks/useSafeNavigation';
+import { isExternalAppFlowActive } from '@/lib/wallet-refresh-policy.mjs';
 
 interface AppLockContextType {
   isAppLocked: boolean;
@@ -237,6 +238,7 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updateLastActive({ flush: true });
 
       setTimeout(() => {
+        if (isExternalAppFlowActive()) return;
         if (appState.current === 'active' && !isAppLockedRef.current && hasAppLockPinRef.current) {
           void checkIfShouldLock();
         }
@@ -245,7 +247,7 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
       backgroundTimestampRef.current = Date.now();
       updateLastActive({ flush: true });
 
-      if (currentHasAppLockPin && !currentIsAppLocked) {
+      if (currentHasAppLockPin && !currentIsAppLocked && !isExternalAppFlowActive()) {
         if (backgroundLockTimeoutRef.current) {
           clearTimeout(backgroundLockTimeoutRef.current);
         }
@@ -300,6 +302,7 @@ export const AppLockProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const interval = setInterval(() => {
       if (isChecking) return;
+      if (isExternalAppFlowActive()) return;
       if (appState.current !== 'active' || isAppLockedRef.current || !hasAppLockPinRef.current) {
         return;
       }

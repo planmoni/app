@@ -2016,7 +2016,7 @@ export default function HomeScreen() {
             ) : null}
 
             <View style={styles.createNewSection}>
-            <Text style={styles.createNewTitle}>Create new</Text>
+            <Text style={styles.createNewTitle}>Actions</Text>
             <View style={styles.quickActions}>
               <Pressable
                 style={[styles.quickActionCard, styles.payoutAction]}
@@ -2030,8 +2030,8 @@ export default function HomeScreen() {
                 <View style={styles.actionWatermark} pointerEvents="none">
                   <CalendarDays size={96} color="#FFFFFF" strokeWidth={1.6} />
                 </View>
-                <Text style={styles.payoutActionTitle}>Payout</Text>
-                <Text style={styles.payoutActionHint}>Start a new automated payout schedule.</Text>
+                <Text style={styles.payoutActionTitle}>Start a Payout</Text>
+                <Text style={styles.payoutActionHint}>Create a new automated payout schedule.</Text>
               </Pressable>
               <Pressable
                 style={[styles.quickActionCard, styles.vaultAction]}
@@ -2049,8 +2049,8 @@ export default function HomeScreen() {
                 <View style={styles.actionWatermark} pointerEvents="none">
                   <Vault size={96} color="#1E3A8A" strokeWidth={1.6} />
                 </View>
-                <Text style={styles.vaultActionTitle}>Vault</Text>
-                <Text style={styles.vaultActionHint}>Set up a vault.</Text>
+                <Text style={styles.vaultActionTitle}>Create a Vault</Text>
+                <Text style={styles.vaultActionHint}>Lock funds away for a specific purpose.</Text>
               </Pressable>
             </View>
             </View>

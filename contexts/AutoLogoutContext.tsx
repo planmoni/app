@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePin } from './PinContext';
+import { isExternalAppFlowActive } from '@/lib/wallet-refresh-policy.mjs';
 
 type AutoLogoutDuration = 'instant' | '5' | '60' | 'never';
 
@@ -111,15 +112,17 @@ export const AutoLogoutProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         console.log('🛡️ AutoLogoutContext - Biometric unlock in progress, skipping lock check');
         return;
       }
-      
-      checkIfShouldLock();
+
+      if (!isExternalAppFlowActive()) {
+        checkIfShouldLock();
+      }
     } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
       // App is becoming inactive (going to background)
       console.log('📱 AutoLogoutContext - App becoming inactive');
       updateLastActive();
       
       // If instant lock is enabled, lock immediately when app goes to background
-      if (autoLogoutDuration === 'instant' && hasAppLockPin && !isAppLocked) {
+      if (autoLogoutDuration === 'instant' && hasAppLockPin && !isAppLocked && !isExternalAppFlowActive()) {
         console.log('🔒 AutoLogoutContext - Instant lock triggered (app going to background)');
         lockApp();
       }
