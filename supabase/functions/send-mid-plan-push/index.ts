@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
             data: {
               type: "mid_plan",
               plan_id: plan.id,
-              route: `/view-payout/${plan.id}`,
+              route: `/view-payout?id=${plan.id}`,
               action: "view_plan",
               plan_name: plan.name,
               completed_payouts: plan.completed_payouts,

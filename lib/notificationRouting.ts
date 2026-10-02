@@ -42,16 +42,27 @@ const PLAN_SCOPED_TYPES = new Set([
   'plan_completed',
 ]);
 
+function normalizeNotificationRoute(route: string): string {
+  const match = route.match(/^\/view-payout\/([^/?#]+)(.*)$/);
+  if (!match) return route;
+  const id = decodeURIComponent(match[1]);
+  const suffix = match[2] || '';
+  const extra = suffix.startsWith('?') ? `&${suffix.slice(1)}` : '';
+  return `/view-payout?id=${encodeURIComponent(id)}${extra}`;
+}
+
 export function getRouteFromNotificationData(data: NotificationData): string {
   if (!data) return '/(tabs)/';
-  if (typeof data.route === 'string' && data.route.trim()) return data.route;
+  if (typeof data.route === 'string' && data.route.trim()) {
+    return normalizeNotificationRoute(data.route.trim());
+  }
 
   const type = (data.type ?? data.eventType ?? data.notificationType) as
     | string
     | undefined;
   const planId = data.plan_id as string | undefined;
   if (type && planId && PLAN_SCOPED_TYPES.has(type)) {
-    return `/view-payout/${planId}`;
+    return `/view-payout?id=${encodeURIComponent(planId)}`;
   }
 
   if (type && TYPE_ROUTE_MAP[type]) return TYPE_ROUTE_MAP[type];

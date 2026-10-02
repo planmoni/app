@@ -309,7 +309,7 @@ Deno.serve(async (req: Request) => {
                   data: {
                     type: "plan_expiry_reminder",
                     plan_id: plan.id,
-                    route: `/view-payout/${plan.id}`,
+                    route: `/view-payout?id=${plan.id}`,
                     action: "view_plan",
                     remaining_payouts: remainingPayouts,
                     plan_name: plan.name,

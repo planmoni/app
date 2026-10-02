@@ -627,7 +627,7 @@ serve(async (req) => {
             data: {
               type: 'payout_completed',
               plan_id: plan.id,
-              route: `/view-payout/${plan.id}`,
+              route: `/view-payout?id=${plan.id}`,
               action: 'view_plan',
             },
           })
@@ -651,7 +651,7 @@ serve(async (req) => {
             data: {
               type: 'payout_scheduled',
               plan_id: plan.id,
-              route: `/view-payout/${plan.id}`,
+              route: `/view-payout?id=${plan.id}`,
               action: 'view_plan',
             },
           })
@@ -750,7 +750,7 @@ serve(async (req) => {
           data: {
             type: 'disbursement_failed',
             plan_id: plan.id,
-            route: `/view-payout/${plan.id}`,
+            route: `/view-payout?id=${plan.id}`,
             action: 'view_plan',
           },
         })
