@@ -2651,7 +2651,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     position: 'absolute',
     right: -16,
     bottom: -20,
-    opacity: 0.16,
+    opacity: 0.07,
   },
   availableToSpendContent: {
     flexDirection: 'row',
@@ -2736,7 +2736,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     position: 'absolute',
     right: -16,
     bottom: -20,
-    opacity: 0.18,
+    opacity: 0.07,
   },
   payoutsBalanceContent: {
     flexDirection: 'row',
@@ -3186,7 +3186,7 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     position: 'absolute',
     right: -18,
     bottom: -18,
-    opacity: 0.22,
+    opacity: 0.07,
   },
   payoutAction: {
     backgroundColor: colors.primary,

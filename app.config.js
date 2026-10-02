@@ -18,7 +18,7 @@ module.exports = {
       checkAutomatically: "NEVER",
       fallbackToCacheTimeout: 0,
     },
-    runtimeVersion: "2.1.0",
+    runtimeVersion: "2.1.1",
     android: {
       package: "com.planmoni.app", // ← choose your unique package name
       intentFilters: [
