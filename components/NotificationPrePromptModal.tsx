@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
 import { Bell, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -24,16 +25,32 @@ export default function NotificationPrePromptModal({
 }: NotificationPrePromptModalProps) {
   const { colors, isDark } = useTheme();
   const styles = createStyles(colors, isDark);
+  const [mounted, setMounted] = useState(visible);
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      return;
+    }
+    const timer = setTimeout(() => setMounted(false), 350);
+    return () => clearTimeout(timer);
+  }, [visible]);
+
+  const close = () => {
+    requestAnimationFrame(() => onDismiss());
+  };
+
+  if (!mounted) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onDismiss}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} />
         <View style={styles.sheet}>
           <View style={styles.topRow}>
             <Text style={styles.kicker}>NOTIFICATIONS</Text>
             <Pressable
-              onPress={onDismiss}
+              onPress={close}
               hitSlop={8}
               style={styles.closeButton}
               accessibilityRole="button"
@@ -73,7 +90,7 @@ export default function NotificationPrePromptModal({
             disabled={enabling}
             style={styles.enableButton}
           />
-          <Pressable onPress={onDismiss} style={styles.laterButton} disabled={enabling}>
+          <Pressable onPress={close} style={styles.laterButton} disabled={enabling}>
             <Text style={styles.laterText}>Not now</Text>
           </Pressable>
         </View>

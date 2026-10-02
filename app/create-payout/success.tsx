@@ -5,7 +5,7 @@ import Button from '@/components/Button';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { formatDisplayDate, formatPayoutFrequency } from '@/lib/formatters';
@@ -21,7 +21,6 @@ export default function SuccessScreen() {
   const params = useLocalSearchParams();
   const haptics = useHaptics();
   const { showFeedback } = useFeedback();
-  const mountedRef = useRef(true);
   
   // Get screen dimensions for responsive design
   const { width: screenWidth } = Dimensions.get('window');
@@ -51,15 +50,15 @@ export default function SuccessScreen() {
   // Trigger success haptic feedback when the screen loads
   useEffect(() => {
     void clearPayoutSetupDraft();
-    mountedRef.current = true;
     const timer = setTimeout(() => {
       haptics.success();
     }, 300);
     return () => {
       clearTimeout(timer);
-      mountedRef.current = false;
+      // The ratings sheet cannot open on top of this modal. Show it after the sheet has closed.
+      setTimeout(() => showFeedback('plan_creation'), 700);
     };
-  }, []);
+  }, [haptics, showFeedback]);
 
   useEffect(() => {
     void trackLifecycleEvent(LifecycleEventName.PAYOUT_PLAN_FLOW_COMPLETED, {
@@ -67,14 +66,6 @@ export default function SuccessScreen() {
       planId: planId ?? undefined,
     });
   }, [planId]);
-
-  // Show feedback modal after a short delay (only if still on this screen)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (mountedRef.current) showFeedback('plan_creation');
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [showFeedback]);
 
   const handleViewPayouts = () => {
     haptics.mediumImpact();

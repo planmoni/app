@@ -2393,7 +2393,10 @@ export default function HomeScreen() {
           visible={showNotificationPrompt && !showWelcomeModal}
           enabling={enablingNotifications}
           onEnable={() => {
-            void enableNotifications();
+            dismissNotificationPrompt();
+            setTimeout(() => {
+              void enableNotifications();
+            }, 400);
           }}
           onDismiss={dismissNotificationPrompt}
         />
