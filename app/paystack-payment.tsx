@@ -20,7 +20,12 @@ import {
   PAYSTACK_MIN_CREDIT,
   PAYSTACK_MAX_CREDIT,
 } from '@/lib/paystackDeposit';
-import { usePaystack } from 'react-native-paystack-webview';
+import {
+  generatePaystackParams,
+  handlePaystackMessage,
+  paystackHtmlContent,
+} from 'react-native-paystack-webview/production/lib/utils';
+import { WebView } from 'react-native-webview';
 import { supabase } from '@/lib/supabase';
 import { beginExternalAppFlow, endExternalAppFlow } from '@/lib/wallet-refresh-policy.mjs';
 
@@ -56,9 +61,11 @@ export default function PaystackPaymentScreen() {
   const { showToast } = useToast();
   const { refreshWallet } = useBalance();
   const params = useLocalSearchParams();
-  
-  // Get Paystack hook - provider is always rendered (with placeholder key if needed)
-  const { popup } = usePaystack();
+  const [checkoutHtml, setCheckoutHtml] = useState<string | null>(null);
+  const checkoutHandlersRef = useRef<{
+    onSuccess: (res: any) => void;
+    onCancel: () => void;
+  } | null>(null);
   
   // Extract planId if this is a plan funding payment
   const planId = params.planId as string | undefined;
@@ -166,27 +173,6 @@ export default function PaystackPaymentScreen() {
       return;
     }
 
-    // Check if Paystack is available
-    if (!popup || !popup.checkout) {
-      console.error('🔴 Paystack popup is not available. Make sure PaystackProvider is set up correctly.');
-      showToast('Payment service is not available. Please try again later.', 'error');
-      return;
-    }
-
-    // Check if public key is available (this should be handled by PaystackProvider, but double-check)
-    // Check both LIVE and regular keys
-    const publicKey = 
-      Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
-      Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ||
-      process.env.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
-      process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY;
-    
-    if (!publicKey || publicKey === 'pk_test_placeholder') {
-      console.error('🔴 Configuration error!');
-      showToast('Payment failed. Please contact support.', 'error');
-      return;
-    }
-
     console.log('🔵 Starting payment process...');
     haptics.mediumImpact();
     setIsLoading(true);
@@ -245,23 +231,26 @@ export default function PaystackPaymentScreen() {
       // Generate reference for transaction
       const reference = `PMN-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
+      const publicKey =
+        Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
+        Constants.expoConfig?.extra?.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ||
+        process.env.EXPO_PUBLIC_PAYSTACK_LIVE_PUBLIC_KEY ||
+        process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY;
+
+      if (!publicKey || publicKey === 'pk_test_placeholder') {
+        showToast('Payment failed. Please contact support.', 'error');
+        setIsLoading(false);
+        return;
+      }
+
       beginExternalAppFlow();
       checkoutOpenRef.current = true;
       leftAppDuringCheckoutRef.current = false;
       paymentSettledRef.current = false;
-      popup.checkout({
-        email: profile.email,
-        amount: totalAmount,
-        reference: reference,
-        metadata: {
-          amount_to_credit: amountToCredit,
-          fee,
-          total_paid: totalAmount,
-          payment_type: 'paystack_checkout',
-          user_id: session.user.id,
-        },
+      checkoutHandlersRef.current = {
         onSuccess: (res: any) => {
           checkoutOpenRef.current = false;
+          setCheckoutHtml(null);
           console.log('✅ Payment successful:', res);
           if (paymentSettledRef.current) return;
           paymentSettledRef.current = true;
@@ -270,6 +259,7 @@ export default function PaystackPaymentScreen() {
         },
         onCancel: () => {
           checkoutOpenRef.current = false;
+          setCheckoutHtml(null);
           if (paymentSettledRef.current) return;
           const justReturned = Date.now() - returnedAtRef.current < RETURN_GRACE_MS;
           const leftToPay = leftAppDuringCheckoutRef.current;
@@ -294,7 +284,23 @@ export default function PaystackPaymentScreen() {
             },
           });
         },
+      };
+
+      const htmlParams = generatePaystackParams({
+        publicKey,
+        email: profile.email,
+        amount: totalAmount,
+        reference,
+        metadata: {
+          amount_to_credit: amountToCredit,
+          fee,
+          total_paid: totalAmount,
+          payment_type: 'paystack_checkout',
+          user_id: session.user.id,
+        },
+        channels: ['card', 'bank', 'ussd', 'qr', 'mobile_money', 'bank_transfer'],
       });
+      setCheckoutHtml(paystackHtmlContent(htmlParams, 'checkout'));
 
       setIsLoading(false);
     } catch (error) {
@@ -519,6 +525,30 @@ export default function PaystackPaymentScreen() {
         loading={isLoading || isProcessing}
         hapticType="medium"
       />
+
+      {checkoutHtml ? (
+        <View style={styles.checkoutOverlay}>
+          <WebView
+            originWhitelist={['*']}
+            source={{ html: checkoutHtml }}
+            onMessage={(event) => {
+              handlePaystackMessage({
+                event,
+                debug: false,
+                params: checkoutHandlersRef.current ?? undefined,
+                close: () => {
+                  checkoutOpenRef.current = false;
+                  setCheckoutHtml(null);
+                },
+              });
+            }}
+            javaScriptEnabled
+            domStorageEnabled
+            startInLoadingState
+            style={styles.checkoutWebView}
+          />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -528,6 +558,15 @@ const createStyles = (colors: any, isDark: boolean, isSmallScreen: boolean) =>
     container: {
       flex: 1,
       backgroundColor: colors.backgroundSecondary,
+    },
+    checkoutOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: '#FFFFFF',
+      zIndex: 20,
+    },
+    checkoutWebView: {
+      flex: 1,
+      backgroundColor: '#FFFFFF',
     },
     header: {
       flexDirection: 'row',
