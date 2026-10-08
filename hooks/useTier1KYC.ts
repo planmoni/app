@@ -213,10 +213,11 @@ export const useTier1KYC = () => {
   }, [currentStep]);
 
   // Wrapper for setCurrentStep that prevents auto-updates during manual changes
-  const setCurrentStepManual = useCallback((step: Tier1Step) => {
+  const setCurrentStepManual = useCallback((step: Tier1Step, options?: { hold?: boolean }) => {
     setIsManuallyChangingStep(true);
     setCurrentStep(step);
-    // Reset the flag after a delay to allow progress to catch up
+    // Hold keeps an earlier step on screen. Otherwise release so progress can catch up.
+    if (options?.hold) return;
     setTimeout(() => {
       setIsManuallyChangingStep(false);
     }, 1000);

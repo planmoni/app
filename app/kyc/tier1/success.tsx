@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { dismissToHomeTab } from '@/lib/dismissToHomeTab';
 import { ArrowRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -17,12 +17,12 @@ export default function Tier1SuccessScreen() {
     // Wait a bit to ensure router is ready
     const timer = setTimeout(() => {
       try {
-        router.replace('/(tabs)');
+        dismissToHomeTab();
       } catch (error) {
         console.error('Navigation error:', error);
         // Fallback: try again after a short delay
         setTimeout(() => {
-          router.replace('/(tabs)');
+          dismissToHomeTab();
         }, 500);
       }
     }, 5000);
@@ -32,13 +32,13 @@ export default function Tier1SuccessScreen() {
 
   const handleGoHome = () => {
     haptics.mediumImpact();
-    router.replace('/(tabs)');
+    dismissToHomeTab();
   };
 
   const styles = createStyles(colors, isDark);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.content}>
         <Animated.View
           entering={FadeIn.duration(600)}

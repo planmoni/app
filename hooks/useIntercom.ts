@@ -213,8 +213,7 @@ export function useIntercom() {
         console.log('✅ User authenticated with Intercom successfully');
 
       } catch (error) {
-        console.error('❌ Failed to authenticate with Intercom:', error);
-        
+        // Intercom identity login can fail without blocking the app.
         // Fallback to unidentified user
         try {
           console.log('🔄 Falling back to unidentified user...');

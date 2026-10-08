@@ -39,6 +39,7 @@ import {
   ArrowRight,
   X,
   Send,
+  BadgeCheck,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -1932,6 +1933,27 @@ export default function HomeScreen() {
               </View>
             </ImageBackground>
 
+            {session?.user?.id && progress?.user_id && !checkTierCompletion().tier1 && currentTier < 1 ? (
+              <Pressable
+                style={styles.resumePayoutCard}
+                onPress={() => {
+                  impact();
+                  router.push('/kyc/tier1');
+                }}
+              >
+                <View style={styles.resumePayoutIcon}>
+                  <BadgeCheck size={20} color={colors.primary} />
+                </View>
+                <View style={[styles.resumePayoutText, styles.verifyIdentityText]}>
+                  <Text style={styles.resumePayoutTitle}>Verify your identity</Text>
+                  <Text style={styles.resumePayoutHint}>
+                    Complete verification to unlock deposits, payouts, and higher limits.
+                  </Text>
+                </View>
+                <ArrowRight size={18} color={colors.textSecondary} />
+              </Pressable>
+            ) : null}
+
             <OnTrackCard payoutPlans={payoutPlans} />
 
             <MostRecentPayoutsCard
@@ -2347,8 +2369,11 @@ export default function HomeScreen() {
           <OnboardingQuestionnaireModal
             visible={showOnboardingQuestionnaire}
             onClose={() => setShowOnboardingQuestionnaire(false)}
+            onVerifyAccount={() => {
+              router.push('/kyc/tier1');
+            }}
             onAddFunds={() => {
-              router.push('/add-funds');
+              router.push('/kyc/tier1');
             }}
             onDoLater={() => {}}
           />
@@ -3148,6 +3173,9 @@ const createStyles = (colors: any, isDark: boolean, textSizeMultiplier: number) 
     flex: 1,
     gap: 4,
     paddingRight: 24,
+  },
+  verifyIdentityText: {
+    paddingRight: 0,
   },
   resumePayoutTitle: {
     fontSize: getScaledFontSize(15, textSizeMultiplier),

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text, Pressable, useWindowDimensions, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
+import { dismissToHomeTab } from '@/lib/dismissToHomeTab';
 import { X, CircleHelp as HelpCircle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTier2KYC } from '@/hooks/useTier2KYC';
@@ -185,7 +186,7 @@ export default function Tier2KYCScreen() {
   // Show loading while checking progress
   if (!progress) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -206,10 +207,10 @@ export default function Tier2KYCScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom']}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <Pressable 
-          onPress={() => router.replace('/(tabs)')} 
+          onPress={() => dismissToHomeTab()} 
           style={[styles.closeButton, { backgroundColor: colors.surface }]}
         >
           <X size={isSmallScreen ? 20 : 24} color={colors.text} />

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Image, Modal, useWindowDimensions, ScrollView } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { dismissToHomeTab } from '@/lib/dismissToHomeTab';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Shield, User, Calendar, Info, ChevronRight, Check, CreditCard, Camera, Upload, MapPin, ChevronLeft, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -837,7 +838,7 @@ export default function KYCUpgradeScreen() {
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 
                 // Redirect to home page after Tier 3 completion
-                router.replace('/(tabs)');
+                dismissToHomeTab();
                 return;
               }
             }
@@ -1104,7 +1105,7 @@ export default function KYCUpgradeScreen() {
       return; // Don't navigate if we've already moved to the next step
     }
     console.log('[KYC] Navigating to home because liveness was manually closed');
-    router.push('/(tabs)');
+    dismissToHomeTab();
   };
 
   const handleUseBvnInstead = useCallback(() => {
@@ -1685,7 +1686,7 @@ export default function KYCUpgradeScreen() {
           await new Promise(resolve => setTimeout(resolve, 2000));
           
           // Redirect to home page after Tier 2 completion (do not continue to Tier 3)
-          router.replace('/(tabs)');
+          dismissToHomeTab();
           return;
         }
       }
@@ -2000,7 +2001,7 @@ export default function KYCUpgradeScreen() {
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Redirect to home page after Tier 1 completion (do not continue to Tier 2)
-        router.replace('/(tabs)');
+        dismissToHomeTab();
         return;
       }
       
@@ -2008,7 +2009,7 @@ export default function KYCUpgradeScreen() {
       console.warn('[KYC] Tier 1 not complete after NIN verification, but redirecting anyway');
       setIsLoading(false);
       setIsManualVerification(false);
-      router.replace('/(tabs)');
+      dismissToHomeTab();
       
       // } else {
       //   throw new Error('Name mismatch detected. Please verify your personal information.');
@@ -2219,7 +2220,7 @@ export default function KYCUpgradeScreen() {
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Redirect to home page after Tier 1 completion (do not continue to Tier 2)
-        router.replace('/(tabs)');
+        dismissToHomeTab();
         return;
       }
       
@@ -2382,7 +2383,7 @@ export default function KYCUpgradeScreen() {
         }
         
         showToast('Verification completed successfully!', 'success');
-        router.replace('/(tabs)');
+        dismissToHomeTab();
       } else {
         showToast('Failed to complete verification. Please try again.', 'error');
       }
@@ -4956,7 +4957,7 @@ export default function KYCUpgradeScreen() {
   
   if (formDataLoading || progressLoading || !stepInitialized || !currentStep) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft size={24} color={colors.text} />
@@ -4972,7 +4973,7 @@ export default function KYCUpgradeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         {/* <Pressable onPress={handlePreviousStep} style={styles.backButton}>
           <ArrowLeft size={isSmallScreen ? 20 : 24} color={colors.text} />
@@ -4982,7 +4983,7 @@ export default function KYCUpgradeScreen() {
           <Text style={styles.headerTitle}>Account Verification</Text>
         </View>
         
-        <Pressable onPress={() => router.replace('/(tabs)')} style={styles.closeButton}>
+        <Pressable onPress={() => dismissToHomeTab()} style={styles.closeButton}>
           <X size={isSmallScreen ? 20 : 24} color={colors.text} />
         </Pressable>
       </View>

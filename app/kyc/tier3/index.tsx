@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
+import { dismissToHomeTab } from '@/lib/dismissToHomeTab';
 import { X, Upload, Clock, Mail, CheckCircle, CircleHelp as HelpCircle, FileText } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 // Conditionally import document picker to handle cases where native module isn't available
@@ -342,10 +343,10 @@ export default function Tier3KYCScreen() {
   const styles = createStyles(colors, isDark);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <Pressable 
-          onPress={() => router.replace('/(tabs)')} 
+          onPress={() => dismissToHomeTab()} 
           style={[styles.closeButton, { backgroundColor: colors.surface }]}
         >
           <X size={isSmallScreen ? 20 : 24} color={colors.text} />

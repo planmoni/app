@@ -649,6 +649,25 @@ function RootLayoutNav() {
       (!initialAuthDone && isPinLoading) ||
       (showSplash && !session?.user?.id));
 
+  const kycSheetOptions = {
+    headerShown: false as const,
+    presentation: (Platform.OS === 'android' ? 'formSheet' : 'modal') as 'formSheet' | 'modal',
+    animation: 'slide_from_bottom' as const,
+    gestureEnabled: true,
+    ...(Platform.OS === 'android'
+      ? {
+          sheetAllowedDetents: [0.94],
+          sheetCornerRadius: 28,
+          sheetShouldOverflowTopInset: false,
+          statusBarTranslucent: false,
+        }
+      : {}),
+    contentStyle: {
+      flex: 1,
+      backgroundColor: isDark ? colors.backgroundSecondary : colors.background,
+    },
+  };
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Non-fatal app error banner (non-blocking) */}
@@ -690,30 +709,10 @@ function RootLayoutNav() {
           name="profile" 
           options={{ headerShown: false, gestureEnabled: false }} 
         />
-        <Stack.Screen 
-          name="kyc-upgrade" 
-          options={{ 
-            headerShown: false, 
-            gestureEnabled: false,
-            animation: 'fade',
-          }} 
-        />
-        <Stack.Screen 
-          name="kyc/tier1" 
-          options={{ 
-            headerShown: false, 
-            gestureEnabled: false,
-            animation: 'fade',
-          }} 
-        />
-        <Stack.Screen 
-          name="kyc/tier2" 
-          options={{ 
-            headerShown: false, 
-            gestureEnabled: false,
-            animation: 'fade',
-          }} 
-        />
+        <Stack.Screen name="kyc-upgrade" options={kycSheetOptions} />
+        <Stack.Screen name="kyc/tier1" options={kycSheetOptions} />
+        <Stack.Screen name="kyc/tier2" options={kycSheetOptions} />
+        <Stack.Screen name="kyc/tier3" options={kycSheetOptions} />
         <Stack.Screen 
           name="add-funds" 
           options={{ 

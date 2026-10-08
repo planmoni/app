@@ -18,6 +18,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/lib/supabase';
 import Button from '@/components/Button';
+import PlanmoniIconDark from '@/assets/images/planmoni-icon-dark.svg';
+import PlanmoniIconLight from '@/assets/images/planmoni-icon-light.svg';
 
 const OCCUPATIONS = ['Student', 'Employed', 'Business Owner', 'Freelancer', 'Others'] as const;
 const INCOME_RANGES = [
@@ -38,13 +40,15 @@ const GOALS = [
 interface OnboardingQuestionnaireModalProps {
   visible: boolean;
   onClose: () => void;
-  onAddFunds: () => void;
+  onVerifyAccount?: () => void;
+  onAddFunds?: () => void;
   onDoLater: () => void;
 }
 
 export default function OnboardingQuestionnaireModal({
   visible,
   onClose,
+  onVerifyAccount,
   onAddFunds,
   onDoLater,
 }: OnboardingQuestionnaireModalProps) {
@@ -105,11 +109,12 @@ export default function OnboardingQuestionnaireModal({
     if (step > 0) setStep((s) => s - 1);
   };
 
-  const handleAddFunds = async () => {
+  const handleVerifyAccount = async () => {
     await saveResponses();
-    onAddFunds();
+    (onVerifyAccount ?? onAddFunds)?.();
     onClose();
   };
+  const handleAddFunds = handleVerifyAccount;
 
   const handleDoLater = async () => {
     await saveResponses();
@@ -169,6 +174,11 @@ export default function OnboardingQuestionnaireModal({
           >
             {step === 0 && (
               <View style={styles.step0Center}>
+                {isDark ? (
+                  <PlanmoniIconLight width={72} height={72} style={styles.welcomeIcon} />
+                ) : (
+                  <PlanmoniIconDark width={72} height={72} style={styles.welcomeIcon} />
+                )}
                 <Text style={styles.title}>Welcome, Let&apos;s personalize your Planmoni experience.</Text>
               </View>
             )}
@@ -259,7 +269,7 @@ export default function OnboardingQuestionnaireModal({
             ) : (
               <View style={styles.finalButtons}>
                 <Button
-                  title="Add funds now"
+                  title="Verify your account"
                   onPress={handleAddFunds}
                   style={styles.addFundsButton}
                   hapticType="medium"
@@ -353,6 +363,10 @@ const createStyles = (
     step0Center: {
       flex: 1,
       justifyContent: 'center',
+      alignItems: 'center',
+    },
+    welcomeIcon: {
+      marginBottom: spacing,
     },
     footer: {
       paddingHorizontal: horizontalPadding,

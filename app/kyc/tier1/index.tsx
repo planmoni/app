@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, Pressable, useWindowDimensions, Alert, Platform } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, Pressable, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
-import { X, CircleHelp as HelpCircle } from 'lucide-react-native';
+import { dismissToHomeTab } from '@/lib/dismissToHomeTab';
+import { ChevronLeft, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTier1KYC } from '@/hooks/useTier1KYC';
 import LivenessStep from '@/components/kyc/tier1/LivenessStep';
@@ -12,9 +13,7 @@ import OTPStep from '@/components/kyc/tier1/OTPStep';
 import BVNOTPStep from '@/components/kyc/tier1/BVNOTPStep';
 import { useKYCProgress } from '@/hooks/useKYCProgress';
 import { useKYCData } from '@/hooks/useKYCData';
-import { useIntercom } from '@/hooks/useIntercom';
 import { useHaptics } from '@/hooks/useHaptics';
-import { logAnalyticsEvent } from '@/lib/firebase';
 import { safeHavenService } from '@/lib/safehaven-service';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -26,7 +25,6 @@ export default function Tier1KYCScreen() {
   const { currentStep, setCurrentStep, progress, loadProgress, isTier1Complete, updateTier, formData: tier1FormData, stepInitialized } = useTier1KYC();
   const { checkTierCompletion } = useKYCProgress();
   const { formData, loadFormData } = useKYCData();
-  const { openChat, isLoading: isHelpLoading, isSupported: isIntercomSupported } = useIntercom();
   const haptics = useHaptics();
   const { session } = useAuth();
   const { showToast } = useToast();
@@ -282,43 +280,32 @@ export default function Tier1KYCScreen() {
     router.push('/kyc/tier1/success');
   };
 
-  const handleHelpPress = async () => {
-    if (Platform.OS !== 'web') {
-      haptics.lightImpact();
-    }
-    
-    if (!isIntercomSupported) {
+  const handleBack = () => {
+    haptics.lightImpact();
+    if (currentStep === 'bvn') {
+      setCurrentStep('liveness', { hold: true });
       return;
     }
-    
-    try {
-      console.log('🎯 Help button pressed - opening Intercom instantly');
-      await openChat();
-      logAnalyticsEvent('help_click', { source: 'tier1_kyc_flow' });
-    } catch (error) {
-      console.error('❌ Failed to open Intercom:', error);
-      Alert.alert(
-        'Support Chat Unavailable',
-        'Unable to open support chat at the moment. This might be due to network connectivity issues. Would you like to try again?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Retry', 
-            onPress: () => {
-              console.log('🔄 Retrying Intercom...');
-              handleHelpPress();
-            }
-          }
-        ]
-      );
+    if (currentStep === 'nin') {
+      setCurrentStep('bvn', { hold: true });
+      return;
     }
+    if (currentStep === 'otp') {
+      setCurrentStep('nin', { hold: true });
+      return;
+    }
+    if (currentStep === 'bvn_otp') {
+      setCurrentStep(otpData ? 'otp' : 'nin', { hold: true });
+      return;
+    }
+    dismissToHomeTab();
   };
 
   // Show loading while checking progress or initializing step
   // This prevents showing the wrong step before the correct one is determined
   if (!progress || !stepInitialized || isTransitioning) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -411,23 +398,26 @@ export default function Tier1KYCScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom']}>
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <Pressable 
-          onPress={() => router.replace('/(tabs)')} 
+        <Pressable
+          onPress={handleBack}
           style={[styles.closeButton, { backgroundColor: colors.surface }]}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
         >
-          <X size={isSmallScreen ? 20 : 24} color={colors.text} />
+          <ChevronLeft size={isSmallScreen ? 22 : 26} color={colors.text} />
         </Pressable>
         <View style={styles.headerTitleContainer}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Tier 1 Verification</Text>
         </View>
-        <Pressable 
-          onPress={handleHelpPress}
-          disabled={!isIntercomSupported || isHelpLoading}
-          style={[styles.helpButton, { backgroundColor: colors.backgroundTertiary }]}
+        <Pressable
+          onPress={() => dismissToHomeTab()}
+          style={[styles.closeButton, { backgroundColor: colors.surface }]}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
         >
-          <HelpCircle size={isSmallScreen ? 18 : 20} color={colors.textSecondary} />
+          <X size={isSmallScreen ? 20 : 24} color={colors.text} />
         </Pressable>
       </View>
       {renderCurrentStep()}
